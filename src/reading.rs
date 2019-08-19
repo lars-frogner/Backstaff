@@ -1,4 +1,4 @@
-//! Management of Bifrost simulation data.
+//! Reading of Bifrost simulation data.
 
 use std::{io, path, fs, mem, str, string};
 use std::io::{Read, BufRead, Seek, SeekFrom};
@@ -8,78 +8,13 @@ use num;
 use regex;
 use byteorder;
 use byteorder::ReadBytesExt;
-use ndarray;
-use ndarray::ShapeBuilder;
-
-/// 3D spatial coordinates specifying where field values are defined.
-///
-/// The coordinates can be non-uniform and do not necessarily correspond
-/// to grid cell centers.
-#[derive(Debug, Clone)]
-pub struct FieldCoordinates3<T: num::Float> {
-    pub x: ndarray::Array1<T>,
-    pub y: ndarray::Array1<T>,
-    pub z: ndarray::Array1<T>
-}
-
-impl<T: num::Float> FieldCoordinates3<T> {
-
-    /// Provides the shape of the field grid.
-    ///
-    /// # Returns
-    ///
-    /// A `tuple` with the x- y- and z-dimension of the grid.
-    pub fn shape(&self) -> (usize, usize, usize) {
-        (self.x.len(), self.y.len(), self.z.len())
-    }
-}
-
-/// A 3D scalar field.
-///
-/// Holds the coordinates and values of a 3D scalar field.
-/// The array of values is laid out in column-major order in memory.
-#[derive(Debug, Clone)]
-pub struct ScalarField3<T: num::Float> {
-    pub coords: FieldCoordinates3<T>,
-    pub values: ndarray::Array3<T>
-}
-
-impl<T: num::Float> ScalarField3<T> {
-
-    /// Provides the shape of the field grid.
-    ///
-    /// # Returns
-    ///
-    /// A `tuple` with the x- y- and z-dimension of the grid.
-    pub fn shape(&self) -> (usize, usize, usize) {
-        self.coords.shape()
-    }
-}
-
-/// A 3D vector field.
-///
-/// Holds the coordinates and values of the three components of a 3D vector field.
-/// The arrays of component values are laid out in column-major order in memory.
-#[derive(Debug, Clone)]
-pub struct VectorField3<T: num::Float> {
-    pub coords: [FieldCoordinates3<T>; 3],
-    pub values: [ndarray::Array3<T>; 3]
-}
-
-impl<T: num::Float> VectorField3<T> {
-
-    /// Provides the shape of the field grid.
-    ///
-    /// # Returns
-    ///
-    /// A `tuple` with the x- y- and z-dimension of the grid.
-    pub fn shape(&self) -> (usize, usize, usize) {
-        self.coords[0].shape()
-    }
-}
+use ndarray::prelude::*;
+use crate::field::{ScalarField3, VectorField3};
+use crate::grid::{Dim, In3D, CoordsType, Coords3, Grid3Type, Grid3};
+use Dim::{X, Y, Z};
 
 /// Little- or big-endian byte order.
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Endianness {
     Little,
     Big
@@ -87,19 +22,20 @@ pub enum Endianness {
 
 /// Reader for the output files assoicated with a single Bifrost simulation snapshot.
 #[derive(Debug, Clone)]
-pub struct SnapshotReader {
+pub struct SnapshotReader<G>
+where G: Grid3<f32> + Clone
+{
     snap_path: path::PathBuf,
     aux_path: path::PathBuf,
     params: Params,
     endianness: Endianness,
-    shape: (usize, usize, usize),
-    center_coords: FieldCoordinates3<f32>,
-    lower_coords: FieldCoordinates3<f32>,
+    grid: G,
     variables: HashMap<String, Variable>
 }
 
-impl SnapshotReader {
-
+impl<G> SnapshotReader<G>
+where G: Grid3<f32> + Clone
+{
     /// Creates a reader for a Bifrost snapshot.
     ///
     /// # Parameters
@@ -122,8 +58,7 @@ impl SnapshotReader {
         let snap_path = params_path.with_file_name(format!("{}_{}.snap", params.get_str_param("snapname")?, snap_num));
         let aux_path = snap_path.with_extension("aux");
 
-        let (center_coords, lower_coords) = Self::read_3d_coordinates_from_mesh_file(&mesh_path)?;
-        let shape = center_coords.shape();
+        let grid = Self::read_3d_grid_from_mesh_file(&mesh_path)?;
 
         let mut variables = HashMap::new();
         Self::insert_primary_variables(&mut variables);
@@ -134,9 +69,7 @@ impl SnapshotReader {
             aux_path,
             params,
             endianness,
-            shape,
-            center_coords,
-            lower_coords,
+            grid,
             variables
         })
     }
@@ -153,11 +86,10 @@ impl SnapshotReader {
     ///
     /// - `Ok`: Contains a `ScalarField3<f32>` holding the field coordinates and values.
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
-    pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<f32>> {
+    pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<f32, G>> {
         let variable = self.get_variable(variable_name)?;
-        let coords = self.get_variable_coordinates(variable);
         let values = self.read_3d_variable_from_binary_file(variable)?;
-        Ok(ScalarField3{ coords, values })
+        Ok(ScalarField3::new(self.grid.clone(), variable.coord_types.clone(), values))
     }
 
     /// Reads the component variables of the specified 3D vector quantity from the output files.
@@ -172,20 +104,20 @@ impl SnapshotReader {
     ///
     /// - `Ok`: Contains a `VectorField3<f32>` holding the coordinates and values of the vector field components.
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
-    pub fn read_3d_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<f32>> {
+    pub fn read_3d_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<f32, G>> {
         let component_variables = [self.get_variable(&format!("{}x", variable_name))?,
                                    self.get_variable(&format!("{}y", variable_name))?,
                                    self.get_variable(&format!("{}z", variable_name))?];
 
-        let coords = [self.get_variable_coordinates(component_variables[0]),
-                      self.get_variable_coordinates(component_variables[1]),
-                      self.get_variable_coordinates(component_variables[2])];
+        let values = In3D::new(self.read_3d_variable_from_binary_file(component_variables[0])?,
+                               self.read_3d_variable_from_binary_file(component_variables[1])?,
+                               self.read_3d_variable_from_binary_file(component_variables[2])?);
 
-        let values = [self.read_3d_variable_from_binary_file(component_variables[0])?,
-                      self.read_3d_variable_from_binary_file(component_variables[1])?,
-                      self.read_3d_variable_from_binary_file(component_variables[2])?];
+        let coord_types = In3D::new(component_variables[0].coord_types.clone(),
+                                    component_variables[1].coord_types.clone(),
+                                    component_variables[2].coord_types.clone());
 
-        Ok(VectorField3{ coords, values })
+        Ok(VectorField3::new(self.grid.clone(), coord_types, values))
     }
 
     /// Provides the string value of a parameter from the parameter file.
@@ -232,17 +164,20 @@ impl SnapshotReader {
         self.params.get_numerical_param(name)
     }
 
-    fn read_3d_coordinates_from_mesh_file(mesh_path: &path::Path) -> io::Result<(FieldCoordinates3<f32>, FieldCoordinates3<f32>)> {
+    fn read_3d_grid_from_mesh_file(mesh_path: &path::Path) -> io::Result<G> {
         let file = fs::File::open(mesh_path)?;
         let mut lines = io::BufReader::new(file).lines();
         let coord_names = ["x", "y", "z"];
         let mut center_coord_vecs = VecDeque::new();
         let mut lower_coord_vecs = VecDeque::new();
+        let mut is_uniform = [true; 3];
 
         for dim in 0..3 {
 
             let mut center_coords = Vec::new();
             let mut lower_coords = Vec::new();
+            let mut up_derivatives = Vec::new();
+            let mut down_derivatives = Vec::new();
 
             let length = match lines.next() {
                 Some(string) => match string {
@@ -257,7 +192,7 @@ impl SnapshotReader {
                                                   format!("Number of {}-coordinates not found in mesh file", coord_names[dim])))
             };
 
-            for coords in [&mut center_coords, &mut lower_coords].iter_mut() {
+            for coords in [&mut center_coords, &mut lower_coords, &mut up_derivatives, &mut down_derivatives].iter_mut() {
                 match lines.next() {
                     Some(string) =>
                         for s in string?.split_whitespace() {
@@ -272,40 +207,70 @@ impl SnapshotReader {
                 };
             }
 
-            if center_coords.len() != length || lower_coords.len() != length {
+            if center_coords.len()    != length ||
+               lower_coords.len()     != length ||
+               up_derivatives.len()   != length ||
+               down_derivatives.len() != length {
                 return Err(io::Error::new(io::ErrorKind::InvalidData,
                                           format!("Inconsistent number of {}-coordinates in mesh file", coord_names[dim])))
             }
 
-            let _ = lines.next(); // Skip up-derivative of coordinates
-            let _ = lines.next(); // Skip down-derivative of coordinates
+            if length < 4 {
+                return Err(io::Error::new(io::ErrorKind::InvalidData,
+                                          format!("Insufficient number of {}-coordinates in mesh file (must be at least 4)", coord_names[dim])))
+            }
+
+            let uniform_up = up_derivatives.iter().all(|element| element == &up_derivatives[0]);
+            let uniform_down = down_derivatives.iter().all(|element| element == &down_derivatives[0]);
+
+            if uniform_up != uniform_down {
+                return Err(io::Error::new(io::ErrorKind::InvalidData,
+                                          format!("Inconsistent uniformity of {}-coordinates in mesh file", coord_names[dim])))
+            }
+
+            is_uniform[dim] = uniform_up;
 
             center_coord_vecs.push_back(center_coords);
             lower_coord_vecs.push_back(lower_coords);
         }
 
-        Ok((FieldCoordinates3{
-                x: ndarray::Array::from_vec(center_coord_vecs.pop_front().unwrap()),
-                y: ndarray::Array::from_vec(center_coord_vecs.pop_front().unwrap()),
-                z: ndarray::Array::from_vec(center_coord_vecs.pop_front().unwrap())
-            },
-            FieldCoordinates3{
-                x: ndarray::Array::from_vec( lower_coord_vecs.pop_front().unwrap()),
-                y: ndarray::Array::from_vec( lower_coord_vecs.pop_front().unwrap()),
-                z: ndarray::Array::from_vec( lower_coord_vecs.pop_front().unwrap())
-            }))
+        let detected_grid_type = match is_uniform {
+            [true, true, true] => Grid3Type::Regular,
+            [true, true, false] => Grid3Type::VaryingZ,
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
+                                           "Non-uniform x- or y-coordinates not supported"))
+        };
+
+        if detected_grid_type != G::TYPE {
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                                       "Wrong reader type for the specified mesh file"))
+        }
+
+        let center_coords = Coords3::new(
+            Array::from_vec(center_coord_vecs.pop_front().unwrap()),
+            Array::from_vec(center_coord_vecs.pop_front().unwrap()),
+            Array::from_vec(center_coord_vecs.pop_front().unwrap())
+        );
+
+        let lower_edge_coords = Coords3::new(
+            Array::from_vec( lower_coord_vecs.pop_front().unwrap()),
+            Array::from_vec( lower_coord_vecs.pop_front().unwrap()),
+            Array::from_vec( lower_coord_vecs.pop_front().unwrap())
+        );
+
+        Ok(G::new(center_coords, lower_edge_coords))
     }
 
     fn insert_primary_variables(variables: &mut HashMap<String, Variable>) {
         let is_primary = true;
-        variables.insert("r" .to_string(), Variable{ is_primary, at_lower: (false, false, false), index: 0 });
-        variables.insert("px".to_string(), Variable{ is_primary, at_lower: (true,  false, false), index: 1 });
-        variables.insert("py".to_string(), Variable{ is_primary, at_lower: (false, true,  false), index: 2 });
-        variables.insert("pz".to_string(), Variable{ is_primary, at_lower: (false, false, true ), index: 3 });
-        variables.insert("e" .to_string(), Variable{ is_primary, at_lower: (false, false, false), index: 4 });
-        variables.insert("bx".to_string(), Variable{ is_primary, at_lower: (true,  false, false), index: 5 });
-        variables.insert("by".to_string(), Variable{ is_primary, at_lower: (false, true,  false), index: 6 });
-        variables.insert("bz".to_string(), Variable{ is_primary, at_lower: (false, false, true ), index: 7 });
+        variables.insert("r" .to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Center), index: 0 });
+        variables.insert("px".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Lower,  CoordsType::Center, CoordsType::Center), index: 1 });
+        variables.insert("py".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Lower,  CoordsType::Center), index: 2 });
+        variables.insert("pz".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Lower ), index: 3 });
+        variables.insert("e" .to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Center), index: 4 });
+        variables.insert("bx".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Lower,  CoordsType::Center, CoordsType::Center), index: 5 });
+        variables.insert("by".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Lower,  CoordsType::Center), index: 6 });
+        variables.insert("bz".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Lower ), index: 7 });
     }
 
     fn insert_aux_variables(params: &Params, variables: &mut HashMap<String, Variable>) -> io::Result<()> {
@@ -316,15 +281,20 @@ impl SnapshotReader {
             let ends_with_y = name.ends_with('y');
             let ends_with_z = name.ends_with('z');
 
-            let at_lower = if (ends_with_x || ends_with_y || ends_with_z) &&
-                              (name.starts_with('e') || name.starts_with('i')) {
-                (!ends_with_x, !ends_with_y, !ends_with_z)
+            let coord_types = if (ends_with_x || ends_with_y || ends_with_z) &&
+                               (name.starts_with('e') || name.starts_with('i')) {
+                In3D::new(if ends_with_x { CoordsType::Center } else {CoordsType::Lower},
+                          if ends_with_y { CoordsType::Center } else {CoordsType::Lower},
+                          if ends_with_z { CoordsType::Center } else {CoordsType::Lower})
             } else {
-                (ends_with_x, ends_with_y, ends_with_z)
+                In3D::new(if ends_with_x { CoordsType::Lower } else {CoordsType::Center},
+                          if ends_with_y { CoordsType::Lower } else {CoordsType::Center},
+                          if ends_with_z { CoordsType::Lower } else {CoordsType::Center})
             };
 
-            variables.insert(name.to_string(), Variable{ is_primary, at_lower, index });
+            variables.insert(name.to_string(), Variable{ is_primary, coord_types, index });
         }
+
         Ok(())
     }
 
@@ -336,21 +306,13 @@ impl SnapshotReader {
         }
     }
 
-    fn get_variable_coordinates(&self, variable: &Variable) -> FieldCoordinates3<f32> {
-        FieldCoordinates3{
-            x: if variable.at_lower.0 { self.lower_coords.x.clone() } else { self.center_coords.x.clone() },
-            y: if variable.at_lower.1 { self.lower_coords.y.clone() } else { self.center_coords.y.clone() },
-            z: if variable.at_lower.2 { self.lower_coords.z.clone() } else { self.center_coords.z.clone() }
-        }
-    }
-
-    fn read_3d_variable_from_binary_file(&self, variable: &Variable) -> io::Result<ndarray::Array3<f32>> {
+    fn read_3d_variable_from_binary_file(&self, variable: &Variable) -> io::Result<Array3<f32>> {
         let file_path = if variable.is_primary { &self.snap_path } else { &self.aux_path };
-        let (mx, my, mz) = self.shape;
-        let length = mx*my*mz;
+        let shape = self.grid.shape();
+        let length = shape[X]*shape[Y]*shape[Z];
         let offset = length*variable.index;
         let buffer = self.read_floats_from_binary_file(file_path, length, offset)?;
-        Ok(ndarray::Array::from_shape_vec((mx, my, mz).f(), buffer).unwrap())
+        Ok(Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap())
     }
 
     fn read_floats_from_binary_file(&self, file_path: &path::Path, length: usize, offset: usize) -> io::Result<Vec<f32>> {
@@ -375,7 +337,7 @@ fn read_text_file(file_path: &path::Path) -> io::Result<String> {
 #[derive(Debug, Clone)]
 struct Variable {
     is_primary: bool,
-    at_lower: (bool, bool, bool),
+    coord_types: In3D<CoordsType>,
     index: usize
 }
 
@@ -442,9 +404,10 @@ mod tests {
 
     #[test]
     fn reader_works() {
+        use crate::grid::Grid3VaryingZ;
         let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
+        let reader: SnapshotReader<Grid3VaryingZ<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
         let field = reader.read_3d_scalar_field("r").unwrap();
-        println!("{:?}", field.values.sum()/(field.values.len() as f32));
+        println!("{:?}", field.values().sum()/(field.values().len() as f32));
     }
 }
