@@ -9,8 +9,9 @@ use regex;
 use byteorder;
 use byteorder::ReadBytesExt;
 use ndarray::prelude::*;
+use crate::geometry::{Dim, In3D, Coords3};
+use crate::grid::{CoordsType, Grid3Type, Grid3};
 use crate::field::{ScalarField3, VectorField3};
-use crate::grid::{Dim, In3D, CoordsType, Coords3, Grid3Type, Grid3};
 use Dim::{X, Y, Z};
 
 /// Little- or big-endian byte order.
