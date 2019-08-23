@@ -4,3 +4,4 @@ pub mod grid;
 pub mod field;
 pub mod reading;
 pub mod interpolation;
+pub mod tracing;

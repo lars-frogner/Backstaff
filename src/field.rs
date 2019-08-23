@@ -2,9 +2,9 @@
 
 use num;
 use ndarray::prelude::*;
-use crate::geometry::{Dim, In3D, CoordRefs3};
+use crate::geometry::{Dim3, In3D, CoordRefs3};
 use crate::grid::{CoordsType, Grid3};
-use Dim::{X, Y, Z};
+use Dim3::{X, Y, Z};
 
 /// A 3D scalar field.
 ///

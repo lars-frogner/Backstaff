@@ -9,10 +9,10 @@ use regex;
 use byteorder;
 use byteorder::ReadBytesExt;
 use ndarray::prelude::*;
-use crate::geometry::{Dim, In3D, Coords3};
+use crate::geometry::{Dim3, In3D, Coords3};
 use crate::grid::{CoordsType, Grid3Type, Grid3};
 use crate::field::{ScalarField3, VectorField3};
-use Dim::{X, Y, Z};
+use Dim3::{X, Y, Z};
 
 /// Little- or big-endian byte order.
 #[derive(Debug, Copy, Clone)]
@@ -23,9 +23,7 @@ pub enum Endianness {
 
 /// Reader for the output files assoicated with a single Bifrost simulation snapshot.
 #[derive(Debug, Clone)]
-pub struct SnapshotReader<G>
-where G: Grid3<f32> + Clone
-{
+pub struct SnapshotReader<G: Grid3<f32> + Clone> {
     snap_path: path::PathBuf,
     aux_path: path::PathBuf,
     params: Params,
@@ -34,9 +32,7 @@ where G: Grid3<f32> + Clone
     variables: HashMap<String, Variable>
 }
 
-impl<G> SnapshotReader<G>
-where G: Grid3<f32> + Clone
-{
+impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
     /// Creates a reader for a Bifrost snapshot.
     ///
     /// # Parameters
@@ -59,7 +55,7 @@ where G: Grid3<f32> + Clone
         let snap_path = params_path.with_file_name(format!("{}_{}.snap", params.get_str_param("snapname")?, snap_num));
         let aux_path = snap_path.with_extension("aux");
 
-        let grid = Self::read_3d_grid_from_mesh_file(&mesh_path)?;
+        let grid = Self::read_3d_grid_from_mesh_file(&params, &mesh_path)?;
 
         let mut variables = HashMap::new();
         Self::insert_primary_variables(&mut variables);
@@ -165,7 +161,7 @@ where G: Grid3<f32> + Clone
         self.params.get_numerical_param(name)
     }
 
-    fn read_3d_grid_from_mesh_file(mesh_path: &path::Path) -> io::Result<G> {
+    fn read_3d_grid_from_mesh_file(params: &Params, mesh_path: &path::Path) -> io::Result<G> {
         let file = fs::File::open(mesh_path)?;
         let mut lines = io::BufReader::new(file).lines();
         let coord_names = ["x", "y", "z"];
@@ -237,7 +233,7 @@ where G: Grid3<f32> + Clone
 
         let detected_grid_type = match is_uniform {
             [true, true, true] => Grid3Type::Regular,
-            [true, true, false] => Grid3Type::VaryingZ,
+            [true, true, false] => Grid3Type::HorRegular,
             _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
                                            "Non-uniform x- or y-coordinates not supported"))
         };
@@ -259,7 +255,11 @@ where G: Grid3<f32> + Clone
             Array::from_vec( lower_coord_vecs.pop_front().unwrap())
         );
 
-        Ok(G::new(center_coords, lower_edge_coords))
+        let is_periodic = In3D::new(params.get_numerical_param::<u8>("periodic_x")? == 1,
+                                    params.get_numerical_param::<u8>("periodic_y")? == 1,
+                                    params.get_numerical_param::<u8>("periodic_z")? == 1);
+
+        Ok(G::new(center_coords, lower_edge_coords, is_periodic))
     }
 
     fn insert_primary_variables(variables: &mut HashMap<String, Variable>) {
@@ -385,6 +385,7 @@ impl Params {
 mod tests {
 
     use super::*;
+    use crate::grid::hor_regular::HorRegularGrid3;
 
     #[test]
     fn param_parsing_works() {
@@ -405,9 +406,8 @@ mod tests {
 
     #[test]
     fn reader_works() {
-        use crate::grid::Grid3VaryingZ;
         let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader: SnapshotReader<Grid3VaryingZ<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
+        let reader: SnapshotReader<HorRegularGrid3<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
         let field = reader.read_3d_scalar_field("r").unwrap();
         println!("{:?}", field.values().sum()/(field.values().len() as f32));
     }
