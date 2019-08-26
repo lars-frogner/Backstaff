@@ -1,4 +1,4 @@
-//! Structures for interpolating Bifrost fields.
+//! Interpolation by polynomial fitting.
 
 use ndarray::prelude::*;
 use super::{InterpResult3, Interpolator3};
@@ -21,7 +21,7 @@ impl PolyFitInterpolator3 {
     const POINTS:       usize = Self::ORDER + 1;
 
     /// Offset from a point to the lower edge of the interpolation range.
-    const START_OFFSET: isize = Self::BIAS - (Self::POINTS as isize)/2;
+    const START_OFFSET: isize = Self::BIAS + 1 - ((Self::POINTS + 1) as isize)/2;
 
     fn interp<T, G>(grid: &G, coords: &CoordRefs3<T>, values: &Array3<T>, interp_point: &Point3<T>, interp_idx: &Idx3<usize>) -> T
     where T: num::Float + std::ops::AddAssign,
@@ -53,7 +53,7 @@ impl PolyFitInterpolator3 {
                     crosses_periodic_bound[*dim] = true;
                     any_crosses_periodic_bound = true;
                 } else {
-                    start_idx[*dim] = grid_shape[*dim] as isize - 1;
+                    start_idx[*dim] = (grid_shape[*dim] - Self::POINTS) as isize;
                 }
             }
         }
@@ -101,10 +101,11 @@ impl PolyFitInterpolator3 {
     fn create_coordinate_subarray_for_periodic<T>(coords: &Array1<T>, start_idx: isize) -> [T; Self::POINTS]
     where T: num::Float
     {
+        let len = coords.len();
+        let offset = (start_idx + (len as isize)) as usize;
         let mut subarray = [T::zero(); Self::POINTS];
-        let offset = (start_idx + (Self::POINTS as isize)) as usize;
         for idx in 0..Self::POINTS {
-            subarray[idx] = coords[(offset + idx) % Self::POINTS];
+            subarray[idx] = coords[(offset + idx) % len];
         }
         subarray
     }
@@ -133,18 +134,19 @@ impl PolyFitInterpolator3 {
     fn create_value_subarray_for_periodic<T>(values: &Array3<T>, start_idx: &Idx3<isize>) -> [T; Self::POINTS*Self::POINTS*Self::POINTS]
     where T: num::Float
     {
+        let grid_shape = values.shape();
+        let offsets = In3D::new((start_idx[X] + (grid_shape[0] as isize)) as usize,
+                                (start_idx[Y] + (grid_shape[1] as isize)) as usize,
+                                (start_idx[Z] + (grid_shape[2] as isize)) as usize);
         let mut subarray = [T::zero(); Self::POINTS*Self::POINTS*Self::POINTS];
-        let offsets = In3D::new((start_idx[X] + (Self::POINTS as isize)) as usize,
-                                (start_idx[Y] + (Self::POINTS as isize)) as usize,
-                                (start_idx[Z] + (Self::POINTS as isize)) as usize);
         let mut idx = 0;
 
         for k in 0..Self::POINTS {
             for j in 0..Self::POINTS {
                 for i in 0..Self::POINTS {
-                    subarray[idx] = values[[(offsets[X] + i) % Self::POINTS,
-                                            (offsets[Y] + j) % Self::POINTS,
-                                            (offsets[Z] + k) % Self::POINTS]];
+                    subarray[idx] = values[[(offsets[X] + i) % grid_shape[0],
+                                            (offsets[Y] + j) % grid_shape[1],
+                                            (offsets[Z] + k) % grid_shape[2]]];
                     idx += 1;
                 }
             }
@@ -233,7 +235,7 @@ impl PolyFitInterpolator3 {
 }
 
 impl<T, G> Interpolator3<T, G> for PolyFitInterpolator3
-where T: num::Float + std::ops::AddAssign,
+where T: num::Float + std::ops::AddAssign + std::fmt::Display,
       G: Grid3<T> + Clone
 {
     fn interp_scalar_field(field: &ScalarField3<T, G>, interp_point: &Point3<T>) -> InterpResult3<T> {
@@ -268,14 +270,23 @@ mod tests {
 
     use super::*;
     use std::path;
-    use crate::grid::Grid3VaryingZ;
+    use ndarray_stats::QuantileExt;
+    use crate::grid::hor_regular::HorRegularGrid3;
+    use crate::field::ResampleLocations;
     use crate::reading::{SnapshotReader, Endianness};
 
     #[test]
-    fn regular_grid_index_search_works() {
+    fn interpolation_at_original_data_points_works() {
         let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader: SnapshotReader<Grid3VaryingZ<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
+        let reader: SnapshotReader<HorRegularGrid3<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
         let field = reader.read_3d_scalar_field("r").unwrap();
 
+        let coords = field.coords();
+        let idx = 300;
+        let slice_idx = field.slice_at_idx(Y, idx);
+        let slice_coord = field.slice_at_coord::<PolyFitInterpolator3>(Y, coords[Y][idx], ResampleLocations::Original);
+
+        let rel_diffs = (slice_coord - slice_idx).mapv(f32::abs)/slice_idx;
+        assert!(*rel_diffs.max().unwrap() < 1e-6);
     }
 }
