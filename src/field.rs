@@ -1,9 +1,10 @@
-//! Fields for representing Bifrost simulation variables.
+//! Fields representing Bifrost simulation variables.
 
 use num;
 use ndarray::prelude::*;
-use crate::geometry::{Dim3, In3D, CoordRefs3};
+use crate::geometry::{Dim3, In3D, Point3, CoordRefs3};
 use crate::grid::{CoordsType, Grid3};
+use crate::interpolation::{Interpolator3};
 use Dim3::{X, Y, Z};
 
 /// A 3D scalar field.
@@ -21,8 +22,16 @@ where T: num::Float,
     values: Array3<T>
 }
 
+/// Locations for resampled field values.
+pub enum ResampleLocations {
+    Original,
+    Center,
+    LowerEdge,
+    UniformCenter
+}
+
 impl<T, G> ScalarField3<T, G>
-where T: num::Float,
+where T: num::Float + std::fmt::Display,
       G: Grid3<T> + Clone
 {
     /// Creates a new 3D scalar field given the grid, the values and
@@ -40,7 +49,7 @@ where T: num::Float,
         CoordRefs3::new(
             &self.grid.coords_by_type(self.coord_types[X])[X],
             &self.grid.coords_by_type(self.coord_types[Y])[Y],
-            &self.grid.coords_by_type(self.coord_types[Z])[Z],
+            &self.grid.coords_by_type(self.coord_types[Z])[Z]
         )
     }
 
@@ -49,6 +58,60 @@ where T: num::Float,
 
     /// Returns the 3D shape of the grid.
     pub fn shape(&self) -> &In3D<usize> { self.grid.shape() }
+
+    /// Returns a view of the 2D slice of the field located at the given index along the given dimension.
+    pub fn slice_at_idx(&self, dim: Dim3, idx: usize) -> ArrayView2<T> {
+        self.values.index_axis(Axis(dim as usize), idx)
+    }
+
+    /// Returns a 2D slice of the field located at the given coordinate along the given dimension.
+    pub fn slice_at_coord<I>(&self, dim: Dim3, coord: T, resample_locations: ResampleLocations) -> Array2<T>
+    where I: Interpolator3<T, G>
+    {
+        let grid_shape = self.shape();
+        let [dim_0, dim_1] = Dim3::slice_except(dim);
+
+        let lower_bound = self.grid.lower_bounds()[dim];
+        let upper_bound = self.grid.upper_bounds()[dim];
+        if coord < lower_bound || coord >= upper_bound{
+            panic!("`coord` is outside the bounds [{}, {})", lower_bound, upper_bound);
+        }
+
+        let mut point = Point3::origin();
+        point[dim] = coord;
+
+        let (coords_0, coords_1) = match resample_locations {
+            ResampleLocations::Original => {
+                let coords = self.coords();
+                (coords[dim_0], coords[dim_1])
+            },
+            ResampleLocations::Center => {
+                let centers = self.grid.centers();
+                (&centers[dim_0], &centers[dim_1])
+            },
+            ResampleLocations::LowerEdge => {
+                let lower_edges = self.grid.lower_edges();
+                (&lower_edges[dim_0], &lower_edges[dim_1])
+            },
+            ResampleLocations::UniformCenter => {
+                let uniform_centers = self.grid.uniform_centers();
+                (uniform_centers[dim_0], uniform_centers[dim_1])
+            }
+        };
+
+        let slice_shape = (grid_shape[dim_0], grid_shape[dim_1]);
+        let mut slice = unsafe { Array2::uninitialized(slice_shape.f()) };
+
+        for idx_1 in 0..grid_shape[dim_1] {
+            point[dim_1] = coords_1[idx_1];
+            for idx_0 in  0..grid_shape[dim_0] {
+                point[dim_0] = coords_0[idx_0];
+                slice[[idx_0, idx_1]] = I::interp_scalar_field(self, &point).unwrap();
+            }
+        }
+
+        slice
+    }
 }
 
 /// A 3D vector field.
@@ -67,7 +130,7 @@ where T: num::Float,
 }
 
 impl<T, G> VectorField3<T, G>
-where T: num::Float,
+where T: num::Float + std::fmt::Display,
       G: Grid3<T> + Clone
 {
     /// Creates a new 3D vector field given the grid, the component values and
@@ -85,17 +148,17 @@ where T: num::Float,
         In3D::new(CoordRefs3::new(
              &self.grid.coords_by_type(self.coord_types[X][X])[X],
              &self.grid.coords_by_type(self.coord_types[X][Y])[Y],
-             &self.grid.coords_by_type(self.coord_types[X][Z])[Z],
+             &self.grid.coords_by_type(self.coord_types[X][Z])[Z]
          ),
          CoordRefs3::new(
              &self.grid.coords_by_type(self.coord_types[Y][X])[X],
              &self.grid.coords_by_type(self.coord_types[Y][Y])[Y],
-             &self.grid.coords_by_type(self.coord_types[Y][Z])[Z],
+             &self.grid.coords_by_type(self.coord_types[Y][Z])[Z]
          ),
          CoordRefs3::new(
              &self.grid.coords_by_type(self.coord_types[Z][X])[X],
              &self.grid.coords_by_type(self.coord_types[Z][Y])[Y],
-             &self.grid.coords_by_type(self.coord_types[Z][Z])[Z],
+             &self.grid.coords_by_type(self.coord_types[Z][Z])[Z]
          ))
     }
 
@@ -104,4 +167,9 @@ where T: num::Float,
 
     /// Returns the 3D shape of the grid.
     pub fn shape(&self) -> &In3D<usize> { self.grid.shape() }
+
+    /// Creates a new scalar field from the specified vector field component.
+    pub fn component_as_scalar_field(&self, dim: Dim3) -> ScalarField3<T, G> {
+        ScalarField3::new(self.grid.clone(), self.coord_types[dim].clone(), self.values[dim].clone())
+    }
 }
