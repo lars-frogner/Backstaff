@@ -1,4 +1,4 @@
-//! Structures for interpolating Bifrost fields.
+//! Interpolation of Bifrost fields.
 
 pub mod poly_fit;
 
@@ -10,6 +10,15 @@ use crate::field::{ScalarField3, VectorField3};
 pub enum InterpResult3<T> {
     Ok(T),
     OutOfBounds(In3D<BoundsCrossing>)
+}
+
+impl<T> InterpResult3<T> {
+    pub fn unwrap(self) -> T {
+        match self {
+            InterpResult3::Ok(value) => value,
+            InterpResult3::OutOfBounds(_) => panic!("called `InterpResult3::unwrap()` on an `OutOfBounds` value")
+        }
+    }
 }
 
 /// Defines the properties of a 3D interpolator.
