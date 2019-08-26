@@ -16,7 +16,16 @@ impl Dim3 {
     pub fn slice() -> [Self; 3] { [Dim3::X, Dim3::Y, Dim3::Z] }
 
     /// Creates an array for iterating over the x- and y-dimensions.
-    pub fn xy_slice() -> [Self; 2] { [Dim3::X, Dim3::Y] }
+    pub fn slice_xy() -> [Self; 2] { [Dim3::X, Dim3::Y] }
+
+    /// Creates an array for iterating over all three dimensions except the given one.
+    pub fn slice_except(dim: Self) -> [Self; 2] {
+        match dim {
+            Dim3::X => [Dim3::Y, Dim3::Z],
+            Dim3::Y => [Dim3::X, Dim3::Z],
+            Dim3::Z => [Dim3::X, Dim3::Y]
+        }
+    }
 }
 
 use Dim3::{X, Y, Z};
@@ -116,6 +125,9 @@ pub struct Point3<T: num::Float>(In3D<T>);
 impl<T: num::Float> Point3<T> {
     /// Creates a new 3D point given the three components.
     pub fn new(x: T, y: T, z: T) -> Self { Point3(In3D::new(x, y, z)) }
+
+    /// Creates a new 3D point with all components set to zero.
+    pub fn origin() -> Self { Self::new(T::zero(), T::zero(), T::zero()) }
 }
 
 impl<T: num::Float> std::ops::Index<Dim3> for Point3<T> {
