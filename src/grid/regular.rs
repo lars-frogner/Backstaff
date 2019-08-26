@@ -1,7 +1,8 @@
+//! Grid with uniform spacing in all dimensions.
 
 use num;
 use super::{BoundsCrossing, FoundIdx3, CoordsType, Grid3Type, Grid3};
-use crate::geometry::{Dim3, In3D, Point3, Idx3, Coords3};
+use crate::geometry::{Dim3, In3D, Point3, Idx3, Coords3, CoordRefs3};
 use Dim3::{X, Y, Z};
 
 /// A regular 3D grid.
@@ -68,6 +69,18 @@ where T: num::Float + num::cast::FromPrimitive
     fn shape(&self) -> &In3D<usize> { &self.grid_shape }
     fn is_periodic(&self, dim: Dim3) -> bool { self.is_periodic[dim] }
     fn coords_by_type(&self, coord_type: CoordsType) -> &Coords3<T> { &self.coords[coord_type as usize] }
+
+    fn uniform_centers<'a>(&'a self) -> CoordRefs3<'a, T> {
+        let centers = self.centers();
+        CoordRefs3::new(
+            &centers[X],
+            &centers[Y],
+            &centers[Z]
+        )
+    }
+
+    fn lower_bounds(&self) -> &In3D<T> { &self.lower_bounds }
+    fn upper_bounds(&self) -> &In3D<T> { &self.upper_bounds }
 
     fn find_grid_cell(&self, point: &Point3<T>) -> FoundIdx3 {
 

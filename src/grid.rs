@@ -4,7 +4,7 @@ pub mod regular;
 pub mod hor_regular;
 
 use num;
-use crate::geometry::{Dim3, In3D, Point3, Idx3, Coords3};
+use crate::geometry::{Dim3, In3D, Point3, Idx3, Coords3, CoordRefs3};
 
 /// A potential crossing of the lower or upper bounds of a grid dimension.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -59,6 +59,15 @@ pub trait Grid3<T: num::Float> {
 
     /// Returns a reference to the lower coordinates.
     fn lower_edges(&self) -> &Coords3<T> { self.coords_by_type(CoordsType::Lower) }
+
+    /// Returns a reference to the central coordinates in a uniform version of the grid.
+    fn uniform_centers<'a>(&'a self) -> CoordRefs3<'a, T>;
+
+    /// Returns a reference to the lower coordinate bounds of each dimension.
+    fn lower_bounds(&self) -> &In3D<T>;
+
+    /// Returns a reference to the upper coordinate bounds of each dimension.
+    fn upper_bounds(&self) -> &In3D<T>;
 
     /// Finds the 3D index of the grid cell containing the given coordinate,
     /// or specifies on which side of the grid the coordinate lies if outside.

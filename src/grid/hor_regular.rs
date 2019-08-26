@@ -1,13 +1,16 @@
+//! Grid with uniform spacing in the horizontal dimensions.
 
 use num;
+use ndarray::prelude::*;
 use super::{BoundsCrossing, FoundIdx3, CoordsType, Grid3Type, Grid3};
-use crate::geometry::{Dim3, In3D, In2D, Point3, Idx3, Coords3};
+use crate::geometry::{Dim3, In3D, In2D, Point3, Idx3, Coords3, CoordRefs3};
 use Dim3::{X, Y, Z};
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Debug, Clone)]
 pub struct HorRegularGrid3<T: num::Float> {
     coords: [Coords3<T>; 2],
+    uniform_z_coords: Array1<T>,
     is_periodic: In3D<bool>,
     grid_shape: In3D<usize>,
     lower_bounds: In3D<T>,
@@ -87,10 +90,13 @@ where T: num::Float + num::cast::FromPrimitive + std::fmt::Debug
         let (lower_bounds, upper_bounds) = Self::compute_bounds(&grid_shape, &centers, &lower_edges);
         let coord_to_idx_scales = Self::compute_coord_to_idx_scales(&grid_shape, &lower_bounds, &upper_bounds);
 
+        let uniform_z_coords = Array::linspace(centers[Z][0], centers[Z][grid_shape[Z] - 1], grid_shape[Z]);
+
         let coords = [centers, lower_edges];
 
         HorRegularGrid3{
             coords,
+            uniform_z_coords,
             is_periodic,
             grid_shape,
             lower_bounds,
@@ -102,6 +108,18 @@ where T: num::Float + num::cast::FromPrimitive + std::fmt::Debug
     fn shape(&self) -> &In3D<usize> { &self.grid_shape }
     fn is_periodic(&self, dim: Dim3) -> bool { self.is_periodic[dim] }
     fn coords_by_type(&self, coord_type: CoordsType) -> &Coords3<T> { &self.coords[coord_type as usize] }
+
+    fn uniform_centers<'a>(&'a self) -> CoordRefs3<'a, T> {
+        let centers = self.centers();
+        CoordRefs3::new(
+            &centers[X],
+            &centers[Y],
+            &self.uniform_z_coords
+        )
+    }
+
+    fn lower_bounds(&self) -> &In3D<T> { &self.lower_bounds }
+    fn upper_bounds(&self) -> &In3D<T> { &self.upper_bounds }
 
     fn find_grid_cell(&self, point: &Point3<T>) -> FoundIdx3 {
 
