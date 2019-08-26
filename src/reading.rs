@@ -405,10 +405,9 @@ mod tests {
     }
 
     #[test]
-    fn reader_works() {
+    fn reading_works() {
         let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
         let reader: SnapshotReader<HorRegularGrid3<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
         let field = reader.read_3d_scalar_field("r").unwrap();
-        println!("{:?}", field.values().sum()/(field.values().len() as f32));
     }
 }
