@@ -4,7 +4,7 @@ use num;
 use ndarray::prelude::*;
 use crate::geometry::{Dim3, In3D, Point3, CoordRefs3};
 use crate::grid::{CoordsType, Grid3};
-use crate::interpolation::{Interpolator3};
+use crate::interpolation::Interpolator3;
 use Dim3::{X, Y, Z};
 
 /// A 3D scalar field.
@@ -17,6 +17,7 @@ pub struct ScalarField3<F, G>
 where F: num::Float,
       G: Grid3<F> + Clone
 {
+    name: String,
     grid: G,
     coord_types: In3D<CoordsType>,
     values: Array3<F>
@@ -34,11 +35,14 @@ impl<F, G> ScalarField3<F, G>
 where F: num::Float + std::fmt::Display,
       G: Grid3<F> + Clone
 {
-    /// Creates a new 3D scalar field given the grid, the values and
+    /// Creates a new 3D scalar field given a name, a grid, the values and
     /// coordinate types specifying where in the grid cell the values are defined.
-    pub fn new(grid: G, coord_types: In3D<CoordsType>, values: Array3<F>) -> Self {
-        ScalarField3{ grid, coord_types, values }
+    pub fn new(name: String, grid: G, coord_types: In3D<CoordsType>, values: Array3<F>) -> Self {
+        ScalarField3{ name, grid, coord_types, values }
     }
+
+    /// Returns a reference to the name of the field.
+    pub fn name(&self) -> &str { &self.name }
 
     /// Returns a reference to the grid.
     pub fn grid(&self) -> &G { &self.grid }
@@ -124,6 +128,7 @@ pub struct VectorField3<F, G>
 where F: num::Float,
       G: Grid3<F> + Clone
 {
+    name: String,
     grid: G,
     coord_types: In3D<In3D<CoordsType>>,
     values: In3D<Array3<F>>
@@ -133,11 +138,14 @@ impl<F, G> VectorField3<F, G>
 where F: num::Float + std::fmt::Display,
       G: Grid3<F> + Clone
 {
-    /// Creates a new 3D vector field given the grid, the component values and
+    /// Creates a new 3D vector field given a name, a grid, the component values and
     /// coordinate types specifying where in the grid cell the component values are defined.
-    pub fn new(grid: G, coord_types: In3D<In3D<CoordsType>>, values: In3D<Array3<F>>) -> Self {
-        VectorField3{ grid, coord_types, values }
+    pub fn new(name: String, grid: G, coord_types: In3D<In3D<CoordsType>>, values: In3D<Array3<F>>) -> Self {
+        VectorField3{ name, grid, coord_types, values }
     }
+
+    /// Returns a reference to the name of the field.
+    pub fn name(&self) -> &str { &self.name }
 
     /// Returns a reference to the grid.
     pub fn grid(&self) -> &G { &self.grid }
@@ -170,6 +178,8 @@ where F: num::Float + std::fmt::Display,
 
     /// Creates a new scalar field from the specified vector field component.
     pub fn component_as_scalar_field(&self, dim: Dim3) -> ScalarField3<F, G> {
-        ScalarField3::new(self.grid.clone(), self.coord_types[dim].clone(), self.values[dim].clone())
+        let dim_names = In3D::new('x', 'y', 'z');
+        let name = format!("{}{}", self.name(), dim_names[dim]);
+        ScalarField3::new(name, self.grid.clone(), self.coord_types[dim].clone(), self.values[dim].clone())
     }
 }
