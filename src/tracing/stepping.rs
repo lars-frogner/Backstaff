@@ -1,42 +1,62 @@
-use crate::geometry::{In3D, Point3, Vec3};
-use crate::grid::{BoundsCrossing};
-use super::{ftr};
+//! Stepping along field lines of a Bifrost vector field.
 
-enum StepResult3 {
-    Ok,
+pub mod rkf;
+
+use crate::geometry::{Point3};
+use crate::grid::{Grid3};
+use crate::field::{VectorField3};
+use crate::interpolation::Interpolator3;
+use super::ftr;
+
+/// A stepper result which is either OK (with an an abitrary value) or stopped (with a cause).
+pub enum StepperResult<T> {
+    Ok(T),
+    Stopped(StoppingCause)
+}
+
+/// Reason for terminating stepping.
+pub enum StoppingCause {
     Null,
-    OutOfBounds(In3D<BoundsCrossing>)
+    Sink,
+    OutOfBounds,
+    TooManyAttempts,
+    StoppedByCallback
 }
 
-trait Stepper3 {
-    fn step() -> StepResult3;
-    fn current_position(&self) -> &Point3<ftr>;
-    fn previous_position(&self) -> &Point3<ftr>;
+/// Lets the stepper callback communicate whether tracing should
+/// continue or terminate.
+pub enum StepperInstruction {
+    Continue,
+    Terminate
 }
 
-struct RKF23Stepper3 {
-    step_size: ftr,
-    previous_position: Point3<ftr>,
-    current_position: Point3<ftr>,
-    previous_direction: Vec3<ftr>,
-    intermediate_directions: [Vec3<ftr>; 2]
-}
+/// Defines the properties of a stepping scheme.
+pub trait Stepper3 {
+    /// Places the stepper at the given position in the field,
+    /// and calls the callback with the position if successful.
+    fn place<F, G, I, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
+    where F: num::Float + std::fmt::Display,
+          G: Grid3<F> + Clone,
+          I: Interpolator3,
+          C: FnMut(&Point3<ftr>) -> StepperInstruction;
 
-impl  RKF23Stepper3 {
-    const A21: ftr = 1.0/2.0;
-    const A32: ftr = 3.0/4.0;
-    const A41: ftr = 2.0/9.0;
-    const A42: ftr = 1.0/3.0;
-    const A43: ftr = 4.0/9.0;
+    /// Performs a step and calls the callback with the resulting position if successful.
+    fn step<F, G, I, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, callback: &mut C) -> StepperResult<()>
+    where F: num::Float + std::fmt::Display,
+          G: Grid3<F> + Clone,
+          I: Interpolator3,
+          C: FnMut(&Point3<ftr>) -> StepperInstruction;
 
-    const E1: ftr = -5.0/72.0;
-    const E2: ftr =  1.0/12.0;
-    const E3: ftr =  1.0/9.0;
-    const E4: ftr = -1.0/8.0;
-}
+    /// Performs a step and calls the callback with the resulting dense positions if successful.
+    fn step_dense_output<F, G, I, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, callback: &mut C) -> StepperResult<()>
+    where F: num::Float + std::fmt::Display,
+          G: Grid3<F> + Clone,
+          I: Interpolator3,
+          C: FnMut(&Point3<ftr>) -> StepperInstruction;
 
-impl Stepper3 for RKF23Stepper3 {
-    fn step() -> StepResult3 { StepResult3::Ok }
-    fn current_position(&self) -> &Point3<ftr> { &self.current_position }
-    fn previous_position(&self) -> &Point3<ftr> { &self.previous_position }
+    /// Returns a reference to the current stepper position.
+    fn position(&self) -> &Point3<ftr>;
+
+    /// Retuns the current distance of the stepper along the field line.
+    fn distance(&self) -> ftr;
 }
