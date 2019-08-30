@@ -2,9 +2,9 @@
 
 pub mod rkf;
 
-use crate::geometry::{Point3};
-use crate::grid::{Grid3};
-use crate::field::{VectorField3};
+use crate::geometry::Point3;
+use crate::grid::Grid3;
+use crate::field::VectorField3;
 use crate::interpolation::Interpolator3;
 use super::ftr;
 
