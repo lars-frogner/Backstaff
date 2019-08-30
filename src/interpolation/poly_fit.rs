@@ -23,9 +23,9 @@ impl PolyFitInterpolator3 {
     /// Offset from a point to the lower edge of the interpolation range.
     const START_OFFSET: isize = Self::BIAS + 1 - ((Self::POINTS + 1) as isize)/2;
 
-    fn interp<T, G>(grid: &G, coords: &CoordRefs3<T>, values: &Array3<T>, interp_point: &Point3<T>, interp_idx: &Idx3<usize>) -> T
-    where T: num::Float + std::ops::AddAssign,
-          G: Grid3<T> + Clone
+    fn interp<F, G>(grid: &G, coords: &CoordRefs3<F>, values: &Array3<F>, interp_point: &Point3<F>, interp_idx: &Idx3<usize>) -> F
+    where F: num::Float,
+          G: Grid3<F>
     {
         let grid_shape = grid.shape();
 
@@ -87,10 +87,10 @@ impl PolyFitInterpolator3 {
         Self::interp_subarrays(In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray), &value_subarray, interp_point)
     }
 
-    fn create_coordinate_subarray_for_interior<T>(coords: &Array1<T>, start_idx: isize) -> [T; Self::POINTS]
-    where T: num::Float
+    fn create_coordinate_subarray_for_interior<F>(coords: &Array1<F>, start_idx: isize) -> [F; Self::POINTS]
+    where F: num::Float
     {
-        let mut subarray = [T::zero(); Self::POINTS];
+        let mut subarray = [F::zero(); Self::POINTS];
         let offset = start_idx as usize;
         for idx in 0..Self::POINTS {
             subarray[idx] = coords[offset + idx];
@@ -98,25 +98,23 @@ impl PolyFitInterpolator3 {
         subarray
     }
 
-    fn create_coordinate_subarray_for_periodic<T>(coords: &Array1<T>, start_idx: isize) -> [T; Self::POINTS]
-    where T: num::Float
+    fn create_coordinate_subarray_for_periodic<F>(coords: &Array1<F>, start_idx: isize) -> [F; Self::POINTS]
+    where F: num::Float
     {
         let len = coords.len();
         let offset = (start_idx + (len as isize)) as usize;
-        let mut subarray = [T::zero(); Self::POINTS];
+        let mut subarray = [F::zero(); Self::POINTS];
         for idx in 0..Self::POINTS {
             subarray[idx] = coords[(offset + idx) % len];
         }
         subarray
     }
 
-    fn create_value_subarray_for_interior<T>(values: &Array3<T>, start_idx: &Idx3<isize>) -> [T; Self::POINTS*Self::POINTS*Self::POINTS]
-    where T: num::Float
+    fn create_value_subarray_for_interior<F>(values: &Array3<F>, start_idx: &Idx3<isize>) -> [F; Self::POINTS*Self::POINTS*Self::POINTS]
+    where F: num::Float
     {
-        let mut subarray = [T::zero(); Self::POINTS*Self::POINTS*Self::POINTS];
-        let offsets = In3D::new(start_idx[X] as usize,
-                                start_idx[Y] as usize,
-                                start_idx[Z] as usize);
+        let mut subarray = [F::zero(); Self::POINTS*Self::POINTS*Self::POINTS];
+        let offsets = Idx3::from(&start_idx);
         let mut idx = 0;
 
         for k in offsets[Z]..(offsets[Z] + Self::POINTS) {
@@ -131,14 +129,14 @@ impl PolyFitInterpolator3 {
         subarray
     }
 
-    fn create_value_subarray_for_periodic<T>(values: &Array3<T>, start_idx: &Idx3<isize>) -> [T; Self::POINTS*Self::POINTS*Self::POINTS]
-    where T: num::Float
+    fn create_value_subarray_for_periodic<F>(values: &Array3<F>, start_idx: &Idx3<isize>) -> [F; Self::POINTS*Self::POINTS*Self::POINTS]
+    where F: num::Float
     {
         let grid_shape = values.shape();
         let offsets = In3D::new((start_idx[X] + (grid_shape[0] as isize)) as usize,
                                 (start_idx[Y] + (grid_shape[1] as isize)) as usize,
                                 (start_idx[Z] + (grid_shape[2] as isize)) as usize);
-        let mut subarray = [T::zero(); Self::POINTS*Self::POINTS*Self::POINTS];
+        let mut subarray = [F::zero(); Self::POINTS*Self::POINTS*Self::POINTS];
         let mut idx = 0;
 
         for k in 0..Self::POINTS {
@@ -155,17 +153,17 @@ impl PolyFitInterpolator3 {
         subarray
     }
 
-    fn interp_subarrays<T>(coords: In3D<&[T; Self::POINTS]>, values: &[T; Self::POINTS*Self::POINTS*Self::POINTS], interp_point: &Point3<T>) -> T
-    where T: num::Float + std::ops::AddAssign
+    fn interp_subarrays<F>(coords: In3D<&[F; Self::POINTS]>, values: &[F; Self::POINTS*Self::POINTS*Self::POINTS], interp_point: &Point3<F>) -> F
+    where F: num::Float
     {
         let x_coords = coords[X];
         let y_coords = coords[Y];
         let z_coords = coords[Z];
 
-        let mut vals_c = [T::zero(); Self::POINTS];
-        let mut vals_d = [T::zero(); Self::POINTS];
-        let mut poly_x = [T::zero(); Self::POINTS*Self::POINTS];
-        let mut poly_xy = [T::zero(); Self::POINTS];
+        let mut vals_c = [F::zero(); Self::POINTS];
+        let mut vals_d = [F::zero(); Self::POINTS];
+        let mut poly_x = [F::zero(); Self::POINTS*Self::POINTS];
+        let mut poly_xy = [F::zero(); Self::POINTS];
         let mut poly_xyz;
         let mut accum;
         let mut correction;
@@ -186,7 +184,7 @@ impl PolyFitInterpolator3 {
                         vals_d[i] = (interp_point[X] - x_coords[i + n])*correction;
                     }
 
-                    accum += vals_c[0];
+                    accum = accum + vals_c[0];
                 }
 
                 poly_x[k*Self::POINTS + j] = accum;
@@ -208,7 +206,7 @@ impl PolyFitInterpolator3 {
                     vals_d[j] = (interp_point[Y] - y_coords[j + n])*correction;
                 }
 
-                accum += vals_c[0];
+                accum = accum + vals_c[0];
             }
 
             poly_xy[k] = accum;
@@ -227,18 +225,18 @@ impl PolyFitInterpolator3 {
                 vals_d[k] = (interp_point[Z] - z_coords[k + n])*correction;
             }
 
-            poly_xyz += vals_c[0];
+            poly_xyz = poly_xyz + vals_c[0];
         }
 
         poly_xyz
     }
 }
 
-impl<T, G> Interpolator3<T, G> for PolyFitInterpolator3
-where T: num::Float + std::ops::AddAssign + std::fmt::Display,
-      G: Grid3<T> + Clone
-{
-    fn interp_scalar_field(field: &ScalarField3<T, G>, interp_point: &Point3<T>) -> InterpResult3<T> {
+impl Interpolator3 for PolyFitInterpolator3 {
+    fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<F>
+    where F: num::Float + std::fmt::Display,
+          G: Grid3<F> + Clone
+    {
         let grid = field.grid();
         let coords = field.coords();
         let values = field.values();
@@ -249,7 +247,10 @@ where T: num::Float + std::ops::AddAssign + std::fmt::Display,
         }
     }
 
-    fn interp_vector_field(field: &VectorField3<T, G>, interp_point: &Point3<T>) -> InterpResult3<Vec3<T>> {
+    fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<Vec3<F>>
+    where F: num::Float + std::fmt::Display,
+          G: Grid3<F> + Clone
+    {
         let grid = field.grid();
         let coords = field.coords();
         let values = field.values();
@@ -284,7 +285,8 @@ mod tests {
         let coords = field.coords();
         let idx = 300;
         let slice_idx = field.slice_at_idx(Y, idx);
-        let slice_coord = field.slice_at_coord::<PolyFitInterpolator3>(Y, coords[Y][idx], ResampleLocations::Original);
+        let interpolator = PolyFitInterpolator3;
+        let slice_coord = field.slice_at_coord(&interpolator, Y, coords[Y][idx], ResampleLocations::Original);
 
         let rel_diffs = (slice_coord - slice_idx).mapv(f32::abs)/slice_idx;
         assert!(*rel_diffs.max().unwrap() < 1e-6);
