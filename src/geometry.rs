@@ -3,6 +3,7 @@
 use num;
 use std::ops::{Index, IndexMut, Add, Sub, Mul, Div};
 use ndarray::prelude::*;
+use serde::Serialize;
 
 /// Denotes the x- y- or z-dimension.
 #[derive(Debug, Copy, Clone)]
@@ -32,7 +33,7 @@ impl Dim3 {
 use Dim3::{X, Y, Z};
 
 /// Represents any quantity with three dimensional components.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct In3D<T>([T; 3]);
 
 impl<T> In3D<T> {
@@ -68,7 +69,7 @@ impl<T> IndexMut<Dim3> for In2D<T> {
 }
 
 /// A 3D vector.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Vec3<F: num::Float>(In3D<F>);
 
 impl<F: num::Float> Vec3<F> {
@@ -217,7 +218,7 @@ impl<F: num::Float> Div<F> for Vec3<F> {
 }
 
 /// A 3D spatial coordinate.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Point3<F: num::Float>(In3D<F>);
 
 impl<F: num::Float> Point3<F> {
