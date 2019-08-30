@@ -22,13 +22,14 @@ impl<T> InterpResult3<T> {
 }
 
 /// Defines the properties of a 3D interpolator.
-pub trait Interpolator3<T, G>
-where T: num::Float,
-      G: Grid3<T> + Clone
-{
+pub trait Interpolator3 {
     /// Interpolates the given scalar field at the given coordinate.
-    fn interp_scalar_field(field: &ScalarField3<T, G>, interp_point: &Point3<T>) -> InterpResult3<T>;
+    fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<F>
+    where F: num::Float + std::fmt::Display,
+          G: Grid3<F> + Clone;
 
     /// Interpolates the given vector field at the given coordinate.
-    fn interp_vector_field(field: &VectorField3<T, G>, interp_point: &Point3<T>) -> InterpResult3<Vec3<T>>;
+    fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<Vec3<F>>
+    where F: num::Float + std::fmt::Display,
+          G: Grid3<F> + Clone;
 }
