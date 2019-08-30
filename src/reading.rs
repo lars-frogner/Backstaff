@@ -90,7 +90,7 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
     pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable = self.get_variable(variable_name)?;
         let values = self.read_3d_variable_from_binary_file(variable)?;
-        Ok(ScalarField3::new(self.grid.clone(), variable.coord_types.clone(), values))
+        Ok(ScalarField3::new(variable_name.to_string(), self.grid.clone(), variable.coord_types.clone(), values))
     }
 
     /// Reads the component variables of the specified 3D vector quantity from the output files.
@@ -118,7 +118,7 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
                                     component_variables[1].coord_types.clone(),
                                     component_variables[2].coord_types.clone());
 
-        Ok(VectorField3::new(self.grid.clone(), coord_types, values))
+        Ok(VectorField3::new(variable_name.to_string(), self.grid.clone(), coord_types, values))
     }
 
     /// Provides the string value of a parameter from the parameter file.
