@@ -14,6 +14,10 @@ use crate::grid::{CoordsType, Grid3Type, Grid3};
 use crate::field::{ScalarField3, VectorField3};
 use Dim3::{X, Y, Z};
 
+/// Floating-point precision assumed for Bifrost data.
+#[allow(non_camel_case_types)]
+pub type fdt = f32;
+
 /// Little- or big-endian byte order.
 #[derive(Debug, Copy, Clone)]
 pub enum Endianness {
@@ -23,7 +27,7 @@ pub enum Endianness {
 
 /// Reader for the output files assoicated with a single Bifrost simulation snapshot.
 #[derive(Debug, Clone)]
-pub struct SnapshotReader<G: Grid3<f32> + Clone> {
+pub struct SnapshotReader<G: Grid3<fdt> + Clone> {
     snap_path: path::PathBuf,
     aux_path: path::PathBuf,
     params: Params,
@@ -32,7 +36,7 @@ pub struct SnapshotReader<G: Grid3<f32> + Clone> {
     variables: HashMap<String, Variable>
 }
 
-impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
+impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
     /// Creates a reader for a Bifrost snapshot.
     ///
     /// # Parameters
@@ -81,9 +85,9 @@ impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
     ///
     /// A `Result` which is either:
     ///
-    /// - `Ok`: Contains a `ScalarField3<f32>` holding the field coordinates and values.
+    /// - `Ok`: Contains a `ScalarField3<fdt>` holding the field coordinates and values.
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
-    pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<f32, G>> {
+    pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable = self.get_variable(variable_name)?;
         let values = self.read_3d_variable_from_binary_file(variable)?;
         Ok(ScalarField3::new(self.grid.clone(), variable.coord_types.clone(), values))
@@ -99,9 +103,9 @@ impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
     ///
     /// A `Result` which is either:
     ///
-    /// - `Ok`: Contains a `VectorField3<f32>` holding the coordinates and values of the vector field components.
+    /// - `Ok`: Contains a `VectorField3<fdt>` holding the coordinates and values of the vector field components.
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
-    pub fn read_3d_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<f32, G>> {
+    pub fn read_3d_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
         let component_variables = [self.get_variable(&format!("{}x", variable_name))?,
                                    self.get_variable(&format!("{}y", variable_name))?,
                                    self.get_variable(&format!("{}z", variable_name))?];
@@ -193,7 +197,7 @@ impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
                 match lines.next() {
                     Some(string) =>
                         for s in string?.split_whitespace() {
-                            match s.parse::<f32>() {
+                            match s.parse::<fdt>() {
                                 Ok(val) => coords.push(val),
                                 Err(err) => return Err(io::Error::new(io::ErrorKind::InvalidData,
                                                                       format!("Failed parsing string `{}` in mesh file: {}", s, err.to_string())))
@@ -217,7 +221,9 @@ impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
                                           format!("Insufficient number of {}-coordinates in mesh file (must be at least 4)", coord_names[dim])))
             }
 
+            #[allow(clippy::float_cmp)]
             let uniform_up = up_derivatives.iter().all(|element| element == &up_derivatives[0]);
+            #[allow(clippy::float_cmp)]
             let uniform_down = down_derivatives.iter().all(|element| element == &down_derivatives[0]);
 
             if uniform_up != uniform_down {
@@ -302,12 +308,12 @@ impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
     fn get_variable(&self, name: &str) -> io::Result<&Variable> {
         match self.variables.get(name) {
             Some(variable) => Ok(variable),
-            None => return Err(io::Error::new(io::ErrorKind::InvalidData,
-                                              format!("Variable `{}` not found", name)))
+            None => Err(io::Error::new(io::ErrorKind::InvalidData,
+                                       format!("Variable `{}` not found", name)))
         }
     }
 
-    fn read_3d_variable_from_binary_file(&self, variable: &Variable) -> io::Result<Array3<f32>> {
+    fn read_3d_variable_from_binary_file(&self, variable: &Variable) -> io::Result<Array3<fdt>> {
         let file_path = if variable.is_primary { &self.snap_path } else { &self.aux_path };
         let shape = self.grid.shape();
         let length = shape[X]*shape[Y]*shape[Z];
@@ -316,9 +322,9 @@ impl<G: Grid3<f32> + Clone> SnapshotReader<G> {
         Ok(Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap())
     }
 
-    fn read_floats_from_binary_file(&self, file_path: &path::Path, length: usize, offset: usize) -> io::Result<Vec<f32>> {
+    fn read_floats_from_binary_file(&self, file_path: &path::Path, length: usize, offset: usize) -> io::Result<Vec<fdt>> {
         let mut file = fs::File::open(file_path)?;
-        file.seek(SeekFrom::Start((offset*mem::size_of::<f32>()).try_into().unwrap()))?;
+        file.seek(SeekFrom::Start((offset*mem::size_of::<fdt>()).try_into().unwrap()))?;
         let mut buffer = vec![0.0; length];
         match self.endianness {
             Endianness::Little => file.read_f32_into::<byteorder::LittleEndian>(&mut buffer)?,
@@ -389,6 +395,7 @@ mod tests {
 
     #[test]
     fn param_parsing_works() {
+        #![allow(clippy::float_cmp)]
         let text = "int = 12 \n file_str=\"file.ext\"\nfloat =  -1.02E-07\ninvalid = number\n;comment";
         let params = Params{ params_map: Params::parse_params_text(text) };
 
@@ -399,15 +406,15 @@ mod tests {
         assert_eq!(params.params_map, correct_params);
 
         assert_eq!(params.get_str_param("file_str").unwrap(), "file.ext");
-        assert_eq!(params.get_numerical_param::<u32>("int").unwrap(), 12_u32);
-        assert_eq!(params.get_numerical_param::<f32>("float").unwrap(), -1.02e-7_f32);
+        assert_eq!(params.get_numerical_param::<u32>("int").unwrap(), 12);
+        assert_eq!(params.get_numerical_param::<f32>("float").unwrap(), -1.02e-7);
         assert!(params.get_numerical_param::<f32>("invalid").is_err());
     }
 
     #[test]
     fn reading_works() {
         let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader: SnapshotReader<HorRegularGrid3<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
-        let field = reader.read_3d_scalar_field("r").unwrap();
+        let reader: SnapshotReader<HorRegularGrid3<fdt>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
+        let _field = reader.read_3d_scalar_field("r").unwrap();
     }
 }
