@@ -4,14 +4,15 @@
 
 use num;
 use crate::geometry::{Point3, Vec3};
-use crate::grid::{Grid3};
+use crate::grid::Grid3;
 use crate::field::VectorField3;
-use crate::interpolation::{Interpolator3};
+use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use super::{RKFStepperState3, RKFStepperConfig, PIControlParams, ComputedDirection3, StepAttempt3, RKFStepper3};
 use super::super::{Stepper3, StepperResult, StepperInstruction};
 
 /// A stepper using the fifth order Runge–Kutta–Fehlberg method.
+#[derive(Clone)]
 pub struct RKF45Stepper3(RKFStepperState3);
 
 impl RKF45Stepper3 {
