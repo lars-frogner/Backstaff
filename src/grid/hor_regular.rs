@@ -3,46 +3,55 @@
 use num;
 use ndarray::prelude::*;
 use super::{BoundsCrossing, FoundIdx3, CoordsType, Grid3Type, Grid3};
-use crate::geometry::{Dim3, In3D, In2D, Point3, Idx3, Coords3, CoordRefs3};
+use crate::geometry::{Dim3, In3D, In2D, Vec3, Point3, Idx3, Coords3, CoordRefs3};
 use Dim3::{X, Y, Z};
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Debug, Clone)]
-pub struct HorRegularGrid3<T: num::Float> {
-    coords: [Coords3<T>; 2],
-    uniform_z_coords: Array1<T>,
+pub struct HorRegularGrid3<F: num::Float> {
+    coords: [Coords3<F>; 2],
+    uniform_z_coords: Array1<F>,
     is_periodic: In3D<bool>,
     grid_shape: In3D<usize>,
-    lower_bounds: In3D<T>,
-    upper_bounds: In3D<T>,
-    coord_to_idx_scales: In2D<T>
+    lower_bounds: Vec3<F>,
+    upper_bounds: Vec3<F>,
+    extents: Vec3<F>,
+    coord_to_idx_scales: In2D<F>
 }
 
-impl<T> HorRegularGrid3<T>
-where T: num::Float + num::cast::FromPrimitive
+impl<F> HorRegularGrid3<F>
+where F: num::Float + num::cast::FromPrimitive
 {
-    fn compute_bounds(grid_shape: &In3D<usize>, centers: &Coords3<T>, lower_edges: &Coords3<T>) -> (In3D<T>, In3D<T>) {
-        let lower_bounds = In3D::new(
+    fn compute_bounds(grid_shape: &In3D<usize>, centers: &Coords3<F>, lower_edges: &Coords3<F>) -> (Vec3<F>, Vec3<F>) {
+        let lower_bounds = Vec3::new(
             lower_edges[X][0],
             lower_edges[Y][0],
             lower_edges[Z][0]
         );
-        let upper_bounds = In3D::new(
-            T::from_f32(2.0).unwrap()*centers[X][grid_shape[X] - 1] - lower_edges[X][grid_shape[X] - 1],
-            T::from_f32(2.0).unwrap()*centers[Y][grid_shape[Y] - 1] - lower_edges[Y][grid_shape[Y] - 1],
-            T::from_f32(2.0).unwrap()*centers[Z][grid_shape[Z] - 1] - lower_edges[Z][grid_shape[Z] - 1]
+        let upper_bounds = Vec3::new(
+            F::from_f32(2.0).unwrap()*centers[X][grid_shape[X] - 1] - lower_edges[X][grid_shape[X] - 1],
+            F::from_f32(2.0).unwrap()*centers[Y][grid_shape[Y] - 1] - lower_edges[Y][grid_shape[Y] - 1],
+            F::from_f32(2.0).unwrap()*centers[Z][grid_shape[Z] - 1] - lower_edges[Z][grid_shape[Z] - 1]
         );
         (lower_bounds, upper_bounds)
     }
 
-    fn compute_coord_to_idx_scales(grid_shape: &In3D<usize>, lower_bounds: &In3D<T>, upper_bounds: &In3D<T>) -> In2D<T> {
-        In2D::new(
-            T::from_usize(grid_shape[X]).unwrap()/(upper_bounds[X] - lower_bounds[X]),
-            T::from_usize(grid_shape[Y]).unwrap()/(upper_bounds[Y] - lower_bounds[Y])
+    fn compute_extents(lower_bounds: &Vec3<F>, upper_bounds: &Vec3<F>) -> Vec3<F> {
+        Vec3::new(
+            upper_bounds[X] - lower_bounds[X],
+            upper_bounds[Y] - lower_bounds[Y],
+            upper_bounds[Z] - lower_bounds[Z]
         )
     }
 
-    fn find_idx_with_interpolation_search(&self, point: &Point3<T>, dim: Dim3) -> Option<usize> {
+    fn compute_coord_to_idx_scales(grid_shape: &In3D<usize>, lower_bounds: &Vec3<F>, upper_bounds: &Vec3<F>) -> In2D<F> {
+        In2D::new(
+            F::from_usize(grid_shape[X]).unwrap()/(upper_bounds[X] - lower_bounds[X]),
+            F::from_usize(grid_shape[Y]).unwrap()/(upper_bounds[Y] - lower_bounds[Y])
+        )
+    }
+
+    fn find_idx_with_interpolation_search(&self, point: &Point3<F>, dim: Dim3) -> Option<usize> {
 
         let lower_edges = &self.coords[1][dim];
         let c = point[dim];
@@ -57,11 +66,11 @@ where T: num::Float + num::cast::FromPrimitive
 
         while (c >= lower_edges[low]) && (c <= lower_edges[high]) {
 
-            let low_float  = T::from_usize(low).unwrap();
-            let high_float = T::from_usize(high).unwrap();
+            let low_float  = F::from_usize(low).unwrap();
+            let high_float = F::from_usize(high).unwrap();
             let mid_float = (low_float + (c - lower_edges[low])*(high_float - low_float)/(lower_edges[high] - lower_edges[low])).floor();
 
-            mid = T::to_usize(&mid_float).unwrap();
+            mid = F::to_usize(&mid_float).unwrap();
 
             if lower_edges[mid + 1] <= c {
                 low = mid + 1
@@ -76,18 +85,19 @@ where T: num::Float + num::cast::FromPrimitive
     }
 }
 
-impl<T> Grid3<T> for HorRegularGrid3<T>
-where T: num::Float + num::cast::FromPrimitive + std::fmt::Debug
+impl<F> Grid3<F> for HorRegularGrid3<F>
+where F: num::Float + num::cast::FromPrimitive + std::fmt::Debug
 {
     const TYPE: Grid3Type = Grid3Type::HorRegular;
 
-    fn new(centers: Coords3<T>, lower_edges: Coords3<T>, is_periodic: In3D<bool>) -> Self {
+    fn new(centers: Coords3<F>, lower_edges: Coords3<F>, is_periodic: In3D<bool>) -> Self {
 
         assert!(!is_periodic[Z], "This grid type cannot be periodic in the z-direction.");
 
         let grid_shape = In3D::new(centers[X].len(), centers[Y].len(), centers[Z].len());
 
         let (lower_bounds, upper_bounds) = Self::compute_bounds(&grid_shape, &centers, &lower_edges);
+        let extents = Self::compute_extents(&lower_bounds, &upper_bounds);
         let coord_to_idx_scales = Self::compute_coord_to_idx_scales(&grid_shape, &lower_bounds, &upper_bounds);
 
         let uniform_z_coords = Array::linspace(centers[Z][0], centers[Z][grid_shape[Z] - 1], grid_shape[Z]);
@@ -101,15 +111,16 @@ where T: num::Float + num::cast::FromPrimitive + std::fmt::Debug
             grid_shape,
             lower_bounds,
             upper_bounds,
+            extents,
             coord_to_idx_scales
         }
     }
 
     fn shape(&self) -> &In3D<usize> { &self.grid_shape }
     fn is_periodic(&self, dim: Dim3) -> bool { self.is_periodic[dim] }
-    fn coords_by_type(&self, coord_type: CoordsType) -> &Coords3<T> { &self.coords[coord_type as usize] }
+    fn coords_by_type(&self, coord_type: CoordsType) -> &Coords3<F> { &self.coords[coord_type as usize] }
 
-    fn uniform_centers<'a>(&'a self) -> CoordRefs3<'a, T> {
+    fn uniform_centers(&self) -> CoordRefs3<F> {
         let centers = self.centers();
         CoordRefs3::new(
             &centers[X],
@@ -118,10 +129,11 @@ where T: num::Float + num::cast::FromPrimitive + std::fmt::Debug
         )
     }
 
-    fn lower_bounds(&self) -> &In3D<T> { &self.lower_bounds }
-    fn upper_bounds(&self) -> &In3D<T> { &self.upper_bounds }
+    fn lower_bounds(&self) -> &Vec3<F> { &self.lower_bounds }
+    fn upper_bounds(&self) -> &Vec3<F> { &self.upper_bounds }
+    fn extents(&self) -> &Vec3<F> { &self.extents }
 
-    fn find_grid_cell(&self, point: &Point3<T>) -> FoundIdx3 {
+    fn find_grid_cell(&self, point: &Point3<F>) -> FoundIdx3 {
 
         let mut crossings = In3D::new(BoundsCrossing::None, BoundsCrossing::None, BoundsCrossing::None);
         let mut is_outside = false;
@@ -139,11 +151,27 @@ where T: num::Float + num::cast::FromPrimitive + std::fmt::Debug
         if is_outside {
             FoundIdx3::Outside(crossings)
         } else {
-            let i = T::to_usize(&(self.coord_to_idx_scales[X]*(point[X] - self.lower_bounds[X])).floor()).unwrap();
-            let j = T::to_usize(&(self.coord_to_idx_scales[Y]*(point[Y] - self.lower_bounds[Y])).floor()).unwrap();
+            let i = F::to_usize(&(self.coord_to_idx_scales[X]*(point[X] - self.lower_bounds[X])).floor()).unwrap();
+            let j = F::to_usize(&(self.coord_to_idx_scales[Y]*(point[Y] - self.lower_bounds[Y])).floor()).unwrap();
             let k = self.find_idx_with_interpolation_search(point, Z).unwrap();
             FoundIdx3::Inside(Idx3::new(i, j, k))
         }
+    }
+
+    fn wrap_point(&self, point: &Point3<F>) -> Option<Point3<F>> {
+        let mut wrapped_point = point.clone();
+        for dim in Dim3::slice().iter() {
+            if self.is_periodic[*dim] {
+                if wrapped_point[*dim] < self.lower_bounds[*dim] {
+                    wrapped_point[*dim] = self.upper_bounds[*dim] - ((self.upper_bounds[*dim] - point[*dim]) % self.extents[*dim]);
+                } else if wrapped_point[*dim] >= self.upper_bounds[*dim] {
+                    wrapped_point[*dim] = self.lower_bounds[*dim] + ((point[*dim] - self.lower_bounds[*dim]) % self.extents[*dim]);
+                }
+            } else if wrapped_point[*dim] < self.lower_bounds[*dim] || wrapped_point[*dim] >= self.upper_bounds[*dim] {
+                return None
+            }
+        }
+        Some(wrapped_point)
     }
 }
 
@@ -151,12 +179,11 @@ where T: num::Float + num::cast::FromPrimitive + std::fmt::Debug
 mod tests {
 
     use super::*;
-    use ndarray::prelude::*;
     use ndarray::s;
 
     #[test]
     fn varying_z_grid_index_search_works() {
-
+        #![allow(clippy::deref_addrof)] // Mutes warning due to workings of s! macro
         let (mx, my, mz) = (17, 5, 29);
 
         let xc = Array::linspace(-1.0,  1.0, mx);

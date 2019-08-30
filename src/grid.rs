@@ -4,7 +4,7 @@ pub mod regular;
 pub mod hor_regular;
 
 use num;
-use crate::geometry::{Dim3, In3D, Point3, Idx3, Coords3, CoordRefs3};
+use crate::geometry::{Dim3, In3D, Vec3, Point3, Idx3, Coords3, CoordRefs3};
 
 /// A potential crossing of the lower or upper bounds of a grid dimension.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -36,14 +36,14 @@ pub enum Grid3Type {
 }
 
 /// Defines the properties of a 3D grid.
-pub trait Grid3<T: num::Float> {
+pub trait Grid3<F: num::Float> {
 
     /// The specific type of the grid.
     const TYPE: Grid3Type;
 
     /// Creates a new grid given the coordinates of the cell centers and lower edges,
     /// as well as which dimensions are periodic.
-    fn new(center_coords: Coords3<T>, lower_edge_coords: Coords3<T>, is_periodic: In3D<bool>) -> Self;
+    fn new(center_coords: Coords3<F>, lower_edge_coords: Coords3<F>, is_periodic: In3D<bool>) -> Self;
 
     /// Returns the 3D shape of the grid.
     fn shape(&self) -> &In3D<usize>;
@@ -52,24 +52,32 @@ pub trait Grid3<T: num::Float> {
     fn is_periodic(&self, dim: Dim3) -> bool;
 
     /// Returns a reference to either the central or lower coordinates depending on the given type value.
-    fn coords_by_type(&self, coord_type: CoordsType) -> &Coords3<T>;
+    fn coords_by_type(&self, coord_type: CoordsType) -> &Coords3<F>;
 
     /// Returns a reference to the central coordinates.
-    fn centers(&self) -> &Coords3<T> { self.coords_by_type(CoordsType::Center) }
+    fn centers(&self) -> &Coords3<F> { self.coords_by_type(CoordsType::Center) }
 
     /// Returns a reference to the lower coordinates.
-    fn lower_edges(&self) -> &Coords3<T> { self.coords_by_type(CoordsType::Lower) }
+    fn lower_edges(&self) -> &Coords3<F> { self.coords_by_type(CoordsType::Lower) }
 
     /// Returns a reference to the central coordinates in a uniform version of the grid.
-    fn uniform_centers<'a>(&'a self) -> CoordRefs3<'a, T>;
+    fn uniform_centers(&self) -> CoordRefs3<F>;
 
     /// Returns a reference to the lower coordinate bounds of each dimension.
-    fn lower_bounds(&self) -> &In3D<T>;
+    fn lower_bounds(&self) -> &Vec3<F>;
 
     /// Returns a reference to the upper coordinate bounds of each dimension.
-    fn upper_bounds(&self) -> &In3D<T>;
+    fn upper_bounds(&self) -> &Vec3<F>;
+
+    /// Returns a reference to the full coordinate extent of each dimension.
+    fn extents(&self) -> &Vec3<F>;
 
     /// Finds the 3D index of the grid cell containing the given coordinate,
     /// or specifies on which side of the grid the coordinate lies if outside.
-    fn find_grid_cell(&self, point: &Point3<T>) -> FoundIdx3;
+    fn find_grid_cell(&self, point: &Point3<F>) -> FoundIdx3;
+
+    /// Given a point that may be outside the grid boundaries, returns a new point
+    /// wrapped around the boundaries to the inside of the grid, or `None` if the
+    /// point is outside a non-periodic boundary.
+    fn wrap_point(&self, point: &Point3<F>) -> Option<Point3<F>>;
 }
