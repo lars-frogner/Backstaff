@@ -14,6 +14,7 @@ use crate::tracing::ftr;
 use super::{StepperResult, StoppingCause, StepperInstruction};
 use Dim3::{X, Y, Z};
 
+#[derive(Clone)]
 struct RKFStepperState3 {
     /// Configuration parameters for the stepper.
     config: RKFStepperConfig,
@@ -50,6 +51,7 @@ struct RKFStepperState3 {
 }
 
 /// Configuration parameters for RKF steppers.
+#[derive(Clone)]
 pub struct RKFStepperConfig {
     /// Step size to use for dense (uniform) output positions.
     pub dense_step_size: ftr,
@@ -75,6 +77,7 @@ pub struct RKFStepperConfig {
     pub use_pi_control: bool
 }
 
+#[derive(Clone)]
 struct PIControlParams {
     k_i: ftr,
     k_p: ftr
@@ -405,8 +408,8 @@ impl RKFStepperConfig {
             absolute_tolerance: Self::DEFAULT_ABSOLUTE_TOLERANCE,
             relative_tolerance: Self::DEFAULT_RELATIVE_TOLERANCE,
             safety_factor: Self::DEFAULT_SAFETY_FACTOR,
-            min_step_scale: Self::DEFAULT_MAX_STEP_SCALE,
-            max_step_scale: Self::DEFAULT_MIN_STEP_SCALE,
+            min_step_scale: Self::DEFAULT_MIN_STEP_SCALE,
+            max_step_scale: Self::DEFAULT_MAX_STEP_SCALE,
             initial_step_size: Self::DEFAULT_INITIAL_STEP_SIZE,
             initial_error: Self::DEFAULT_INITIAL_ERROR,
             sudden_reversals_for_sink: Self::DEFAULT_SUDDEN_REVERSALS_FOR_SINK,
