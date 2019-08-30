@@ -13,13 +13,13 @@ use Dim3::{X, Y, Z};
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
 #[derive(Debug, Clone)]
-pub struct ScalarField3<T, G>
-where T: num::Float,
-      G: Grid3<T> + Clone
+pub struct ScalarField3<F, G>
+where F: num::Float,
+      G: Grid3<F> + Clone
 {
     grid: G,
     coord_types: In3D<CoordsType>,
-    values: Array3<T>
+    values: Array3<F>
 }
 
 /// Locations for resampled field values.
@@ -30,13 +30,13 @@ pub enum ResampleLocations {
     UniformCenter
 }
 
-impl<T, G> ScalarField3<T, G>
-where T: num::Float + std::fmt::Display,
-      G: Grid3<T> + Clone
+impl<F, G> ScalarField3<F, G>
+where F: num::Float + std::fmt::Display,
+      G: Grid3<F> + Clone
 {
     /// Creates a new 3D scalar field given the grid, the values and
     /// coordinate types specifying where in the grid cell the values are defined.
-    pub fn new(grid: G, coord_types: In3D<CoordsType>, values: Array3<T>) -> Self {
+    pub fn new(grid: G, coord_types: In3D<CoordsType>, values: Array3<F>) -> Self {
         ScalarField3{ grid, coord_types, values }
     }
 
@@ -45,7 +45,7 @@ where T: num::Float + std::fmt::Display,
 
     /// Returns a set of references to the coordinates where the field
     /// values are defined.
-    pub fn coords<'a>(&'a self) -> CoordRefs3<'a, T> {
+    pub fn coords(&self) -> CoordRefs3<F> {
         CoordRefs3::new(
             &self.grid.coords_by_type(self.coord_types[X])[X],
             &self.grid.coords_by_type(self.coord_types[Y])[Y],
@@ -54,19 +54,19 @@ where T: num::Float + std::fmt::Display,
     }
 
     /// Returns a reference to the 3D array of field values.
-    pub fn values(&self) -> &Array3<T> { &self.values }
+    pub fn values(&self) -> &Array3<F> { &self.values }
 
     /// Returns the 3D shape of the grid.
     pub fn shape(&self) -> &In3D<usize> { self.grid.shape() }
 
     /// Returns a view of the 2D slice of the field located at the given index along the given dimension.
-    pub fn slice_at_idx(&self, dim: Dim3, idx: usize) -> ArrayView2<T> {
+    pub fn slice_at_idx(&self, dim: Dim3, idx: usize) -> ArrayView2<F> {
         self.values.index_axis(Axis(dim as usize), idx)
     }
 
     /// Returns a 2D slice of the field located at the given coordinate along the given dimension.
-    pub fn slice_at_coord<I>(&self, dim: Dim3, coord: T, resample_locations: ResampleLocations) -> Array2<T>
-    where I: Interpolator3<T, G>
+    pub fn slice_at_coord<I>(&self, interpolator: &I, dim: Dim3, coord: F, resample_locations: ResampleLocations) -> Array2<F>
+    where I: Interpolator3
     {
         let grid_shape = self.shape();
         let [dim_0, dim_1] = Dim3::slice_except(dim);
@@ -106,7 +106,7 @@ where T: num::Float + std::fmt::Display,
             point[dim_1] = coords_1[idx_1];
             for idx_0 in  0..grid_shape[dim_0] {
                 point[dim_0] = coords_0[idx_0];
-                slice[[idx_0, idx_1]] = I::interp_scalar_field(self, &point).unwrap();
+                slice[[idx_0, idx_1]] = interpolator.interp_scalar_field(self, &point).unwrap();
             }
         }
 
@@ -120,22 +120,22 @@ where T: num::Float + std::fmt::Display,
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Debug, Clone)]
-pub struct VectorField3<T, G>
-where T: num::Float,
-      G: Grid3<T> + Clone
+pub struct VectorField3<F, G>
+where F: num::Float,
+      G: Grid3<F> + Clone
 {
     grid: G,
     coord_types: In3D<In3D<CoordsType>>,
-    values: In3D<Array3<T>>
+    values: In3D<Array3<F>>
 }
 
-impl<T, G> VectorField3<T, G>
-where T: num::Float + std::fmt::Display,
-      G: Grid3<T> + Clone
+impl<F, G> VectorField3<F, G>
+where F: num::Float + std::fmt::Display,
+      G: Grid3<F> + Clone
 {
     /// Creates a new 3D vector field given the grid, the component values and
     /// coordinate types specifying where in the grid cell the component values are defined.
-    pub fn new(grid: G, coord_types: In3D<In3D<CoordsType>>, values: In3D<Array3<T>>) -> Self {
+    pub fn new(grid: G, coord_types: In3D<In3D<CoordsType>>, values: In3D<Array3<F>>) -> Self {
         VectorField3{ grid, coord_types, values }
     }
 
@@ -144,7 +144,7 @@ where T: num::Float + std::fmt::Display,
 
     /// Returns a set of references to the coordinates where the field
     /// component values are defined.
-    pub fn coords<'a>(&'a self) -> In3D<CoordRefs3<'a, T>> {
+    pub fn coords<'a>(&'a self) -> In3D<CoordRefs3<'a, F>> {
         In3D::new(CoordRefs3::new(
              &self.grid.coords_by_type(self.coord_types[X][X])[X],
              &self.grid.coords_by_type(self.coord_types[X][Y])[Y],
@@ -163,13 +163,13 @@ where T: num::Float + std::fmt::Display,
     }
 
     /// Returns a reference to the three 3D arrays of field component values.
-    pub fn values(&self) -> &In3D<Array3<T>> { &self.values }
+    pub fn values(&self) -> &In3D<Array3<F>> { &self.values }
 
     /// Returns the 3D shape of the grid.
     pub fn shape(&self) -> &In3D<usize> { self.grid.shape() }
 
     /// Creates a new scalar field from the specified vector field component.
-    pub fn component_as_scalar_field(&self, dim: Dim3) -> ScalarField3<T, G> {
+    pub fn component_as_scalar_field(&self, dim: Dim3) -> ScalarField3<F, G> {
         ScalarField3::new(self.grid.clone(), self.coord_types[dim].clone(), self.values[dim].clone())
     }
 }
