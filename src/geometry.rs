@@ -130,6 +130,13 @@ impl<F: num::Float> Vec3<F> {
         self[Y] = self[Y]*inv_length;
         self[Z] = self[Z]*inv_length;
     }
+
+    /// Reverses the direction of the vector.
+    pub fn reverse(&mut self) {
+        self[X] = -self[X];
+        self[Y] = -self[Y];
+        self[Z] = -self[Z];
+    }
 }
 
 impl<F: num::Float> Index<Dim3> for Vec3<F> {
