@@ -77,16 +77,17 @@ impl RKFStepper3 for RKF23Stepper3 {
     fn state(&self) -> &RKFStepperState3 { &self.0 }
     fn state_mut(&mut self) -> &mut RKFStepperState3 { &mut self.0 }
 
-    fn attempt_step<F, G, I>(&self, field: &VectorField3<F, G>, interpolator: &I) -> StepperResult<StepAttempt3>
+    fn attempt_step<F, G, I, D>(&self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<StepAttempt3>
     where F: num::Float + std::fmt::Display,
           G: Grid3<F> + Clone,
-          I: Interpolator3
+          I: Interpolator3,
+          D: Fn(&mut Vec3<ftr>)
     {
         let state = self.state();
 
         let mut next_position = &state.position + &state.direction*(Self::A21*state.step_size);
 
-        let intermediate_direction_1 = match Self::compute_direction(field, interpolator, &next_position) {
+        let intermediate_direction_1 = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
             StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => direction,
             StepperResult::Stopped(cause) => return StepperResult::Stopped(cause)
@@ -94,7 +95,7 @@ impl RKFStepper3 for RKF23Stepper3 {
 
         next_position = &state.position + &intermediate_direction_1*(Self::A32*state.step_size);
 
-        let intermediate_direction_2 = match Self::compute_direction(field, interpolator, &next_position) {
+        let intermediate_direction_2 = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
             StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => direction,
             StepperResult::Stopped(cause) => return StepperResult::Stopped(cause)
@@ -108,7 +109,7 @@ impl RKFStepper3 for RKF23Stepper3 {
 
         let mut step_wrapped = false;
 
-        let next_direction = match Self::compute_direction(field, interpolator, &next_position) {
+        let next_direction = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
             StepperResult::Ok(ComputedDirection3::WithWrappedPosition((wrapped_position, direction))) => {
                 step_wrapped = true;
@@ -168,31 +169,34 @@ impl RKFStepper3 for RKF23Stepper3 {
 }
 
 impl Stepper3 for RKF23Stepper3 {
-    fn place<F, G, I, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
+    fn place<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
     where F: num::Float + std::fmt::Display,
           G: Grid3<F> + Clone,
           I: Interpolator3,
+          D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
     {
-        self.place_with_callback(field, interpolator, position, callback)
+        self.place_with_callback(field, interpolator, direction_computer, position, callback)
     }
 
-    fn step<F, G, I, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, callback: &mut C) -> StepperResult<()>
+    fn step<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
     where F: num::Float + std::fmt::Display,
           G: Grid3<F> + Clone,
           I: Interpolator3,
+          D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
     {
-        self.step_with_callback(field, interpolator, callback)
+        self.step_with_callback(field, interpolator, direction_computer, callback)
     }
 
-    fn step_dense_output<F, G, I, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, callback: &mut C) -> StepperResult<()>
+    fn step_dense_output<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
     where F: num::Float + std::fmt::Display,
           G: Grid3<F> + Clone,
           I: Interpolator3,
+          D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
     {
-        self.step_with_callback_dense_output(field, interpolator, callback)
+        self.step_with_callback_dense_output(field, interpolator, direction_computer, callback)
     }
 
     fn position(&self) -> &Point3<ftr> { &self.state().position }
