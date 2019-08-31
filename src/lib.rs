@@ -2,6 +2,6 @@
 pub mod geometry;
 pub mod grid;
 pub mod field;
-pub mod reading;
+pub mod io;
 pub mod interpolation;
 pub mod tracing;
