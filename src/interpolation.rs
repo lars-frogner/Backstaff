@@ -23,12 +23,46 @@ impl<T> InterpResult3<T> {
 
 /// Defines the properties of a 3D interpolator.
 pub trait Interpolator3 {
-    /// Interpolates the given scalar field at the given coordinate.
+    /// Computes the interpolated value of a scalar field at the given coordinate.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Scalar field to interpolate.
+    /// - `interp_point`: Coordinate where the interpolated value should be computed.
+    ///
+    /// # Returns
+    ///
+    /// An `InterpResult3<F>` which is either:
+    ///
+    /// - `Ok`: Contains the interpolated field value.
+    /// - `OutOfBounds`: Contains a `BoundsCrossing` for each dimension.
+    ///
+    /// # Type parameters
+    ///
+    /// - `F`: Floating point type of the field data.
+    /// - `G`: Type of grid.
     fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<F>
     where F: num::Float + std::fmt::Display,
           G: Grid3<F> + Clone;
 
-    /// Interpolates the given vector field at the given coordinate.
+    /// Computes the interpolated vector of a vector field at the given coordinate.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Vector field to interpolate.
+    /// - `interp_point`: Coordinate where the interpolated vector should be computed.
+    ///
+    /// # Returns
+    ///
+    /// An `InterpResult3<F>` which is either:
+    ///
+    /// - `Ok`: Contains the interpolated field vector.
+    /// - `OutOfBounds`: Contains a `BoundsCrossing` for each dimension.
+    ///
+    /// # Type parameters
+    ///
+    /// - `F`: Floating point type of the field data.
+    /// - `G`: Type of grid.
     fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<Vec3<F>>
     where F: num::Float + std::fmt::Display,
           G: Grid3<F> + Clone;
