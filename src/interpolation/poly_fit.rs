@@ -274,7 +274,8 @@ mod tests {
     use ndarray_stats::QuantileExt;
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::field::ResampleLocations;
-    use crate::reading::{SnapshotReader, Endianness};
+    use crate::io::Endianness;
+    use crate::io::snapshot::SnapshotReader;
 
     #[test]
     fn interpolation_at_original_data_points_works() {
