@@ -87,3 +87,4 @@ mod tests {
         field_line_23.save_as_pickle(&path::PathBuf::from("data/test_field_line_23.pickle")).unwrap();
         field_line_45.save_as_pickle(&path::PathBuf::from("data/test_field_line_45.pickle")).unwrap();
     }
+}
