@@ -1,7 +1,7 @@
 //! Reading of Bifrost simulation data.
 
 use std::{io, path, fs, mem, str, string};
-use std::io::{Read, BufRead, Seek, SeekFrom};
+use std::io::{BufRead, Seek, SeekFrom};
 use std::convert::TryInto;
 use std::collections::{HashMap, VecDeque};
 use num;
@@ -12,18 +12,13 @@ use ndarray::prelude::*;
 use crate::geometry::{Dim3, In3D, Coords3};
 use crate::grid::{CoordsType, Grid3Type, Grid3};
 use crate::field::{ScalarField3, VectorField3};
+use super::Endianness;
+use super::utils::read_text_file;
 use Dim3::{X, Y, Z};
 
 /// Floating-point precision assumed for Bifrost data.
 #[allow(non_camel_case_types)]
 pub type fdt = f32;
-
-/// Little- or big-endian byte order.
-#[derive(Debug, Copy, Clone)]
-pub enum Endianness {
-    Little,
-    Big
-}
 
 /// Reader for the output files assoicated with a single Bifrost simulation snapshot.
 #[derive(Debug, Clone)]
@@ -334,13 +329,6 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
     }
 }
 
-fn read_text_file(file_path: &path::Path) -> io::Result<String> {
-    let file = fs::File::open(file_path)?;
-    let mut text = String::new();
-    let _ = io::BufReader::new(file).read_to_string(&mut text)?;
-    Ok(text)
-}
-
 #[derive(Debug, Clone)]
 struct Variable {
     is_primary: bool,
@@ -354,7 +342,6 @@ struct Params {
 }
 
 impl Params {
-
     fn new(params_path: &path::Path) -> io::Result<Self> {
         let params_text = read_text_file(params_path)?;
         let params_map = Self::parse_params_text(&params_text);
