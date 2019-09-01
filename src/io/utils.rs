@@ -13,10 +13,15 @@ pub fn read_text_file(file_path: &path::Path) -> io::Result<String> {
     Ok(text)
 }
 
-/// Serializes the given data into a protocol 3 pickle file saved at the given path.
-pub fn save_data_as_pickle<T: Serialize>(data: &T, file_path: &path::Path) -> io::Result<()> {
+/// Serializes the given data into protocol 3 pickle format and save at the given path.
+pub fn save_data_as_pickle<T: Serialize>(file_path: &path::Path, data: &T) -> io::Result<()> {
     let mut file = fs::File::create(file_path)?;
-    match serde_pickle::to_writer(&mut file, data, true) {
+    write_data_as_pickle_to_file(&mut file, data)
+}
+
+/// Serializes the given data into protocol 3 pickle format and write to the given file.
+pub fn write_data_as_pickle_to_file<T: Serialize>(file: &mut fs::File, data: &T) -> io::Result<()> {
+    match serde_pickle::to_writer(file, data, true) {
         Ok(_) => Ok(()),
         Err(serde_pickle::Error::Io(err)) => Err(err),
         Err(_) => Err(io::Error::new(io::ErrorKind::Other, "Unexpected error while serializing data to pickle file"))
