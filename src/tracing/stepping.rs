@@ -9,7 +9,7 @@ use crate::interpolation::Interpolator3;
 use super::ftr;
 
 /// Stepping along the field line in the same direction as the field or opposite.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum SteppingSense {
     Same,
     Opposite
@@ -23,7 +23,7 @@ pub enum StepperResult<T> {
 }
 
 /// Reason for terminating stepping.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum StoppingCause {
     Null,
     Sink,
@@ -34,14 +34,14 @@ pub enum StoppingCause {
 
 /// Lets the stepper callback communicate whether tracing should
 /// continue or terminate.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum StepperInstruction {
     Continue,
     Terminate
 }
 
 /// Defines the properties of a stepping scheme.
-pub trait Stepper3 {
+pub trait Stepper3: Clone {
     /// Places the stepper inside the field.
     ///
     /// # Parameters
@@ -138,4 +138,10 @@ pub trait Stepper3 {
 
     /// Retuns the current distance of the stepper along the field line.
     fn distance(&self) -> ftr;
+}
+
+/// Defines the properties of a 3D stepper factory structure.
+pub trait StepperFactory3 {
+    type Output: Stepper3;
+    fn produce(&self) -> Self::Output;
 }
