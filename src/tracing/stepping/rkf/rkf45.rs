@@ -9,11 +9,16 @@ use crate::field::VectorField3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use super::{RKFStepperState3, RKFStepperConfig, PIControlParams, ComputedDirection3, StepAttempt3, RKFStepper3};
-use super::super::{Stepper3, StepperResult, StepperInstruction};
+use super::super::{StepperFactory3, Stepper3, StepperResult, StepperInstruction};
 
 /// A stepper using the fifth order Runge–Kutta–Fehlberg method.
 #[derive(Clone)]
 pub struct RKF45Stepper3(RKFStepperState3);
+
+/// Factory for `RKF45Stepper3` objects.
+pub struct RKF45StepperFactory3 {
+    config: RKFStepperConfig
+}
 
 impl RKF45Stepper3 {
     const ORDER: u8 = 5;
@@ -275,4 +280,18 @@ impl Stepper3 for RKF45Stepper3 {
 
     fn position(&self) -> &Point3<ftr> { &self.state().position }
     fn distance(&self) -> ftr { self.state().distance }
+}
+
+impl RKF45StepperFactory3 {
+    /// Creates a new factory for producing steppers with the given configuration parameters.
+    pub fn new(config: RKFStepperConfig) -> Self {
+        RKF45StepperFactory3{ config }
+    }
+}
+
+impl StepperFactory3 for RKF45StepperFactory3 {
+    type Output = RKF45Stepper3;
+    fn produce(&self) -> Self::Output {
+        RKF45Stepper3::new(self.config.clone())
+    }
 }
