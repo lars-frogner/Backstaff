@@ -5,7 +5,7 @@ use std::ops::{Index, IndexMut, Add, Sub, Mul, Div};
 use ndarray::prelude::*;
 use serde::Serialize;
 
-/// Denotes the x- y- or z-dimension.
+/// Denotes the x-, y- or z-dimension.
 #[derive(Debug, Copy, Clone)]
 pub enum Dim3 {
     X = 0,
@@ -14,7 +14,7 @@ pub enum Dim3 {
 }
 
 impl Dim3 {
-    /// Creates an array for iterating over the x- y- and z-dimensions.
+    /// Creates an array for iterating over the x-, y- and z-dimensions.
     pub fn slice() -> [Self; 3] { [Dim3::X, Dim3::Y, Dim3::Z] }
 
     /// Creates an array for iterating over the x- and y-dimensions.

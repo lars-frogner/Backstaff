@@ -147,7 +147,7 @@ where F: num::Float + num::cast::FromPrimitive + std::fmt::Debug
     }
 }
 
-/// A 2D grid which is regular in x and y but non-uniform in z.
+/// A 2D grid which is regular in x but non-uniform in y.
 #[derive(Debug, Clone)]
 pub struct HorRegularGrid2<F: num::Float> {
     coords: [Coords2<F>; 2],
