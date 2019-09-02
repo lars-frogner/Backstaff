@@ -1,5 +1,6 @@
 //! Interpolation by polynomial fitting.
 
+use std::fmt;
 use ndarray::prelude::*;
 use super::{InterpResult3, Interpolator3};
 use crate::geometry::{Dim3, In3D, Point3, Idx3, Vec3, CoordRefs3};
@@ -234,8 +235,8 @@ impl PolyFitInterpolator3 {
 
 impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<F>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>
     {
         let grid = field.grid();
         let coords = field.coords();
@@ -248,8 +249,8 @@ impl Interpolator3 for PolyFitInterpolator3 {
     }
 
     fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<Vec3<F>>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>
     {
         let grid = field.grid();
         let coords = field.coords();
@@ -273,23 +274,24 @@ mod tests {
     use std::path;
     use ndarray_stats::QuantileExt;
     use crate::grid::hor_regular::HorRegularGrid3;
-    use crate::field::ResampleLocations;
+    use crate::field::ResampledCoordLocations;
     use crate::io::Endianness;
-    use crate::io::snapshot::SnapshotReader;
+    use crate::io::snapshot::{fdt, SnapshotReader3};
 
     #[test]
     fn interpolation_at_original_data_points_works() {
         let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader: SnapshotReader<HorRegularGrid3<f32>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(&params_path, Endianness::Little).unwrap();
         let field = reader.read_3d_scalar_field("r").unwrap();
 
         let coords = field.coords();
         let idx = 300;
-        let slice_idx = field.slice_at_idx(Y, idx);
+        let slice_values_idx = field.slice_across_axis_at_idx(Y, idx);
         let interpolator = PolyFitInterpolator3;
-        let slice_coord = field.slice_at_coord(&interpolator, Y, coords[Y][idx], ResampleLocations::Original);
+        let slice_field_coord = field.slice_across_y(&interpolator, coords[Y][idx], ResampledCoordLocations::Original);
+        let slice_values_coord = slice_field_coord.values();
 
-        let rel_diffs = (slice_coord - slice_idx).mapv(f32::abs)/slice_idx;
+        let rel_diffs = (slice_values_idx.to_owned() - slice_values_coord).mapv(fdt::abs)/slice_values_idx;
         assert!(*rel_diffs.max().unwrap() < 1e-6);
     }
 }

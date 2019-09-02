@@ -2,6 +2,8 @@
 
 pub mod poly_fit;
 
+use std::fmt;
+use num;
 use crate::geometry::{In3D, Point3, Vec3};
 use crate::grid::{BoundsCrossing, Grid3};
 use crate::field::{ScalarField3, VectorField3};
@@ -42,8 +44,8 @@ pub trait Interpolator3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<F>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone;
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate.
     ///
@@ -64,6 +66,6 @@ pub trait Interpolator3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<Vec3<F>>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone;
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>;
 }
