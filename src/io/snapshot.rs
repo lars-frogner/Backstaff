@@ -10,19 +10,20 @@ use byteorder;
 use byteorder::ReadBytesExt;
 use ndarray::prelude::*;
 use crate::geometry::{Dim3, In3D, Coords3};
-use crate::grid::{CoordsType, Grid3Type, Grid3};
+use crate::grid::{CoordLocation, GridType, Grid3};
 use crate::field::{ScalarField3, VectorField3};
 use super::Endianness;
 use super::utils::read_text_file;
 use Dim3::{X, Y, Z};
+use CoordLocation::{Center, LowerEdge};
 
 /// Floating-point precision assumed for Bifrost data.
 #[allow(non_camel_case_types)]
 pub type fdt = f32;
 
-/// Reader for the output files assoicated with a single Bifrost simulation snapshot.
+/// Reader for the output files assoicated with a single Bifrost 3D simulation snapshot.
 #[derive(Debug, Clone)]
-pub struct SnapshotReader<G: Grid3<fdt> + Clone> {
+pub struct SnapshotReader3<G: Grid3<fdt>> {
     snap_path: path::PathBuf,
     aux_path: path::PathBuf,
     params: Params,
@@ -31,8 +32,8 @@ pub struct SnapshotReader<G: Grid3<fdt> + Clone> {
     variables: HashMap<String, Variable>
 }
 
-impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
-    /// Creates a reader for a Bifrost snapshot.
+impl<G: Grid3<fdt>> SnapshotReader3<G> {
+    /// Creates a reader for a 3D Bifrost snapshot.
     ///
     /// # Parameters
     ///
@@ -43,7 +44,7 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
     ///
     /// A `Result` which is either:
     ///
-    /// - `Ok`: Contains a new `SnapshotReader`.
+    /// - `Ok`: Contains a new `SnapshotReader3`.
     /// - `Err`: Contains an error encountered during opening, reading or parsing the relevant files.
     pub fn new(params_path: &path::Path, endianness: Endianness) -> io::Result<Self> {
         let params = Params::new(&params_path)?;
@@ -60,7 +61,7 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
         Self::insert_primary_variables(&mut variables);
         Self::insert_aux_variables(&params, &mut variables)?;
 
-        Ok(SnapshotReader{
+        Ok(SnapshotReader3{
             snap_path,
             aux_path,
             params,
@@ -85,7 +86,7 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
     pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable = self.get_variable(variable_name)?;
         let values = self.read_3d_variable_from_binary_file(variable)?;
-        Ok(ScalarField3::new(variable_name.to_string(), self.grid.clone(), variable.coord_types.clone(), values))
+        Ok(ScalarField3::new(variable_name.to_string(), self.grid.clone(), variable.locations.clone(), values))
     }
 
     /// Reads the component variables of the specified 3D vector quantity from the output files.
@@ -109,11 +110,11 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
                                self.read_3d_variable_from_binary_file(component_variables[1])?,
                                self.read_3d_variable_from_binary_file(component_variables[2])?);
 
-        let coord_types = In3D::new(component_variables[0].coord_types.clone(),
-                                    component_variables[1].coord_types.clone(),
-                                    component_variables[2].coord_types.clone());
+        let locations = In3D::new(component_variables[0].locations.clone(),
+                                  component_variables[1].locations.clone(),
+                                  component_variables[2].locations.clone());
 
-        Ok(VectorField3::new(variable_name.to_string(), self.grid.clone(), coord_types, values))
+        Ok(VectorField3::new(variable_name.to_string(), self.grid.clone(), locations, values))
     }
 
     /// Provides the string value of a parameter from the parameter file.
@@ -233,8 +234,8 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
         }
 
         let detected_grid_type = match is_uniform {
-            [true, true, true] => Grid3Type::Regular,
-            [true, true, false] => Grid3Type::HorRegular,
+            [true, true, true] => GridType::Regular,
+            [true, true, false] => GridType::HorRegular,
             _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
                                            "Non-uniform x- or y-coordinates not supported"))
         };
@@ -265,14 +266,14 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
 
     fn insert_primary_variables(variables: &mut HashMap<String, Variable>) {
         let is_primary = true;
-        variables.insert("r" .to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Center), index: 0 });
-        variables.insert("px".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Lower,  CoordsType::Center, CoordsType::Center), index: 1 });
-        variables.insert("py".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Lower,  CoordsType::Center), index: 2 });
-        variables.insert("pz".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Lower ), index: 3 });
-        variables.insert("e" .to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Center), index: 4 });
-        variables.insert("bx".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Lower,  CoordsType::Center, CoordsType::Center), index: 5 });
-        variables.insert("by".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Lower,  CoordsType::Center), index: 6 });
-        variables.insert("bz".to_string(), Variable{ is_primary, coord_types: In3D::new(CoordsType::Center, CoordsType::Center, CoordsType::Lower ), index: 7 });
+        variables.insert("r" .to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    Center),    index: 0 });
+        variables.insert("px".to_string(), Variable{ is_primary, locations: In3D::new(LowerEdge, Center,    Center),    index: 1 });
+        variables.insert("py".to_string(), Variable{ is_primary, locations: In3D::new(Center,    LowerEdge, Center),    index: 2 });
+        variables.insert("pz".to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    LowerEdge), index: 3 });
+        variables.insert("e" .to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    Center),    index: 4 });
+        variables.insert("bx".to_string(), Variable{ is_primary, locations: In3D::new(LowerEdge, Center,    Center),    index: 5 });
+        variables.insert("by".to_string(), Variable{ is_primary, locations: In3D::new(Center,    LowerEdge, Center),    index: 6 });
+        variables.insert("bz".to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    LowerEdge), index: 7 });
     }
 
     fn insert_aux_variables(params: &Params, variables: &mut HashMap<String, Variable>) -> io::Result<()> {
@@ -283,18 +284,18 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
             let ends_with_y = name.ends_with('y');
             let ends_with_z = name.ends_with('z');
 
-            let coord_types = if (ends_with_x || ends_with_y || ends_with_z) &&
+            let locations = if (ends_with_x || ends_with_y || ends_with_z) &&
                                (name.starts_with('e') || name.starts_with('i')) {
-                In3D::new(if ends_with_x { CoordsType::Center } else {CoordsType::Lower},
-                          if ends_with_y { CoordsType::Center } else {CoordsType::Lower},
-                          if ends_with_z { CoordsType::Center } else {CoordsType::Lower})
+                In3D::new(if ends_with_x { Center } else { LowerEdge },
+                          if ends_with_y { Center } else { LowerEdge },
+                          if ends_with_z { Center } else { LowerEdge })
             } else {
-                In3D::new(if ends_with_x { CoordsType::Lower } else {CoordsType::Center},
-                          if ends_with_y { CoordsType::Lower } else {CoordsType::Center},
-                          if ends_with_z { CoordsType::Lower } else {CoordsType::Center})
+                In3D::new(if ends_with_x { LowerEdge } else { Center },
+                          if ends_with_y { LowerEdge } else { Center },
+                          if ends_with_z { LowerEdge } else { Center })
             };
 
-            variables.insert(name.to_string(), Variable{ is_primary, coord_types, index });
+            variables.insert(name.to_string(), Variable{ is_primary, locations, index });
         }
 
         Ok(())
@@ -332,7 +333,7 @@ impl<G: Grid3<fdt> + Clone> SnapshotReader<G> {
 #[derive(Debug, Clone)]
 struct Variable {
     is_primary: bool,
-    coord_types: In3D<CoordsType>,
+    locations: In3D<CoordLocation>,
     index: usize
 }
 
@@ -401,7 +402,7 @@ mod tests {
     #[test]
     fn reading_works() {
         let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader: SnapshotReader<HorRegularGrid3<fdt>> = SnapshotReader::new(&params_path, Endianness::Little).unwrap();
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(&params_path, Endianness::Little).unwrap();
         let _field = reader.read_3d_scalar_field("r").unwrap();
     }
 }
