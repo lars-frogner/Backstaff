@@ -2,6 +2,7 @@
 //! a fifth-order Runge-Kutta method with error
 //! estimation through an embedded fourth-order step.
 
+use std::fmt;
 use num;
 use crate::geometry::{Point3, Vec3};
 use crate::grid::Grid3;
@@ -110,8 +111,8 @@ impl RKFStepper3 for RKF45Stepper3 {
     fn state_mut(&mut self) -> &mut RKFStepperState3 { &mut self.0 }
 
     fn attempt_step<F, G, I, D>(&self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<StepAttempt3>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
     {
@@ -226,8 +227,8 @@ impl RKFStepper3 for RKF45Stepper3 {
     }
 
     fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Point3<ftr>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>
     {
         debug_assert!(fraction > 0.0 && fraction <= 1.0);
         let one_minus_fraction = 1.0 - fraction;
@@ -249,8 +250,8 @@ impl RKFStepper3 for RKF45Stepper3 {
 
 impl Stepper3 for RKF45Stepper3 {
     fn place<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
@@ -259,8 +260,8 @@ impl Stepper3 for RKF45Stepper3 {
     }
 
     fn step<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
@@ -269,8 +270,8 @@ impl Stepper3 for RKF45Stepper3 {
     }
 
     fn step_dense_output<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction

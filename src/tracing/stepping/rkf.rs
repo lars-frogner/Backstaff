@@ -5,6 +5,7 @@
 pub mod rkf23;
 pub mod rkf45;
 
+use std::fmt;
 use num;
 use crate::geometry::{Dim3, Point3, Vec3};
 use crate::grid::Grid3;
@@ -106,8 +107,8 @@ trait RKFStepper3 {
     fn state_mut(&mut self) -> &mut RKFStepperState3;
 
     fn attempt_step<F, G, I, D>(&self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<StepAttempt3>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>);
 
@@ -116,8 +117,8 @@ trait RKFStepper3 {
     fn compute_dense_interpolation_coefs(&self) -> Vec<Vec3<ftr>>;
 
     fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Point3<ftr>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone;
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>;
 
     fn reset_state(&mut self, position: &Point3<ftr>, direction: &Vec3<ftr>) {
         let state = self.state_mut();
@@ -137,8 +138,8 @@ trait RKFStepper3 {
     }
 
     fn place_with_callback<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
@@ -153,8 +154,8 @@ trait RKFStepper3 {
     }
 
     fn step_with_callback<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
@@ -169,8 +170,8 @@ trait RKFStepper3 {
     }
 
     fn step_with_callback_dense_output<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
           C: FnMut(&Point3<ftr>) -> StepperInstruction
@@ -184,8 +185,8 @@ trait RKFStepper3 {
     }
 
     fn perform_place<F, G, I, D>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
     {
@@ -198,8 +199,8 @@ trait RKFStepper3 {
     }
 
     fn perform_step<F, G, I, D>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
     {
@@ -246,8 +247,8 @@ trait RKFStepper3 {
     }
 
     fn compute_direction<F, G, I, D>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>) -> StepperResult<ComputedDirection3>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
     {
@@ -287,8 +288,8 @@ trait RKFStepper3 {
     }
 
     fn compute_error<F, G>(&self, grid: &G, attempt: &StepAttempt3) -> StepError
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>
     {
         let state = self.state();
         let error_deltas = self.compute_error_deltas(attempt);
@@ -361,8 +362,8 @@ trait RKFStepper3 {
     }
 
     fn compute_dense_output<F, G, C>(&mut self, grid: &G, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + std::fmt::Display,
-          G: Grid3<F> + Clone,
+    where F: num::Float + fmt::Display,
+          G: Grid3<F>,
           C: FnMut(&Point3<ftr>) -> StepperInstruction
     {
         #![allow(clippy::float_cmp)] // Allows the float comparison with zero
