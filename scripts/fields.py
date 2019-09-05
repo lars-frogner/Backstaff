@@ -39,4 +39,4 @@ if __name__ == "__main__":
     field = reading.read_2d_scalar_field(Path(reading.data_path, 'slice_field.pickle'))
     fig, ax = plotting.create_2d_plot()
     field.add_to_plot(ax)
-    plotting.show()
+    plotting.render(fig)
