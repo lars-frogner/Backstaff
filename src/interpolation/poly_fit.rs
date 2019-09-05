@@ -1,10 +1,9 @@
 //! Interpolation by polynomial fitting.
 
-use std::fmt;
 use ndarray::prelude::*;
-use super::{InterpResult3, Interpolator3};
+use super::Interpolator3;
 use crate::geometry::{Dim3, In3D, Point3, Idx3, Vec3, CoordRefs3};
-use crate::grid::{FoundIdx3, Grid3};
+use crate::grid::Grid3;
 use crate::field::{ScalarField3, VectorField3};
 use Dim3::{X, Y, Z};
 
@@ -88,18 +87,16 @@ impl PolyFitInterpolator3 {
         Self::interp_subarrays(In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray), &value_subarray, interp_point)
     }
 
-    fn create_coordinate_subarray_for_interior<F>(coords: &Array1<F>, start_idx: isize) -> [F; Self::POINTS]
+    fn create_coordinate_subarray_for_interior<F>(coords: &[F], start_idx: isize) -> [F; Self::POINTS]
     where F: num::Float
     {
         let mut subarray = [F::zero(); Self::POINTS];
         let offset = start_idx as usize;
-        for idx in 0..Self::POINTS {
-            subarray[idx] = coords[offset + idx];
-        }
+        subarray[..Self::POINTS].clone_from_slice(&coords[offset..(Self::POINTS + offset)]);
         subarray
     }
 
-    fn create_coordinate_subarray_for_periodic<F>(coords: &Array1<F>, start_idx: isize) -> [F; Self::POINTS]
+    fn create_coordinate_subarray_for_periodic<F>(coords: &[F], start_idx: isize) -> [F; Self::POINTS]
     where F: num::Float
     {
         let len = coords.len();
@@ -126,7 +123,6 @@ impl PolyFitInterpolator3 {
                 }
             }
         }
-
         subarray
     }
 
@@ -150,7 +146,6 @@ impl PolyFitInterpolator3 {
                 }
             }
         }
-
         subarray
     }
 
@@ -234,36 +229,32 @@ impl PolyFitInterpolator3 {
 }
 
 impl Interpolator3 for PolyFitInterpolator3 {
-    fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<F>
-    where F: num::Float + fmt::Display,
+    fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> Option<F>
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>
     {
         let grid = field.grid();
         let coords = field.coords();
         let values = field.values();
-
-        match grid.find_grid_cell(interp_point) {
-            FoundIdx3::Inside(interp_idx) => InterpResult3::Ok(Self::interp(grid, &coords, values, interp_point, &interp_idx)),
-            FoundIdx3::Outside(crossings) => InterpResult3::OutOfBounds(crossings),
-        }
+        grid.find_grid_cell(interp_point).map(
+            |interp_idx| Self::interp(grid, &coords, values, interp_point, &interp_idx)
+        )
     }
 
-    fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<Vec3<F>>
-    where F: num::Float + fmt::Display,
+    fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> Option<Vec3<F>>
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>
     {
         let grid = field.grid();
         let coords = field.coords();
         let values = field.values();
-
-        match grid.find_grid_cell(interp_point) {
-            FoundIdx3::Inside(interp_idx) => InterpResult3::Ok(Vec3::new(
-                                                 Self::interp(grid, &coords[X], &values[X], interp_point, &interp_idx),
-                                                 Self::interp(grid, &coords[Y], &values[Y], interp_point, &interp_idx),
-                                                 Self::interp(grid, &coords[Z], &values[Z], interp_point, &interp_idx)
-                                             )),
-            FoundIdx3::Outside(crossings) => InterpResult3::OutOfBounds(crossings),
-        }
+        grid.find_grid_cell(interp_point).map(
+            |interp_idx| Vec3::new(
+                Self::interp(grid, &coords[X], &values[X], interp_point, &interp_idx),
+                Self::interp(grid, &coords[Y], &values[Y], interp_point, &interp_idx),
+                Self::interp(grid, &coords[Z], &values[Z], interp_point, &interp_idx)
+            )
+        )
     }
 }
 
