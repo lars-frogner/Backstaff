@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
-def create_2d_plot(**fig_kwargs):
-    return plt.subplots(**fig_kwargs)
+def create_2d_plot(figsize=(8, 6), dpi=200, **kwargs):
+    return plt.subplots(figsize=figsize, dpi=dpi, **kwargs)
 
 
 def set_2d_plot_extent(ax, x_lims, y_lims):
@@ -12,8 +12,8 @@ def set_2d_plot_extent(ax, x_lims, y_lims):
     ax.set_ylim(*y_lims)
 
 
-def create_3d_plot(**fig_kwargs):
-    fig = plt.figure(**fig_kwargs)
+def create_3d_plot(figsize=(8, 6), dpi=200, **kwargs):
+    fig = plt.figure(figsize=figsize, dpi=dpi, **kwargs)
     ax = fig.add_subplot(111, projection='3d')
     return fig, ax
 
@@ -43,6 +43,9 @@ def set_3d_axes_equal(ax):
     set_axes_radius(ax, origin, radius)
 
 
-def render(fig):
+def render(fig, output_path=None):
     fig.tight_layout()
-    plt.show()
+    if output_path is not None:
+        plt.savefig(output_path)
+    else:
+        plt.show()
