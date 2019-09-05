@@ -15,8 +15,23 @@ class FieldLine3:
         self.scalar_values = scalar_values
         self.vector_values = vector_values
 
-    def add_to_plot(self, ax, s=1, c='k'):
-        ax.scatter(self.positions.x, self.positions.y, self.positions.z, s=s, c=c)
+    def add_to_plot_as_scatter(self, ax, c='k', s=1):
+        ax.scatter(self.positions.x, self.positions.y, self.positions.z, c=c, s=s)
+
+    def add_to_plot_as_line(self, ax, c='k', lw=1):
+        for pos_x, pos_y, pos_z in zip(*self.find_nonwrapping_segments()):
+            ax.plot(pos_x, pos_y, pos_z, c=c, lw=lw)
+
+    def find_nonwrapping_segments(self, threshold=20.0):
+        step_sizes = np.sqrt(np.diff(self.positions.x)**2 + np.diff(self.positions.y)**2 + np.diff(self.positions.z)**2)
+        wrap_indices = np.where(step_sizes > threshold*np.mean(step_sizes))[0]
+        if wrap_indices.size > 0:
+            wrap_indices += 1
+            return np.split(self.positions.x, wrap_indices), \
+                   np.split(self.positions.y, wrap_indices), \
+                   np.split(self.positions.z, wrap_indices)
+        else:
+            return [self.positions.x], [self.positions.y], [self.positions.z]
 
 
 class FieldLineSet3:
@@ -28,17 +43,20 @@ class FieldLineSet3:
         assert isinstance(field_line, FieldLine3)
         self.field_lines.append(field_line)
 
-    def add_to_plot(self, ax, s=1, c='k'):
+    def add_to_plot_as_scatter(self, ax, **kwargs):
         for field_line in self.field_lines:
-            field_line.add_to_plot(ax, s, c)
+            field_line.add_to_plot_as_scatter(ax, **kwargs)
 
+    def add_to_plot_as_line(self, ax, **kwargs):
+        for field_line in self.field_lines:
+            field_line.add_to_plot_as_line(ax, **kwargs)
 
 
 if __name__ == "__main__":
     import reading
     from pathlib import Path
 
-    field_line_set = reading.read_3d_field_line_set(Path(reading.data_path, 'regular_field_line_set.pickle'))
+    field_line_set = reading.read_3d_field_line_set(Path(reading.data_path, 'natural_field_line_set.pickle'))
 
     import matplotlib.pyplot as plt
     import plotting
@@ -46,6 +64,6 @@ if __name__ == "__main__":
     plotting.set_3d_plot_extent(ax, *grid_bounds)
     ax.invert_zaxis()
 
-    field_line_set.add_to_plot(ax)
+    field_line_set.add_to_plot_as_line(ax)
 
     plt.show()
