@@ -3,6 +3,7 @@
 use num;
 use std::ops::{Index, IndexMut, Add, Sub, Mul, Div};
 use serde::Serialize;
+use crate::num::BFloat;
 
 /// Denotes the x-, y- or z-dimension.
 #[derive(Debug, Copy, Clone)]
@@ -90,9 +91,9 @@ impl<T> IndexMut<Dim2> for In2D<T> {
 
 /// A 3D vector.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Vec3<F: num::Float>(In3D<F>);
+pub struct Vec3<F: BFloat>(In3D<F>);
 
-impl<F: num::Float> Vec3<F> {
+impl<F: BFloat> Vec3<F> {
     /// Creates a new 3D vector given the three components.
     pub fn new(x: F, y: F, z: F) -> Self { Vec3(In3D::new(x, y, z)) }
 
@@ -100,7 +101,7 @@ impl<F: num::Float> Vec3<F> {
     pub fn zero() -> Self { Vec3::new(F::zero(), F::zero(), F::zero()) }
 
     /// Creates a new vector from the given vector, which may have a different component type.
-    pub fn from<U: num::Float>(other: &Vec3<U>) -> Self {
+    pub fn from<U: BFloat>(other: &Vec3<U>) -> Self {
         Vec3::new(F::from(other[X]).unwrap(), F::from(other[Y]).unwrap(), F::from(other[Z]).unwrap())
     }
 
@@ -111,7 +112,7 @@ impl<F: num::Float> Vec3<F> {
 
     /// Constructs a new vector from the absolute values of the vector components.
     pub fn abs(&self) -> Self {
-        Vec3::new(F::abs(self[X]), F::abs(self[Y]), F::abs(self[Z]))
+        Vec3::new(num::Float::abs(self[X]), num::Float::abs(self[Y]), num::Float::abs(self[Z]))
     }
 
     /// Constructs a new vector by taking the component-wise max with the given vector.
@@ -159,16 +160,16 @@ impl<F: num::Float> Vec3<F> {
     }
 }
 
-impl<F: num::Float> Index<Dim3> for Vec3<F> {
+impl<F: BFloat> Index<Dim3> for Vec3<F> {
     type Output = F;
     fn index(&self, dim: Dim3) -> &Self::Output { &self.0[dim] }
 }
 
-impl<F: num::Float> IndexMut<Dim3> for Vec3<F> {
+impl<F: BFloat> IndexMut<Dim3> for Vec3<F> {
     fn index_mut(&mut self, dim: Dim3) -> &mut Self::Output { &mut self.0[dim] }
 }
 
-impl<'a, F: num::Float> Add<&'a Vec3<F>> for &'a Vec3<F> {
+impl<'a, F: BFloat> Add<&'a Vec3<F>> for &'a Vec3<F> {
     type Output = Vec3<F>;
     fn add(self, other: Self) -> Self::Output {
         Self::Output::new(self[X] + other[X],
@@ -177,22 +178,22 @@ impl<'a, F: num::Float> Add<&'a Vec3<F>> for &'a Vec3<F> {
     }
 }
 
-impl<F: num::Float> Add<Vec3<F>> for &Vec3<F> {
+impl<F: BFloat> Add<Vec3<F>> for &Vec3<F> {
     type Output = Vec3<F>;
     fn add(self, other: Vec3<F>) -> Self::Output { self + &other }
 }
 
-impl<F: num::Float> Add<Vec3<F>> for Vec3<F> {
+impl<F: BFloat> Add<Vec3<F>> for Vec3<F> {
     type Output = Self;
     fn add(self, other: Self) -> Self::Output { &self + &other }
 }
 
-impl<F: num::Float> Add<&Vec3<F>> for Vec3<F> {
+impl<F: BFloat> Add<&Vec3<F>> for Vec3<F> {
     type Output = Self;
     fn add(self, other: &Self) -> Self::Output { &self + other }
 }
 
-impl<'a, F: num::Float> Sub<&'a Vec3<F>> for &'a Vec3<F> {
+impl<'a, F: BFloat> Sub<&'a Vec3<F>> for &'a Vec3<F> {
     type Output = Vec3<F>;
     fn sub(self, other: Self) -> Self::Output {
         Self::Output::new(self[X] - other[X],
@@ -201,22 +202,22 @@ impl<'a, F: num::Float> Sub<&'a Vec3<F>> for &'a Vec3<F> {
     }
 }
 
-impl<F: num::Float> Sub<Vec3<F>> for &Vec3<F> {
+impl<F: BFloat> Sub<Vec3<F>> for &Vec3<F> {
     type Output = Vec3<F>;
     fn sub(self, other: Vec3<F>) -> Self::Output { self - &other }
 }
 
-impl<F: num::Float> Sub<Vec3<F>> for Vec3<F> {
+impl<F: BFloat> Sub<Vec3<F>> for Vec3<F> {
     type Output = Self;
     fn sub(self, other: Self) -> Self::Output { &self - &other }
 }
 
-impl<F: num::Float> Sub<&Vec3<F>> for Vec3<F> {
+impl<F: BFloat> Sub<&Vec3<F>> for Vec3<F> {
     type Output = Self;
     fn sub(self, other: &Self) -> Self::Output { &self - other }
 }
 
-impl<F: num::Float> Mul<F> for &Vec3<F> {
+impl<F: BFloat> Mul<F> for &Vec3<F> {
     type Output = Vec3<F>;
     fn mul(self, factor: F) -> Self::Output {
         Self::Output::new(factor*self[X],
@@ -225,12 +226,12 @@ impl<F: num::Float> Mul<F> for &Vec3<F> {
     }
 }
 
-impl<F: num::Float> Mul<F> for Vec3<F> {
+impl<F: BFloat> Mul<F> for Vec3<F> {
     type Output = Self;
     fn mul(self, factor: F) -> Self::Output { &self*factor }
 }
 
-impl<F: num::Float> Div<F> for &Vec3<F> {
+impl<F: BFloat> Div<F> for &Vec3<F> {
     type Output = Vec3<F>;
     fn div(self, divisor: F) -> Self::Output {
         #![allow(clippy::suspicious_arithmetic_impl)]
@@ -239,16 +240,16 @@ impl<F: num::Float> Div<F> for &Vec3<F> {
     }
 }
 
-impl<F: num::Float> Div<F> for Vec3<F> {
+impl<F: BFloat> Div<F> for Vec3<F> {
     type Output = Self;
     fn div(self, divisor: F) -> Self::Output { &self/divisor }
 }
 
 /// A 2D vector.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Vec2<F: num::Float>(In2D<F>);
+pub struct Vec2<F: BFloat>(In2D<F>);
 
-impl<F: num::Float> Vec2<F> {
+impl<F: BFloat> Vec2<F> {
     /// Creates a new 2D vector given the three components.
     pub fn new(x: F, y: F) -> Self { Vec2(In2D::new(x, y)) }
 
@@ -256,7 +257,7 @@ impl<F: num::Float> Vec2<F> {
     pub fn zero() -> Self { Vec2::new(F::zero(), F::zero()) }
 
     /// Creates a new vector from the given vector, which may have a different component type.
-    pub fn from<U: num::Float>(other: &Vec2<U>) -> Self {
+    pub fn from<U: BFloat>(other: &Vec2<U>) -> Self {
         Vec2::new(F::from(other[Dim2::X]).unwrap(), F::from(other[Dim2::Y]).unwrap())
     }
 
@@ -267,7 +268,7 @@ impl<F: num::Float> Vec2<F> {
 
     /// Constructs a new vector from the absolute values of the vector components.
     pub fn abs(&self) -> Self {
-        Vec2::new(F::abs(self[Dim2::X]), F::abs(self[Dim2::Y]))
+        Vec2::new(num::Float::abs(self[Dim2::X]), num::Float::abs(self[Dim2::Y]))
     }
 
     /// Constructs a new vector by taking the component-wise max with the given vector.
@@ -312,16 +313,16 @@ impl<F: num::Float> Vec2<F> {
     }
 }
 
-impl<F: num::Float> Index<Dim2> for Vec2<F> {
+impl<F: BFloat> Index<Dim2> for Vec2<F> {
     type Output = F;
     fn index(&self, dim: Dim2) -> &Self::Output { &self.0[dim] }
 }
 
-impl<F: num::Float> IndexMut<Dim2> for Vec2<F> {
+impl<F: BFloat> IndexMut<Dim2> for Vec2<F> {
     fn index_mut(&mut self, dim: Dim2) -> &mut Self::Output { &mut self.0[dim] }
 }
 
-impl<'a, F: num::Float> Add<&'a Vec2<F>> for &'a Vec2<F> {
+impl<'a, F: BFloat> Add<&'a Vec2<F>> for &'a Vec2<F> {
     type Output = Vec2<F>;
     fn add(self, other: Self) -> Self::Output {
         Self::Output::new(self[Dim2::X] + other[Dim2::X],
@@ -329,22 +330,22 @@ impl<'a, F: num::Float> Add<&'a Vec2<F>> for &'a Vec2<F> {
     }
 }
 
-impl<F: num::Float> Add<Vec2<F>> for &Vec2<F> {
+impl<F: BFloat> Add<Vec2<F>> for &Vec2<F> {
     type Output = Vec2<F>;
     fn add(self, other: Vec2<F>) -> Self::Output { self + &other }
 }
 
-impl<F: num::Float> Add<Vec2<F>> for Vec2<F> {
+impl<F: BFloat> Add<Vec2<F>> for Vec2<F> {
     type Output = Self;
     fn add(self, other: Self) -> Self::Output { &self + &other }
 }
 
-impl<F: num::Float> Add<&Vec2<F>> for Vec2<F> {
+impl<F: BFloat> Add<&Vec2<F>> for Vec2<F> {
     type Output = Self;
     fn add(self, other: &Self) -> Self::Output { &self + other }
 }
 
-impl<'a, F: num::Float> Sub<&'a Vec2<F>> for &'a Vec2<F> {
+impl<'a, F: BFloat> Sub<&'a Vec2<F>> for &'a Vec2<F> {
     type Output = Vec2<F>;
     fn sub(self, other: Self) -> Self::Output {
         Self::Output::new(self[Dim2::X] - other[Dim2::X],
@@ -352,22 +353,22 @@ impl<'a, F: num::Float> Sub<&'a Vec2<F>> for &'a Vec2<F> {
     }
 }
 
-impl<F: num::Float> Sub<Vec2<F>> for &Vec2<F> {
+impl<F: BFloat> Sub<Vec2<F>> for &Vec2<F> {
     type Output = Vec2<F>;
     fn sub(self, other: Vec2<F>) -> Self::Output { self - &other }
 }
 
-impl<F: num::Float> Sub<Vec2<F>> for Vec2<F> {
+impl<F: BFloat> Sub<Vec2<F>> for Vec2<F> {
     type Output = Self;
     fn sub(self, other: Self) -> Self::Output { &self - &other }
 }
 
-impl<F: num::Float> Sub<&Vec2<F>> for Vec2<F> {
+impl<F: BFloat> Sub<&Vec2<F>> for Vec2<F> {
     type Output = Self;
     fn sub(self, other: &Self) -> Self::Output { &self - other }
 }
 
-impl<F: num::Float> Mul<F> for &Vec2<F> {
+impl<F: BFloat> Mul<F> for &Vec2<F> {
     type Output = Vec2<F>;
     fn mul(self, factor: F) -> Self::Output {
         Self::Output::new(factor*self[Dim2::X],
@@ -375,12 +376,12 @@ impl<F: num::Float> Mul<F> for &Vec2<F> {
     }
 }
 
-impl<F: num::Float> Mul<F> for Vec2<F> {
+impl<F: BFloat> Mul<F> for Vec2<F> {
     type Output = Self;
     fn mul(self, factor: F) -> Self::Output { &self*factor }
 }
 
-impl<F: num::Float> Div<F> for &Vec2<F> {
+impl<F: BFloat> Div<F> for &Vec2<F> {
     type Output = Vec2<F>;
     fn div(self, divisor: F) -> Self::Output {
         #![allow(clippy::suspicious_arithmetic_impl)]
@@ -389,26 +390,26 @@ impl<F: num::Float> Div<F> for &Vec2<F> {
     }
 }
 
-impl<F: num::Float> Div<F> for Vec2<F> {
+impl<F: BFloat> Div<F> for Vec2<F> {
     type Output = Self;
     fn div(self, divisor: F) -> Self::Output { &self/divisor }
 }
 
 /// A 3D spatial coordinate.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Point3<F: num::Float>(In3D<F>);
+pub struct Point3<F: BFloat>(In3D<F>);
 
-impl<F: num::Float> Point3<F> {
+impl<F: BFloat> Point3<F> {
     /// Creates a new 3D point given the three components.
     pub fn new(x: F, y: F, z: F) -> Self { Point3(In3D::new(x, y, z)) }
 
     /// Creates a new point from the given point, which may have a different component type.
-    pub fn from<U: num::Float>(other: &Point3<U>) -> Self {
+    pub fn from<U: BFloat>(other: &Point3<U>) -> Self {
         Self::from_components(other[X], other[Y], other[Z])
     }
 
     /// Creates a new point from the given components, which may have different types.
-    pub fn from_components<U: num::Float, V: num::Float, W: num::Float>(x: U, y: V, z: W) -> Self {
+    pub fn from_components<U: BFloat, V: BFloat, W: BFloat>(x: U, y: V, z: W) -> Self {
         Point3::new(F::from(x).unwrap(), F::from(y).unwrap(), F::from(z).unwrap())
     }
 
@@ -421,16 +422,16 @@ impl<F: num::Float> Point3<F> {
     pub fn origin() -> Self { Self::new(F::zero(), F::zero(), F::zero()) }
 }
 
-impl<F: num::Float> Index<Dim3> for Point3<F> {
+impl<F: BFloat> Index<Dim3> for Point3<F> {
     type Output = F;
     fn index(&self, dim: Dim3) -> &Self::Output { &self.0[dim] }
 }
 
-impl<F: num::Float> IndexMut<Dim3> for Point3<F> {
+impl<F: BFloat> IndexMut<Dim3> for Point3<F> {
     fn index_mut(&mut self, dim: Dim3) -> &mut Self::Output { &mut self.0[dim] }
 }
 
-impl<'a, F: num::Float> Sub<&'a Self> for &'a Point3<F> {
+impl<'a, F: BFloat> Sub<&'a Self> for &'a Point3<F> {
     type Output = Vec3<F>;
     fn sub(self, other: &Self) -> Self::Output {
         Self::Output::new(self[X] - other[X],
@@ -439,22 +440,22 @@ impl<'a, F: num::Float> Sub<&'a Self> for &'a Point3<F> {
     }
 }
 
-impl<F: num::Float> Sub<Self> for Point3<F> {
+impl<F: BFloat> Sub<Self> for Point3<F> {
     type Output = Vec3<F>;
     fn sub(self, other: Self) -> Self::Output { &self - &other }
 }
 
-impl<F: num::Float> Sub<Self> for &Point3<F> {
+impl<F: BFloat> Sub<Self> for &Point3<F> {
     type Output = Vec3<F>;
     fn sub(self, other: Self) -> Self::Output { #![allow(clippy::op_ref)] self - &other }
 }
 
-impl<F: num::Float> Sub<&Self> for Point3<F> {
+impl<F: BFloat> Sub<&Self> for Point3<F> {
     type Output = Vec3<F>;
     fn sub(self, other: &Self) -> Self::Output { &self - other }
 }
 
-impl<'a, F: num::Float> Add<&'a Vec3<F>> for &'a Point3<F> {
+impl<'a, F: BFloat> Add<&'a Vec3<F>> for &'a Point3<F> {
     type Output = Point3<F>;
     fn add(self, vector: &Vec3<F>) -> Self::Output {
         Self::Output::new(self[X] + vector[X],
@@ -463,17 +464,17 @@ impl<'a, F: num::Float> Add<&'a Vec3<F>> for &'a Point3<F> {
     }
 }
 
-impl<F: num::Float> Add<Vec3<F>> for Point3<F> {
+impl<F: BFloat> Add<Vec3<F>> for Point3<F> {
     type Output = Self;
     fn add(self, vector: Vec3<F>) -> Self::Output { &self + &vector }
 }
 
-impl<F: num::Float> Add<Vec3<F>> for &Point3<F> {
+impl<F: BFloat> Add<Vec3<F>> for &Point3<F> {
     type Output = Point3<F>;
     fn add(self, vector: Vec3<F>) -> Self::Output { self + &vector }
 }
 
-impl<'a, F: num::Float> Sub<&'a Vec3<F>> for &'a Point3<F> {
+impl<'a, F: BFloat> Sub<&'a Vec3<F>> for &'a Point3<F> {
     type Output = Point3<F>;
     fn sub(self, vector: &Vec3<F>) -> Self::Output {
         Self::Output::new(self[X] - vector[X],
@@ -482,31 +483,31 @@ impl<'a, F: num::Float> Sub<&'a Vec3<F>> for &'a Point3<F> {
     }
 }
 
-impl<F: num::Float> Sub<Vec3<F>> for Point3<F> {
+impl<F: BFloat> Sub<Vec3<F>> for Point3<F> {
     type Output = Self;
     fn sub(self, vector: Vec3<F>) -> Self::Output { &self - &vector }
 }
 
-impl<F: num::Float> Sub<Vec3<F>> for &Point3<F> {
+impl<F: BFloat> Sub<Vec3<F>> for &Point3<F> {
     type Output = Point3<F>;
     fn sub(self, vector: Vec3<F>) -> Self::Output { self - &vector }
 }
 
 /// A 2D spatial coordinate.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Point2<F: num::Float>(In2D<F>);
+pub struct Point2<F: BFloat>(In2D<F>);
 
-impl<F: num::Float> Point2<F> {
+impl<F: BFloat> Point2<F> {
     /// Creates a new 2D point given the three components.
     pub fn new(x: F, y: F) -> Self { Point2(In2D::new(x, y)) }
 
     /// Creates a new point from the given components, which may have a different type.
-    pub fn from_components<U: num::Float, V: num::Float>(x: U, y: V) -> Self {
+    pub fn from_components<U: BFloat, V: BFloat>(x: U, y: V) -> Self {
         Point2::new(F::from(x).unwrap(), F::from(y).unwrap())
     }
 
     /// Creates a new point from the given point, which may have a different component type.
-    pub fn from<U: num::Float>(other: &Point2<U>) -> Self {
+    pub fn from<U: BFloat>(other: &Point2<U>) -> Self {
         Self::from_components(other[Dim2::X], other[Dim2::Y])
     }
 
@@ -519,16 +520,16 @@ impl<F: num::Float> Point2<F> {
     pub fn origin() -> Self { Self::new(F::zero(), F::zero()) }
 }
 
-impl<F: num::Float> Index<Dim2> for Point2<F> {
+impl<F: BFloat> Index<Dim2> for Point2<F> {
     type Output = F;
     fn index(&self, dim: Dim2) -> &Self::Output { &self.0[dim] }
 }
 
-impl<F: num::Float> IndexMut<Dim2> for Point2<F> {
+impl<F: BFloat> IndexMut<Dim2> for Point2<F> {
     fn index_mut(&mut self, dim: Dim2) -> &mut Self::Output { &mut self.0[dim] }
 }
 
-impl<'a, F: num::Float> Sub<&'a Self> for &'a Point2<F> {
+impl<'a, F: BFloat> Sub<&'a Self> for &'a Point2<F> {
     type Output = Vec2<F>;
     fn sub(self, other: &Self) -> Self::Output {
         Self::Output::new(self[Dim2::X] - other[Dim2::X],
@@ -536,22 +537,22 @@ impl<'a, F: num::Float> Sub<&'a Self> for &'a Point2<F> {
     }
 }
 
-impl<F: num::Float> Sub<Self> for Point2<F> {
+impl<F: BFloat> Sub<Self> for Point2<F> {
     type Output = Vec2<F>;
     fn sub(self, other: Self) -> Self::Output { &self - &other }
 }
 
-impl<F: num::Float> Sub<Self> for &Point2<F> {
+impl<F: BFloat> Sub<Self> for &Point2<F> {
     type Output = Vec2<F>;
     fn sub(self, other: Self) -> Self::Output { #![allow(clippy::op_ref)] self - &other }
 }
 
-impl<F: num::Float> Sub<&Self> for Point2<F> {
+impl<F: BFloat> Sub<&Self> for Point2<F> {
     type Output = Vec2<F>;
     fn sub(self, other: &Self) -> Self::Output { &self - other }
 }
 
-impl<'a, F: num::Float> Add<&'a Vec2<F>> for &'a Point2<F> {
+impl<'a, F: BFloat> Add<&'a Vec2<F>> for &'a Point2<F> {
     type Output = Point2<F>;
     fn add(self, vector: &Vec2<F>) -> Self::Output {
         Self::Output::new(self[Dim2::X] + vector[Dim2::X],
@@ -559,17 +560,17 @@ impl<'a, F: num::Float> Add<&'a Vec2<F>> for &'a Point2<F> {
     }
 }
 
-impl<F: num::Float> Add<Vec2<F>> for Point2<F> {
+impl<F: BFloat> Add<Vec2<F>> for Point2<F> {
     type Output = Self;
     fn add(self, vector: Vec2<F>) -> Self::Output { &self + &vector }
 }
 
-impl<F: num::Float> Add<Vec2<F>> for &Point2<F> {
+impl<F: BFloat> Add<Vec2<F>> for &Point2<F> {
     type Output = Point2<F>;
     fn add(self, vector: Vec2<F>) -> Self::Output { self + &vector }
 }
 
-impl<'a, F: num::Float> Sub<&'a Vec2<F>> for &'a Point2<F> {
+impl<'a, F: BFloat> Sub<&'a Vec2<F>> for &'a Point2<F> {
     type Output = Point2<F>;
     fn sub(self, vector: &Vec2<F>) -> Self::Output {
         Self::Output::new(self[Dim2::X] - vector[Dim2::X],
@@ -577,12 +578,12 @@ impl<'a, F: num::Float> Sub<&'a Vec2<F>> for &'a Point2<F> {
     }
 }
 
-impl<F: num::Float> Sub<Vec2<F>> for Point2<F> {
+impl<F: BFloat> Sub<Vec2<F>> for Point2<F> {
     type Output = Self;
     fn sub(self, vector: Vec2<F>) -> Self::Output { &self - &vector }
 }
 
-impl<F: num::Float> Sub<Vec2<F>> for &Point2<F> {
+impl<F: BFloat> Sub<Vec2<F>> for &Point2<F> {
     type Output = Point2<F>;
     fn sub(self, vector: Vec2<F>) -> Self::Output { self - &vector }
 }
@@ -641,9 +642,9 @@ impl<I: num::Integer> IndexMut<Dim2> for Idx2<I> {
 
 /// 3D spatial coordinate arrays.
 #[derive(Debug, Clone, Serialize)]
-pub struct Coords3<F: num::Float>(In3D<Vec<F>>);
+pub struct Coords3<F: BFloat>(In3D<Vec<F>>);
 
-impl<F: num::Float> Coords3<F> {
+impl<F: BFloat> Coords3<F> {
     /// Creates a new 3D set of coordinates given the component 1D coordinates.
     pub fn new(x: Vec<F>, y: Vec<F>, z: Vec<F>) -> Self {
         Coords3(In3D::new(x, y, z))
@@ -655,16 +656,16 @@ impl<F: num::Float> Coords3<F> {
     }
 }
 
-impl<F: num::Float> Index<Dim3> for Coords3<F> {
+impl<F: BFloat> Index<Dim3> for Coords3<F> {
     type Output = Vec<F>;
     fn index(&self, dim: Dim3) -> &Self::Output { &self.0[dim] }
 }
 
 /// 2D spatial coordinate arrays.
 #[derive(Debug, Clone, Serialize)]
-pub struct Coords2<F: num::Float>(In2D<Vec<F>>);
+pub struct Coords2<F: BFloat>(In2D<Vec<F>>);
 
-impl<F: num::Float> Coords2<F> {
+impl<F: BFloat> Coords2<F> {
     /// Creates a new 2D set of coordinates given the component 1D coordinates.
     pub fn new(x: Vec<F>, y: Vec<F>) -> Self {
         Coords2(In2D::new(x, y))
@@ -676,16 +677,16 @@ impl<F: num::Float> Coords2<F> {
     }
 }
 
-impl<F: num::Float> Index<Dim2> for Coords2<F> {
+impl<F: BFloat> Index<Dim2> for Coords2<F> {
     type Output = Vec<F>;
     fn index(&self, dim: Dim2) -> &Self::Output { &self.0[dim] }
 }
 
 /// References to 3D spatial coordinate arrays.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CoordRefs3<'a, F: num::Float>(In3D<&'a [F]>);
+pub struct CoordRefs3<'a, F: BFloat>(In3D<&'a [F]>);
 
-impl<'a, F: num::Float> CoordRefs3<'a, F> {
+impl<'a, F: BFloat> CoordRefs3<'a, F> {
     /// Creates a new 3D set of coordinate references given references to the component arrays.
     pub fn new(x: &'a [F], y: &'a [F], z: &'a [F]) -> Self {
         CoordRefs3(In3D::new(x, y, z))
@@ -702,16 +703,16 @@ impl<'a, F: num::Float> CoordRefs3<'a, F> {
     }
 }
 
-impl<'a, F: num::Float> Index<Dim3> for CoordRefs3<'a, F> {
+impl<'a, F: BFloat> Index<Dim3> for CoordRefs3<'a, F> {
     type Output = &'a [F];
     fn index(&self, dim: Dim3) -> &Self::Output { &self.0[dim] }
 }
 
 /// References to 2D spatial coordinate arrays.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CoordRefs2<'a, F: num::Float>(In2D<&'a [F]>);
+pub struct CoordRefs2<'a, F: BFloat>(In2D<&'a [F]>);
 
-impl<'a, F: num::Float> CoordRefs2<'a, F> {
+impl<'a, F: BFloat> CoordRefs2<'a, F> {
     /// Creates a new 2D set of coordinate references given references to the component arrays.
     pub fn new(x: &'a [F], y: &'a [F]) -> Self {
         CoordRefs2(In2D::new(x, y))
@@ -728,7 +729,7 @@ impl<'a, F: num::Float> CoordRefs2<'a, F> {
     }
 }
 
-impl<'a, F: num::Float> Index<Dim2> for CoordRefs2<'a, F> {
+impl<'a, F: BFloat> Index<Dim2> for CoordRefs2<'a, F> {
     type Output = &'a [F];
     fn index(&self, dim: Dim2) -> &Self::Output { &self.0[dim] }
 }

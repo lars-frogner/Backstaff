@@ -1,14 +1,14 @@
 //! Utilities related to random numbers.
 
-use num;
 use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::distributions::uniform::SampleUniform;
+use crate::num::BFloat;
 
 /// Samples a given number of indices from the given probability distribution.
 /// The distribution does not have to be normalized.
 pub fn draw_from_distribution<F>(pdf: &[F], n_samples: usize) -> Vec<usize>
-where F: num::Float + SampleUniform
+where F: BFloat + SampleUniform
 {
     let cdf: Vec<F> = pdf.iter().scan(F::zero(),
         |state, &value| {

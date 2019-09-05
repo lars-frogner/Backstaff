@@ -1,9 +1,9 @@
 //! Fields representing Bifrost simulation variables.
 
 use std::{io, path};
-use num;
 use ndarray::prelude::*;
 use serde::Serialize;
+use crate::num::BFloat;
 use crate::geometry::{Dim3, Dim2, In3D, In2D, Point3, Coords2, CoordRefs3, CoordRefs2};
 use crate::grid::{CoordLocation, Grid3, Grid2};
 use crate::grid::regular::RegularGrid2;
@@ -29,7 +29,7 @@ impl ResampledCoordLocations {
 /// The array of values is laid out in column-major order in memory.
 #[derive(Debug, Clone)]
 pub struct ScalarField3<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid3<F>
 {
     name: String,
@@ -39,7 +39,7 @@ where F: num::Float,
 }
 
 impl<F, G> ScalarField3<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid3<F>
 {
     /// Creates a new scalar field given a name, a grid, the values and
@@ -209,7 +209,7 @@ where F: num::Float,
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Debug, Clone)]
 pub struct VectorField3<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid3<F>
 {
     name: String,
@@ -219,7 +219,7 @@ where F: num::Float,
 }
 
 impl<F, G> VectorField3<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid3<F>
 {
     /// Creates a new vector field given a name, a grid, the component values and
@@ -395,7 +395,7 @@ where F: num::Float,
 /// The array of values is laid out in column-major order in memory.
 #[derive(Debug, Clone)]
 pub struct ScalarField2<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid2<F> + Clone
 {
     name: String,
@@ -405,13 +405,13 @@ where F: num::Float,
 }
 
 #[derive(Serialize)]
-struct ScalarFieldSerializeData2<F: num::Float> {
+struct ScalarFieldSerializeData2<F: BFloat> {
     coords: Coords2<F>,
     values: Array2<F>
 }
 
 impl<F, G> ScalarField2<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid2<F> + Clone
 {
     /// Creates a new scalar field given a name, a grid, the values and
@@ -460,7 +460,7 @@ where F: num::Float,
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Debug, Clone)]
 pub struct VectorField2<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid2<F> + Clone
 {
     name: String,
@@ -470,7 +470,7 @@ where F: num::Float,
 }
 
 impl<F, G> VectorField2<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid2<F> + Clone
 {
     /// Creates a new vector field given a name, a grid, the component values and
@@ -519,7 +519,7 @@ where F: num::Float,
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Debug, Clone)]
 pub struct PlaneVectorField3<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid2<F> + Clone
 {
     name: String,
@@ -529,7 +529,7 @@ where F: num::Float,
 }
 
 impl<F, G> PlaneVectorField3<F, G>
-where F: num::Float,
+where F: BFloat,
       G: Grid2<F> + Clone
 {
     /// Creates a new vector field given a name, a grid, the component values and

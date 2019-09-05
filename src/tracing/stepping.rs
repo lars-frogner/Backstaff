@@ -2,7 +2,7 @@
 
 pub mod rkf;
 
-use num;
+use crate::num::BFloat;
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
 use crate::field::VectorField3;
@@ -68,7 +68,7 @@ pub trait Stepper3: Clone {
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
     fn place<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
@@ -98,7 +98,7 @@ pub trait Stepper3: Clone {
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
     fn step<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
@@ -128,7 +128,7 @@ pub trait Stepper3: Clone {
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
     fn step_dense_output<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),

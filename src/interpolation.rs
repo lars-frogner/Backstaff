@@ -2,7 +2,7 @@
 
 pub mod poly_fit;
 
-use num;
+use crate::num::BFloat;
 use crate::geometry::{Point3, Vec3};
 use crate::grid::Grid3;
 use crate::field::{ScalarField3, VectorField3};
@@ -28,7 +28,7 @@ pub trait Interpolator3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> Option<F>
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate.
@@ -50,6 +50,6 @@ pub trait Interpolator3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> Option<Vec3<F>>
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>;
 }

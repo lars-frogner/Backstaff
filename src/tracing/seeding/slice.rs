@@ -3,9 +3,9 @@
 use std::vec;
 use std::collections::HashSet;
 use std::iter::FromIterator;
-use num;
 use rand::distributions::{Distribution, Uniform};
 use rand::distributions::uniform::SampleUniform;
+use crate::num::BFloat;
 use crate::geometry::{Dim3, Dim2, In2D, Vec3, Point3, Point2};
 use crate::grid::{Grid3, Grid2, CoordLocation};
 use crate::field::{ScalarField3, VectorField3};
@@ -40,7 +40,7 @@ impl SliceSeeder3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     pub fn regular<F, G>(grid: &G, axis: Dim3, coord: ftr, shape: In2D<usize>) -> Self
-    where F: num::Float + num::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>
     {
         let slice_grid = grid.regular_slice_across_axis(axis).reshaped(shape);
@@ -66,7 +66,7 @@ impl SliceSeeder3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     pub fn random<F, G>(grid: &G, axis: Dim3, coord: ftr, n_seeds: usize) -> Self
-    where F: num::Float + num::FromPrimitive + SampleUniform,
+    where F: BFloat + SampleUniform,
           G: Grid3<F>
     {
         Self::stratified(grid, axis, coord, In2D::same(1), n_seeds, 1.0)
@@ -92,7 +92,7 @@ impl SliceSeeder3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     pub fn stratified<F, G>(grid: &G, axis: Dim3, coord: ftr, shape: In2D<usize>, n_seeds_per_cell: usize, randomness: ftr) -> Self
-    where F: num::Float + num::FromPrimitive + SampleUniform,
+    where F: BFloat + SampleUniform,
           G: Grid3<F>
     {
         assert_ne!(n_seeds_per_cell, 0, "Number of seeds per cell must be larger than zero.");
@@ -146,7 +146,7 @@ impl SliceSeeder3 {
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
     pub fn scalar_field_pdf<F, G, I, C>(field: &ScalarField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
-    where F: num::Float + num::FromPrimitive + SampleUniform,
+    where F: BFloat + SampleUniform,
           G: Grid3<F>,
           I: Interpolator3,
           C: Fn(F) -> F
@@ -195,7 +195,7 @@ impl SliceSeeder3 {
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     pub fn vector_field_pdf<F, G, I, C>(field: &VectorField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
-    where F: num::Float + num::FromPrimitive + SampleUniform,
+    where F: BFloat + SampleUniform,
           G: Grid3<F>,
           I: Interpolator3,
           C: Fn(&Vec3<F>) -> F
@@ -225,7 +225,7 @@ impl SliceSeeder3 {
     }
 
     fn construct_seed_points_from_slice_points<F>(slice_points: Vec<Point2<F>>, axis: Dim3, coord: ftr) -> Vec<Point3<ftr>>
-    where F: num::Float
+    where F: BFloat
     {
         match axis {
             X => slice_points.into_iter().map(|point| Point3::from_components(coord, point[Dim2::X], point[Dim2::Y])).collect(),

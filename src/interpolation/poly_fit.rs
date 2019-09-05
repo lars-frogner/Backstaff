@@ -1,10 +1,11 @@
 //! Interpolation by polynomial fitting.
 
 use ndarray::prelude::*;
-use super::Interpolator3;
+use crate::num::BFloat;
 use crate::geometry::{Dim3, In3D, Point3, Idx3, Vec3, CoordRefs3};
 use crate::grid::Grid3;
 use crate::field::{ScalarField3, VectorField3};
+use super::Interpolator3;
 use Dim3::{X, Y, Z};
 
 /// A 3D interpolator using polynomial fitting to estimate the interpolated value.
@@ -24,7 +25,7 @@ impl PolyFitInterpolator3 {
     const START_OFFSET: isize = Self::BIAS + 1 - ((Self::POINTS + 1) as isize)/2;
 
     fn interp<F, G>(grid: &G, coords: &CoordRefs3<F>, values: &Array3<F>, interp_point: &Point3<F>, interp_idx: &Idx3<usize>) -> F
-    where F: num::Float,
+    where F: BFloat,
           G: Grid3<F>
     {
         let grid_shape = grid.shape();
@@ -87,18 +88,14 @@ impl PolyFitInterpolator3 {
         Self::interp_subarrays(In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray), &value_subarray, interp_point)
     }
 
-    fn create_coordinate_subarray_for_interior<F>(coords: &[F], start_idx: isize) -> [F; Self::POINTS]
-    where F: num::Float
-    {
+    fn create_coordinate_subarray_for_interior<F: BFloat>(coords: &[F], start_idx: isize) -> [F; Self::POINTS] {
         let mut subarray = [F::zero(); Self::POINTS];
         let offset = start_idx as usize;
         subarray[..Self::POINTS].clone_from_slice(&coords[offset..(Self::POINTS + offset)]);
         subarray
     }
 
-    fn create_coordinate_subarray_for_periodic<F>(coords: &[F], start_idx: isize) -> [F; Self::POINTS]
-    where F: num::Float
-    {
+    fn create_coordinate_subarray_for_periodic<F: BFloat>(coords: &[F], start_idx: isize) -> [F; Self::POINTS] {
         let len = coords.len();
         let offset = (start_idx + (len as isize)) as usize;
         let mut subarray = [F::zero(); Self::POINTS];
@@ -108,9 +105,7 @@ impl PolyFitInterpolator3 {
         subarray
     }
 
-    fn create_value_subarray_for_interior<F>(values: &Array3<F>, start_idx: &Idx3<isize>) -> [F; Self::POINTS*Self::POINTS*Self::POINTS]
-    where F: num::Float
-    {
+    fn create_value_subarray_for_interior<F: BFloat>(values: &Array3<F>, start_idx: &Idx3<isize>) -> [F; Self::POINTS*Self::POINTS*Self::POINTS] {
         let mut subarray = [F::zero(); Self::POINTS*Self::POINTS*Self::POINTS];
         let offsets = Idx3::from(&start_idx);
         let mut idx = 0;
@@ -126,9 +121,7 @@ impl PolyFitInterpolator3 {
         subarray
     }
 
-    fn create_value_subarray_for_periodic<F>(values: &Array3<F>, start_idx: &Idx3<isize>) -> [F; Self::POINTS*Self::POINTS*Self::POINTS]
-    where F: num::Float
-    {
+    fn create_value_subarray_for_periodic<F: BFloat>(values: &Array3<F>, start_idx: &Idx3<isize>) -> [F; Self::POINTS*Self::POINTS*Self::POINTS] {
         let grid_shape = values.shape();
         let offsets = In3D::new((start_idx[X] + (grid_shape[0] as isize)) as usize,
                                 (start_idx[Y] + (grid_shape[1] as isize)) as usize,
@@ -149,9 +142,7 @@ impl PolyFitInterpolator3 {
         subarray
     }
 
-    fn interp_subarrays<F>(coords: In3D<&[F; Self::POINTS]>, values: &[F; Self::POINTS*Self::POINTS*Self::POINTS], interp_point: &Point3<F>) -> F
-    where F: num::Float
-    {
+    fn interp_subarrays<F: BFloat>(coords: In3D<&[F; Self::POINTS]>, values: &[F; Self::POINTS*Self::POINTS*Self::POINTS], interp_point: &Point3<F>) -> F {
         let x_coords = coords[X];
         let y_coords = coords[Y];
         let z_coords = coords[Z];
@@ -230,7 +221,7 @@ impl PolyFitInterpolator3 {
 
 impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> Option<F>
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>
     {
         let grid = field.grid();
@@ -242,7 +233,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
     }
 
     fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> Option<Vec3<F>>
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>
     {
         let grid = field.grid();

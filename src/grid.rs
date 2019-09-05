@@ -3,8 +3,8 @@
 pub mod regular;
 pub mod hor_regular;
 
-use num;
 use ndarray::prelude::*;
+use crate::num::BFloat;
 use crate::geometry::{Dim3, Dim2, In3D, In2D, Vec3, Vec2, Point3, Point2, Idx3, Idx2, Coords3, Coords2, CoordRefs3, CoordRefs2};
 use self::regular::RegularGrid2;
 use Dim3::{X, Y, Z};
@@ -24,7 +24,7 @@ pub enum GridType {
 }
 
 /// Defines the properties of a 3D grid.
-pub trait Grid3<F: num::Float>: Clone {
+pub trait Grid3<F: BFloat>: Clone {
     type XSliceGrid: Grid2<F>;
     type YSliceGrid: Grid2<F>;
     type ZSliceGrid: Grid2<F>;
@@ -34,8 +34,7 @@ pub trait Grid3<F: num::Float>: Clone {
 
     /// Creates a new grid given the coordinates of the cell centers and lower edges,
     /// as well as which dimensions are periodic.
-    fn from_coords(center_coords: Coords3<F>, lower_edge_coords: Coords3<F>, is_periodic: In3D<bool>) -> Self
-    where F: num::cast::FromPrimitive;
+    fn from_coords(center_coords: Coords3<F>, lower_edge_coords: Coords3<F>, is_periodic: In3D<bool>) -> Self;
 
     /// Returns the 3D shape of the grid.
     fn shape(&self) -> &In3D<usize>;
@@ -101,9 +100,7 @@ pub trait Grid3<F: num::Float>: Clone {
 
     /// Finds the 3D index of the grid cell containing the given coordinate,
     /// or specifies on which side of the grid the coordinate lies if outside.
-    fn find_grid_cell(&self, point: &Point3<F>) -> Option<Idx3<usize>>
-    where F: num::cast::FromPrimitive
-    {
+    fn find_grid_cell(&self, point: &Point3<F>) -> Option<Idx3<usize>> {
         if self.point_is_inside(point) {
             let lower_edges = self.lower_edges();
             let i = search_idx_of_coord(&lower_edges[X], point[X]).unwrap();
@@ -128,7 +125,7 @@ pub trait Grid3<F: num::Float>: Clone {
         for &dim in Dim3::slice().iter() {
             if self.is_periodic(dim) {
                 if wrapped_point[dim] < lower_bounds[dim] {
-                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim] - F::epsilon());
+                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim].prev());
                 } else if wrapped_point[dim] >= upper_bounds[dim] {
                     wrapped_point[dim] = F::max(lower_bounds[dim] + ((point[dim] - lower_bounds[dim]) % extents[dim]), lower_bounds[dim]);
                 }
@@ -141,9 +138,7 @@ pub trait Grid3<F: num::Float>: Clone {
     }
 
     /// Slices the grid across the x-axis and returns the corresponding 2D grid.
-    fn slice_across_x(&self) -> Self::XSliceGrid
-    where F: num::cast::FromPrimitive
-    {
+    fn slice_across_x(&self) -> Self::XSliceGrid {
         let centers = self.centers();
         let lower_edges = self.lower_edges();
         Self::XSliceGrid::from_coords(
@@ -154,9 +149,7 @@ pub trait Grid3<F: num::Float>: Clone {
     }
 
     /// Slices the grid across the y-axis and returns the corresponding 2D grid.
-    fn slice_across_y(&self) -> Self::YSliceGrid
-    where F: num::cast::FromPrimitive
-    {
+    fn slice_across_y(&self) -> Self::YSliceGrid {
         let centers = self.centers();
         let lower_edges = self.lower_edges();
         Self::YSliceGrid::from_coords(
@@ -167,9 +160,7 @@ pub trait Grid3<F: num::Float>: Clone {
     }
 
     /// Slices the grid across the z-axis and returns the corresponding 2D grid.
-    fn slice_across_z(&self) -> Self::ZSliceGrid
-    where F: num::cast::FromPrimitive
-    {
+    fn slice_across_z(&self) -> Self::ZSliceGrid {
         let centers = self.centers();
         let lower_edges = self.lower_edges();
         Self::ZSliceGrid::from_coords(
@@ -180,9 +171,7 @@ pub trait Grid3<F: num::Float>: Clone {
     }
 
     /// Slices the grid across the given axis and returns the corresponding regular 2D grid.
-    fn regular_slice_across_axis(&self, axis: Dim3) -> RegularGrid2<F>
-    where F: num::cast::FromPrimitive
-    {
+    fn regular_slice_across_axis(&self, axis: Dim3) -> RegularGrid2<F> {
         let regular_centers = self.regular_centers();
         let regular_lower_edges = self.regular_lower_edges();
         let [axis_0, axis_1] = Dim3::slice_except(axis);
@@ -195,15 +184,14 @@ pub trait Grid3<F: num::Float>: Clone {
 }
 
 /// Defines the properties of a 2D grid.
-pub trait Grid2<F: num::Float>: Clone {
+pub trait Grid2<F: BFloat>: Clone {
 
     /// The specific type of the grid.
     const TYPE: GridType;
 
     /// Creates a new grid given the coordinates of the cell centers and lower edges,
     /// as well as which dimensions are periodic.
-    fn from_coords(center_coords: Coords2<F>, lower_edge_coords: Coords2<F>, is_periodic: In2D<bool>) -> Self
-    where F: num::cast::FromPrimitive;
+    fn from_coords(center_coords: Coords2<F>, lower_edge_coords: Coords2<F>, is_periodic: In2D<bool>) -> Self;
 
     /// Returns the 2D shape of the grid.
     fn shape(&self) -> &In2D<usize>;
@@ -267,9 +255,7 @@ pub trait Grid2<F: num::Float>: Clone {
 
     /// Finds the 3D index of the grid cell containing the given coordinate,
     /// or specifies on which side of the grid the coordinate lies if outside.
-    fn find_grid_cell(&self, point: &Point2<F>) -> Option<Idx2<usize>>
-    where F: num::cast::FromPrimitive
-    {
+    fn find_grid_cell(&self, point: &Point2<F>) -> Option<Idx2<usize>> {
         if self.point_is_inside(point) {
             let lower_edges = self.lower_edges();
             let i = search_idx_of_coord(&lower_edges[Dim2::X], point[Dim2::X]).unwrap();
@@ -293,7 +279,7 @@ pub trait Grid2<F: num::Float>: Clone {
         for &dim in Dim2::slice().iter() {
             if self.is_periodic(dim) {
                 if wrapped_point[dim] < lower_bounds[dim] {
-                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim] - F::epsilon());
+                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim].prev());
                 } else if wrapped_point[dim] >= upper_bounds[dim] {
                     wrapped_point[dim] = F::max(lower_bounds[dim] + ((point[dim] - lower_bounds[dim]) % extents[dim]), lower_bounds[dim]);
                 }
@@ -306,22 +292,16 @@ pub trait Grid2<F: num::Float>: Clone {
     }
 }
 
-fn extent_from_bounds<F>(lower_bound: F, upper_bound: F) -> F
-where F: num::Float
-{
+fn extent_from_bounds<F: BFloat>(lower_bound: F, upper_bound: F) -> F {
     upper_bound - lower_bound
 }
 
-fn cell_extent_from_bounds<F>(size: usize, lower_bound: F, upper_bound: F) -> F
-where F: num::Float + num::cast::FromPrimitive
-{
+fn cell_extent_from_bounds<F: BFloat>(size: usize, lower_bound: F, upper_bound: F) -> F {
     let extent = extent_from_bounds(lower_bound, upper_bound);
     extent/F::from_usize(size).unwrap()
 }
 
-fn regular_coords_from_bounds<F>(size: usize, lower_bound: F, upper_bound: F) -> (Vec<F>, Vec<F>)
-where F: num::Float + num::cast::FromPrimitive
-{
+fn regular_coords_from_bounds<F: BFloat>(size: usize, lower_bound: F, upper_bound: F) -> (Vec<F>, Vec<F>) {
     let cell_extent = cell_extent_from_bounds(size, lower_bound, upper_bound);
     let half_cell_extent = F::from_f32(0.5).unwrap()*cell_extent;
     let centers = Array::linspace(lower_bound + half_cell_extent, upper_bound - half_cell_extent, size).to_vec();
@@ -329,15 +309,11 @@ where F: num::Float + num::cast::FromPrimitive
     (centers, lower_edges)
 }
 
-fn bounds_from_coords<F>(size: usize, centers: &[F], lower_edges: &[F]) -> (F, F)
-where F: num::Float + num::cast::FromPrimitive
-{
+fn bounds_from_coords<F: BFloat>(size: usize, centers: &[F], lower_edges: &[F]) -> (F, F) {
     (lower_edges[0], F::from_f32(2.0).unwrap()*centers[size - 1] - lower_edges[size - 1])
 }
 
-fn search_idx_of_coord<F>(lower_edges: &[F], coord: F) -> Option<usize>
-where F: num::Float + num::cast::FromPrimitive
-{
+fn search_idx_of_coord<F: BFloat>(lower_edges: &[F], coord: F) -> Option<usize> {
     let mut low = 0;
     let mut high = lower_edges.len() - 1;
     let mut mid;
@@ -371,6 +347,6 @@ where F: num::Float + num::cast::FromPrimitive
     None
 }
 
-fn coord_is_inside_grid_cell<F: num::Float>(lower_edges: &[F], coord: F, cell_idx: usize) -> bool {
+fn coord_is_inside_grid_cell<F: BFloat>(lower_edges: &[F], coord: F, cell_idx: usize) -> bool {
     (cell_idx == (lower_edges.len() - 1) || coord < lower_edges[cell_idx+1]) && coord >= lower_edges[cell_idx]
 }

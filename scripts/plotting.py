@@ -43,5 +43,6 @@ def set_3d_axes_equal(ax):
     set_axes_radius(ax, origin, radius)
 
 
-def show():
+def render(fig):
+    fig.tight_layout()
     plt.show()

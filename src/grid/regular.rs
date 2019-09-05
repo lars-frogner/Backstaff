@@ -1,13 +1,13 @@
 //! Grid with uniform spacing in all dimensions.
 
-use num;
+use crate::num::BFloat;
 use crate::geometry::{Dim3, Dim2, In3D, In2D, Vec3, Vec2, Coords3, Coords2, CoordRefs3, CoordRefs2};
 use super::{CoordLocation, GridType, Grid3, Grid2};
 use Dim3::{X, Y, Z};
 
 /// A regular 3D grid.
 #[derive(Debug, Clone)]
-pub struct RegularGrid3<F: num::Float> {
+pub struct RegularGrid3<F: BFloat> {
     coords: [Coords3<F>; 2],
     is_periodic: In3D<bool>,
     shape: In3D<usize>,
@@ -17,13 +17,9 @@ pub struct RegularGrid3<F: num::Float> {
     cell_extents: Vec3<F>
 }
 
-impl<F> RegularGrid3<F>
-where F: num::Float
-{
+impl<F: BFloat> RegularGrid3<F> {
     /// Creates a new regular grid given the shape and bounds, as well as which dimensions are periodic.
-    pub fn from_bounds(shape: In3D<usize>, lower_bounds: Vec3<F>, upper_bounds: Vec3<F>, is_periodic: In3D<bool>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    pub fn from_bounds(shape: In3D<usize>, lower_bounds: Vec3<F>, upper_bounds: Vec3<F>, is_periodic: In3D<bool>) -> Self {
         let size_x = shape[X];
         let size_y = shape[Y];
         let size_z = shape[Z];
@@ -56,9 +52,7 @@ where F: num::Float
     }
 
     /// Constructs a reshaped version of the given grid, with the same bounds and periodicity.
-    pub fn reshaped(&self, new_shape: In3D<usize>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    pub fn reshaped(&self, new_shape: In3D<usize>) -> Self {
         RegularGrid3::from_bounds(
             new_shape,
             self.lower_bounds.clone(),
@@ -71,18 +65,14 @@ where F: num::Float
     pub fn cell_extents(&self) -> &Vec3<F> { &self.cell_extents }
 }
 
-impl<F> Grid3<F> for RegularGrid3<F>
-where F: num::Float
-{
+impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     type XSliceGrid = RegularGrid2<F>;
     type YSliceGrid = RegularGrid2<F>;
     type ZSliceGrid = RegularGrid2<F>;
 
     const TYPE: GridType = GridType::Regular;
 
-    fn from_coords(centers: Coords3<F>, lower_edges: Coords3<F>, is_periodic: In3D<bool>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    fn from_coords(centers: Coords3<F>, lower_edges: Coords3<F>, is_periodic: In3D<bool>) -> Self {
         let size_x = centers[X].len();
         let size_y = centers[Y].len();
         let size_z = centers[Z].len();
@@ -143,7 +133,7 @@ where F: num::Float
 
 /// A regular 2D grid.
 #[derive(Debug, Clone)]
-pub struct RegularGrid2<F: num::Float> {
+pub struct RegularGrid2<F: BFloat> {
     coords: [Coords2<F>; 2],
     is_periodic: In2D<bool>,
     shape: In2D<usize>,
@@ -153,13 +143,9 @@ pub struct RegularGrid2<F: num::Float> {
     cell_extents: Vec2<F>
 }
 
-impl<F> RegularGrid2<F>
-where F: num::Float
-{
+impl<F: BFloat> RegularGrid2<F> {
     /// Creates a new regular grid given the shape and bounds, as well as which dimensions are periodic.
-    pub fn from_bounds(shape: In2D<usize>, lower_bounds: Vec2<F>, upper_bounds: Vec2<F>, is_periodic: In2D<bool>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    pub fn from_bounds(shape: In2D<usize>, lower_bounds: Vec2<F>, upper_bounds: Vec2<F>, is_periodic: In2D<bool>) -> Self {
         let size_x = shape[Dim2::X];
         let size_y = shape[Dim2::Y];
 
@@ -187,9 +173,7 @@ where F: num::Float
     }
 
     /// Constructs a reshaped version of the grid, with the same bounds and periodicity.
-    pub fn reshaped(&self, new_shape: In2D<usize>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    pub fn reshaped(&self, new_shape: In2D<usize>) -> Self {
         RegularGrid2::from_bounds(
             new_shape,
             self.lower_bounds.clone(),
@@ -202,14 +186,10 @@ where F: num::Float
     pub fn cell_extents(&self) -> &Vec2<F> { &self.cell_extents }
 }
 
-impl<F> Grid2<F> for RegularGrid2<F>
-where F: num::Float
-{
+impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
     const TYPE: GridType = GridType::Regular;
 
-    fn from_coords(centers: Coords2<F>, lower_edges: Coords2<F>, is_periodic: In2D<bool>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    fn from_coords(centers: Coords2<F>, lower_edges: Coords2<F>, is_periodic: In2D<bool>) -> Self {
         let size_x = centers[Dim2::X].len();
         let size_y = centers[Dim2::Y].len();
 

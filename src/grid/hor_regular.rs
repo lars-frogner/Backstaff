@@ -1,6 +1,6 @@
 //! Grid with uniform spacing in the horizontal dimensions.
 
-use num;
+use crate::num::BFloat;
 use crate::geometry::{Dim3, Dim2, In3D, In2D, Vec3, Vec2, Coords3, Coords2, CoordRefs3, CoordRefs2};
 use super::{CoordLocation, GridType, Grid3, Grid2};
 use super::regular::RegularGrid2;
@@ -8,7 +8,7 @@ use Dim3::{X, Y, Z};
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Debug, Clone)]
-pub struct HorRegularGrid3<F: num::Float> {
+pub struct HorRegularGrid3<F: BFloat> {
     coords: [Coords3<F>; 2],
     regular_z_coords: [Vec<F>; 2],
     is_periodic: In3D<bool>,
@@ -18,18 +18,14 @@ pub struct HorRegularGrid3<F: num::Float> {
     extents: Vec3<F>
 }
 
-impl<F> Grid3<F> for HorRegularGrid3<F>
-where F: num::Float
-{
+impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     type XSliceGrid = HorRegularGrid2<F>;
     type YSliceGrid = HorRegularGrid2<F>;
     type ZSliceGrid = RegularGrid2<F>;
 
     const TYPE: GridType = GridType::HorRegular;
 
-    fn from_coords(centers: Coords3<F>, lower_edges: Coords3<F>, is_periodic: In3D<bool>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    fn from_coords(centers: Coords3<F>, lower_edges: Coords3<F>, is_periodic: In3D<bool>) -> Self {
         assert!(!is_periodic[Z], "This grid type cannot be periodic in the z-direction.");
 
         let size_x = centers[X].len();
@@ -86,7 +82,7 @@ where F: num::Float
 
 /// A 2D grid which is regular in x but non-uniform in y.
 #[derive(Debug, Clone)]
-pub struct HorRegularGrid2<F: num::Float> {
+pub struct HorRegularGrid2<F: BFloat> {
     coords: [Coords2<F>; 2],
     regular_y_coords: [Vec<F>; 2],
     is_periodic: In2D<bool>,
@@ -96,14 +92,10 @@ pub struct HorRegularGrid2<F: num::Float> {
     extents: Vec2<F>
 }
 
-impl<F> Grid2<F> for HorRegularGrid2<F>
-where F: num::Float
-{
+impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
     const TYPE: GridType = GridType::HorRegular;
 
-    fn from_coords(centers: Coords2<F>, lower_edges: Coords2<F>, is_periodic: In2D<bool>) -> Self
-    where F: num::cast::FromPrimitive
-    {
+    fn from_coords(centers: Coords2<F>, lower_edges: Coords2<F>, is_periodic: In2D<bool>) -> Self {
         assert!(!is_periodic[Dim2::Y], "This grid type cannot be periodic in the y-direction.");
 
         let size_x = centers[Dim2::X].len();

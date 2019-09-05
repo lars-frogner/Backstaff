@@ -1,7 +1,7 @@
 //! Field lines with natural spacing between points.
 
 use std::collections::VecDeque;
-use num;
+use crate::num::BFloat;
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
 use crate::field::{VectorField3};
@@ -52,7 +52,7 @@ impl FieldLine3 for NaturalFieldLine3 {
     fn positions(&self) -> &Vec<Point3<ftr>> { &self.data.positions }
 
     fn trace<F, G, I, S>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: S, start_position: &Point3<ftr>) -> TracerResult
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           S: Stepper3
@@ -91,7 +91,7 @@ impl FieldLine3 for DualNaturalFieldLine3 {
     fn positions(&self) -> &Vec<Point3<ftr>> { &self.data.positions }
 
     fn trace<F, G, I, S>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: S, start_position: &Point3<ftr>) -> TracerResult
-    where F: num::Float + num::cast::FromPrimitive,
+    where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           S: Stepper3
