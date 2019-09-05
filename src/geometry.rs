@@ -2,7 +2,6 @@
 
 use num;
 use std::ops::{Index, IndexMut, Add, Sub, Mul, Div};
-use ndarray::prelude::*;
 use serde::Serialize;
 
 /// Denotes the x-, y- or z-dimension.
@@ -405,7 +404,12 @@ impl<F: num::Float> Point3<F> {
 
     /// Creates a new point from the given point, which may have a different component type.
     pub fn from<U: num::Float>(other: &Point3<U>) -> Self {
-        Point3::new(F::from(other[X]).unwrap(), F::from(other[Y]).unwrap(), F::from(other[Z]).unwrap())
+        Self::from_components(other[X], other[Y], other[Z])
+    }
+
+    /// Creates a new point from the given components, which may have different types.
+    pub fn from_components<U: num::Float, V: num::Float, W: num::Float>(x: U, y: V, z: W) -> Self {
+        Point3::new(F::from(x).unwrap(), F::from(y).unwrap(), F::from(z).unwrap())
     }
 
     /// Constructs a new vector from the point components.
@@ -496,9 +500,14 @@ impl<F: num::Float> Point2<F> {
     /// Creates a new 2D point given the three components.
     pub fn new(x: F, y: F) -> Self { Point2(In2D::new(x, y)) }
 
+    /// Creates a new point from the given components, which may have a different type.
+    pub fn from_components<U: num::Float, V: num::Float>(x: U, y: V) -> Self {
+        Point2::new(F::from(x).unwrap(), F::from(y).unwrap())
+    }
+
     /// Creates a new point from the given point, which may have a different component type.
     pub fn from<U: num::Float>(other: &Point2<U>) -> Self {
-        Point2::new(F::from(other[Dim2::X]).unwrap(), F::from(other[Dim2::Y]).unwrap())
+        Self::from_components(other[Dim2::X], other[Dim2::Y])
     }
 
     /// Constructs a new vector from the point components.
@@ -632,11 +641,11 @@ impl<I: num::Integer> IndexMut<Dim2> for Idx2<I> {
 
 /// 3D spatial coordinate arrays.
 #[derive(Debug, Clone, Serialize)]
-pub struct Coords3<F: num::Float>(In3D<Array1<F>>);
+pub struct Coords3<F: num::Float>(In3D<Vec<F>>);
 
 impl<F: num::Float> Coords3<F> {
     /// Creates a new 3D set of coordinates given the component 1D coordinates.
-    pub fn new(x: Array1<F>, y: Array1<F>, z: Array1<F>) -> Self {
+    pub fn new(x: Vec<F>, y: Vec<F>, z: Vec<F>) -> Self {
         Coords3(In3D::new(x, y, z))
     }
 
@@ -647,17 +656,17 @@ impl<F: num::Float> Coords3<F> {
 }
 
 impl<F: num::Float> Index<Dim3> for Coords3<F> {
-    type Output = Array1<F>;
+    type Output = Vec<F>;
     fn index(&self, dim: Dim3) -> &Self::Output { &self.0[dim] }
 }
 
 /// 2D spatial coordinate arrays.
 #[derive(Debug, Clone, Serialize)]
-pub struct Coords2<F: num::Float>(In2D<Array1<F>>);
+pub struct Coords2<F: num::Float>(In2D<Vec<F>>);
 
 impl<F: num::Float> Coords2<F> {
     /// Creates a new 2D set of coordinates given the component 1D coordinates.
-    pub fn new(x: Array1<F>, y: Array1<F>) -> Self {
+    pub fn new(x: Vec<F>, y: Vec<F>) -> Self {
         Coords2(In2D::new(x, y))
     }
 
@@ -668,23 +677,23 @@ impl<F: num::Float> Coords2<F> {
 }
 
 impl<F: num::Float> Index<Dim2> for Coords2<F> {
-    type Output = Array1<F>;
+    type Output = Vec<F>;
     fn index(&self, dim: Dim2) -> &Self::Output { &self.0[dim] }
 }
 
 /// References to 3D spatial coordinate arrays.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CoordRefs3<'a, F: num::Float>(In3D<&'a Array1<F>>);
+pub struct CoordRefs3<'a, F: num::Float>(In3D<&'a [F]>);
 
 impl<'a, F: num::Float> CoordRefs3<'a, F> {
     /// Creates a new 3D set of coordinate references given references to the component arrays.
-    pub fn new(x: &'a Array1<F>, y: &'a Array1<F>, z: &'a Array1<F>) -> Self {
+    pub fn new(x: &'a [F], y: &'a [F], z: &'a [F]) -> Self {
         CoordRefs3(In3D::new(x, y, z))
     }
 
     /// Clones the coordinate references to produce a set of owned coordinate arrays.
     pub fn into_owned(self) -> Coords3<F> {
-        Coords3::new(self[X].clone(), self[Y].clone(), self[Z].clone())
+        Coords3::new(self[X].to_vec(), self[Y].to_vec(), self[Z].to_vec())
     }
 
     /// Creates a 3D point from the coordinates at the given index.
@@ -694,23 +703,23 @@ impl<'a, F: num::Float> CoordRefs3<'a, F> {
 }
 
 impl<'a, F: num::Float> Index<Dim3> for CoordRefs3<'a, F> {
-    type Output = &'a Array1<F>;
+    type Output = &'a [F];
     fn index(&self, dim: Dim3) -> &Self::Output { &self.0[dim] }
 }
 
 /// References to 2D spatial coordinate arrays.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CoordRefs2<'a, F: num::Float>(In2D<&'a Array1<F>>);
+pub struct CoordRefs2<'a, F: num::Float>(In2D<&'a [F]>);
 
 impl<'a, F: num::Float> CoordRefs2<'a, F> {
     /// Creates a new 2D set of coordinate references given references to the component arrays.
-    pub fn new(x: &'a Array1<F>, y: &'a Array1<F>) -> Self {
+    pub fn new(x: &'a [F], y: &'a [F]) -> Self {
         CoordRefs2(In2D::new(x, y))
     }
 
     /// Clones the coordinate references to produce a set of owned coordinate arrays.
     pub fn into_owned(self) -> Coords2<F> {
-        Coords2::new(self[Dim2::X].clone(), self[Dim2::Y].clone())
+        Coords2::new(self[Dim2::X].to_vec(), self[Dim2::Y].to_vec())
     }
 
     /// Creates a 2D point from the coordinates at the given index.
@@ -720,6 +729,6 @@ impl<'a, F: num::Float> CoordRefs2<'a, F> {
 }
 
 impl<'a, F: num::Float> Index<Dim2> for CoordRefs2<'a, F> {
-    type Output = &'a Array1<F>;
+    type Output = &'a [F];
     fn index(&self, dim: Dim2) -> &Self::Output { &self.0[dim] }
 }
