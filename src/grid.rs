@@ -125,17 +125,18 @@ pub trait Grid3<F: num::Float>: Clone {
         let upper_bounds = self.upper_bounds();
         let extents = self.extents();
         let mut wrapped_point = point.clone();
-        for dim in Dim3::slice().iter() {
-            if self.is_periodic(*dim) {
-                if wrapped_point[*dim] < lower_bounds[*dim] {
-                    wrapped_point[*dim] = upper_bounds[*dim] - ((upper_bounds[*dim] - point[*dim]) % extents[*dim]);
-                } else if wrapped_point[*dim] >= upper_bounds[*dim] {
-                    wrapped_point[*dim] = lower_bounds[*dim] + ((point[*dim] - lower_bounds[*dim]) % extents[*dim]);
+        for &dim in Dim3::slice().iter() {
+            if self.is_periodic(dim) {
+                if wrapped_point[dim] < lower_bounds[dim] {
+                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim] - F::epsilon());
+                } else if wrapped_point[dim] >= upper_bounds[dim] {
+                    wrapped_point[dim] = F::max(lower_bounds[dim] + ((point[dim] - lower_bounds[dim]) % extents[dim]), lower_bounds[dim]);
                 }
-            } else if wrapped_point[*dim] < lower_bounds[*dim] || wrapped_point[*dim] >= upper_bounds[*dim] {
+            } else if wrapped_point[dim] < lower_bounds[dim] || wrapped_point[dim] >= upper_bounds[dim] {
                 return None
             }
         }
+        debug_assert!(self.point_is_inside(&wrapped_point));
         Some(wrapped_point)
     }
 
@@ -289,17 +290,18 @@ pub trait Grid2<F: num::Float>: Clone {
         let upper_bounds = self.upper_bounds();
         let extents = self.extents();
         let mut wrapped_point = point.clone();
-        for dim in Dim2::slice().iter() {
-            if self.is_periodic(*dim) {
-                if wrapped_point[*dim] < lower_bounds[*dim] {
-                    wrapped_point[*dim] = upper_bounds[*dim] - ((upper_bounds[*dim] - point[*dim]) % extents[*dim]);
-                } else if wrapped_point[*dim] >= upper_bounds[*dim] {
-                    wrapped_point[*dim] = lower_bounds[*dim] + ((point[*dim] - lower_bounds[*dim]) % extents[*dim]);
+        for &dim in Dim2::slice().iter() {
+            if self.is_periodic(dim) {
+                if wrapped_point[dim] < lower_bounds[dim] {
+                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim] - F::epsilon());
+                } else if wrapped_point[dim] >= upper_bounds[dim] {
+                    wrapped_point[dim] = F::max(lower_bounds[dim] + ((point[dim] - lower_bounds[dim]) % extents[dim]), lower_bounds[dim]);
                 }
-            } else if wrapped_point[*dim] < lower_bounds[*dim] || wrapped_point[*dim] >= upper_bounds[*dim] {
+            } else if wrapped_point[dim] < lower_bounds[dim] || wrapped_point[dim] >= upper_bounds[dim] {
                 return None
             }
         }
+        debug_assert!(self.point_is_inside(&wrapped_point));
         Some(wrapped_point)
     }
 }
