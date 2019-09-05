@@ -1,6 +1,7 @@
 //! Field lines with natural spacing between points.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
+use serde::ser::{Serialize, Serializer, SerializeStruct};
 use crate::num::BFloat;
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
@@ -8,21 +9,24 @@ use crate::field::{VectorField3};
 use crate::interpolation::Interpolator3;
 use super::super::{ftr, TracerResult, trace_3d_field_line};
 use super::super::stepping::{Stepper3, SteppingSense, StepperInstruction};
-use super::{FieldLineData3, FieldLine3};
+use super::FieldLine3;
 
 /// A field line of a 3D vector field with points corresponding to the natural position of each step.
 pub struct NaturalFieldLine3 {
     sense: SteppingSense,
     max_length: Option<ftr>,
-    data: FieldLineData3
+    positions: Vec<Point3<ftr>>,
+    scalar_values: HashMap<String, Vec<ftr>>,
+    vector_values: HashMap<String, Vec<Vec3<ftr>>>
 }
 
 /// A field line of a 3D vector field with points corresponding to the natural position of each step,
 /// traced both forward and backward along the field direction.
-#[derive(Default)]
 pub struct DualNaturalFieldLine3 {
     max_length: Option<ftr>,
-    data: FieldLineData3
+    positions: Vec<Point3<ftr>>,
+    scalar_values: HashMap<String, Vec<ftr>>,
+    vector_values: HashMap<String, Vec<Vec3<ftr>>>
 }
 
 impl NaturalFieldLine3 {
@@ -31,7 +35,13 @@ impl NaturalFieldLine3 {
         if let Some(length) = max_length {
             assert!(length >= 0.0, "Maximum field line length must be non-negative.");
         }
-        NaturalFieldLine3{ sense, max_length, data: FieldLineData3::new() }
+        NaturalFieldLine3{
+            sense,
+            max_length,
+            positions: Vec::new(),
+            scalar_values: HashMap::new(),
+            vector_values: HashMap::new()
+        }
     }
 }
 
@@ -41,15 +51,17 @@ impl DualNaturalFieldLine3 {
         if let Some(length) = max_length {
             assert!(length >= 0.0, "Maximum field line length must be non-negative.");
         }
-        DualNaturalFieldLine3{ max_length, data: FieldLineData3::new() }
+        DualNaturalFieldLine3{
+            max_length,
+            positions: Vec::new(),
+            scalar_values: HashMap::new(),
+            vector_values: HashMap::new()
+        }
     }
 }
 
 impl FieldLine3 for NaturalFieldLine3 {
-    type Data = FieldLineData3;
-
-    fn data(&self) -> &Self::Data { &self.data }
-    fn positions(&self) -> &Vec<Point3<ftr>> { &self.data.positions }
+    fn positions(&self) -> &Vec<Point3<ftr>> { &self.positions }
 
     fn trace<F, G, I, S>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: S, start_position: &Point3<ftr>) -> TracerResult
     where F: BFloat,
@@ -61,7 +73,7 @@ impl FieldLine3 for NaturalFieldLine3 {
         if let Some(length) = self.max_length {
             trace_3d_field_line(field, interpolator, stepper, start_position, sense, &mut |dist, pos| {
                 if dist <= length {
-                    self.data.positions.push(pos.clone());
+                    self.positions.push(pos.clone());
                     StepperInstruction::Continue
                 } else {
                     StepperInstruction::Terminate
@@ -69,26 +81,23 @@ impl FieldLine3 for NaturalFieldLine3 {
             })
         } else {
             trace_3d_field_line(field, interpolator, stepper, start_position, sense, &mut |_, pos| {
-                self.data.positions.push(pos.clone());
+                self.positions.push(pos.clone());
                 StepperInstruction::Continue
             })
         }
     }
 
     fn add_scalar_values(&mut self, field_name: String, values: Vec<ftr>) {
-        self.data.scalar_values.insert(field_name, values);
+        self.scalar_values.insert(field_name, values);
     }
 
     fn add_vector_values(&mut self, field_name: String, values: Vec<Vec3<ftr>>) {
-        self.data.vector_values.insert(field_name, values);
+        self.vector_values.insert(field_name, values);
     }
 }
 
 impl FieldLine3 for DualNaturalFieldLine3 {
-    type Data = FieldLineData3;
-
-    fn data(&self) -> &Self::Data { &self.data }
-    fn positions(&self) -> &Vec<Point3<ftr>> { &self.data.positions }
+    fn positions(&self) -> &Vec<Point3<ftr>> { &self.positions }
 
     fn trace<F, G, I, S>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: S, start_position: &Point3<ftr>) -> TracerResult
     where F: BFloat,
@@ -141,18 +150,38 @@ impl FieldLine3 for DualNaturalFieldLine3 {
             return TracerResult::Void
         }
 
-        self.data.positions = Vec::from(backward_positions);
-        self.data.positions.extend(forward_positions);
+        self.positions = Vec::from(backward_positions);
+        self.positions.extend(forward_positions);
 
         TracerResult::Ok(None)
     }
 
     fn add_scalar_values(&mut self, field_name: String, values: Vec<ftr>) {
-        self.data.scalar_values.insert(field_name, values);
+        self.scalar_values.insert(field_name, values);
     }
 
     fn add_vector_values(&mut self, field_name: String, values: Vec<Vec3<ftr>>) {
-        self.data.vector_values.insert(field_name, values);
+        self.vector_values.insert(field_name, values);
+    }
+}
+
+impl Serialize for NaturalFieldLine3 {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut s = serializer.serialize_struct("NaturalFieldLine3", 3)?;
+        s.serialize_field("positions", &self.positions)?;
+        s.serialize_field("scalar_values", &self.scalar_values)?;
+        s.serialize_field("vector_values", &self.vector_values)?;
+        s.end()
+    }
+}
+
+impl Serialize for DualNaturalFieldLine3 {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut s = serializer.serialize_struct("DualNaturalFieldLine3", 3)?;
+        s.serialize_field("positions", &self.positions)?;
+        s.serialize_field("scalar_values", &self.scalar_values)?;
+        s.serialize_field("vector_values", &self.vector_values)?;
+        s.end()
     }
 }
 
