@@ -1,6 +1,6 @@
 //! Fields representing Bifrost simulation variables.
 
-use std::{io, path, fmt};
+use std::{io, path};
 use num;
 use ndarray::prelude::*;
 use serde::Serialize;
@@ -39,7 +39,7 @@ where F: num::Float,
 }
 
 impl<F, G> ScalarField3<F, G>
-where F: num::Float + fmt::Display,
+where F: num::Float,
       G: Grid3<F>
 {
     /// Creates a new scalar field given a name, a grid, the values and
@@ -76,7 +76,10 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a 2D scalar field corresponding to a slice through the x-axis at the given coordinate.
-    pub fn slice_across_x<I: Interpolator3>(&self, interpolator: &I, x_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::XSliceGrid> {
+    pub fn slice_across_x<I>(&self, interpolator: &I, x_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::XSliceGrid>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_grid = self.grid.slice_across_x();
         let slice_locations = self.select_slice_locations([Y, Z], &resampled_locations);
         let slice_values = self.compute_slice_values(interpolator, X, x_coord, resampled_locations, false);
@@ -84,7 +87,10 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a 2D scalar field corresponding to a slice through the y-axis at the given coordinate.
-    pub fn slice_across_y<I: Interpolator3>(&self, interpolator: &I, y_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::YSliceGrid> {
+    pub fn slice_across_y<I>(&self, interpolator: &I, y_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::YSliceGrid>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_grid = self.grid.slice_across_y();
         let slice_locations = self.select_slice_locations([X, Z], &resampled_locations);
         let slice_values = self.compute_slice_values(interpolator, Y, y_coord, resampled_locations, false);
@@ -92,7 +98,10 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a 2D scalar field corresponding to a slice through the z-axis at the given coordinate.
-    pub fn slice_across_z<I: Interpolator3>(&self, interpolator: &I, z_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::ZSliceGrid> {
+    pub fn slice_across_z<I>(&self, interpolator: &I, z_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::ZSliceGrid>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_grid = self.grid.slice_across_z();
         let slice_locations = self.select_slice_locations([X, Y], &resampled_locations);
         let slice_values = self.compute_slice_values(interpolator, Z, z_coord, resampled_locations, false);
@@ -100,8 +109,9 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a 2D scalar field corresponding to a regular slice through the given axis at the given coordinate.
-    pub fn regular_slice_across_axis<I: Interpolator3>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation) -> ScalarField2<F, RegularGrid2<F>>
-    where F: num::cast::FromPrimitive
+    pub fn regular_slice_across_axis<I>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation) -> ScalarField2<F, RegularGrid2<F>>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
     {
         let slice_grid = self.grid.regular_slice_across_axis(axis);
         let slice_locations = In2D::same(location);
@@ -116,7 +126,7 @@ where F: num::Float + fmt::Display,
         }
     }
 
-    fn select_slice_coords(&self, axes: [Dim3; 2], resampled_locations: &ResampledCoordLocations) -> [&Array1<F>; 2] {
+    fn select_slice_coords(&self, axes: [Dim3; 2], resampled_locations: &ResampledCoordLocations) -> [&[F]; 2] {
         match *resampled_locations {
             ResampledCoordLocations::Original => {
                 let coords = self.coords();
@@ -133,7 +143,7 @@ where F: num::Float + fmt::Display,
         }
     }
 
-    fn select_regular_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&Array1<F>; 2] {
+    fn select_regular_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&[F]; 2] {
         match location {
             CoordLocation::Center => {
                 let regular_centers = self.grid.regular_centers();
@@ -146,11 +156,14 @@ where F: num::Float + fmt::Display,
         }
     }
 
-    fn compute_slice_values<I: Interpolator3>(&self, interpolator: &I, axis: Dim3, coord: F, resampled_locations: ResampledCoordLocations, regular: bool) -> Array2<F> {
+    fn compute_slice_values<I: Interpolator3>(&self, interpolator: &I, axis: Dim3, coord: F, resampled_locations: ResampledCoordLocations, regular: bool) -> Array2<F>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let lower_bound = self.grid.lower_bounds()[axis];
         let upper_bound = self.grid.upper_bounds()[axis];
         if coord < lower_bound || coord >= upper_bound{
-            panic!("Slicing coordinate is outside the bounds [{}, {}).", lower_bound, upper_bound);
+            panic!("Slicing coordinate is outside the grid bounds.");
         }
 
         let axes = Dim3::slice_except(axis);
@@ -171,7 +184,10 @@ where F: num::Float + fmt::Display,
         self.interpolate_slice_values(interpolator, axes, &coords, point_in_slice)
     }
 
-    fn interpolate_slice_values<I: Interpolator3>(&self, interpolator: &I, axes: [Dim3; 2], coords: &[&Array1<F>; 2], mut point_in_slice: Point3<F>) -> Array2<F> {
+    fn interpolate_slice_values<I>(&self, interpolator: &I, axes: [Dim3; 2], coords: &[&[F]; 2], mut point_in_slice: Point3<F>) -> Array2<F>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_shape = (coords[0].len(), coords[1].len());
         let mut slice_values = unsafe { Array2::uninitialized(slice_shape.f()) };
 
@@ -203,7 +219,7 @@ where F: num::Float,
 }
 
 impl<F, G> VectorField3<F, G>
-where F: num::Float + fmt::Display,
+where F: num::Float,
       G: Grid3<F>
 {
     /// Creates a new vector field given a name, a grid, the component values and
@@ -263,7 +279,10 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the x-axis at the given coordinate.
-    pub fn slice_across_x<I: Interpolator3>(&self, interpolator: &I, x_coord: F, location: CoordLocation) -> PlaneVectorField3<F, G::XSliceGrid> {
+    pub fn slice_across_x<I>(&self, interpolator: &I, x_coord: F, location: CoordLocation) -> PlaneVectorField3<F, G::XSliceGrid>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_grid = self.grid.slice_across_x();
         let slice_locations = In3D::same_cloned(In2D::same(location));
         let slice_values = self.compute_slice_values(interpolator, X, x_coord, location, false);
@@ -271,7 +290,10 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the y-axis at the given coordinate.
-    pub fn slice_across_y<I: Interpolator3>(&self, interpolator: &I, y_coord: F, location: CoordLocation) -> PlaneVectorField3<F, G::YSliceGrid> {
+    pub fn slice_across_y<I>(&self, interpolator: &I, y_coord: F, location: CoordLocation) -> PlaneVectorField3<F, G::YSliceGrid>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_grid = self.grid.slice_across_y();
         let slice_locations = In3D::same_cloned(In2D::same(location));
         let slice_values = self.compute_slice_values(interpolator, Y, y_coord, location, false);
@@ -279,7 +301,10 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the z-axis at the given coordinate.
-    pub fn slice_across_z<I: Interpolator3>(&self, interpolator: &I, z_coord: F, location: CoordLocation) -> PlaneVectorField3<F, G::ZSliceGrid> {
+    pub fn slice_across_z<I>(&self, interpolator: &I, z_coord: F, location: CoordLocation) -> PlaneVectorField3<F, G::ZSliceGrid>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_grid = self.grid.slice_across_z();
         let slice_locations = In3D::same_cloned(In2D::same(location));
         let slice_values = self.compute_slice_values(interpolator, Z, z_coord, location, false);
@@ -287,8 +312,9 @@ where F: num::Float + fmt::Display,
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a regular slice through the given axis at the given coordinate.
-    pub fn regular_slice_across_axis<I: Interpolator3>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation) -> PlaneVectorField3<F, RegularGrid2<F>>
-    where F: num::cast::FromPrimitive
+    pub fn regular_slice_across_axis<I>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation) -> PlaneVectorField3<F, RegularGrid2<F>>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
     {
         let slice_grid = self.grid.regular_slice_across_axis(axis);
         let slice_locations = In3D::same_cloned(In2D::same(location));
@@ -296,12 +322,12 @@ where F: num::Float + fmt::Display,
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_locations, slice_values)
     }
 
-    fn select_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&Array1<F>; 2] {
+    fn select_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&[F]; 2] {
         let coords = self.grid.coords_by_type(location);
         [&coords[axes[0]], &coords[axes[1]]]
     }
 
-    fn select_regular_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&Array1<F>; 2] {
+    fn select_regular_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&[F]; 2] {
         match location {
             CoordLocation::Center => {
                 let regular_centers = self.grid.regular_centers();
@@ -314,11 +340,14 @@ where F: num::Float + fmt::Display,
         }
     }
 
-    fn compute_slice_values<I: Interpolator3>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation, regular: bool) -> In3D<Array2<F>> {
+    fn compute_slice_values<I>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation, regular: bool) -> In3D<Array2<F>>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let lower_bound = self.grid.lower_bounds()[axis];
         let upper_bound = self.grid.upper_bounds()[axis];
         if coord < lower_bound || coord >= upper_bound{
-            panic!("Slicing coordinate is outside the bounds [{}, {}).", lower_bound, upper_bound);
+            panic!("Slicing coordinate is outside the grid bounds.");
         }
 
         let axes = Dim3::slice_except(axis);
@@ -335,7 +364,10 @@ where F: num::Float + fmt::Display,
         self.interpolate_slice_values(interpolator, axes, &coords, point_in_slice)
     }
 
-    fn interpolate_slice_values<I: Interpolator3>(&self, interpolator: &I, axes: [Dim3; 2], coords: &[&Array1<F>; 2], mut point_in_slice: Point3<F>) -> In3D<Array2<F>> {
+    fn interpolate_slice_values<I>(&self, interpolator: &I, axes: [Dim3; 2], coords: &[&[F]; 2], mut point_in_slice: Point3<F>) -> In3D<Array2<F>>
+    where F: num::cast::FromPrimitive,
+          I: Interpolator3
+    {
         let slice_shape = (coords[0].len(), coords[1].len());
         let mut slice_values = unsafe {
             In3D::new(Array2::uninitialized(slice_shape.f()),
@@ -379,7 +411,7 @@ struct ScalarFieldSerializeData2<F: num::Float> {
 }
 
 impl<F, G> ScalarField2<F, G>
-where F: num::Float + fmt::Display,
+where F: num::Float,
       G: Grid2<F> + Clone
 {
     /// Creates a new scalar field given a name, a grid, the values and
@@ -438,7 +470,7 @@ where F: num::Float,
 }
 
 impl<F, G> VectorField2<F, G>
-where F: num::Float + fmt::Display,
+where F: num::Float,
       G: Grid2<F> + Clone
 {
     /// Creates a new vector field given a name, a grid, the component values and
@@ -497,7 +529,7 @@ where F: num::Float,
 }
 
 impl<F, G> PlaneVectorField3<F, G>
-where F: num::Float + fmt::Display,
+where F: num::Float,
       G: Grid2<F> + Clone
 {
     /// Creates a new vector field given a name, a grid, the component values and
