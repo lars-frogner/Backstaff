@@ -246,22 +246,22 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         }
 
         let center_coords = Coords3::new(
-            Array::from_vec(center_coord_vecs.pop_front().unwrap()),
-            Array::from_vec(center_coord_vecs.pop_front().unwrap()),
-            Array::from_vec(center_coord_vecs.pop_front().unwrap())
+            center_coord_vecs.pop_front().unwrap(),
+            center_coord_vecs.pop_front().unwrap(),
+            center_coord_vecs.pop_front().unwrap()
         );
 
         let lower_edge_coords = Coords3::new(
-            Array::from_vec( lower_coord_vecs.pop_front().unwrap()),
-            Array::from_vec( lower_coord_vecs.pop_front().unwrap()),
-            Array::from_vec( lower_coord_vecs.pop_front().unwrap())
+            lower_coord_vecs.pop_front().unwrap(),
+            lower_coord_vecs.pop_front().unwrap(),
+            lower_coord_vecs.pop_front().unwrap()
         );
 
         let is_periodic = In3D::new(params.get_numerical_param::<u8>("periodic_x")? == 1,
                                     params.get_numerical_param::<u8>("periodic_y")? == 1,
                                     params.get_numerical_param::<u8>("periodic_z")? == 1);
 
-        Ok(G::new(center_coords, lower_edge_coords, is_periodic))
+        Ok(G::from_coords(center_coords, lower_edge_coords, is_periodic))
     }
 
     fn insert_primary_variables(variables: &mut HashMap<String, Variable>) {
