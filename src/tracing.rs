@@ -4,7 +4,6 @@ pub mod seeding;
 pub mod stepping;
 pub mod field_line;
 
-use std::fmt;
 use num;
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
@@ -47,13 +46,13 @@ pub enum TracerResult {
 /// - `G`: Type of grid.
 /// - `I`: Type of interpolator.
 /// - `S`: Type of stepper.
-/// - `C`: Mutable function type taking a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
 pub fn trace_3d_field_line<F, G, I, St, C>(field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>, sense: SteppingSense, callback: &mut C) -> TracerResult
-where F: num::Float + fmt::Display,
+where F: num::Float + num::cast::FromPrimitive,
       G: Grid3<F>,
       I: Interpolator3,
       St: Stepper3,
-      C: FnMut(&Point3<ftr>) -> StepperInstruction
+      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
 {
     match sense {
         SteppingSense::Same => {
@@ -89,13 +88,13 @@ where F: num::Float + fmt::Display,
 /// - `G`: Type of grid.
 /// - `I`: Type of interpolator.
 /// - `St`: Type of stepper.
-/// - `C`: Mutable function type taking a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
 pub fn trace_3d_field_line_dense<F, G, I, St, C>(field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>, sense: SteppingSense, callback: &mut C) -> TracerResult
-where F: num::Float + fmt::Display,
+where F: num::Float + num::cast::FromPrimitive,
       G: Grid3<F>,
       I: Interpolator3,
       St: Stepper3,
-      C: FnMut(&Point3<ftr>) -> StepperInstruction
+      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
 {
     match sense {
         SteppingSense::Same => {
@@ -133,14 +132,14 @@ where F: num::Float + fmt::Display,
 /// - `I`: Type of interpolator.
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
-/// - `C`: Mutable function type taking a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
 pub fn custom_trace_3d_field_line<F, G, I, D, St, C>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, mut stepper: St, start_position: &Point3<ftr>, callback: &mut C) -> TracerResult
-where F: num::Float + fmt::Display,
+where F: num::Float + num::cast::FromPrimitive,
       G: Grid3<F>,
       I: Interpolator3,
       D: Fn(&mut Vec3<ftr>),
       St: Stepper3,
-      C: FnMut(&Point3<ftr>) -> StepperInstruction
+      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
 {
     match stepper.place(field, interpolator, direction_computer, start_position, callback) {
         StepperResult::Ok(_) => {},
@@ -179,14 +178,14 @@ where F: num::Float + fmt::Display,
 /// - `I`: Type of interpolator.
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
-/// - `C`: Mutable function type taking a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
 pub fn custom_trace_3d_field_line_dense<F, G, I, D, St, C>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, mut stepper: St, start_position: &Point3<ftr>, callback: &mut C) -> TracerResult
-where F: num::Float + fmt::Display,
+where F: num::Float + num::cast::FromPrimitive,
       G: Grid3<F>,
       I: Interpolator3,
       D: Fn(&mut Vec3<ftr>),
       St: Stepper3,
-      C: FnMut(&Point3<ftr>) -> StepperInstruction
+      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
 {
     match stepper.place(field, interpolator, direction_computer, start_position, callback) {
         StepperResult::Ok(_) => {},
