@@ -2,26 +2,10 @@
 
 pub mod poly_fit;
 
-use std::fmt;
 use num;
-use crate::geometry::{In3D, Point3, Vec3};
-use crate::grid::{BoundsCrossing, Grid3};
+use crate::geometry::{Point3, Vec3};
+use crate::grid::Grid3;
 use crate::field::{ScalarField3, VectorField3};
-
-/// An interpolated value or a bounds crossing for each dimension.
-pub enum InterpResult3<T> {
-    Ok(T),
-    OutOfBounds(In3D<BoundsCrossing>)
-}
-
-impl<T> InterpResult3<T> {
-    pub fn unwrap(self) -> T {
-        match self {
-            InterpResult3::Ok(value) => value,
-            InterpResult3::OutOfBounds(_) => panic!("called `InterpResult3::unwrap()` on an `OutOfBounds` value")
-        }
-    }
-}
 
 /// Defines the properties of a 3D interpolator.
 pub trait Interpolator3 {
@@ -34,17 +18,17 @@ pub trait Interpolator3 {
     ///
     /// # Returns
     ///
-    /// An `InterpResult3<F>` which is either:
+    /// An `Option<F>` which is either:
     ///
-    /// - `Ok`: Contains the interpolated field value.
-    /// - `OutOfBounds`: Contains a `BoundsCrossing` for each dimension.
+    /// - `Some`: Contains the interpolated field value.
+    /// - `None`: The interpolation point was outside the grid.
     ///
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<F>
-    where F: num::Float + fmt::Display,
+    fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> Option<F>
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate.
@@ -56,16 +40,16 @@ pub trait Interpolator3 {
     ///
     /// # Returns
     ///
-    /// An `InterpResult3<F>` which is either:
+    /// An `Option<F>` which is either:
     ///
-    /// - `Ok`: Contains the interpolated field vector.
-    /// - `OutOfBounds`: Contains a `BoundsCrossing` for each dimension.
+    /// - `Some`: Contains the interpolated field vector.
+    /// - `None`: The interpolation point was outside the grid.
     ///
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> InterpResult3<Vec3<F>>
-    where F: num::Float + fmt::Display,
+    fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> Option<Vec3<F>>
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>;
 }
