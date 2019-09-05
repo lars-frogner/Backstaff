@@ -3,7 +3,7 @@
 pub mod natural;
 pub mod regular;
 
-use std::{io, path, fs, fmt};
+use std::{io, path, fs};
 use std::collections::HashMap;
 use num;
 use serde::Serialize;
@@ -63,7 +63,7 @@ pub trait FieldLine3 {
     /// - `I`: Type of interpolator.
     /// - `St`: Type of stepper.
     fn trace<F, G, I, St>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>) -> TracerResult
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           St: Stepper3;
@@ -79,9 +79,9 @@ pub trait FieldLine3 {
 
     /// Extracts and stores the value of the given scalar field at each field line point.
     fn extract_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
-    where F: num::Float + fmt::Display,
-            G: Grid3<F>,
-            I: Interpolator3
+    where F: num::Float + num::cast::FromPrimitive,
+          G: Grid3<F>,
+          I: Interpolator3
     {
         let mut values = Vec::with_capacity(self.number_of_points());
         for pos in self.positions() {
@@ -93,9 +93,9 @@ pub trait FieldLine3 {
 
     /// Extracts and stores the value of the given vector field at each field line point.
     fn extract_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
-    where F: num::Float + fmt::Display,
-            G: Grid3<F>,
-            I: Interpolator3
+    where F: num::Float + num::cast::FromPrimitive,
+          G: Grid3<F>,
+          I: Interpolator3
     {
         let mut values = Vec::with_capacity(self.number_of_points());
         for pos in self.positions() {
@@ -148,7 +148,7 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     /// - `Sd`: Type of seeder.
     /// - `FI`: Function type with no parameters returning a value of type `L`.
     pub fn trace<F, G, I, StF, Sd, FI>(field: &VectorField3<F, G>, interpolator: &I, stepper_factory: StF, seeder: Sd, field_line_initializer: &FI) -> Option<Self>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           StF: StepperFactory3,
