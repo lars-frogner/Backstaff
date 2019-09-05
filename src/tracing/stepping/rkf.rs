@@ -5,12 +5,11 @@
 pub mod rkf23;
 pub mod rkf45;
 
-use std::fmt;
 use num;
 use crate::geometry::{Dim3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::field::VectorField3;
-use crate::interpolation::{InterpResult3, Interpolator3};
+use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use super::{StepperResult, StoppingCause, StepperInstruction};
 use Dim3::{X, Y, Z};
@@ -107,7 +106,7 @@ trait RKFStepper3 {
     fn state_mut(&mut self) -> &mut RKFStepperState3;
 
     fn attempt_step<F, G, I, D>(&self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<StepAttempt3>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>);
@@ -117,7 +116,7 @@ trait RKFStepper3 {
     fn compute_dense_interpolation_coefs(&self) -> Vec<Vec3<ftr>>;
 
     fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Point3<ftr>
-    where F: num::Float + fmt::Display,
+    where F: num::Float,
           G: Grid3<F>;
 
     fn reset_state(&mut self, position: &Point3<ftr>, direction: &Vec3<ftr>) {
@@ -138,15 +137,15 @@ trait RKFStepper3 {
     }
 
     fn place_with_callback<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(&Point3<ftr>) -> StepperInstruction
+          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
     {
         let place_result = self.perform_place(field, interpolator, direction_computer, position);
         if let StepperResult::Ok(_) = place_result {
-            if let StepperInstruction::Terminate = callback(&self.state().position) {
+            if let StepperInstruction::Terminate = callback(0.0, &self.state().position) {
                 return StepperResult::Stopped(StoppingCause::StoppedByCallback)
             }
         }
@@ -154,15 +153,15 @@ trait RKFStepper3 {
     }
 
     fn step_with_callback<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(&Point3<ftr>) -> StepperInstruction
+          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
-            if let StepperInstruction::Terminate = callback(&self.state().position) {
+            if let StepperInstruction::Terminate = callback(self.state().distance, &self.state().position) {
                 return StepperResult::Stopped(StoppingCause::StoppedByCallback)
             }
         }
@@ -170,11 +169,11 @@ trait RKFStepper3 {
     }
 
     fn step_with_callback_dense_output<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(&Point3<ftr>) -> StepperInstruction
+          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
@@ -185,7 +184,7 @@ trait RKFStepper3 {
     }
 
     fn perform_place<F, G, I, D>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>) -> StepperResult<()>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
@@ -199,7 +198,7 @@ trait RKFStepper3 {
     }
 
     fn perform_step<F, G, I, D>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<()>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
@@ -247,48 +246,49 @@ trait RKFStepper3 {
     }
 
     fn compute_direction<F, G, I, D>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>) -> StepperResult<ComputedDirection3>
-    where F: num::Float + fmt::Display,
+    where F: num::Float + num::cast::FromPrimitive,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
     {
-        match interpolator.interp_vector_field(field, &Point3::from(position)) {
-            InterpResult3::Ok(vec) => {
-                if vec.is_zero() {
+        interpolator.interp_vector_field(field, &Point3::from(position)).map_or_else(
+            || field.grid().wrap_point(&Point3::from(position)).map_or(
+                    StepperResult::Stopped(StoppingCause::OutOfBounds),
+                    |wrapped_position| {
+                        let field_vector = interpolator.interp_vector_field(field, &wrapped_position).expect("Out of bounds after wrapping.");
+                        if field_vector.is_zero() {
+                            StepperResult::Stopped(StoppingCause::Null)
+                        } else {
+                            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((
+                                Point3::from(&wrapped_position),
+                                Self::apply_direction_computer(field_vector, direction_computer)
+                            )))
+                        }
+                    }
+                ),
+            |field_vector| {
+                if field_vector.is_zero() {
                     StepperResult::Stopped(StoppingCause::Null)
                 } else {
-                    let mut field_vector = Vec3::from(&vec);
-                    direction_computer(&mut field_vector);
-                    let direction = field_vector;
-                    StepperResult::Ok(ComputedDirection3::Standard(direction))
-                }
-            },
-            InterpResult3::OutOfBounds(_) => {
-                let outside_point = Point3::from(position);
-                match field.grid().wrap_point(&outside_point) {
-                    Some(wrapped_position) => {
-                        match interpolator.interp_vector_field(field, &wrapped_position) {
-                            InterpResult3::Ok(vec) => {
-                                if vec.is_zero() {
-                                    StepperResult::Stopped(StoppingCause::Null)
-                                } else {
-                                    let mut field_vector = Vec3::from(&vec);
-                                    direction_computer(&mut field_vector);
-                                    let direction = field_vector;
-                                    StepperResult::Ok(ComputedDirection3::WithWrappedPosition((Point3::from(&wrapped_position), direction)))
-                                }
-                            },
-                            InterpResult3::OutOfBounds(_) => panic!("Out of bounds after wrapping.")
-                        }
-                    },
-                    None => StepperResult::Stopped(StoppingCause::OutOfBounds)
+                    StepperResult::Ok(ComputedDirection3::Standard(
+                        Self::apply_direction_computer(field_vector, direction_computer)
+                    ))
                 }
             }
-        }
+        )
+    }
+
+    fn apply_direction_computer<F, D>(field_vector: Vec3<F>, direction_computer: &D) -> Vec3<ftr>
+    where F: num::Float + num::cast::FromPrimitive,
+          D: Fn(&mut Vec3<ftr>)
+    {
+        let mut direction = Vec3::from(&field_vector);
+        direction_computer(&mut direction);
+        direction
     }
 
     fn compute_error<F, G>(&self, grid: &G, attempt: &StepAttempt3) -> StepError
-    where F: num::Float + fmt::Display,
+    where F: num::Float,
           G: Grid3<F>
     {
         let state = self.state();
@@ -362,9 +362,9 @@ trait RKFStepper3 {
     }
 
     fn compute_dense_output<F, G, C>(&mut self, grid: &G, callback: &mut C) -> StepperResult<()>
-    where F: num::Float + fmt::Display,
+    where F: num::Float,
           G: Grid3<F>,
-          C: FnMut(&Point3<ftr>) -> StepperInstruction
+          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
     {
         #![allow(clippy::float_cmp)] // Allows the float comparison with zero
         let state = self.state();
@@ -379,7 +379,7 @@ trait RKFStepper3 {
                 let fraction = (next_output_distance - previous_distance)/state.previous_step_size;
                 let output_position = self.interpolate_dense_position(grid, &coefs, fraction);
 
-                if let StepperInstruction::Terminate = callback(&output_position) {
+                if let StepperInstruction::Terminate = callback(next_output_distance, &output_position) {
                     return StepperResult::Stopped(StoppingCause::StoppedByCallback)
                 }
 
