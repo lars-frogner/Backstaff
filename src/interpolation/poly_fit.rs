@@ -36,24 +36,24 @@ impl PolyFitInterpolator3 {
         let mut crosses_periodic_bound = In3D::new(false, false, false);
         let mut any_crosses_periodic_bound = false;
 
-        for dim in Dim3::slice().iter() {
+        for &dim in Dim3::slice().iter() {
             // Check if start index is outside lower bound
-            if start_idx[*dim] < 0 {
-                if grid.is_periodic(*dim) {
+            if start_idx[dim] < 0 {
+                if grid.is_periodic(dim) {
                     // If the dimension is periodic, make a note of the crossing
-                    crosses_periodic_bound[*dim] = true;
+                    crosses_periodic_bound[dim] = true;
                     any_crosses_periodic_bound = true;
                 } else {
                     // If the dimension is not periodic, shift the interpolation interval to lie on the inside
-                    start_idx[*dim] = 0;
+                    start_idx[dim] = 0;
                 }
             // Check the upper bound accordingly
-            } else if (start_idx[*dim] as usize) + Self::POINTS > grid_shape[*dim] {
-                if grid.is_periodic(*dim) {
-                    crosses_periodic_bound[*dim] = true;
+            } else if (start_idx[dim] as usize) + Self::POINTS > grid_shape[dim] {
+                if grid.is_periodic(dim) {
+                    crosses_periodic_bound[dim] = true;
                     any_crosses_periodic_bound = true;
                 } else {
-                    start_idx[*dim] = (grid_shape[*dim] - Self::POINTS) as isize;
+                    start_idx[dim] = (grid_shape[dim] - Self::POINTS) as isize;
                 }
             }
         }
