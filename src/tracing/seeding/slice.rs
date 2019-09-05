@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use std::iter::FromIterator;
 use rand::distributions::{Distribution, Uniform};
 use rand::distributions::uniform::SampleUniform;
+use rayon;
+use rayon::prelude::*;
 use crate::num::BFloat;
 use crate::geometry::{Dim3, Dim2, In2D, Vec3, Point3, Point2};
 use crate::grid::{Grid3, Grid2, CoordLocation};
@@ -240,6 +242,14 @@ impl IntoIterator for SliceSeeder3 {
     type IntoIter = vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
         self.seed_points.into_iter()
+    }
+}
+
+impl IntoParallelIterator for SliceSeeder3 {
+    type Item = Point3<ftr>;
+    type Iter = rayon::vec::IntoIter<Self::Item>;
+    fn into_par_iter(self) -> Self::Iter {
+        self.seed_points.into_par_iter()
     }
 }
 
