@@ -1,4 +1,4 @@
-//! Fields representing Bifrost simulation variables.
+//! Scalar and vector fields.
 
 use std::{io, path};
 use ndarray::prelude::*;

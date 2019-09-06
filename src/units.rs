@@ -1,4 +1,4 @@
-//! Physical units used in Bifrost.
+//! Sets of physical units.
 
 pub mod solar;
 

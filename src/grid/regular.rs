@@ -1,4 +1,4 @@
-//! Grid with uniform spacing in all dimensions.
+//! Structured grids with uniform spacing in all dimensions.
 
 use crate::num::BFloat;
 use crate::geometry::{Dim3, Dim2, In3D, In2D, Vec3, Vec2, Coords3, Coords2, CoordRefs3, CoordRefs2};

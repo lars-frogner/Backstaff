@@ -1,4 +1,4 @@
-//! Interpolation of Bifrost fields.
+//! Interpolation of scalar and vector fields.
 
 pub mod poly_fit;
 

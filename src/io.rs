@@ -1,4 +1,4 @@
-//! Input/output of Bifrost-related data.
+//! File input/output.
 
 pub mod utils;
 pub mod snapshot;

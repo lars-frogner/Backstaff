@@ -1,4 +1,4 @@
-//! Grids used in Bifrost.
+//! Structured grids.
 
 pub mod regular;
 pub mod hor_regular;

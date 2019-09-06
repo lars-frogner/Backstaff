@@ -1,4 +1,4 @@
-//! Tracing field lines of a Bifrost vector field.
+//! Tracing field lines of a vector field.
 
 pub mod seeding;
 pub mod stepping;

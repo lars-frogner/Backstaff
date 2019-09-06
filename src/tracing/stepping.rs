@@ -1,4 +1,4 @@
-//! Stepping along field lines of a Bifrost vector field.
+//! Stepping along field lines of a vector field.
 
 pub mod rkf;
 

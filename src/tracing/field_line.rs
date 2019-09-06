@@ -1,4 +1,4 @@
-//! Field lines in Bifrost vector fields.
+//! Field lines in vector fields.
 
 pub mod natural;
 pub mod regular;
