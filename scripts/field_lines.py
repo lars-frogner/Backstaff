@@ -56,7 +56,7 @@ if __name__ == "__main__":
     import reading
     from pathlib import Path
 
-    field_line_set = reading.read_3d_field_line_set(Path(reading.data_path, 'field_line_set.pickle'))
+    field_line_set = reading.read_3d_field_line_set_from_combined_pickles(Path(reading.data_path, 'field_line_set.pickle'))
 
     import matplotlib.pyplot as plt
     import plotting

@@ -22,10 +22,23 @@ def read_3d_field_line(file_path):
     return __parse_fieldline3(data)
 
 
-def read_3d_field_line_set(file_path):
+def read_3d_field_line_set_from_single_pickle(file_path):
     with file_path.open(mode='rb') as f:
         data = pickle.load(f)
     return __parse_fieldlineset3(data)
+
+
+def read_3d_field_line_set_from_combined_pickles(file_path):
+    field_line_set = FieldLineSet3([])
+    with file_path.open(mode='rb') as f:
+        while True:
+            try:
+                data = pickle.load(f)
+            except EOFError:
+                break
+            field_line = __parse_fieldline3(data)
+            field_line_set.insert(field_line)
+    return field_line_set
 
 
 def __parse_scalarfield2(data):
