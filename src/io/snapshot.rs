@@ -1,13 +1,11 @@
 //! Reading of Bifrost simulation data.
 
 use std::{io, path, fs, mem, str, string};
-use std::io::{BufRead, Seek, SeekFrom};
-use std::convert::TryInto;
+use std::io::{BufRead, Write};
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use num;
 use regex;
-use byteorder;
-use byteorder::ReadBytesExt;
 use ndarray::prelude::*;
 use crate::geometry::{Dim3, In3D, Coords3};
 use crate::grid::{CoordLocation, GridType, Grid3};
@@ -28,7 +26,7 @@ pub struct SnapshotReader3<G: Grid3<fdt>> {
     aux_path: path::PathBuf,
     params: Params,
     endianness: Endianness,
-    grid: G,
+    grid: Arc<G>,
     variables: HashMap<String, Variable>
 }
 
@@ -46,16 +44,20 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     ///
     /// - `Ok`: Contains a new `SnapshotReader3`.
     /// - `Err`: Contains an error encountered during opening, reading or parsing the relevant files.
-    pub fn new(params_path: &path::Path, endianness: Endianness) -> io::Result<Self> {
+    ///
+    /// # Type parameters
+    ///
+    /// - `P`: A type that can be treated as a reference to a `Path`.
+    pub fn new<P: AsRef<path::Path>>(params_path: P, endianness: Endianness) -> io::Result<Self> {
         let params = Params::new(&params_path)?;
 
-        let params_path = params_path.to_path_buf();
+        let params_path = params_path.as_ref().to_path_buf();
         let snap_num: u32 = params.get_numerical_param("isnap")?;
         let mesh_path = params_path.with_file_name(params.get_str_param("meshfile")?);
         let snap_path = params_path.with_file_name(format!("{}_{}.snap", params.get_str_param("snapname")?, snap_num));
         let aux_path = snap_path.with_extension("aux");
 
-        let grid = Self::read_3d_grid_from_mesh_file(&params, &mesh_path)?;
+        let grid = Arc::new(Self::read_3d_grid_from_mesh_file(&params, &mesh_path)?);
 
         let mut variables = HashMap::new();
         Self::insert_primary_variables(&mut variables);
@@ -70,6 +72,12 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             variables
         })
     }
+
+    /// Returns a reference to the grid.
+    pub fn grid(&self) -> &G { self.grid.as_ref() }
+
+    /// Returns a new atomic reference counted pointer to the grid.
+    pub fn arc_with_grid(&self) -> Arc<G> { Arc::clone(&self.grid) }
 
     /// Reads the specified primary or auxiliary 3D variable from the output files.
     ///
@@ -86,7 +94,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable = self.get_variable(variable_name)?;
         let values = self.read_3d_variable_from_binary_file(variable)?;
-        Ok(ScalarField3::new(variable_name.to_string(), self.grid.clone(), variable.locations.clone(), values))
+        Ok(ScalarField3::new(variable_name.to_string(), Arc::clone(&self.grid), variable.locations.clone(), values))
     }
 
     /// Reads the component variables of the specified 3D vector quantity from the output files.
@@ -102,19 +110,15 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     /// - `Ok`: Contains a `VectorField3<fdt>` holding the coordinates and values of the vector field components.
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
     pub fn read_3d_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
-        let component_variables = [self.get_variable(&format!("{}x", variable_name))?,
-                                   self.get_variable(&format!("{}y", variable_name))?,
-                                   self.get_variable(&format!("{}z", variable_name))?];
-
-        let values = In3D::new(self.read_3d_variable_from_binary_file(component_variables[0])?,
-                               self.read_3d_variable_from_binary_file(component_variables[1])?,
-                               self.read_3d_variable_from_binary_file(component_variables[2])?);
-
-        let locations = In3D::new(component_variables[0].locations.clone(),
-                                  component_variables[1].locations.clone(),
-                                  component_variables[2].locations.clone());
-
-        Ok(VectorField3::new(variable_name.to_string(), self.grid.clone(), locations, values))
+        Ok(VectorField3::new(
+            variable_name.to_string(),
+            Arc::clone(&self.grid),
+            In3D::new(
+                self.read_3d_scalar_field(&format!("{}x", variable_name))?,
+                self.read_3d_scalar_field(&format!("{}y", variable_name))?,
+                self.read_3d_scalar_field(&format!("{}z", variable_name))?
+            )
+        ))
     }
 
     /// Provides the string value of a parameter from the parameter file.
@@ -161,7 +165,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         self.params.get_numerical_param(name)
     }
 
-    fn read_3d_grid_from_mesh_file(params: &Params, mesh_path: &path::Path) -> io::Result<G> {
+    fn read_3d_grid_from_mesh_file<P: AsRef<path::Path>>(params: &Params, mesh_path: P) -> io::Result<G> {
         let file = fs::File::open(mesh_path)?;
         let mut lines = io::BufReader::new(file).lines();
         let coord_names = ["x", "y", "z"];
@@ -217,10 +221,8 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
                                           format!("Insufficient number of {}-coordinates in mesh file (must be at least 4)", coord_names[dim])))
             }
 
-            #[allow(clippy::float_cmp)]
-            let uniform_up = up_derivatives.iter().all(|element| element == &up_derivatives[0]);
-            #[allow(clippy::float_cmp)]
-            let uniform_down = down_derivatives.iter().all(|element| element == &down_derivatives[0]);
+            let uniform_up = up_derivatives.iter().all(|&element| fdt::abs(element - up_derivatives[0]) < 1e-3);
+            let uniform_down = down_derivatives.iter().all(|&element| fdt::abs(element - down_derivatives[0]) < 1e-3);
 
             if uniform_up != uniform_down {
                 return Err(io::Error::new(io::ErrorKind::InvalidData,
@@ -314,20 +316,57 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         let shape = self.grid.shape();
         let length = shape[X]*shape[Y]*shape[Z];
         let offset = length*variable.index;
-        let buffer = self.read_floats_from_binary_file(file_path, length, offset)?;
+        let buffer = super::utils::read_f32_from_binary_file(file_path, length, offset, self.endianness)?;
         Ok(Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap())
     }
+}
 
-    fn read_floats_from_binary_file(&self, file_path: &path::Path, length: usize, offset: usize) -> io::Result<Vec<fdt>> {
-        let mut file = fs::File::open(file_path)?;
-        file.seek(SeekFrom::Start((offset*mem::size_of::<fdt>()).try_into().unwrap()))?;
-        let mut buffer = vec![0.0; length];
-        match self.endianness {
-            Endianness::Little => file.read_f32_into::<byteorder::LittleEndian>(&mut buffer)?,
-            Endianness::Big => file.read_f32_into::<byteorder::BigEndian>(&mut buffer)?
-        };
-        Ok(buffer)
+/// Writes arrays of variable values sequentially into a binary file.
+///
+/// # Parameters
+///
+/// - `output_path`: Path where the output file should be written.
+/// - `variable_names`: Names of the variables to write.
+/// - `variable_value_producer`: Closure producing an array of values given the variable name.
+/// - `endianness`: Endianness of the output data.
+///
+/// # Returns
+///
+/// A `Result` which is either:
+///
+/// - `Ok`: Writing was completed successfully.
+/// - `Err`: Contains an error encountered trying to create or write to the file.
+///
+/// # Type parameters
+///
+/// - `P`: A type that can be treated as a reference to a `Path`.
+/// - `V`: A function type taking a reference to a string slice and returning a reference to a 3D array.
+pub fn write_3d_snapfile<P, V>(output_path: P, variable_names: &[&str], variable_value_producer: &V, endianness: Endianness) -> io::Result<()>
+where P: AsRef<path::Path>,
+      V: Fn(&str) -> Array3<fdt>
+{
+    let number_of_variables = variable_names.len();
+    assert!(number_of_variables == 5 || number_of_variables == 8, "Number of variables must be 5 or 8.");
+
+    let variable_values = variable_value_producer(variable_names[0]);
+    let array_length = variable_values.len();
+    let float_size = mem::size_of::<fdt>();
+    let byte_buffer_size = array_length*float_size;
+    let mut byte_buffer = vec![0_u8; byte_buffer_size];
+
+    let mut file = fs::File::create(output_path)?;
+    file.set_len(byte_buffer_size as u64)?;
+
+    super::utils::write_f32_into_byte_buffer(variable_values.as_slice_memory_order().expect("Values array not contiguous."), &mut byte_buffer, 0, endianness);
+    file.write_all(&byte_buffer)?;
+
+    for name in variable_names.iter().skip(1) {
+        let variable_values = variable_value_producer(name);
+        assert_eq!(variable_values.len(), array_length, "All variable arrays must have the same length.");
+        super::utils::write_f32_into_byte_buffer(variable_values.as_slice_memory_order().expect("Values array not contiguous."), &mut byte_buffer, 0, endianness);
+        file.write_all(&byte_buffer)?;
     }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -343,7 +382,7 @@ struct Params {
 }
 
 impl Params {
-    fn new(params_path: &path::Path) -> io::Result<Self> {
+    fn new<P: AsRef<path::Path>>(params_path: P) -> io::Result<Self> {
         let params_text = read_text_file(params_path)?;
         let params_map = Self::parse_params_text(&params_text);
         Ok(Params{ params_map })
@@ -401,8 +440,7 @@ mod tests {
 
     #[test]
     fn reading_works() {
-        let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(&params_path, Endianness::Little).unwrap();
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
         let _field = reader.read_3d_scalar_field("r").unwrap();
     }
 }
