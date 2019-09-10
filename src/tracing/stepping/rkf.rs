@@ -7,7 +7,7 @@ pub mod rkf45;
 
 use crate::num::BFloat;
 use crate::geometry::{Dim3, Point3, Vec3};
-use crate::grid::Grid3;
+use crate::grid::{Grid3, GridPointQuery3};
 use crate::field::VectorField3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
@@ -251,22 +251,8 @@ trait RKFStepper3 {
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>)
     {
-        interpolator.interp_vector_field(field, &Point3::from(position)).map_or_else(
-            || field.grid().wrap_point(&Point3::from(position)).map_or(
-                    StepperResult::Stopped(StoppingCause::OutOfBounds),
-                    |wrapped_position| {
-                        let field_vector = interpolator.interp_vector_field(field, &wrapped_position).expect("Out of bounds after wrapping.");
-                        if field_vector.is_zero() {
-                            StepperResult::Stopped(StoppingCause::Null)
-                        } else {
-                            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((
-                                Point3::from(&wrapped_position),
-                                Self::apply_direction_computer(field_vector, direction_computer)
-                            )))
-                        }
-                    }
-                ),
-            |field_vector| {
+        match interpolator.interp_vector_field(field, &Point3::from(position)) {
+            GridPointQuery3::Inside(field_vector) => {
                 if field_vector.is_zero() {
                     StepperResult::Stopped(StoppingCause::Null)
                 } else {
@@ -274,8 +260,19 @@ trait RKFStepper3 {
                         Self::apply_direction_computer(field_vector, direction_computer)
                     ))
                 }
-            }
-        )
+            },
+            GridPointQuery3::WrappedInside((field_vector, wrapped_position)) => {
+                if field_vector.is_zero() {
+                    StepperResult::Stopped(StoppingCause::Null)
+                } else {
+                    StepperResult::Ok(ComputedDirection3::WithWrappedPosition((
+                        Point3::from(&wrapped_position),
+                        Self::apply_direction_computer(field_vector, direction_computer)
+                    )))
+                }
+            },
+            GridPointQuery3::Outside => StepperResult::Stopped(StoppingCause::OutOfBounds)
+        }
     }
 
     fn apply_direction_computer<F, D>(field_vector: Vec3<F>, direction_computer: &D) -> Vec3<ftr>
