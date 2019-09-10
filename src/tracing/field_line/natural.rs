@@ -189,7 +189,6 @@ impl Serialize for DualNaturalFieldLine3 {
 mod tests {
 
     use super::*;
-    use std::path;
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::io::Endianness;
@@ -203,8 +202,7 @@ mod tests {
 
     #[test]
     fn tracing_and_saving_natural_field_line_works() {
-        let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(&params_path, Endianness::Little).unwrap();
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
         let magnetic_field = reader.read_3d_vector_field("b").unwrap();
 
         let interpolator = PolyFitInterpolator3;
@@ -220,14 +218,13 @@ mod tests {
         field_line_23.trace(&magnetic_field, &interpolator, stepper_23, &start_position);
         field_line_45.trace(&magnetic_field, &interpolator, stepper_45, &start_position);
 
-        field_line_23.save_as_pickle(&path::PathBuf::from("data/natural_field_line_23.pickle")).unwrap();
-        field_line_45.save_as_pickle(&path::PathBuf::from("data/natural_field_line_45.pickle")).unwrap();
+        field_line_23.save_as_pickle("data/natural_field_line_23.pickle").unwrap();
+        field_line_45.save_as_pickle("data/natural_field_line_45.pickle").unwrap();
     }
 
     #[test]
     fn tracing_and_saving_natural_field_line_set_works() {
-        let params_path = path::PathBuf::from("data/en024031_emer3.0sml_ebeam_631.idl");
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(&params_path, Endianness::Little).unwrap();
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
         let magnetic_field = reader.read_3d_vector_field("b").unwrap();
 
         let interpolator = PolyFitInterpolator3;
@@ -235,6 +232,6 @@ mod tests {
         let seeder = SliceSeeder3::stratified(magnetic_field.grid(), Dim3::Z, 0.0, In2D::same(3), 1, 0.6);
 
         let field_line_set = FieldLineSet3::trace(&magnetic_field, &interpolator, stepper_factory, seeder, &|| DualNaturalFieldLine3::new(None) ).unwrap();
-        field_line_set.save_as_pickle(&path::PathBuf::from("data/natural_field_line_set.pickle")).unwrap();
+        field_line_set.save_as_pickle("data/natural_field_line_set.pickle").unwrap();
     }
 }
