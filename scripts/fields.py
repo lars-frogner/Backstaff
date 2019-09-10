@@ -27,6 +27,9 @@ class ScalarField2:
         self.values = np.asfarray(values)
         assert self.values.shape == self.coords.shape()
 
+    def shape(self):
+        return self.coords.shape()
+
     def add_to_plot(self, ax):
         ax.imshow(np.log10(self.values.T))
 
@@ -36,7 +39,9 @@ if __name__ == "__main__":
     import plotting
     from pathlib import Path
 
-    field = reading.read_2d_scalar_field(Path(reading.data_path, 'slice_field.pickle'))
-    fig, ax = plotting.create_2d_plot()
-    field.add_to_plot(ax)
+    field = reading.read_2d_scalar_field(Path(reading.data_path, 'phd_run', 'en024031_emer3.0str_351.pickle'))
+    field_coarse = reading.read_2d_scalar_field(Path(reading.data_path, 'phd_run', 'en024031_emer3.0str_coarse_351.pickle'))
+    fig, axes = plotting.create_2d_subplots(ncols=2)
+    field.add_to_plot(axes[0])
+    field_coarse.add_to_plot(axes[1])
     plotting.render(fig)
