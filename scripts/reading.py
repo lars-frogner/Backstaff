@@ -46,7 +46,10 @@ def __parse_ndarray(data):
     return np.asfarray(data['data']).reshape(data['dim'])
 
 def __parse_coords2(data):
-    return Coords2(__parse_ndarray(data[0]), __parse_ndarray(data[1]))
+    return Coords2(__parse_vec_of_float(data[0]), __parse_vec_of_float(data[1]))
+
+def __parse_vec_of_float(data):
+    return np.asfarray(data)
 
 def __parse_vec_of_vec3(data):
     return Coords3(*list(zip(*data)))
