@@ -36,6 +36,7 @@ pub trait Interpolator3 {
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
+    ///
     /// Extrapolation is performed if the coordinate is outside a non-periodic boundary.
     ///
     /// # Parameters
@@ -82,6 +83,7 @@ pub trait Interpolator3 {
 
     /// Computes the interpolated or extrapolated value of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
+    ///
     /// Extrapolation is performed if the coordinate is outside a non-periodic boundary.
     ///
     /// # Parameters
