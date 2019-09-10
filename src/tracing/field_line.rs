@@ -72,8 +72,8 @@ pub trait FieldLine3: Serialize {
     {
         let mut values = Vec::with_capacity(self.number_of_points());
         for pos in self.positions() {
-            let value = interpolator.interp_scalar_field(field, &Point3::from(pos)).unwrap();
-            values.push(num::NumCast::from(value).unwrap());
+            let value = interpolator.interp_scalar_field(field, &Point3::from(pos)).expect_inside();
+            values.push(num::NumCast::from(value).expect("Conversion failed."));
         }
         self.add_scalar_values(field.name().to_string(), values);
     }
@@ -86,14 +86,14 @@ pub trait FieldLine3: Serialize {
     {
         let mut values = Vec::with_capacity(self.number_of_points());
         for pos in self.positions() {
-            let value = interpolator.interp_vector_field(field, &Point3::from(pos)).unwrap();
+            let value = interpolator.interp_vector_field(field, &Point3::from(pos)).expect_inside();
             values.push(Vec3::from(&value));
         }
         self.add_vector_values(field.name().to_string(), values);
     }
 
     /// Serializes the field line data into pickle format and save at the given path.
-    fn save_as_pickle(&self, file_path: &path::Path) -> io::Result<()> {
+    fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
         save_data_as_pickle(file_path, &self)
     }
 }
@@ -181,7 +181,7 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     pub fn par_trace<F, G, I, StF, Sd, FI>(field: &VectorField3<F, G>, interpolator: &I, stepper_factory: StF, seeder: Sd, field_line_initializer: &FI) -> Option<Self>
     where L: Send,
           F: BFloat + Sync,
-          G: Grid3<F> + Sync,
+          G: Grid3<F> + Sync + Send,
           I: Interpolator3 + Sync,
           StF: StepperFactory3 + Sync,
           Sd: Seeder3 + IntoParallelIterator<Item = Point3<ftr>>,
@@ -208,7 +208,7 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     }
 
     /// Serializes the field line data into pickle format and save at the given path.
-    pub fn save_as_pickle(&self, file_path: &path::Path) -> io::Result<()> {
+    pub fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
         save_data_as_pickle(file_path, &self)
     }
 }
