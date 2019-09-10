@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
-def create_2d_plot(figsize=(8, 6), dpi=200, **kwargs):
+def create_2d_subplots(figsize=(8, 6), dpi=200, **kwargs):
     return plt.subplots(figsize=figsize, dpi=dpi, **kwargs)
 
 
