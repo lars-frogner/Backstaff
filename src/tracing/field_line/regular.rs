@@ -231,6 +231,6 @@ mod tests {
         let seeder = vec![Point3::new(12.0, 12.0, -10.0), Point3::new(12.0, 12.0, -7.0)];
 
         let field_line_set = FieldLineSet3::trace(&magnetic_field, &interpolator, stepper_factory, seeder, &|| DualRegularFieldLine3::new(None) ).unwrap();
-        field_line_set.save_as_pickle("data/regular_field_line_set.pickle").unwrap();
+        field_line_set.save_as_combined_pickles("data/regular_field_line_set.pickle").unwrap();
     }
 }

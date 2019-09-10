@@ -232,6 +232,6 @@ mod tests {
         let seeder = SliceSeeder3::stratified(magnetic_field.grid(), Dim3::Z, 0.0, In2D::same(3), 1, 0.6);
 
         let field_line_set = FieldLineSet3::trace(&magnetic_field, &interpolator, stepper_factory, seeder, &|| DualNaturalFieldLine3::new(None) ).unwrap();
-        field_line_set.save_as_pickle("data/natural_field_line_set.pickle").unwrap();
+        field_line_set.save_as_combined_pickles("data/natural_field_line_set.pickle").unwrap();
     }
 }
