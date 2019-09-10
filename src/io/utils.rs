@@ -72,14 +72,14 @@ where P: AsRef<path::Path>,
       T: Serialize
 {
     let mut file = fs::File::create(file_path)?;
-    write_data_as_pickle_to_file(&mut file, data)
+    write_data_as_pickle(&mut file, data)
 }
 
 /// Serializes the given data into protocol 3 pickle format and write to the given file.
-pub fn write_data_as_pickle_to_file<T: Serialize>(file: &mut fs::File, data: &T) -> io::Result<()> {
-    match serde_pickle::to_writer(file, data, true) {
+pub fn write_data_as_pickle<T: Serialize, W: io::Write>(writer: &mut W, data: &T) -> io::Result<()> {
+    match serde_pickle::to_writer(writer, data, true) {
         Ok(_) => Ok(()),
         Err(serde_pickle::Error::Io(err)) => Err(err),
-        Err(_) => Err(io::Error::new(io::ErrorKind::Other, "Unexpected error while serializing data to pickle file"))
+        Err(_) => Err(io::Error::new(io::ErrorKind::Other, "Unexpected error while serializing data to pickle format"))
     }
 }
