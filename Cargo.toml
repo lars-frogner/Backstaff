@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["Lars Frogner <lars.frogner@astro.uio.no>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 rand = "0.7.0"
 num = "0.2.0"
@@ -17,6 +15,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde-pickle = "0.5.0"
 rayon = "1.2.0"
 lazy_static = "1.4.0"
+nrfind = "1.0.2"
 
 [dev-dependencies]
 ndarray-stats = "0.2.0"
