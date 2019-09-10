@@ -57,6 +57,11 @@ impl<T> In3D<T> {
 
     /// Creates a new 3D quantity with the given value cloned into all components.
     pub fn same_cloned(a: T) -> Self where T: Clone { In3D([a.clone(), a.clone(), a]) }
+
+    /// Creates a new tuple containing copies of the three components.
+    pub fn to_tuple(&self) -> (T, T, T) where T: Copy {
+        (self[X], self[Y], self[Z])
+    }
 }
 
 impl<T> Index<Dim3> for In3D<T> {
@@ -78,6 +83,14 @@ impl<T> In2D<T> {
 
     /// Creates a new 2D quantity with the given value copied into both components.
     pub fn same(a: T) -> Self where T: Copy { In2D([a, a]) }
+
+    /// Creates a new 2D quantity with the given value cloned into all components.
+    pub fn same_cloned(a: T) -> Self where T: Clone { In2D([a.clone(), a]) }
+
+    /// Creates a new tuple containing copies of the three components.
+    pub fn to_tuple(&self) -> (T, T) where T: Copy {
+        (self[Dim2::X], self[Dim2::Y])
+    }
 }
 
 impl<T> Index<Dim2> for In2D<T> {
@@ -100,9 +113,16 @@ impl<F: BFloat> Vec3<F> {
     /// Creates a new zero vector.
     pub fn zero() -> Self { Vec3::new(F::zero(), F::zero(), F::zero()) }
 
+    /// Creates a new vector with all component equal to the given value.
+    pub fn equal_components(a: F) -> Self { Vec3::new(a, a, a) }
+
     /// Creates a new vector from the given vector, which may have a different component type.
     pub fn from<U: BFloat>(other: &Vec3<U>) -> Self {
-        Vec3::new(F::from(other[X]).unwrap(), F::from(other[Y]).unwrap(), F::from(other[Z]).unwrap())
+        Vec3::new(
+            F::from(other[X]).expect("Conversion failed."),
+            F::from(other[Y]).expect("Conversion failed."),
+            F::from(other[Z]).expect("Conversion failed.")
+        )
     }
 
     /// Constructs a new point from the vector components.
@@ -256,9 +276,15 @@ impl<F: BFloat> Vec2<F> {
     /// Creates a new zero vector.
     pub fn zero() -> Self { Vec2::new(F::zero(), F::zero()) }
 
+    /// Creates a new vector with all component equal to the given value.
+    pub fn equal_components(a: F) -> Self { Vec2::new(a, a) }
+
     /// Creates a new vector from the given vector, which may have a different component type.
     pub fn from<U: BFloat>(other: &Vec2<U>) -> Self {
-        Vec2::new(F::from(other[Dim2::X]).unwrap(), F::from(other[Dim2::Y]).unwrap())
+        Vec2::new(
+            F::from(other[Dim2::X]).expect("Conversion failed."),
+            F::from(other[Dim2::Y]).expect("Conversion failed.")
+        )
     }
 
     /// Constructs a new point from the vector components.
@@ -403,6 +429,12 @@ impl<F: BFloat> Point3<F> {
     /// Creates a new 3D point given the three components.
     pub fn new(x: F, y: F, z: F) -> Self { Point3(In3D::new(x, y, z)) }
 
+    /// Creates a new 3D point with all components set to zero.
+    pub fn origin() -> Self { Self::new(F::zero(), F::zero(), F::zero()) }
+
+    /// Creates a new point with all component equal to the given value.
+    pub fn equal_components(a: F) -> Self { Point3::new(a, a, a) }
+
     /// Creates a new point from the given point, which may have a different component type.
     pub fn from<U: BFloat>(other: &Point3<U>) -> Self {
         Self::from_components(other[X], other[Y], other[Z])
@@ -410,16 +442,17 @@ impl<F: BFloat> Point3<F> {
 
     /// Creates a new point from the given components, which may have different types.
     pub fn from_components<U: BFloat, V: BFloat, W: BFloat>(x: U, y: V, z: W) -> Self {
-        Point3::new(F::from(x).unwrap(), F::from(y).unwrap(), F::from(z).unwrap())
+        Point3::new(
+            F::from(x).expect("Conversion failed."),
+            F::from(y).expect("Conversion failed."),
+            F::from(z).expect("Conversion failed.")
+        )
     }
 
     /// Constructs a new vector from the point components.
     pub fn to_vec3(&self) -> Vec3<F> {
         Vec3::new(self[X], self[Y], self[Z])
     }
-
-    /// Creates a new 3D point with all components set to zero.
-    pub fn origin() -> Self { Self::new(F::zero(), F::zero(), F::zero()) }
 }
 
 impl<F: BFloat> Index<Dim3> for Point3<F> {
@@ -501,9 +534,18 @@ impl<F: BFloat> Point2<F> {
     /// Creates a new 2D point given the three components.
     pub fn new(x: F, y: F) -> Self { Point2(In2D::new(x, y)) }
 
+    /// Creates a new 2D point with all components set to zero.
+    pub fn origin() -> Self { Self::new(F::zero(), F::zero()) }
+
+    /// Creates a new point with all component equal to the given value.
+    pub fn equal_components(a: F) -> Self { Point2::new(a, a) }
+
     /// Creates a new point from the given components, which may have a different type.
     pub fn from_components<U: BFloat, V: BFloat>(x: U, y: V) -> Self {
-        Point2::new(F::from(x).unwrap(), F::from(y).unwrap())
+        Point2::new(
+            F::from(x).expect("Conversion failed."),
+            F::from(y).expect("Conversion failed.")
+        )
     }
 
     /// Creates a new point from the given point, which may have a different component type.
@@ -515,9 +557,6 @@ impl<F: BFloat> Point2<F> {
     pub fn to_vec2(&self) -> Vec2<F> {
         Vec2::new(self[Dim2::X], self[Dim2::Y])
     }
-
-    /// Creates a new 2D point with all components set to zero.
-    pub fn origin() -> Self { Self::new(F::zero(), F::zero()) }
 }
 
 impl<F: BFloat> Index<Dim2> for Point2<F> {
@@ -596,12 +635,19 @@ impl<I: num::Integer> Idx3<I> {
     /// Creates a new 3D index given the three components.
     pub fn new(i: I, j: I, k: I) -> Self { Idx3(In3D::new(i, j, k)) }
 
+    /// Creates a new 3D index with all components set to zero.
+    pub fn origin() -> Self { Idx3::new(I::zero(), I::zero(), I::zero()) }
+
     /// Creates a new 3D index from the given index, which may have a different component type.
     pub fn from<U>(other: &Idx3<U>) -> Self
     where I: num::NumCast + Copy,
           U: num::Integer + num::NumCast + Copy
     {
-        Idx3::new(I::from(other[X]).unwrap(), I::from(other[Y]).unwrap(), I::from(other[Z]).unwrap())
+        Idx3::new(
+            I::from(other[X]).expect("Conversion failed."),
+            I::from(other[Y]).expect("Conversion failed."),
+            I::from(other[Z]).expect("Conversion failed.")
+        )
     }
 }
 
@@ -622,12 +668,18 @@ impl<I: num::Integer> Idx2<I> {
     /// Creates a new 2D index given the three components.
     pub fn new(i: I, j: I) -> Self { Idx2(In2D::new(i, j)) }
 
+    /// Creates a new 2D index with all components set to zero.
+    pub fn origin() -> Self { Idx2::new(I::zero(), I::zero()) }
+
     /// Creates a new 2D index from the given index, which may have a different component type.
     pub fn from<U>(other: &Idx2<U>) -> Self
     where I: num::NumCast + Copy,
           U: num::Integer + num::NumCast + Copy
     {
-        Idx2::new(I::from(other[Dim2::X]).unwrap(), I::from(other[Dim2::Y]).unwrap())
+        Idx2::new(
+            I::from(other[Dim2::X]).expect("Conversion failed."),
+            I::from(other[Dim2::Y]).expect("Conversion failed.")
+        )
     }
 }
 
