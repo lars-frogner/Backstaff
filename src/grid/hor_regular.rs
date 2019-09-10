@@ -152,6 +152,7 @@ mod tests {
     use ndarray::prelude::*;
     use ndarray::s;
     use crate::geometry::{Point3, Idx3};
+    use crate::grid::GridPointQuery3;
 
     #[test]
     fn varying_z_grid_index_search_works() {
@@ -176,12 +177,11 @@ mod tests {
         let lower_edges = Coords3::new(xdn.to_vec(), ydn.to_vec(), zdn.to_vec());
 
         let grid = HorRegularGrid3::from_coords(centers, lower_edges, In3D::new(false, false, false));
-
-        assert_eq!(grid.find_grid_cell(&Point3::new(xdn[mx-1] + dx + 1e-12, ydn[my-1] + dy + 1e-12, z_max + 1e-12)), None);
-        assert_eq!(grid.find_grid_cell(&Point3::new(xdn[0] + 1e-12, ydn[0] + 1e-12, zdn[0] + 1e-12)), Some(Idx3::new(0, 0, 0)));
-        assert_eq!(grid.find_grid_cell(&Point3::new(xdn[0] + 1e-12, ydn[0] + 1e-12, zdn[0] - 1e-9)), None);
-        assert_eq!(grid.find_grid_cell(&Point3::new(-0.68751, 1.5249, 3.0)), Some(Idx3::new(2, 0, 10)));
-        assert_eq!(grid.find_grid_cell(&Point3::new(0.0, 2.0, 16.7)), Some(Idx3::new(8, 1, 27)));
-        assert_eq!(grid.find_grid_cell(&Point3::new(0.0, 2.0, -0.7)), Some(Idx3::new(8, 1, 1)));
+        assert_eq!(grid.find_grid_cell(&Point3::new(xdn[mx-1] + dx + 1e-12, ydn[my-1] + dy + 1e-12, z_max + 1e-12)), GridPointQuery3::Outside);
+        assert_eq!(grid.find_grid_cell(&Point3::new(xdn[0] + 1e-12, ydn[0] + 1e-12, zdn[0] + 1e-12)), GridPointQuery3::Inside(Idx3::new(0, 0, 0)));
+        assert_eq!(grid.find_grid_cell(&Point3::new(xdn[0] + 1e-12, ydn[0] + 1e-12, zdn[0] - 1e-9)), GridPointQuery3::Outside);
+        assert_eq!(grid.find_grid_cell(&Point3::new(-0.68751, 1.5249, 3.0)), GridPointQuery3::Inside(Idx3::new(2, 0, 10)));
+        assert_eq!(grid.find_grid_cell(&Point3::new(0.0, 2.0, 16.7)), GridPointQuery3::Inside(Idx3::new(8, 1, 27)));
+        assert_eq!(grid.find_grid_cell(&Point3::new(0.0, 2.0, -0.7)), GridPointQuery3::Inside(Idx3::new(8, 1, 1)));
     }
 }
