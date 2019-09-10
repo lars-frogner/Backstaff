@@ -166,7 +166,7 @@ impl RKFStepper3 for RKF23Stepper3 {
             // If the previous step wrapped around a periodic boundary,
             // this output position might fall on either side of the boundary,
             // so we have to wrap it in case it falls on the outside
-            Point3::from(&grid.wrap_point(&Point3::from(&position)).unwrap())
+            Point3::from(&grid.wrap_point(&Point3::from(&position)).expect("Wrapping point is outside non-periodic boundary."))
         } else {
             position
         }
