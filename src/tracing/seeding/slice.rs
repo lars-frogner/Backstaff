@@ -108,7 +108,7 @@ impl SliceSeeder3 {
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
         let slice_cell_extents = slice_grid.cell_extents();
 
-        let offset_limit = F::from(0.5*randomness).unwrap();
+        let offset_limit = F::from(0.5*randomness).expect("Conversion failed.");
         let rng = rand::thread_rng();
         let mut uniform_offset_samples = Uniform::new(-offset_limit, offset_limit).sample_iter(rng);
 
@@ -148,14 +148,14 @@ impl SliceSeeder3 {
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
     pub fn scalar_field_pdf<F, G, I, C>(field: &ScalarField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
-    where F: BFloat + SampleUniform,
-          G: Grid3<F>,
-          I: Interpolator3,
+    where F: BFloat + SampleUniform + Sync + Send,
+          G: Grid3<F> + Sync + Send,
+          I: Interpolator3 + Sync,
           C: Fn(F) -> F
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
-        let slice_field = field.regular_slice_across_axis(interpolator, axis, F::from(coord).unwrap(), CoordLocation::Center);
+        let slice_field = field.regular_slice_across_axis(interpolator, axis, F::from(coord).expect("Conversion failed."), CoordLocation::Center);
         let slice_values = slice_field.values();
         let slice_grid = slice_field.grid();
         let slice_shape = slice_grid.shape();
@@ -197,15 +197,15 @@ impl SliceSeeder3 {
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     pub fn vector_field_pdf<F, G, I, C>(field: &VectorField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
-    where F: BFloat + SampleUniform,
-          G: Grid3<F>,
-          I: Interpolator3,
+    where F: BFloat + SampleUniform + Sync + Send,
+          G: Grid3<F> + Sync + Send,
+          I: Interpolator3 + Sync,
           C: Fn(&Vec3<F>) -> F
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
-        let slice_field = field.regular_slice_across_axis(interpolator, axis, F::from(coord).unwrap(), CoordLocation::Center);
-        let slice_values = slice_field.values();
+        let slice_field = field.regular_slice_across_axis(interpolator, axis, F::from(coord).expect("Conversion failed."), CoordLocation::Center);
+        let slice_values = slice_field.all_values();
         let slice_grid = slice_field.grid();
         let slice_shape = slice_grid.shape();
 
