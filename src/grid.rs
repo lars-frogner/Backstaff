@@ -23,6 +23,28 @@ pub enum GridType {
     HorRegular
 }
 
+/// A query for a result at a 3D grid point.
+/// If the point is inside the grid bounds, the query contains a result of type `T`.
+/// If the point is outside a periodic boundary, in contains the result as well as the wrapped position.
+/// If the point is outside a non-periodic boundary, it contains no result.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GridPointQuery3<F: BFloat, T> {
+    Inside(T),
+    WrappedInside((T, Point3<F>)),
+    Outside
+}
+
+/// A query for a result at a 3D grid point.
+/// If the point is inside the grid bounds, the query contains a result of type `T`.
+/// If the point is outside a periodic boundary, in contains the result as well as the wrapped position.
+/// If the point is outside a non-periodic boundary, it contains no result.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GridPointQuery2<F: BFloat, T> {
+    Inside(T),
+    WrappedInside((T, Point2<F>)),
+    Outside
+}
+
 /// Defines the properties of a 3D grid.
 pub trait Grid3<F: BFloat>: Clone {
     type XSliceGrid: Grid2<F>;
@@ -92,26 +114,90 @@ pub trait Grid3<F: BFloat>: Clone {
         Dim3::slice().iter().all(|&dim| point[dim] >= lower_bounds[dim] && point[dim] < upper_bounds[dim])
     }
 
+    /// Whether the given 3D index is inside the bounds of the grid.
+    fn idx_is_inside(&self, idx: &Idx3<usize>) -> bool {
+        let shape = self.shape();
+        Dim3::slice().iter().all(|&dim| idx[dim] < shape[dim])
+    }
+
     /// Whether the given point is inside the bounds of the given grid cell.
     fn point_is_inside_cell(&self, point: &Point3<F>, cell_idx: &Idx3<usize>) -> bool {
         let lower_edges = self.lower_edges();
         Dim3::slice().iter().all(|&dim| coord_is_inside_grid_cell(&lower_edges[dim], point[dim], cell_idx[dim]))
     }
 
-    /// Finds the 3D index of the grid cell containing the given coordinate,
-    /// or specifies on which side of the grid the coordinate lies if outside.
-    fn find_grid_cell(&self, point: &Point3<F>) -> Option<Idx3<usize>> {
-        if self.point_is_inside(point) {
-            let lower_edges = self.lower_edges();
-            let i = search_idx_of_coord(&lower_edges[X], point[X]).unwrap();
-            let j = search_idx_of_coord(&lower_edges[Y], point[Y]).unwrap();
-            let k = search_idx_of_coord(&lower_edges[Z], point[Z]).unwrap();
-            let idx = Idx3::new(i, j, k);
-            debug_assert!(self.point_is_inside_cell(point, &idx));
-            Some(idx)
-        } else {
-            None
+    /// Tries to find the 3D index of the grid cell containing the given coordinate,
+    /// and returns the result as a `GridPointQuery3`.
+    fn find_grid_cell(&self, point: &Point3<F>) -> GridPointQuery3<F, Idx3<usize>> {
+        let lower_edges = self.lower_edges();
+        let lower_bounds = self.lower_bounds();
+        let upper_bounds = self.upper_bounds();
+        let extents = self.extents();
+
+        let mut point = point.clone();
+        let mut idx = Idx3::origin();
+        let mut wrapped = false;
+
+        for &dim in Dim3::slice().iter() {
+            if point[dim] < lower_bounds[dim] {
+                if self.is_periodic(dim) {
+                    point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
+                } else {
+                    return GridPointQuery3::Outside
+                }
+            } else if point[dim] >= upper_bounds[dim] {
+                if self.is_periodic(dim) {
+                    point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
+                } else {
+                    return GridPointQuery3::Outside
+                }
+            };
+            idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
         }
+        debug_assert!(self.point_is_inside_cell(&point, &idx), "Found wrong grid cell.");
+
+        if wrapped {
+            GridPointQuery3::WrappedInside((idx, point))
+        } else {
+            GridPointQuery3::Inside(idx)
+        }
+    }
+
+    /// Finds the 3D index of the grid cell containing the given coordinate,
+    /// wrapping around any periodic boundaries,
+    /// or the index of the closest grid cell if the coordinate is outside
+    /// a non-periodic boundary.
+    fn find_closest_grid_cell(&self, point: &Point3<F>) -> Idx3<usize> {
+        let lower_edges = self.lower_edges();
+        let lower_bounds = self.lower_bounds();
+        let upper_bounds = self.upper_bounds();
+        let extents = self.extents();
+        let shape = self.shape();
+
+        let mut point = point.clone();
+        let mut idx = Idx3::origin();
+        for &dim in Dim3::slice().iter() {
+            if self.is_periodic(dim) {
+                if point[dim] < lower_bounds[dim] {
+                    point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
+                } else if point[dim] >= upper_bounds[dim] {
+                    point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
+                };
+                idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
+            } else {
+                idx[dim] = if point[dim] < lower_bounds[dim] {
+                    0
+                } else if point[dim] >= upper_bounds[dim] {
+                    shape[dim] - 1
+                } else {
+                    search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.")
+                };
+            }
+        }
+        debug_assert!(self.idx_is_inside(&idx), "Found inside index is actually on the outside.");
+        idx
     }
 
     /// Given a point that may be outside the grid boundaries, returns a new point
@@ -125,15 +211,15 @@ pub trait Grid3<F: BFloat>: Clone {
         for &dim in Dim3::slice().iter() {
             if self.is_periodic(dim) {
                 if wrapped_point[dim] < lower_bounds[dim] {
-                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim].prev());
+                    wrapped_point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
                 } else if wrapped_point[dim] >= upper_bounds[dim] {
-                    wrapped_point[dim] = F::max(lower_bounds[dim] + ((point[dim] - lower_bounds[dim]) % extents[dim]), lower_bounds[dim]);
+                    wrapped_point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
                 }
             } else if wrapped_point[dim] < lower_bounds[dim] || wrapped_point[dim] >= upper_bounds[dim] {
                 return None
             }
         }
-        debug_assert!(self.point_is_inside(&wrapped_point));
+        debug_assert!(self.point_is_inside(&wrapped_point), "Wrapped to outside of bounds.");
         Some(wrapped_point)
     }
 
@@ -247,25 +333,90 @@ pub trait Grid2<F: BFloat>: Clone {
         Dim2::slice().iter().all(|&dim| point[dim] >= lower_bounds[dim] && point[dim] < upper_bounds[dim])
     }
 
+    /// Whether the given 2D index is inside the bounds of the grid.
+    fn idx_is_inside(&self, idx: &Idx2<usize>) -> bool {
+        let shape = self.shape();
+        Dim2::slice().iter().all(|&dim| idx[dim] < shape[dim])
+    }
+
     /// Whether the given point is inside the bounds of the given grid cell.
     fn point_is_inside_cell(&self, point: &Point2<F>, cell_idx: &Idx2<usize>) -> bool {
         let lower_edges = self.lower_edges();
         Dim2::slice().iter().all(|&dim| coord_is_inside_grid_cell(&lower_edges[dim], point[dim], cell_idx[dim]))
     }
 
-    /// Finds the 3D index of the grid cell containing the given coordinate,
-    /// or specifies on which side of the grid the coordinate lies if outside.
-    fn find_grid_cell(&self, point: &Point2<F>) -> Option<Idx2<usize>> {
-        if self.point_is_inside(point) {
-            let lower_edges = self.lower_edges();
-            let i = search_idx_of_coord(&lower_edges[Dim2::X], point[Dim2::X]).unwrap();
-            let j = search_idx_of_coord(&lower_edges[Dim2::Y], point[Dim2::Y]).unwrap();
-            let idx = Idx2::new(i, j);
-            debug_assert!(self.point_is_inside_cell(point, &idx));
-            Some(idx)
-        } else {
-            None
+    /// Tries to find the 2D index of the grid cell containing the given coordinate,
+    /// and returns the result as a `GridPointQuery2`.
+    fn find_grid_cell(&self, point: &Point2<F>) -> GridPointQuery2<F, Idx2<usize>> {
+        let lower_edges = self.lower_edges();
+        let lower_bounds = self.lower_bounds();
+        let upper_bounds = self.upper_bounds();
+        let extents = self.extents();
+
+        let mut point = point.clone();
+        let mut idx = Idx2::origin();
+        let mut wrapped = false;
+
+        for &dim in Dim2::slice().iter() {
+            if point[dim] < lower_bounds[dim] {
+                if self.is_periodic(dim) {
+                    point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
+                } else {
+                    return GridPointQuery2::Outside
+                }
+            } else if point[dim] >= upper_bounds[dim] {
+                if self.is_periodic(dim) {
+                    point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
+                } else {
+                    return GridPointQuery2::Outside
+                }
+            };
+            idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
         }
+        debug_assert!(self.point_is_inside_cell(&point, &idx), "Found wrong grid cell.");
+
+        if wrapped {
+            GridPointQuery2::WrappedInside((idx, point))
+        } else {
+            GridPointQuery2::Inside(idx)
+        }
+    }
+
+    /// Finds the 2D index of the grid cell containing the given coordinate,
+    /// wrapping around any periodic boundaries,
+    /// or the index of the closest grid cell if the coordinate is outside
+    /// a non-periodic boundary.
+    fn find_closest_grid_cell(&self, point: &Point2<F>) -> Idx2<usize> {
+        let lower_edges = self.lower_edges();
+        let lower_bounds = self.lower_bounds();
+        let upper_bounds = self.upper_bounds();
+        let extents = self.extents();
+        let shape = self.shape();
+
+        let mut point = point.clone();
+        let mut idx = Idx2::origin();
+        for &dim in Dim2::slice().iter() {
+            if self.is_periodic(dim) {
+                if point[dim] < lower_bounds[dim] {
+                    point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
+                } else if point[dim] >= upper_bounds[dim] {
+                    point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
+                };
+                idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
+            } else {
+                idx[dim] = if point[dim] < lower_bounds[dim] {
+                    0
+                } else if point[dim] >= upper_bounds[dim] {
+                    shape[dim] - 1
+                } else {
+                    search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.")
+                };
+            }
+        }
+        debug_assert!(self.idx_is_inside(&idx), "Found inside index is actually on the outside.");
+        idx
     }
 
     /// Given a point that may be outside the grid boundaries, returns a new point
@@ -279,16 +430,58 @@ pub trait Grid2<F: BFloat>: Clone {
         for &dim in Dim2::slice().iter() {
             if self.is_periodic(dim) {
                 if wrapped_point[dim] < lower_bounds[dim] {
-                    wrapped_point[dim] = F::min(upper_bounds[dim] - ((upper_bounds[dim] - point[dim]) % extents[dim]), upper_bounds[dim].prev());
+                    wrapped_point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
                 } else if wrapped_point[dim] >= upper_bounds[dim] {
-                    wrapped_point[dim] = F::max(lower_bounds[dim] + ((point[dim] - lower_bounds[dim]) % extents[dim]), lower_bounds[dim]);
+                    wrapped_point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
                 }
             } else if wrapped_point[dim] < lower_bounds[dim] || wrapped_point[dim] >= upper_bounds[dim] {
                 return None
             }
         }
-        debug_assert!(self.point_is_inside(&wrapped_point));
+        debug_assert!(self.point_is_inside(&wrapped_point), "Wrapped to outside of bounds.");
         Some(wrapped_point)
+    }
+}
+
+impl<F: BFloat, T> GridPointQuery3<F, T> {
+    /// Returns the query result if the grid point was inside the grid, otherwise panics.
+    pub fn expect_inside(self) -> T {
+        match self {
+            GridPointQuery3::Inside(result) => result,
+            GridPointQuery3::WrappedInside(_) => panic!("Grid point query was wrapped when expected to be inside."),
+            GridPointQuery3::Outside => panic!("Grid point query was outside when expected to be inside."),
+        }
+    }
+
+    /// Returns the query result if the grid point was inside the grid or wrapped around
+    /// a periodic boundary, otherwise panics.
+    pub fn expect_inside_or_wrapped(self) -> T {
+        match self {
+            GridPointQuery3::Inside(result) => result,
+            GridPointQuery3::WrappedInside((result, _)) => result,
+            GridPointQuery3::Outside => panic!("Grid point query was outside when expected to be inside."),
+        }
+    }
+}
+
+impl<F: BFloat, T> GridPointQuery2<F, T> {
+    /// Returns the query result if the grid point was inside the grid, otherwise panics.
+    pub fn expect_inside(self) -> T {
+        match self {
+            GridPointQuery2::Inside(result) => result,
+            GridPointQuery2::WrappedInside(_) => panic!("Grid point query was wrapped when expected to be inside."),
+            GridPointQuery2::Outside => panic!("Grid point query was outside when expected to be inside."),
+        }
+    }
+
+    /// Returns the query result if the grid point was inside the grid or wrapped around
+    /// a periodic boundary, otherwise panics.
+    pub fn expect_inside_or_wrapped(self) -> T {
+        match self {
+            GridPointQuery2::Inside(result) => result,
+            GridPointQuery2::WrappedInside((result, _)) => result,
+            GridPointQuery2::Outside => panic!("Grid point query was outside when expected to be inside."),
+        }
     }
 }
 
@@ -328,7 +521,7 @@ fn search_idx_of_coord<F: BFloat>(lower_edges: &[F], coord: F) -> Option<usize> 
         let high_float = F::from_usize(high).unwrap();
         let mid_float = (low_float + (coord - lower_edges[low])*(high_float - low_float)/(lower_edges[high] - lower_edges[low])).floor();
 
-        mid = F::to_usize(&mid_float).unwrap();
+        mid = F::to_usize(&mid_float).expect("Conversion failed.");
 
         if mid >= high {
             // Due to roundoff error, we might get `mid == high` even though `coord < lower_edges[high]`.
@@ -349,4 +542,12 @@ fn search_idx_of_coord<F: BFloat>(lower_edges: &[F], coord: F) -> Option<usize> 
 
 fn coord_is_inside_grid_cell<F: BFloat>(lower_edges: &[F], coord: F, cell_idx: usize) -> bool {
     (cell_idx == (lower_edges.len() - 1) || coord < lower_edges[cell_idx+1]) && coord >= lower_edges[cell_idx]
+}
+
+fn wrap_coordinate_lower<F: BFloat>(upper_bound: F, extent: F, coord: F) -> F {
+    F::min(upper_bound - ((upper_bound - coord) % extent), upper_bound.prev())
+}
+
+fn wrap_coordinate_upper<F: BFloat>(lower_bound: F, extent: F, coord: F) -> F {
+    F::max(lower_bound + ((coord - lower_bound) % extent), lower_bound)
 }
