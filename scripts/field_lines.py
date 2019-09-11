@@ -23,8 +23,8 @@ class FieldLine3:
             ax.plot(pos_x, pos_y, pos_z, c=c, lw=lw, alpha=alpha)
 
     def find_nonwrapping_segments(self, threshold=20.0):
-        step_sizes = np.sqrt(np.diff(self.positions.x)**2 + np.diff(self.positions.y)**2 + np.diff(self.positions.z)**2)
-        wrap_indices = np.where(step_sizes > threshold*np.mean(step_sizes))[0]
+        step_lengths = np.sqrt(np.diff(self.positions.x)**2 + np.diff(self.positions.y)**2 + np.diff(self.positions.z)**2)
+        wrap_indices = np.where(step_lengths > threshold*np.mean(step_lengths))[0]
         if wrap_indices.size > 0:
             wrap_indices += 1
             return np.split(self.positions.x, wrap_indices), \
