@@ -22,6 +22,8 @@ pub const U_EE: fun = U_U*U_U;
 pub const U_E:  fun = U_R*U_EE;
 /// Unit for thermal emission [erg/(s ster cm^2)].
 pub const U_TE: fun = U_E/U_T*U_L;
+/// Unit for volume [cm^3].
+pub const U_L3: fun = U_L*U_L*U_L;
 
 lazy_static! {
     /// Unit for magnetic flux density [gauss].
