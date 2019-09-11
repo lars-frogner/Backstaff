@@ -149,7 +149,6 @@ impl SliceSeeder3 {
     /// - `C`: Function type taking and returning a floating point value.
     pub fn scalar_field_pdf<F, G, I, C>(field: &ScalarField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
     where F: BFloat + SampleUniform + Sync + Send,
-          <F as SampleUniform>::Sampler: Sync,
           G: Grid3<F> + Sync + Send,
           I: Interpolator3 + Sync,
           C: Fn(F) -> F
@@ -199,7 +198,6 @@ impl SliceSeeder3 {
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     pub fn vector_field_pdf<F, G, I, C>(field: &VectorField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
     where F: BFloat + SampleUniform + Sync + Send,
-          <F as SampleUniform>::Sampler: Sync,
           G: Grid3<F> + Sync + Send,
           I: Interpolator3 + Sync,
           C: Fn(&Vec3<F>) -> F
