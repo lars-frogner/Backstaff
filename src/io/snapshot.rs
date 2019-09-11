@@ -27,7 +27,16 @@ pub struct SnapshotReader3<G: Grid3<fdt>> {
     params: Params,
     endianness: Endianness,
     grid: Arc<G>,
-    variables: HashMap<String, Variable>
+    variable_descriptors: HashMap<String, VariableDescriptor>,
+}
+
+/// Wrapper for `SnapshotReader3` that reads snapshot variables only on first request and
+/// then caches the results.
+#[derive(Debug, Clone)]
+pub struct SnapshotCacher3<G: Grid3<fdt>> {
+    reader: SnapshotReader3<G>,
+    scalar_fields: HashMap<String, ScalarField3<fdt, G>>,
+    vector_fields: HashMap<String, VectorField3<fdt, G>>
 }
 
 impl<G: Grid3<fdt>> SnapshotReader3<G> {
@@ -57,11 +66,11 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         let snap_path = params_path.with_file_name(format!("{}_{}.snap", params.get_str_param("snapname")?, snap_num));
         let aux_path = snap_path.with_extension("aux");
 
-        let grid = Arc::new(Self::read_3d_grid_from_mesh_file(&params, &mesh_path)?);
+        let grid = Arc::new(Self::read_grid_from_mesh_file(&params, &mesh_path)?);
 
-        let mut variables = HashMap::new();
-        Self::insert_primary_variables(&mut variables);
-        Self::insert_aux_variables(&params, &mut variables)?;
+        let mut variable_descriptors = HashMap::new();
+        Self::insert_primary_variable_descriptors(&mut variable_descriptors);
+        Self::insert_aux_variable_descriptors(&params, &mut variable_descriptors)?;
 
         Ok(SnapshotReader3{
             snap_path,
@@ -69,7 +78,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             params,
             endianness,
             grid,
-            variables
+            variable_descriptors
         })
     }
 
@@ -91,10 +100,10 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     ///
     /// - `Ok`: Contains a `ScalarField3<fdt>` holding the field coordinates and values.
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
-    pub fn read_3d_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
-        let variable = self.get_variable(variable_name)?;
-        let values = self.read_3d_variable_from_binary_file(variable)?;
-        Ok(ScalarField3::new(variable_name.to_string(), Arc::clone(&self.grid), variable.locations.clone(), values))
+    pub fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_descriptor = self.get_variable_descriptor(variable_name)?;
+        let values = self.read_variable_from_binary_file(variable_descriptor)?;
+        Ok(ScalarField3::new(variable_name.to_string(), Arc::clone(&self.grid), variable_descriptor.locations.clone(), values))
     }
 
     /// Reads the component variables of the specified 3D vector quantity from the output files.
@@ -109,14 +118,14 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     ///
     /// - `Ok`: Contains a `VectorField3<fdt>` holding the coordinates and values of the vector field components.
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
-    pub fn read_3d_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
+    pub fn read_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
         Ok(VectorField3::new(
             variable_name.to_string(),
             Arc::clone(&self.grid),
             In3D::new(
-                self.read_3d_scalar_field(&format!("{}x", variable_name))?,
-                self.read_3d_scalar_field(&format!("{}y", variable_name))?,
-                self.read_3d_scalar_field(&format!("{}z", variable_name))?
+                self.read_scalar_field(&format!("{}x", variable_name))?,
+                self.read_scalar_field(&format!("{}y", variable_name))?,
+                self.read_scalar_field(&format!("{}z", variable_name))?
             )
         ))
     }
@@ -165,7 +174,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         self.params.get_numerical_param(name)
     }
 
-    fn read_3d_grid_from_mesh_file<P: AsRef<path::Path>>(params: &Params, mesh_path: P) -> io::Result<G> {
+    fn read_grid_from_mesh_file<P: AsRef<path::Path>>(params: &Params, mesh_path: P) -> io::Result<G> {
         let file = fs::File::open(mesh_path)?;
         let mut lines = io::BufReader::new(file).lines();
         let coord_names = ["x", "y", "z"];
@@ -266,19 +275,19 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         Ok(G::from_coords(center_coords, lower_edge_coords, is_periodic))
     }
 
-    fn insert_primary_variables(variables: &mut HashMap<String, Variable>) {
+    fn insert_primary_variable_descriptors(variable_descriptors: &mut HashMap<String, VariableDescriptor>) {
         let is_primary = true;
-        variables.insert("r" .to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    Center),    index: 0 });
-        variables.insert("px".to_string(), Variable{ is_primary, locations: In3D::new(LowerEdge, Center,    Center),    index: 1 });
-        variables.insert("py".to_string(), Variable{ is_primary, locations: In3D::new(Center,    LowerEdge, Center),    index: 2 });
-        variables.insert("pz".to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    LowerEdge), index: 3 });
-        variables.insert("e" .to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    Center),    index: 4 });
-        variables.insert("bx".to_string(), Variable{ is_primary, locations: In3D::new(LowerEdge, Center,    Center),    index: 5 });
-        variables.insert("by".to_string(), Variable{ is_primary, locations: In3D::new(Center,    LowerEdge, Center),    index: 6 });
-        variables.insert("bz".to_string(), Variable{ is_primary, locations: In3D::new(Center,    Center,    LowerEdge), index: 7 });
+        variable_descriptors.insert("r" .to_string(), VariableDescriptor{ is_primary, locations: In3D::new(Center,    Center,    Center),    index: 0 });
+        variable_descriptors.insert("px".to_string(), VariableDescriptor{ is_primary, locations: In3D::new(LowerEdge, Center,    Center),    index: 1 });
+        variable_descriptors.insert("py".to_string(), VariableDescriptor{ is_primary, locations: In3D::new(Center,    LowerEdge, Center),    index: 2 });
+        variable_descriptors.insert("pz".to_string(), VariableDescriptor{ is_primary, locations: In3D::new(Center,    Center,    LowerEdge), index: 3 });
+        variable_descriptors.insert("e" .to_string(), VariableDescriptor{ is_primary, locations: In3D::new(Center,    Center,    Center),    index: 4 });
+        variable_descriptors.insert("bx".to_string(), VariableDescriptor{ is_primary, locations: In3D::new(LowerEdge, Center,    Center),    index: 5 });
+        variable_descriptors.insert("by".to_string(), VariableDescriptor{ is_primary, locations: In3D::new(Center,    LowerEdge, Center),    index: 6 });
+        variable_descriptors.insert("bz".to_string(), VariableDescriptor{ is_primary, locations: In3D::new(Center,    Center,    LowerEdge), index: 7 });
     }
 
-    fn insert_aux_variables(params: &Params, variables: &mut HashMap<String, Variable>) -> io::Result<()> {
+    fn insert_aux_variable_descriptors(params: &Params, variable_descriptors: &mut HashMap<String, VariableDescriptor>) -> io::Result<()> {
         let is_primary = false;
 
         for (index, name) in params.get_str_param("aux")?.split_whitespace().enumerate() {
@@ -297,27 +306,63 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
                           if ends_with_z { LowerEdge } else { Center })
             };
 
-            variables.insert(name.to_string(), Variable{ is_primary, locations, index });
+            variable_descriptors.insert(name.to_string(), VariableDescriptor{ is_primary, locations, index });
         }
 
         Ok(())
     }
 
-    fn get_variable(&self, name: &str) -> io::Result<&Variable> {
-        match self.variables.get(name) {
+    fn get_variable_descriptor(&self, name: &str) -> io::Result<&VariableDescriptor> {
+        match self.variable_descriptors.get(name) {
             Some(variable) => Ok(variable),
             None => Err(io::Error::new(io::ErrorKind::InvalidData,
                                        format!("Variable `{}` not found", name)))
         }
     }
 
-    fn read_3d_variable_from_binary_file(&self, variable: &Variable) -> io::Result<Array3<fdt>> {
-        let file_path = if variable.is_primary { &self.snap_path } else { &self.aux_path };
+    fn read_variable_from_binary_file(&self, variable_descriptor: &VariableDescriptor) -> io::Result<Array3<fdt>> {
+        let file_path = if variable_descriptor.is_primary { &self.snap_path } else { &self.aux_path };
         let shape = self.grid.shape();
         let length = shape[X]*shape[Y]*shape[Z];
-        let offset = length*variable.index;
+        let offset = length*variable_descriptor.index;
         let buffer = super::utils::read_f32_from_binary_file(file_path, length, offset, self.endianness)?;
         Ok(Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap())
+    }
+}
+
+impl<G: Grid3<fdt>> SnapshotCacher3<G> {
+    /// Creates a new snapshot cacher from the given reader.
+    pub fn new(reader: SnapshotReader3<G>) -> Self {
+        SnapshotCacher3{
+            reader,
+            scalar_fields: HashMap::new(),
+            vector_fields: HashMap::new()
+        }
+    }
+
+    /// Returns a reference to the reader.
+    pub fn reader(&self) -> &SnapshotReader3<G> { &self.reader }
+
+    /// Returns a reference to the scalar field representing the given variable,
+    /// reading it from file and caching it if has not already been cached.
+    pub fn get_scalar_field(&mut self, variable_name: &str) -> io::Result<&ScalarField3<fdt, G>> {
+        Ok(self.scalar_fields.entry(variable_name.to_string()).or_insert(self.reader.read_scalar_field(variable_name)?))
+    }
+
+    /// Returns a reference to the vector field representing the given variable,
+    /// reading it from file and caching it if has not already been cached.
+    pub fn get_vector_field(&mut self, variable_name: &str) -> io::Result<&VectorField3<fdt, G>> {
+        Ok(self.vector_fields.entry(variable_name.to_string()).or_insert(self.reader.read_vector_field(variable_name)?))
+    }
+
+    /// Removes the scalar field representing the given variable from the cache.
+    pub fn drop_scalar_field(&mut self, variable_name: &str) {
+        self.scalar_fields.remove(variable_name);
+    }
+
+    /// Removes the vector field representing the given variable from the cache.
+    pub fn drop_vector_field(&mut self, variable_name: &str) {
+        self.vector_fields.remove(variable_name);
     }
 }
 
@@ -370,7 +415,7 @@ where P: AsRef<path::Path>,
 }
 
 #[derive(Debug, Clone)]
-struct Variable {
+struct VariableDescriptor {
     is_primary: bool,
     locations: In3D<CoordLocation>,
     index: usize
@@ -441,6 +486,6 @@ mod tests {
     #[test]
     fn reading_works() {
         let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
-        let _field = reader.read_3d_scalar_field("r").unwrap();
+        let _field = reader.read_scalar_field("r").unwrap();
     }
 }
