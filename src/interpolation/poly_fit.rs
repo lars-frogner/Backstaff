@@ -9,6 +9,7 @@ use super::Interpolator3;
 use Dim3::{X, Y, Z};
 
 /// A 3D interpolator using polynomial fitting to estimate the interpolated value.
+#[derive(Clone, Copy, Debug)]
 pub struct PolyFitInterpolator3;
 
 impl PolyFitInterpolator3 {
