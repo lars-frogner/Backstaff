@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn interpolation_at_original_data_points_works() {
         let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
-        let field = reader.read_3d_scalar_field("r").unwrap();
+        let field = reader.read_scalar_field("r").unwrap();
 
         let coords = field.coords();
         let idx = 300;

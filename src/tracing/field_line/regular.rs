@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn tracing_and_saving_regular_field_line_works() {
         let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
-        let magnetic_field = reader.read_3d_vector_field("b").unwrap();
+        let magnetic_field = reader.read_vector_field("b").unwrap();
 
         let interpolator = PolyFitInterpolator3;
 
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn tracing_and_saving_regular_field_line_set_works() {
         let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
-        let magnetic_field = reader.read_3d_vector_field("b").unwrap();
+        let magnetic_field = reader.read_vector_field("b").unwrap();
 
         let interpolator = PolyFitInterpolator3;
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig{ dense_step_size: 0.1, ..RKFStepperConfig::default() });
