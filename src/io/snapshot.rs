@@ -20,7 +20,7 @@ use CoordLocation::{Center, LowerEdge};
 pub type fdt = f32;
 
 /// Reader for the output files assoicated with a single Bifrost 3D simulation snapshot.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SnapshotReader3<G: Grid3<fdt>> {
     snap_path: path::PathBuf,
     aux_path: path::PathBuf,
@@ -32,7 +32,7 @@ pub struct SnapshotReader3<G: Grid3<fdt>> {
 
 /// Wrapper for `SnapshotReader3` that reads snapshot variables only on first request and
 /// then caches the results.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SnapshotCacher3<G: Grid3<fdt>> {
     reader: SnapshotReader3<G>,
     scalar_fields: HashMap<String, ScalarField3<fdt, G>>,
@@ -81,6 +81,9 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             variable_descriptors
         })
     }
+
+    /// Wraps the reader in a snapshot cacher structure.
+    pub fn into_cacher(self) -> SnapshotCacher3<G> { SnapshotCacher3::new(self) }
 
     /// Returns a reference to the grid.
     pub fn grid(&self) -> &G { self.grid.as_ref() }
@@ -343,16 +346,28 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
     /// Returns a reference to the reader.
     pub fn reader(&self) -> &SnapshotReader3<G> { &self.reader }
 
-    /// Returns a reference to the scalar field representing the given variable,
+    /// Returns a `Result` with a reference to the scalar field representing the given variable,
     /// reading it from file and caching it if has not already been cached.
     pub fn get_scalar_field(&mut self, variable_name: &str) -> io::Result<&ScalarField3<fdt, G>> {
         Ok(self.scalar_fields.entry(variable_name.to_string()).or_insert(self.reader.read_scalar_field(variable_name)?))
     }
 
-    /// Returns a reference to the vector field representing the given variable,
+    /// Returns a `Result` with a reference to the vector field representing the given variable,
     /// reading it from file and caching it if has not already been cached.
     pub fn get_vector_field(&mut self, variable_name: &str) -> io::Result<&VectorField3<fdt, G>> {
         Ok(self.vector_fields.entry(variable_name.to_string()).or_insert(self.reader.read_vector_field(variable_name)?))
+    }
+
+    /// Calls `get_scalar_field` and unwraps the `Result`,
+    /// panicking with the associated error message if the result is `Err`.
+    pub fn expect_scalar_field(&mut self, variable_name: &str) -> &ScalarField3<fdt, G> {
+        self.get_scalar_field(variable_name).unwrap_or_else(|err| panic!("{}", err))
+    }
+
+    /// Calls `get_vector_field` and unwraps the `Result`,
+    /// panicking with the associated error message if the result is `Err`.
+    pub fn expect_vector_field(&mut self, variable_name: &str) -> &VectorField3<fdt, G> {
+        self.get_vector_field(variable_name).unwrap_or_else(|err| panic!("{}", err))
     }
 
     /// Removes the scalar field representing the given variable from the cache.
@@ -414,14 +429,14 @@ where P: AsRef<path::Path>,
     Ok(())
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct VariableDescriptor {
     is_primary: bool,
     locations: In3D<CoordLocation>,
     index: usize
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct Params {
     params_map: HashMap<String, String>
 }

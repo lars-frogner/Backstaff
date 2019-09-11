@@ -12,6 +12,7 @@ use super::super::stepping::{Stepper3, SteppingSense, StepperInstruction};
 use super::FieldLine3;
 
 /// A field line of a 3D vector field with regularly spaced points.
+#[derive(Clone, Debug)]
 pub struct RegularFieldLine3 {
     sense: SteppingSense,
     max_length: Option<ftr>,
@@ -22,7 +23,7 @@ pub struct RegularFieldLine3 {
 
 /// A field line of a 3D vector field with regularly spaced points,
 /// traced both forward and backward along the field direction.
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct DualRegularFieldLine3 {
     max_length: Option<ftr>,
     positions: Vec<Point3<ftr>>,

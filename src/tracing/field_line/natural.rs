@@ -12,6 +12,7 @@ use super::super::stepping::{Stepper3, SteppingSense, StepperInstruction};
 use super::FieldLine3;
 
 /// A field line of a 3D vector field with points corresponding to the natural position of each step.
+#[derive(Clone, Debug)]
 pub struct NaturalFieldLine3 {
     sense: SteppingSense,
     max_length: Option<ftr>,
@@ -22,6 +23,7 @@ pub struct NaturalFieldLine3 {
 
 /// A field line of a 3D vector field with points corresponding to the natural position of each step,
 /// traced both forward and backward along the field direction.
+#[derive(Clone, Debug)]
 pub struct DualNaturalFieldLine3 {
     max_length: Option<ftr>,
     positions: Vec<Point3<ftr>>,

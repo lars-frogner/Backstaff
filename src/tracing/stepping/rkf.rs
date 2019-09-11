@@ -14,7 +14,7 @@ use crate::tracing::ftr;
 use super::{StepperResult, StoppingCause, StepperInstruction};
 use Dim3::{X, Y, Z};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct RKFStepperState3 {
     /// Configuration parameters for the stepper.
     config: RKFStepperConfig,
@@ -51,7 +51,7 @@ struct RKFStepperState3 {
 }
 
 /// Configuration parameters for RKF steppers.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RKFStepperConfig {
     /// Step size to use for dense (uniform) output positions.
     pub dense_step_size: ftr,
@@ -77,22 +77,25 @@ pub struct RKFStepperConfig {
     pub use_pi_control: bool
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct PIControlParams {
     k_i: ftr,
     k_p: ftr
 }
 
+#[derive(Clone, Debug)]
 enum ComputedDirection3 {
     Standard(Vec3<ftr>),
     WithWrappedPosition((Point3<ftr>, Vec3<ftr>))
 }
 
+#[derive(Clone, Debug)]
 enum StepError {
     Acceptable(ftr),
     TooLarge(ftr)
 }
 
+#[derive(Clone, Debug)]
 struct StepAttempt3 {
     next_position: Point3<ftr>,
     next_direction: Vec3<ftr>,

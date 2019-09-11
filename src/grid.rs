@@ -10,14 +10,14 @@ use self::regular::RegularGrid2;
 use Dim3::{X, Y, Z};
 
 /// Coordinates located at center or lower edge of grid cell.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CoordLocation {
     Center = 0,
     LowerEdge = 1
 }
 
 /// Regular grid or only uniform in the horizontal direction.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GridType {
     Regular,
     HorRegular
@@ -28,7 +28,7 @@ pub enum GridType {
 /// * If the point is inside the grid bounds, the query contains a result of type `T`.
 /// * If the point is outside a periodic boundary, in contains the result as well as the wrapped position.
 /// * If the point is outside a non-periodic boundary, it contains no result.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GridPointQuery3<F: BFloat, T> {
     Inside(T),
     WrappedInside((T, Point3<F>)),
@@ -40,7 +40,7 @@ pub enum GridPointQuery3<F: BFloat, T> {
 /// * If the point is inside the grid bounds, the query contains a result of type `T`.
 /// * If the point is outside a periodic boundary, in contains the result as well as the wrapped position.
 /// * If the point is outside a non-periodic boundary, it contains no result.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum GridPointQuery2<F: BFloat, T> {
     Inside(T),
     WrappedInside((T, Point2<F>)),

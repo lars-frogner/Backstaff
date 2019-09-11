@@ -14,7 +14,7 @@ use crate::io::utils::save_data_as_pickle;
 use Dim3::{X, Y, Z};
 
 /// Locations in the grid cell for resampled field values.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ResampledCoordLocations {
     Original,
     Equal(CoordLocation)
@@ -30,7 +30,7 @@ impl ResampledCoordLocations {
 /// Holds the grid and values of a 3D scalar field, as well as the
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ScalarField3<F, G>
 where F: BFloat,
       G: Grid3<F>
@@ -319,7 +319,7 @@ where F: BFloat,
 /// Holds the grid and values of the three components of a 3D vector field,
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct VectorField3<F, G>
 where F: BFloat,
       G: Grid3<F>
@@ -480,7 +480,7 @@ where F: BFloat,
 /// Holds the grid and values of a 2D scalar field, as well as the
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ScalarField2<F, G>
 where F: BFloat,
       G: Grid2<F>
@@ -561,7 +561,7 @@ where F: BFloat,
 /// Holds the grid and values of the two components of a 2D vector field,
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct VectorField2<F, G>
 where F: BFloat,
       G: Grid2<F>
@@ -628,7 +628,7 @@ where F: BFloat,
 /// Holds the grid and values of the three components of a vector field in a 2D plane,
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct PlaneVectorField3<F, G>
 where F: BFloat,
       G: Grid2<F>

@@ -7,7 +7,7 @@ use super::regular::RegularGrid2;
 use Dim3::{X, Y, Z};
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct HorRegularGrid3<F: BFloat> {
     coords: [Coords3<F>; 2],
     regular_z_coords: [Vec<F>; 2],
@@ -81,7 +81,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
 }
 
 /// A 2D grid which is regular in x but non-uniform in y.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct HorRegularGrid2<F: BFloat> {
     coords: [Coords2<F>; 2],
     regular_y_coords: [Vec<F>; 2],

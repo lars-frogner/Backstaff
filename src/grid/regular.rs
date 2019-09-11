@@ -6,7 +6,7 @@ use super::{CoordLocation, GridType, Grid3, Grid2};
 use Dim3::{X, Y, Z};
 
 /// A regular 3D grid.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct RegularGrid3<F: BFloat> {
     coords: [Coords3<F>; 2],
     is_periodic: In3D<bool>,
@@ -132,7 +132,7 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
 }
 
 /// A regular 2D grid.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct RegularGrid2<F: BFloat> {
     coords: [Coords2<F>; 2],
     is_periodic: In2D<bool>,

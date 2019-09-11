@@ -12,10 +12,11 @@ use super::{RKFStepperState3, RKFStepperConfig, PIControlParams, ComputedDirecti
 use super::super::{StepperFactory3, Stepper3, StepperResult, StepperInstruction};
 
 /// A stepper using the fifth order Runge–Kutta–Fehlberg method.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RKF45Stepper3(RKFStepperState3);
 
 /// Factory for `RKF45Stepper3` objects.
+#[derive(Clone, Debug)]
 pub struct RKF45StepperFactory3 {
     config: RKFStepperConfig
 }

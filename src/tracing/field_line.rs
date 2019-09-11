@@ -3,7 +3,7 @@
 pub mod natural;
 pub mod regular;
 
-use std::{io, fs, path, mem};
+use std::{io, fs, path, mem, fmt};
 use std::io::Write;
 use serde::Serialize;
 use rayon::prelude::*;
@@ -18,13 +18,13 @@ use super::seeding::Seeder3;
 use super::{ftr, TracerResult};
 
 /// Collection of 3D field lines.
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct FieldLineSet3<L: FieldLine3> {
     field_lines: Vec<L>
 }
 
 /// Defines the properties of a field line of a 3D vector field.
-pub trait FieldLine3: Serialize {
+pub trait FieldLine3: Clone + fmt::Debug + Serialize {
     /// Returns a reference to the positions making up the field line.
     fn positions(&self) -> &Vec<Point3<ftr>>;
 

@@ -10,7 +10,7 @@ use crate::interpolation::Interpolator3;
 use super::ftr;
 
 /// Stepping along the field line in the same direction as the field or opposite.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SteppingSense {
     Same,
     Opposite
@@ -24,7 +24,7 @@ pub enum StepperResult<T> {
 }
 
 /// Reason for terminating stepping.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StoppingCause {
     Null,
     Sink,
@@ -35,7 +35,7 @@ pub enum StoppingCause {
 
 /// Lets the stepper callback communicate whether tracing should
 /// continue or terminate.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StepperInstruction {
     Continue,
     Terminate

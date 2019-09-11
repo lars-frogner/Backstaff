@@ -4,7 +4,7 @@ pub mod utils;
 pub mod snapshot;
 
 /// Little- or big-endian byte order.
-#[derive(Debug, Copy, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum Endianness {
     Little,
     Big

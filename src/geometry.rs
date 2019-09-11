@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::num::BFloat;
 
 /// Denotes the x-, y- or z-dimension.
-#[derive(Debug, Copy, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum Dim3 {
     X = 0,
     Y = 1,
@@ -33,7 +33,7 @@ impl Dim3 {
 use Dim3::{X, Y, Z};
 
 /// Denotes the x- or y-dimension.
-#[derive(Debug, Copy, Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum Dim2 {
     X = 0,
     Y = 1
@@ -45,7 +45,7 @@ impl Dim2 {
 }
 
 /// Represents any quantity with three dimensional components.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct In3D<T>([T; 3]);
 
 impl<T> In3D<T> {
@@ -74,7 +74,7 @@ impl<T> IndexMut<Dim3> for In3D<T> {
 }
 
 /// Represents any quantity with two dimensional components.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct In2D<T>([T; 2]);
 
 impl<T> In2D<T> {
@@ -103,7 +103,7 @@ impl<T> IndexMut<Dim2> for In2D<T> {
 }
 
 /// A 3D vector.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Vec3<F: BFloat>(In3D<F>);
 
 impl<F: BFloat> Vec3<F> {
@@ -266,7 +266,7 @@ impl<F: BFloat> Div<F> for Vec3<F> {
 }
 
 /// A 2D vector.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Vec2<F: BFloat>(In2D<F>);
 
 impl<F: BFloat> Vec2<F> {
@@ -422,7 +422,7 @@ impl<F: BFloat> Div<F> for Vec2<F> {
 }
 
 /// A 3D spatial coordinate.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Point3<F: BFloat>(In3D<F>);
 
 impl<F: BFloat> Point3<F> {
@@ -527,7 +527,7 @@ impl<F: BFloat> Sub<Vec3<F>> for &Point3<F> {
 }
 
 /// A 2D spatial coordinate.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Point2<F: BFloat>(In2D<F>);
 
 impl<F: BFloat> Point2<F> {
@@ -628,7 +628,7 @@ impl<F: BFloat> Sub<Vec2<F>> for &Point2<F> {
 }
 
 /// A 3D index.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Idx3<I: num::Integer>(In3D<I>);
 
 impl<I: num::Integer> Idx3<I> {
@@ -661,7 +661,7 @@ impl<I: num::Integer> IndexMut<Dim3> for Idx3<I> {
 }
 
 /// A 2D index.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Idx2<I: num::Integer>(In2D<I>);
 
 impl<I: num::Integer> Idx2<I> {
@@ -693,7 +693,7 @@ impl<I: num::Integer> IndexMut<Dim2> for Idx2<I> {
 }
 
 /// 3D spatial coordinate arrays.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Coords3<F: BFloat>(In3D<Vec<F>>);
 
 impl<F: BFloat> Coords3<F> {
@@ -714,7 +714,7 @@ impl<F: BFloat> Index<Dim3> for Coords3<F> {
 }
 
 /// 2D spatial coordinate arrays.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Coords2<F: BFloat>(In2D<Vec<F>>);
 
 impl<F: BFloat> Coords2<F> {
@@ -735,7 +735,7 @@ impl<F: BFloat> Index<Dim2> for Coords2<F> {
 }
 
 /// References to 3D spatial coordinate arrays.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CoordRefs3<'a, F: BFloat>(In3D<&'a [F]>);
 
 impl<'a, F: BFloat> CoordRefs3<'a, F> {
@@ -761,7 +761,7 @@ impl<'a, F: BFloat> Index<Dim3> for CoordRefs3<'a, F> {
 }
 
 /// References to 2D spatial coordinate arrays.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CoordRefs2<'a, F: BFloat>(In2D<&'a [F]>);
 
 impl<'a, F: BFloat> CoordRefs2<'a, F> {
