@@ -207,8 +207,8 @@ mod tests {
 
         let interpolator = PolyFitInterpolator3;
 
-        let stepper_23 = RKF23Stepper3::new(RKFStepperConfig{ dense_step_size: 0.1, ..RKFStepperConfig::default() });
-        let stepper_45 = RKF45Stepper3::new(RKFStepperConfig{ dense_step_size: 0.1, ..RKFStepperConfig::default() });
+        let stepper_23 = RKF23Stepper3::new(RKFStepperConfig{ dense_step_length: 0.1, ..RKFStepperConfig::default() });
+        let stepper_45 = RKF45Stepper3::new(RKFStepperConfig{ dense_step_length: 0.1, ..RKFStepperConfig::default() });
 
         let start_position = Point3::new(12.0, 12.0, -10.0);
 
@@ -228,7 +228,7 @@ mod tests {
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
         let interpolator = PolyFitInterpolator3;
-        let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig{ dense_step_size: 0.1, ..RKFStepperConfig::default() });
+        let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig{ dense_step_length: 0.1, ..RKFStepperConfig::default() });
         let seeder = vec![Point3::new(12.0, 12.0, -10.0), Point3::new(12.0, 12.0, -7.0)];
 
         let field_line_set = FieldLineSet3::trace(&magnetic_field, &interpolator, stepper_factory, seeder, &|| DualRegularFieldLine3::new(None) ).unwrap();
