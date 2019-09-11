@@ -23,8 +23,8 @@ where F: BFloat + SampleUniform
     uniform_cdf_values.sample_iter(rng).take(n_samples).map(
         |sampled_cdf_value| {
             match cdf.binary_search_by(|cdf_value| cdf_value.partial_cmp(&sampled_cdf_value).expect("Float comparison failed.")) {
-                Result::Ok(exact_idx) => exact_idx,
-                Result::Err(adjacent_idx) => adjacent_idx
+                Ok(exact_idx) => exact_idx,
+                Err(adjacent_idx) => adjacent_idx
             }
         }
     ).collect()
