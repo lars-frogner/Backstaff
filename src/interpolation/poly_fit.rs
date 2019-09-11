@@ -3,7 +3,7 @@
 use ndarray::prelude::*;
 use crate::num::BFloat;
 use crate::geometry::{Dim3, In3D, Point3, Idx3, Vec3, CoordRefs3};
-use crate::grid::{Grid3, GridPointQuery3};
+use crate::grid::{Grid3, GridPointQuery3, CoordLocation};
 use crate::field::{ScalarField3, VectorField3};
 use super::Interpolator3;
 use Dim3::{X, Y, Z};
@@ -15,24 +15,26 @@ impl PolyFitInterpolator3 {
     /// Order of interpolation between grid points.
     pub const ORDER:    usize = 3;
 
-    /// How many cells to shift the interval of interpolation points towards higher indices.
-    pub const BIAS:     isize = 0;
-
     /// Number of interpolation points.
     const POINTS:       usize = Self::ORDER + 1;
 
     /// Offset from a point to the lower edge of the interpolation range.
-    const START_OFFSET: isize = Self::BIAS + 1 - ((Self::POINTS + 1) as isize)/2;
+    const DEFAULT_START_OFFSET: isize = 1 - ((Self::POINTS + 1) as isize)/2;
 
-    fn interp<F, G>(grid: &G, coords: &CoordRefs3<F>, values: &Array3<F>, interp_point: &Point3<F>, interp_idx: &Idx3<usize>) -> F
+    fn interp<F, G>(grid: &G, coords: &CoordRefs3<F>, locations: &In3D<CoordLocation>, values: &Array3<F>, interp_point: &Point3<F>, interp_idx: &Idx3<usize>) -> F
     where F: BFloat,
           G: Grid3<F>
     {
         let grid_shape = grid.shape();
 
-        let mut start_idx = Idx3::new((interp_idx[X] as isize) + Self::START_OFFSET,
-                                      (interp_idx[Y] as isize) + Self::START_OFFSET,
-                                      (interp_idx[Z] as isize) + Self::START_OFFSET);
+        let center_coords = grid.centers();
+        let start_offset_x = Self::compute_start_offset(&center_coords[X], locations[X], interp_point[X], interp_idx[X]);
+        let start_offset_y = Self::compute_start_offset(&center_coords[Y], locations[Y], interp_point[Y], interp_idx[Y]);
+        let start_offset_z = Self::compute_start_offset(&center_coords[Z], locations[Z], interp_point[Z], interp_idx[Z]);
+
+        let mut start_idx = Idx3::new((interp_idx[X] as isize) + start_offset_x,
+                                      (interp_idx[Y] as isize) + start_offset_y,
+                                      (interp_idx[Z] as isize) + start_offset_z);
 
         let mut crosses_periodic_bound = In3D::new(false, false, false);
         let mut any_crosses_periodic_bound = false;
@@ -86,6 +88,25 @@ impl PolyFitInterpolator3 {
         };
 
         Self::interp_subarrays(In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray), &value_subarray, interp_point)
+    }
+
+    fn compute_start_offset<F: BFloat>(center_coords: &[F], locations: CoordLocation, interp_coord: F, interp_idx: usize) -> isize {
+        match locations {
+            CoordLocation::Center => if Self::ORDER % 2 != 0 && interp_coord < center_coords[interp_idx] {
+                // If coordinates are located at cell centers, interpolation order is odd and interpolation coordinate is in lower half of the cell:
+                // Shift start offset one cell down.
+                Self::DEFAULT_START_OFFSET - 1
+            } else {
+                Self::DEFAULT_START_OFFSET
+            },
+            CoordLocation::LowerEdge => if Self::ORDER % 2 == 0 && interp_coord > center_coords[interp_idx] {
+                // If coordinates are located at lower cell edges, interpolation order is event and interpolation coordinate is in upper half of the cell:
+                // Shift start offset one cell up.
+                Self::DEFAULT_START_OFFSET + 1
+            } else {
+                Self::DEFAULT_START_OFFSET
+            }
+        }
     }
 
     fn create_coordinate_subarray_for_interior<F: BFloat>(coords: &[F], start_idx: isize) -> [F; Self::POINTS] {
@@ -227,10 +248,10 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let grid = field.grid();
         match grid.find_grid_cell(interp_point) {
             GridPointQuery3::Inside(interp_idx) => {
-                GridPointQuery3::Inside(Self::interp(grid, &field.coords(), field.values(), interp_point, &interp_idx))
+                GridPointQuery3::Inside(Self::interp(grid, &field.coords(), field.locations(), field.values(), interp_point, &interp_idx))
             },
             GridPointQuery3::WrappedInside((interp_idx, wrapped_point)) => {
-                GridPointQuery3::WrappedInside((Self::interp(grid, &field.coords(), field.values(), interp_point, &interp_idx), wrapped_point))
+                GridPointQuery3::WrappedInside((Self::interp(grid, &field.coords(), field.locations(), field.values(), interp_point, &interp_idx), wrapped_point))
             },
             GridPointQuery3::Outside => GridPointQuery3::Outside
         }
@@ -242,7 +263,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
     {
         let grid = field.grid();
         let interp_idx = grid.find_closest_grid_cell(interp_point);
-        Self::interp(grid, &field.coords(), field.values(), interp_point, &interp_idx)
+        Self::interp(grid, &field.coords(), field.locations(), field.values(), interp_point, &interp_idx)
     }
 
     fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> GridPointQuery3<F, Vec3<F>>
@@ -253,16 +274,16 @@ impl Interpolator3 for PolyFitInterpolator3 {
         match grid.find_grid_cell(interp_point) {
             GridPointQuery3::Inside(interp_idx) => {
                 GridPointQuery3::Inside(Vec3::new(
-                    Self::interp(grid, &field.coords(X), &field.values(X), interp_point, &interp_idx),
-                    Self::interp(grid, &field.coords(Y), &field.values(Y), interp_point, &interp_idx),
-                    Self::interp(grid, &field.coords(Z), &field.values(Z), interp_point, &interp_idx)
+                    Self::interp(grid, &field.coords(X), field.locations(X), &field.values(X), interp_point, &interp_idx),
+                    Self::interp(grid, &field.coords(Y), field.locations(Y), &field.values(Y), interp_point, &interp_idx),
+                    Self::interp(grid, &field.coords(Z), field.locations(Z), &field.values(Z), interp_point, &interp_idx)
                 ))
             },
             GridPointQuery3::WrappedInside((interp_idx, wrapped_point)) => {
                 GridPointQuery3::WrappedInside((Vec3::new(
-                    Self::interp(grid, &field.coords(X), &field.values(X), interp_point, &interp_idx),
-                    Self::interp(grid, &field.coords(Y), &field.values(Y), interp_point, &interp_idx),
-                    Self::interp(grid, &field.coords(Z), &field.values(Z), interp_point, &interp_idx)
+                    Self::interp(grid, &field.coords(X), field.locations(X), &field.values(X), interp_point, &interp_idx),
+                    Self::interp(grid, &field.coords(Y), field.locations(Y), &field.values(Y), interp_point, &interp_idx),
+                    Self::interp(grid, &field.coords(Z), field.locations(Z), &field.values(Z), interp_point, &interp_idx)
                 ),
                 wrapped_point))
             },
@@ -277,9 +298,9 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let grid = field.grid();
         let interp_idx = grid.find_closest_grid_cell(interp_point);
         Vec3::new(
-            Self::interp(grid, &field.coords(X), &field.values(X), interp_point, &interp_idx),
-            Self::interp(grid, &field.coords(X), &field.values(X), interp_point, &interp_idx),
-            Self::interp(grid, &field.coords(X), &field.values(X), interp_point, &interp_idx)
+            Self::interp(grid, &field.coords(X), field.locations(X), &field.values(X), interp_point, &interp_idx),
+            Self::interp(grid, &field.coords(X), field.locations(Y), &field.values(X), interp_point, &interp_idx),
+            Self::interp(grid, &field.coords(X), field.locations(Z), &field.values(X), interp_point, &interp_idx)
         )
     }
 }
