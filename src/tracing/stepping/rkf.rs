@@ -27,13 +27,13 @@ struct RKFStepperState3 {
     /// Current distance of the stepper along the field line.
     distance: ftr,
     /// Step size to use in the next step.
-    step_size: ftr,
+    step_length: ftr,
     /// The estimated error of the step from the previous to the current position.
     error: ftr,
     /// How many consecutive successful steps have been in opposite directions.
     n_sudden_reversals: u32,
     /// The step size used to get from the previous to the current position.
-    previous_step_size: ftr,
+    previous_step_length: ftr,
     /// Position of the stepper directly before the previous step was taken.
     previous_position: Point3<ftr>,
     /// Field direction at the previous position of the stepper.
@@ -54,7 +54,7 @@ struct RKFStepperState3 {
 #[derive(Clone, Debug)]
 pub struct RKFStepperConfig {
     /// Step size to use for dense (uniform) output positions.
-    pub dense_step_size: ftr,
+    pub dense_step_length: ftr,
     /// Maximum number of step attempts before terminating.
     pub max_step_attempts: u32,
     /// Absolute error tolerance.
@@ -70,7 +70,7 @@ pub struct RKFStepperConfig {
     /// Start value for error.
     pub initial_error: ftr,
     /// Initial step size.
-    pub initial_step_size: ftr,
+    pub initial_step_length: ftr,
     /// Number of sudden direction reversals before the area is considered a sink.
     pub sudden_reversals_for_sink: u32,
     /// Whether to use Proportional Integral (PI) control for stabilizing the stepping.
@@ -127,16 +127,16 @@ trait RKFStepper3 {
         state.position = position.clone();
         state.direction = direction.clone();
         state.distance = 0.0;
-        state.step_size = state.config.initial_step_size;
+        state.step_length = state.config.initial_step_length;
         state.error = state.config.initial_error;
         state.n_sudden_reversals = 0;
-        state.previous_step_size = 0.0;
+        state.previous_step_length = 0.0;
         state.previous_position = position.clone();
         state.previous_direction = direction.clone();
         state.intermediate_directions = Vec::new();
         state.previous_step_displacement = Vec3::zero();
         state.previous_step_wrapped = false;
-        state.next_output_distance = state.config.dense_step_size;
+        state.next_output_distance = state.config.dense_step_length;
     }
 
     fn place_with_callback<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
@@ -219,11 +219,11 @@ trait RKFStepper3 {
 
             match self.compute_error(grid, &step_attempt) {
                 StepError::Acceptable(new_error) => {
-                    let mut new_step_size = self.compute_step_size_accepted(new_error);
+                    let mut new_step_length = self.compute_step_length_accepted(new_error);
 
                     // Don't increase step size if the previous attempt was rejected
-                    if attempts > 1 && new_step_size > self.state().step_size {
-                        new_step_size = self.state().step_size;
+                    if attempts > 1 && new_step_length > self.state().step_length {
+                        new_step_length = self.state().step_length;
                     }
 
                     if self.check_for_sink(&step_attempt) {
@@ -231,12 +231,12 @@ trait RKFStepper3 {
                     }
 
                     self.apply_step_attempt(step_attempt);
-                    self.update_step_size(new_step_size, new_error);
+                    self.update_step_length(new_step_length, new_error);
                     break;
                 }
                 StepError::TooLarge(new_error) => {
-                    let new_step_size = self.compute_step_size_rejected(new_error);
-                    self.update_step_size(new_step_size, new_error);
+                    let new_step_length = self.compute_step_length_rejected(new_error);
+                    self.update_step_length(new_step_length, new_error);
                 }
             };
         }
@@ -308,7 +308,7 @@ trait RKFStepper3 {
         }
     }
 
-    fn compute_step_size_accepted(&self, new_error: ftr) -> ftr {
+    fn compute_step_length_accepted(&self, new_error: ftr) -> ftr {
         let state = self.state();
         let step_scale = if new_error < 1e-9 {
             // Use max step scale directly for very small error to avoid division by zero
@@ -323,12 +323,12 @@ trait RKFStepper3 {
                 step_scale
             }
         };
-        state.step_size*step_scale
+        state.step_length*step_scale
     }
 
-    fn compute_step_size_rejected(&self, new_error: ftr) -> ftr {
+    fn compute_step_length_rejected(&self, new_error: ftr) -> ftr {
         let state = self.state();
-        ftr::max(state.config.safety_factor/(new_error.powf(state.pi_control.k_p)), state.config.min_step_scale)*state.step_size
+        ftr::max(state.config.safety_factor/(new_error.powf(state.pi_control.k_p)), state.config.min_step_scale)*state.step_length
     }
 
     fn check_for_sink(&mut self, attempt: &StepAttempt3) -> bool {
@@ -348,16 +348,16 @@ trait RKFStepper3 {
         state.previous_direction = state.direction.clone();
         state.position = attempt.next_position;
         state.direction = attempt.next_direction;
-        state.distance += state.step_size; // Advance distance with step size *prior to* calling `update_step_size`
+        state.distance += state.step_length; // Advance distance with step size *prior to* calling `update_step_length`
         state.intermediate_directions = attempt.intermediate_directions;
         state.previous_step_displacement = attempt.step_displacement;
         state.previous_step_wrapped = attempt.step_wrapped;
     }
 
-    fn update_step_size(&mut self, new_step_size: ftr, new_error: ftr) {
+    fn update_step_length(&mut self, new_step_length: ftr, new_error: ftr) {
         let state = self.state_mut();
-        state.previous_step_size = state.step_size;
-        state.step_size = new_step_size;
+        state.previous_step_length = state.step_length;
+        state.step_length = new_step_length;
         state.error = new_error;
     }
 
@@ -368,22 +368,22 @@ trait RKFStepper3 {
     {
         #![allow(clippy::float_cmp)] // Allows the float comparison with zero
         let state = self.state();
-        let previous_distance = state.distance - state.previous_step_size;
-        debug_assert_ne!(state.previous_step_size, 0.0);
+        let previous_distance = state.distance - state.previous_step_length;
+        debug_assert_ne!(state.previous_step_length, 0.0);
         debug_assert!(state.next_output_distance > previous_distance);
 
         let mut next_output_distance = state.next_output_distance;
         if next_output_distance <= state.distance {
             let coefs = self.compute_dense_interpolation_coefs();
             loop {
-                let fraction = (next_output_distance - previous_distance)/state.previous_step_size;
+                let fraction = (next_output_distance - previous_distance)/state.previous_step_length;
                 let output_position = self.interpolate_dense_position(grid, &coefs, fraction);
 
                 if let StepperInstruction::Terminate = callback(next_output_distance, &output_position) {
                     return StepperResult::Stopped(StoppingCause::StoppedByCallback)
                 }
 
-                next_output_distance += state.config.dense_step_size;
+                next_output_distance += state.config.dense_step_length;
                 if next_output_distance > state.distance {
                     break
                 }
@@ -399,7 +399,7 @@ trait RKFStepper3 {
 }
 
 impl RKFStepperConfig {
-    const DEFAULT_DENSE_STEP_SIZE: ftr = 1e-2;
+    const DEFAULT_DENSE_STEP_LENGTH: ftr = 1e-2;
     const DEFAULT_MAX_STEP_ATTEMPTS: u32 = 16;
     const DEFAULT_ABSOLUTE_TOLERANCE: ftr = 1e-6;
     const DEFAULT_RELATIVE_TOLERANCE: ftr = 1e-6;
@@ -407,20 +407,20 @@ impl RKFStepperConfig {
     const DEFAULT_MIN_STEP_SCALE: ftr = 0.2;
     const DEFAULT_MAX_STEP_SCALE: ftr = 10.0;
     const DEFAULT_INITIAL_ERROR: ftr = 1e-4;
-    const DEFAULT_INITIAL_STEP_SIZE: ftr = 1e-4;
+    const DEFAULT_INITIAL_STEP_LENGTH: ftr = 1e-4;
     const DEFAULT_SUDDEN_REVERSALS_FOR_SINK: u32 = 3;
 
     /// Creates a new configuration struct with the default values.
     pub fn default() -> Self {
         RKFStepperConfig {
-            dense_step_size: Self::DEFAULT_DENSE_STEP_SIZE,
+            dense_step_length: Self::DEFAULT_DENSE_STEP_LENGTH,
             max_step_attempts: Self::DEFAULT_MAX_STEP_ATTEMPTS,
             absolute_tolerance: Self::DEFAULT_ABSOLUTE_TOLERANCE,
             relative_tolerance: Self::DEFAULT_RELATIVE_TOLERANCE,
             safety_factor: Self::DEFAULT_SAFETY_FACTOR,
             min_step_scale: Self::DEFAULT_MIN_STEP_SCALE,
             max_step_scale: Self::DEFAULT_MAX_STEP_SCALE,
-            initial_step_size: Self::DEFAULT_INITIAL_STEP_SIZE,
+            initial_step_length: Self::DEFAULT_INITIAL_STEP_LENGTH,
             initial_error: Self::DEFAULT_INITIAL_ERROR,
             sudden_reversals_for_sink: Self::DEFAULT_SUDDEN_REVERSALS_FOR_SINK,
             use_pi_control: true
@@ -428,14 +428,14 @@ impl RKFStepperConfig {
     }
 
     fn validate(&self) {
-        assert!(self.dense_step_size > 0.0, "Dense step size must be larger than zero.");
+        assert!(self.dense_step_length > 0.0, "Dense step size must be larger than zero.");
         assert!(self.max_step_attempts > 0, "Maximum number of step attempts must be larger than zero.");
         assert!(self.absolute_tolerance > 0.0, "Absolute error tolerance must be larger than zero.");
         assert!(self.relative_tolerance >= 0.0, "Relative error tolerance must be larger than or equal to zero.");
         assert!(self.safety_factor > 0.0 && self.safety_factor <= 1.0, "Safety factor must be in the range (0, 1].");
         assert!(self.min_step_scale > 0.0, "Minimum step scale must be larger than zero.");
         assert!(self.max_step_scale >= self.min_step_scale, "Maximum step scale must be larger than or equal to the minimum step scale.");
-        assert!(self.initial_step_size > 0.0, "Initial step size must be larger than zero.");
+        assert!(self.initial_step_length > 0.0, "Initial step size must be larger than zero.");
         assert!(self.initial_error > 0.0 && self.initial_error <= 1.0, "Initial error must be in the range (0, 1].");
         assert!(self.sudden_reversals_for_sink > 0, "Number of sudden reversals for sink must be larger than zero.");
     }

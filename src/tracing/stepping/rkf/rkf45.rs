@@ -75,16 +75,16 @@ impl RKF45Stepper3 {
         let position = Point3::origin();
         let direction = Vec3::zero();
         let distance = 0.0;
-        let step_size = config.initial_step_size;
+        let step_length = config.initial_step_length;
         let error = config.initial_error;
         let n_sudden_reversals = 0;
-        let previous_step_size = 0.0;
+        let previous_step_length = 0.0;
         let previous_position = Point3::origin();
         let previous_direction = Vec3::zero();
         let intermediate_directions = Vec::with_capacity(Self::N_INTERMEDIATE_STEPS);
         let previous_step_displacement = Vec3::zero();
         let previous_step_wrapped = false;
-        let next_output_distance = config.dense_step_size;
+        let next_output_distance = config.dense_step_length;
 
         RKF45Stepper3(RKFStepperState3{
             config,
@@ -92,10 +92,10 @@ impl RKF45Stepper3 {
             position,
             direction,
             distance,
-            step_size,
+            step_length,
             error,
             n_sudden_reversals,
-            previous_step_size,
+            previous_step_length,
             previous_position,
             previous_direction,
             intermediate_directions,
@@ -118,7 +118,7 @@ impl RKFStepper3 for RKF45Stepper3 {
     {
         let state = self.state();
 
-        let mut next_position = &state.position + &state.direction*(Self::A21*state.step_size);
+        let mut next_position = &state.position + &state.direction*(Self::A21*state.step_length);
 
         let intermediate_direction_1 = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
@@ -127,7 +127,7 @@ impl RKFStepper3 for RKF45Stepper3 {
         };
 
         next_position = &state.position + (         &state.direction*Self::A31 +
-                                           &intermediate_direction_1*Self::A32)*state.step_size;
+                                           &intermediate_direction_1*Self::A32)*state.step_length;
 
         let intermediate_direction_2 = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
@@ -137,7 +137,7 @@ impl RKFStepper3 for RKF45Stepper3 {
 
         next_position = &state.position + (         &state.direction*Self::A41 +
                                            &intermediate_direction_1*Self::A42 +
-                                           &intermediate_direction_2*Self::A43)*state.step_size;
+                                           &intermediate_direction_2*Self::A43)*state.step_length;
 
         let intermediate_direction_3 = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
@@ -148,7 +148,7 @@ impl RKFStepper3 for RKF45Stepper3 {
         next_position = &state.position + (         &state.direction*Self::A51 +
                                            &intermediate_direction_1*Self::A52 +
                                            &intermediate_direction_2*Self::A53 +
-                                           &intermediate_direction_3*Self::A54)*state.step_size;
+                                           &intermediate_direction_3*Self::A54)*state.step_length;
 
         let intermediate_direction_4 = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
@@ -160,7 +160,7 @@ impl RKFStepper3 for RKF45Stepper3 {
                                            &intermediate_direction_1*Self::A62 +
                                            &intermediate_direction_2*Self::A63 +
                                            &intermediate_direction_3*Self::A64 +
-                                           &intermediate_direction_4*Self::A65)*state.step_size;
+                                           &intermediate_direction_4*Self::A65)*state.step_length;
 
         let intermediate_direction_5 = match Self::compute_direction(field, interpolator, direction_computer, &next_position) {
             StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
@@ -172,7 +172,7 @@ impl RKFStepper3 for RKF45Stepper3 {
                                  &intermediate_direction_2*Self::A73 +
                                  &intermediate_direction_3*Self::A74 +
                                  &intermediate_direction_4*Self::A75 +
-                                 &intermediate_direction_5*Self::A76)*state.step_size;
+                                 &intermediate_direction_5*Self::A76)*state.step_length;
 
         next_position = &state.position + &step_displacement;
 
@@ -208,21 +208,21 @@ impl RKFStepper3 for RKF45Stepper3 {
          &attempt.intermediate_directions[2]*Self::E4 +
          &attempt.intermediate_directions[3]*Self::E5 +
          &attempt.intermediate_directions[4]*Self::E6 +
-                     &attempt.next_direction*Self::E7)*state.step_size
+                     &attempt.next_direction*Self::E7)*state.step_length
     }
 
     fn compute_dense_interpolation_coefs(&self) -> Vec<Vec3<ftr>> {
         let state = self.state();
         let coef_vec_1 = state.previous_position.to_vec3();
         let coef_vec_2 = state.previous_step_displacement.clone();
-        let coef_vec_3 = &state.previous_direction*state.previous_step_size - &coef_vec_2;
-        let coef_vec_4 = &coef_vec_2 - &state.direction*state.previous_step_size - &coef_vec_3;
+        let coef_vec_3 = &state.previous_direction*state.previous_step_length - &coef_vec_2;
+        let coef_vec_4 = &coef_vec_2 - &state.direction*state.previous_step_length - &coef_vec_3;
         let coef_vec_5 = (        &state.previous_direction*Self::D1 +
                           &state.intermediate_directions[1]*Self::D3 +
                           &state.intermediate_directions[2]*Self::D4 +
                           &state.intermediate_directions[3]*Self::D5 +
                           &state.intermediate_directions[4]*Self::D6 +
-                                           &state.direction*Self::D7)*state.previous_step_size;
+                                           &state.direction*Self::D7)*state.previous_step_length;
         vec![coef_vec_1, coef_vec_2, coef_vec_3, coef_vec_4, coef_vec_5]
     }
 
