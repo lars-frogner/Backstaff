@@ -46,7 +46,7 @@ where F: BFloat,
       G: Grid3<F>
 {
     /// Creates a new scalar field given a name, a grid, the values and
-    /// coordinate types specifying where in the grid cell the values are defined.
+    /// coordinate locations specifying where in the grid cell the values are defined.
     pub fn new(name: String, grid: Arc<G>, locations: In3D<CoordLocation>, values: Array3<F>) -> Self {
         let grid_shape = grid.shape();
         let values_shape = values.shape();
@@ -81,6 +81,10 @@ where F: BFloat,
 
     /// Returns the 3D shape of the grid.
     pub fn shape(&self) -> &In3D<usize> { self.grid.shape() }
+
+    /// Returns a reference to the coordinate locations specifying
+    /// where in the grid cell the values are defined.
+    pub fn locations(&self) -> &In3D<CoordLocation> { &self.locations }
 
     /// Consumes the scalar field and returns the owned array of field values.
     pub fn into_values(self) -> Array3<F> { self.values }
@@ -374,6 +378,10 @@ where F: BFloat,
         In3D::new(self.values(X), self.values(Y), self.values(Z))
     }
 
+    /// Returns a reference to the coordinate locations specifying
+    /// where in the grid cell the values of the given component are defined.
+    pub fn locations(&self, dim: Dim3) -> &In3D<CoordLocation> { self.components[dim].locations() }
+
     /// Returns the 3D shape of the grid.
     pub fn shape(&self) -> &In3D<usize> { self.grid.shape() }
 
@@ -494,7 +502,7 @@ where F: BFloat,
       G: Grid2<F>
 {
     /// Creates a new scalar field given a name, a grid, the values and
-    /// coordinate types specifying where in the grid cell the values are defined.
+    /// coordinate locations specifying where in the grid cell the values are defined.
     pub fn new(name: String, grid: Arc<G>, locations: In2D<CoordLocation>, values: Array2<F>) -> Self {
         ScalarField2{ name, grid, locations, values }
     }
@@ -519,6 +527,10 @@ where F: BFloat,
 
     /// Returns a reference to the 2D array of field values.
     pub fn values(&self) -> &Array2<F> { &self.values }
+
+    /// Returns a reference to the coordinate locations specifying
+    /// where in the grid cell the values are defined.
+    pub fn locations(&self) -> &In2D<CoordLocation> { &self.locations }
 
     /// Returns the 2D shape of the grid.
     pub fn shape(&self) -> &In2D<usize> { self.grid.shape() }
@@ -603,6 +615,10 @@ where F: BFloat,
         In2D::new(self.values(Dim2::X), self.values(Dim2::Y))
     }
 
+    /// Returns a reference to the coordinate locations specifying
+    /// where in the grid cell the values of the given component are defined.
+    pub fn locations(&self, dim: Dim2) -> &In2D<CoordLocation> { self.components[dim].locations() }
+
     /// Returns the 2D shape of the grid.
     pub fn shape(&self) -> &In2D<usize> { self.grid.shape() }
 }
@@ -666,6 +682,10 @@ where F: BFloat,
     /// Returns a reference to the 2D array of field values for the
     /// specified component.
     pub fn values(&self, dim: Dim3) -> &Array2<F> { self.components[dim].values() }
+
+    /// Returns a reference to the coordinate locations specifying
+    /// where in the grid cell the values of the given component are defined.
+    pub fn locations(&self, dim: Dim3) -> &In2D<CoordLocation> { self.components[dim].locations() }
 
     /// Returns the 2D shape of the grid.
     pub fn shape(&self) -> &In2D<usize> { self.grid.shape() }
