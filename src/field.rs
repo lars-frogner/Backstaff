@@ -91,10 +91,8 @@ where F: BFloat,
 
     /// Resamples the scalar field onto the given grid and returns the resampled field.
     pub fn resampled_to_grid<H, I>(&self, grid: Arc<H>, interpolator: &I) -> ScalarField3<F, H>
-    where F: Sync + Send,
-          G: Sync + Send,
-          H: Grid3<F>,
-          I: Interpolator3 + Sync
+    where H: Grid3<F>,
+          I: Interpolator3
     {
         let new_coords = self.coords_from_grid(grid.as_ref());
 
@@ -119,9 +117,7 @@ where F: BFloat,
 
     /// Returns a 2D scalar field corresponding to a slice through the x-axis at the given coordinate.
     pub fn slice_across_x<I>(&self, interpolator: &I, x_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::XSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = self.grid.slice_across_x();
         self.create_slice_across_x(Arc::new(slice_grid), interpolator, x_coord, resampled_locations)
@@ -129,9 +125,7 @@ where F: BFloat,
 
     /// Returns a 2D scalar field corresponding to a slice through the y-axis at the given coordinate.
     pub fn slice_across_y<I>(&self, interpolator: &I, y_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::YSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = self.grid.slice_across_y();
         self.create_slice_across_y(Arc::new(slice_grid), interpolator, y_coord, resampled_locations)
@@ -139,9 +133,7 @@ where F: BFloat,
 
     /// Returns a 2D scalar field corresponding to a slice through the z-axis at the given coordinate.
     pub fn slice_across_z<I>(&self, interpolator: &I, z_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::ZSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = self.grid.slice_across_z();
         self.create_slice_across_z(Arc::new(slice_grid), interpolator, z_coord, resampled_locations)
@@ -149,9 +141,7 @@ where F: BFloat,
 
     /// Returns a 2D scalar field corresponding to a regular slice through the given axis at the given coordinate.
     pub fn regular_slice_across_axis<I>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation) -> ScalarField2<F, RegularGrid2<F>>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = self.grid.regular_slice_across_axis(axis);
         self.create_regular_slice_across_axis(Arc::new(slice_grid), interpolator, axis, coord, location)
@@ -183,9 +173,7 @@ where F: BFloat,
     }
 
     fn create_slice_across_x<I>(&self, slice_grid: Arc<G::XSliceGrid>, interpolator: &I, x_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::XSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_locations = self.select_slice_locations([Y, Z], &resampled_locations);
         let slice_values = self.compute_slice_values(interpolator, X, x_coord, resampled_locations, false);
@@ -193,9 +181,7 @@ where F: BFloat,
     }
 
     fn create_slice_across_y<I>(&self, slice_grid: Arc<G::YSliceGrid>, interpolator: &I, y_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::YSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_locations = self.select_slice_locations([X, Z], &resampled_locations);
         let slice_values = self.compute_slice_values(interpolator, Y, y_coord, resampled_locations, false);
@@ -203,9 +189,7 @@ where F: BFloat,
     }
 
     fn create_slice_across_z<I>(&self, slice_grid: Arc<G::ZSliceGrid>, interpolator: &I, z_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::ZSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_locations = self.select_slice_locations([X, Y], &resampled_locations);
         let slice_values = self.compute_slice_values(interpolator, Z, z_coord, resampled_locations, false);
@@ -213,9 +197,7 @@ where F: BFloat,
     }
 
     fn create_regular_slice_across_axis<I>(&self, slice_grid: Arc<RegularGrid2<F>>, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation) -> ScalarField2<F, RegularGrid2<F>>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_locations = In2D::same(location);
         let slice_values = self.compute_slice_values(interpolator, axis, coord, ResampledCoordLocations::Equal(location), true);
@@ -267,9 +249,7 @@ where F: BFloat,
     }
 
     fn compute_slice_values<I>(&self, interpolator: &I, axis: Dim3, coord: F, resampled_locations: ResampledCoordLocations, regular: bool) -> Array2<F>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let lower_bound = self.grid.lower_bounds()[axis];
         let upper_bound = self.grid.upper_bounds()[axis];
@@ -293,9 +273,7 @@ where F: BFloat,
     }
 
     fn interpolate_slice_values<I>(&self, interpolator: &I, axes: [Dim3; 2], coords: &[&[F]; 2], slice_axis_coord: F) -> Array2<F>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_shape = (coords[0].len(), coords[1].len());
         let mut slice_values = unsafe { Array2::uninitialized(slice_shape.f()) };
@@ -387,10 +365,8 @@ where F: BFloat,
 
     /// Resamples the vector field onto the given grid and returns the resampled field.
     pub fn resampled_to_grid<H, I>(&self, grid: Arc<H>, interpolator: &I) -> VectorField3<F, H>
-    where F: Sync + Send,
-          G: Sync + Send,
-          H: Grid3<F>,
-          I: Interpolator3 + Sync
+    where H: Grid3<F>,
+          I: Interpolator3
     {
         let components = In3D::new(
             self.components[X].resampled_to_grid(Arc::clone(&grid), interpolator),
@@ -416,9 +392,7 @@ where F: BFloat,
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the x-axis at the given coordinate.
     pub fn slice_across_x<I>(&self, interpolator: &I, x_coord: F, resampled_locations: ResampledCoordLocations) -> PlaneVectorField3<F, G::XSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = Arc::new(self.grid.slice_across_x());
         let slice_field_components = In3D::new(
@@ -431,9 +405,7 @@ where F: BFloat,
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the y-axis at the given coordinate.
     pub fn slice_across_y<I>(&self, interpolator: &I, y_coord: F, resampled_locations: ResampledCoordLocations) -> PlaneVectorField3<F, G::YSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = Arc::new(self.grid.slice_across_y());
         let slice_field_components = In3D::new(
@@ -446,9 +418,7 @@ where F: BFloat,
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the z-axis at the given coordinate.
     pub fn slice_across_z<I>(&self, interpolator: &I, z_coord: F, resampled_locations: ResampledCoordLocations) -> PlaneVectorField3<F, G::ZSliceGrid>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = Arc::new(self.grid.slice_across_z());
         let slice_field_components = In3D::new(
@@ -461,9 +431,7 @@ where F: BFloat,
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a regular slice through the given axis at the given coordinate.
     pub fn regular_slice_across_axis<I>(&self, interpolator: &I, axis: Dim3, coord: F, location: CoordLocation) -> PlaneVectorField3<F, RegularGrid2<F>>
-    where F: Sync + Send,
-          G: Sync + Send,
-          I: Interpolator3 + Sync
+    where I: Interpolator3
     {
         let slice_grid = Arc::new(self.grid.regular_slice_across_axis(axis));
         let slice_field_components = In3D::new(
