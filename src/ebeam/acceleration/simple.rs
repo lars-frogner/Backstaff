@@ -83,7 +83,7 @@ impl SimpleAccelerationEvent {
     pub fn acceleration_direction(&self) -> &AccelerationDirection { &self.acceleration_direction }
 
     fn new<G, I>(snapshot: &mut SnapshotCacher3<G>, interpolator: &I, position: &Point3<fdt>, extent: fdt, duration: feb, particle_energy_fraction: feb) -> Self
-    where G: Grid3<fdt> ,
+    where G: Grid3<fdt>,
           I: Interpolator3
     {
         let grid = Arc::new(Self::construct_grid(position, extent));
@@ -175,7 +175,7 @@ impl AccelerationEventGenerator for SimpleAccelerationEventGenerator {
     type AccelerationEventType = SimpleAccelerationEvent;
 
     fn generate<G, I>(&self, snapshot: &mut SnapshotCacher3<G>, interpolator: &I, position: &Point3<fdt>) -> Self::AccelerationEventType
-    where G: Grid3<fdt> ,
+    where G: Grid3<fdt>,
           I: Interpolator3
     {
         SimpleAccelerationEvent::new(snapshot, interpolator, position, self.extent, self.duration, self.particle_energy_fraction)
