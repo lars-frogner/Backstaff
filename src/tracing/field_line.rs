@@ -180,9 +180,9 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     /// - `FI`: Function type with no parameters returning a value of type `L`.
     pub fn par_trace<F, G, I, StF, Sd, FI>(field: &VectorField3<F, G>, interpolator: &I, stepper_factory: StF, seeder: Sd, field_line_initializer: &FI) -> Option<Self>
     where L: Send,
-          F: BFloat + Sync,
-          G: Grid3<F> + Sync + Send,
-          I: Interpolator3 + Sync,
+          F: BFloat ,
+          G: Grid3<F> ,
+          I: Interpolator3 ,
           StF: StepperFactory3 + Sync,
           Sd: Seeder3 + IntoParallelIterator<Item = Point3<ftr>>,
           FI: Fn() -> L + Sync
