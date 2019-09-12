@@ -116,10 +116,10 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         Dim3::slice().iter().all(|&dim| point[dim] >= lower_bounds[dim] && point[dim] < upper_bounds[dim])
     }
 
-    /// Whether the given 3D index is inside the bounds of the grid.
-    fn idx_is_inside(&self, idx: &Idx3<usize>) -> bool {
+    /// Whether the given 3D indices are inside the bounds of the grid.
+    fn indices_are_inside(&self, indices: &Idx3<usize>) -> bool {
         let shape = self.shape();
-        Dim3::slice().iter().all(|&dim| idx[dim] < shape[dim])
+        Dim3::slice().iter().all(|&dim| indices[dim] < shape[dim])
     }
 
     /// Whether the given point is inside the bounds of the given grid cell.
@@ -137,7 +137,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         let extents = self.extents();
 
         let mut point = point.clone();
-        let mut idx = Idx3::origin();
+        let mut indices = Idx3::origin();
         let mut wrapped = false;
 
         for &dim in Dim3::slice().iter() {
@@ -156,14 +156,14 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                     return GridPointQuery3::Outside
                 }
             };
-            idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
+            indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
         }
-        debug_assert!(self.point_is_inside_cell(&point, &idx), "Found wrong grid cell.");
+        debug_assert!(self.point_is_inside_cell(&point, &indices), "Found wrong grid cell.");
 
         if wrapped {
-            GridPointQuery3::WrappedInside((idx, point))
+            GridPointQuery3::WrappedInside((indices, point))
         } else {
-            GridPointQuery3::Inside(idx)
+            GridPointQuery3::Inside(indices)
         }
     }
 
@@ -179,7 +179,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         let shape = self.shape();
 
         let mut point = point.clone();
-        let mut idx = Idx3::origin();
+        let mut indices = Idx3::origin();
         for &dim in Dim3::slice().iter() {
             if self.is_periodic(dim) {
                 if point[dim] < lower_bounds[dim] {
@@ -187,9 +187,9 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                 } else if point[dim] >= upper_bounds[dim] {
                     point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
                 };
-                idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
+                indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
             } else {
-                idx[dim] = if point[dim] < lower_bounds[dim] {
+                indices[dim] = if point[dim] < lower_bounds[dim] {
                     0
                 } else if point[dim] >= upper_bounds[dim] {
                     shape[dim] - 1
@@ -198,8 +198,8 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                 };
             }
         }
-        debug_assert!(self.idx_is_inside(&idx), "Found inside index is actually on the outside.");
-        idx
+        debug_assert!(self.indices_are_inside(&indices), "Found inside index is actually on the outside.");
+        indices
     }
 
     /// Given a point that may be outside the grid boundaries, returns a new point
@@ -336,9 +336,9 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
     }
 
     /// Whether the given 2D index is inside the bounds of the grid.
-    fn idx_is_inside(&self, idx: &Idx2<usize>) -> bool {
+    fn indices_are_inside(&self, indices: &Idx2<usize>) -> bool {
         let shape = self.shape();
-        Dim2::slice().iter().all(|&dim| idx[dim] < shape[dim])
+        Dim2::slice().iter().all(|&dim| indices[dim] < shape[dim])
     }
 
     /// Whether the given point is inside the bounds of the given grid cell.
@@ -356,7 +356,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
         let extents = self.extents();
 
         let mut point = point.clone();
-        let mut idx = Idx2::origin();
+        let mut indices = Idx2::origin();
         let mut wrapped = false;
 
         for &dim in Dim2::slice().iter() {
@@ -375,14 +375,14 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
                     return GridPointQuery2::Outside
                 }
             };
-            idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
+            indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
         }
-        debug_assert!(self.point_is_inside_cell(&point, &idx), "Found wrong grid cell.");
+        debug_assert!(self.point_is_inside_cell(&point, &indices), "Found wrong grid cell.");
 
         if wrapped {
-            GridPointQuery2::WrappedInside((idx, point))
+            GridPointQuery2::WrappedInside((indices, point))
         } else {
-            GridPointQuery2::Inside(idx)
+            GridPointQuery2::Inside(indices)
         }
     }
 
@@ -398,7 +398,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
         let shape = self.shape();
 
         let mut point = point.clone();
-        let mut idx = Idx2::origin();
+        let mut indices = Idx2::origin();
         for &dim in Dim2::slice().iter() {
             if self.is_periodic(dim) {
                 if point[dim] < lower_bounds[dim] {
@@ -406,9 +406,9 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
                 } else if point[dim] >= upper_bounds[dim] {
                     point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
                 };
-                idx[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
+                indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim]).expect("Coordinate index search failed.");
             } else {
-                idx[dim] = if point[dim] < lower_bounds[dim] {
+                indices[dim] = if point[dim] < lower_bounds[dim] {
                     0
                 } else if point[dim] >= upper_bounds[dim] {
                     shape[dim] - 1
@@ -417,8 +417,8 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
                 };
             }
         }
-        debug_assert!(self.idx_is_inside(&idx), "Found inside index is actually on the outside.");
-        idx
+        debug_assert!(self.indices_are_inside(&indices), "Found inside index is actually on the outside.");
+        indices
     }
 
     /// Given a point that may be outside the grid boundaries, returns a new point
