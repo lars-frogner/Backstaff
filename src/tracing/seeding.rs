@@ -1,6 +1,7 @@
 //! Generation of seed points for field line tracing.
 
 pub mod slice;
+pub mod criterion;
 
 use crate::geometry::Point3;
 use super::ftr;
