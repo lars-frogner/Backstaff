@@ -1,5 +1,6 @@
 //! Non-thermal electron beam physics in Bifrost simulations.
 
+pub mod acceleration;
 pub mod distribution;
 
 /// Floating-point precision to use for electron beam physics.
