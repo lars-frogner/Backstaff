@@ -6,7 +6,7 @@ use ndarray::prelude::*;
 use serde::Serialize;
 use rayon::prelude::*;
 use crate::num::BFloat;
-use crate::geometry::{Dim3, Dim2, In3D, In2D, Point3, Idx3, Coords2, CoordRefs3, CoordRefs2};
+use crate::geometry::{Dim3, Dim2, In3D, In2D, Point3, Idx3, Idx2, Coords2, CoordRefs3, CoordRefs2};
 use crate::grid::{CoordLocation, Grid3, Grid2};
 use crate::grid::regular::RegularGrid2;
 use crate::interpolation::Interpolator3;
@@ -102,8 +102,8 @@ where F: BFloat,
 
         values_buffer.par_iter_mut().enumerate().for_each(
             |(idx, value)| {
-                let indices = Self::compute_3d_grid_indices_from_flat_idx(&grid_shape, idx);
-                let point = Point3::new(new_coords[X][indices[X]], new_coords[Y][indices[Y]], new_coords[Z][indices[Z]]);
+                let indices = compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
+                let point = new_coords.point(&indices);
                 *value = interpolator.interp_extrap_scalar_field(self, &point);
             }
         );
@@ -165,13 +165,6 @@ where F: BFloat,
         self.grid = new_grid;
     }
 
-    fn compute_3d_grid_indices_from_flat_idx(grid_shape: &In3D<usize>, idx: usize) -> Idx3<usize> {
-        let i = idx % grid_shape[X];
-        let j = idx/grid_shape[X] % grid_shape[Y];
-        let k = idx/(grid_shape[X]*grid_shape[Y]);
-        Idx3::new(i, j, k)
-    }
-
     fn create_slice_across_x<I>(&self, slice_grid: Arc<G::XSliceGrid>, interpolator: &I, x_coord: F, resampled_locations: ResampledCoordLocations) -> ScalarField2<F, G::XSliceGrid>
     where I: Interpolator3
     {
@@ -206,9 +199,8 @@ where F: BFloat,
 
     fn compute_slice_indices_from_flat_idx(&self, axes: [Dim3; 2], idx: usize) -> [usize; 2] {
         let shape = self.shape();
-        let idx_0 = idx % shape[axes[0]];
-        let idx_1 = idx/shape[axes[0]];
-        [idx_0, idx_1]
+        let indices = compute_2d_array_indices_from_flat_idx(&In2D::new(shape[axes[0]], shape[axes[1]]), idx);
+        [indices[Dim2::X], indices[Dim2::Y]]
     }
 
     fn select_slice_locations(&self, axes: [Dim3; 2], resampled_locations: &ResampledCoordLocations) -> In2D<CoordLocation> {
@@ -657,4 +649,21 @@ where F: BFloat,
 
     /// Returns the 2D shape of the grid.
     pub fn shape(&self) -> &In2D<usize> { self.grid.shape() }
+}
+
+/// Computes the 3D array indices corresponding to a given index into the flattened version of the array,
+/// assuming the array is laid out in column-major order.
+pub fn compute_3d_array_indices_from_flat_idx(shape: &In3D<usize>, idx: usize) -> Idx3<usize> {
+    let i = idx % shape[X];
+    let j = idx/shape[X] % shape[Y];
+    let k = idx/(shape[X]*shape[Y]);
+    Idx3::new(i, j, k)
+}
+
+/// Computes the 2D array indices corresponding to a given index into the flattened version of the array,
+/// assuming the array is laid out in column-major order.
+pub fn compute_2d_array_indices_from_flat_idx(shape: &In2D<usize>, idx: usize) -> Idx2<usize> {
+    let i = idx % shape[Dim2::X];
+    let j = idx/shape[Dim2::X];
+    Idx2::new(i, j)
 }
