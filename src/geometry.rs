@@ -722,9 +722,9 @@ impl<F: BFloat> Coords3<F> {
         Coords3(In3D::new(x, y, z))
     }
 
-    /// Creates a 3D point from the coordinates at the given index.
-    pub fn point(&self, idx: usize) -> Point3<F> {
-        Point3::new(self[X][idx], self[Y][idx], self[Z][idx])
+    /// Creates a 3D point from the coordinates at the given indices.
+    pub fn point(&self, indices: &Idx3<usize>) -> Point3<F> {
+        Point3::new(self[X][indices[X]], self[Y][indices[Y]], self[Z][indices[Z]])
     }
 }
 
@@ -743,9 +743,9 @@ impl<F: BFloat> Coords2<F> {
         Coords2(In2D::new(x, y))
     }
 
-    /// Creates a 2D point from the coordinates at the given index.
-    pub fn point(&self, idx: usize) -> Point2<F> {
-        Point2::new(self[Dim2::X][idx], self[Dim2::Y][idx])
+    /// Creates a 2D point from the coordinates at the given indices.
+    pub fn point(&self, indices: &Idx2<usize>) -> Point2<F> {
+        Point2::new(self[Dim2::X][indices[Dim2::X]], self[Dim2::Y][indices[Dim2::Y]])
     }
 }
 
@@ -769,9 +769,9 @@ impl<'a, F: BFloat> CoordRefs3<'a, F> {
         Coords3::new(self[X].to_vec(), self[Y].to_vec(), self[Z].to_vec())
     }
 
-    /// Creates a 3D point from the coordinates at the given index.
-    pub fn point(&self, idx: usize) -> Point3<F> {
-        Point3::new(self[X][idx], self[Y][idx], self[Z][idx])
+    /// Creates a 3D point from the coordinates at the given indices.
+    pub fn point(&self, indices: &Idx3<usize>) -> Point3<F> {
+        Point3::new(self[X][indices[X]], self[Y][indices[Y]], self[Z][indices[Z]])
     }
 }
 
@@ -795,9 +795,9 @@ impl<'a, F: BFloat> CoordRefs2<'a, F> {
         Coords2::new(self[Dim2::X].to_vec(), self[Dim2::Y].to_vec())
     }
 
-    /// Creates a 2D point from the coordinates at the given index.
-    pub fn point(&self, idx: usize) -> Point2<F> {
-        Point2::new(self[Dim2::X][idx], self[Dim2::Y][idx])
+    /// Creates a 2D point from the coordinates at the given indices.
+    pub fn point(&self, indices: &Idx2<usize>) -> Point2<F> {
+        Point2::new(self[Dim2::X][indices[Dim2::X]], self[Dim2::Y][indices[Dim2::Y]])
     }
 }
 
