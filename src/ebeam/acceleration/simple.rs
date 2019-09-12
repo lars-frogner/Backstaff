@@ -88,6 +88,7 @@ impl SimpleAccelerationEvent {
     {
         let grid = Arc::new(Self::construct_grid(position, extent));
 
+        assert!(extent > 0.0, "Extent must be larger than zero.");
         assert!(duration >= 0.0, "Duration must be larger than or equal to zero.");
         assert!(particle_energy_fraction >= 0.0, "Particle energy fraction must be larger than or equal to zero.");
 
