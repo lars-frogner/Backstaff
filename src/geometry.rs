@@ -507,6 +507,11 @@ impl<F: BFloat> Add<Vec3<F>> for &Point3<F> {
     fn add(self, vector: Vec3<F>) -> Self::Output { self + &vector }
 }
 
+impl<F: BFloat> Add<&Vec3<F>> for Point3<F> {
+    type Output = Self;
+    fn add(self, vector: &Vec3<F>) -> Self::Output { &self + vector }
+}
+
 impl<'a, F: BFloat> Sub<&'a Vec3<F>> for &'a Point3<F> {
     type Output = Point3<F>;
     fn sub(self, vector: &Vec3<F>) -> Self::Output {
@@ -524,6 +529,11 @@ impl<F: BFloat> Sub<Vec3<F>> for Point3<F> {
 impl<F: BFloat> Sub<Vec3<F>> for &Point3<F> {
     type Output = Point3<F>;
     fn sub(self, vector: Vec3<F>) -> Self::Output { self - &vector }
+}
+
+impl<F: BFloat> Sub<&Vec3<F>> for Point3<F> {
+    type Output = Self;
+    fn sub(self, vector: &Vec3<F>) -> Self::Output { &self - vector }
 }
 
 /// A 2D spatial coordinate.
@@ -609,6 +619,11 @@ impl<F: BFloat> Add<Vec2<F>> for &Point2<F> {
     fn add(self, vector: Vec2<F>) -> Self::Output { self + &vector }
 }
 
+impl<F: BFloat> Add<&Vec2<F>> for Point2<F> {
+    type Output = Self;
+    fn add(self, vector: &Vec2<F>) -> Self::Output { &self + vector }
+}
+
 impl<'a, F: BFloat> Sub<&'a Vec2<F>> for &'a Point2<F> {
     type Output = Point2<F>;
     fn sub(self, vector: &Vec2<F>) -> Self::Output {
@@ -625,6 +640,11 @@ impl<F: BFloat> Sub<Vec2<F>> for Point2<F> {
 impl<F: BFloat> Sub<Vec2<F>> for &Point2<F> {
     type Output = Point2<F>;
     fn sub(self, vector: Vec2<F>) -> Self::Output { self - &vector }
+}
+
+impl<F: BFloat> Sub<&Vec2<F>> for Point2<F> {
+    type Output = Self;
+    fn sub(self, vector: &Vec2<F>) -> Self::Output { &self - vector }
 }
 
 /// A 3D index.
