@@ -48,7 +48,7 @@ pub enum GridPointQuery2<F: BFloat, T> {
 }
 
 /// Defines the properties of a 3D grid.
-pub trait Grid3<F: BFloat>: Clone {
+pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     type XSliceGrid: Grid2<F>;
     type YSliceGrid: Grid2<F>;
     type ZSliceGrid: Grid2<F>;
@@ -272,7 +272,7 @@ pub trait Grid3<F: BFloat>: Clone {
 }
 
 /// Defines the properties of a 2D grid.
-pub trait Grid2<F: BFloat>: Clone {
+pub trait Grid2<F: BFloat>: Clone + Sync + Send {
 
     /// The specific type of the grid.
     const TYPE: GridType;

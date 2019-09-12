@@ -8,7 +8,7 @@ use crate::grid::{Grid3, GridPointQuery3};
 use crate::field::{ScalarField3, VectorField3};
 
 /// Defines the properties of a 3D interpolator.
-pub trait Interpolator3 {
+pub trait Interpolator3: Clone + Sync + Send {
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///
