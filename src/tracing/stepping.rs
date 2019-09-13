@@ -51,7 +51,8 @@ pub trait Stepper3: Clone {
     /// - `interpolator`: Interpolator to use.
     /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
     /// - `position`: Position where the stepper should be placed.
-    /// - `callback`: Closure that will be called with the placed position if successful.
+    /// - `callback`: Closure that will be called with a zero-length displacement vector,
+    /// the placed position and a zero-valued distance, if successful.
     ///
     /// # Returns
     ///
@@ -66,13 +67,13 @@ pub trait Stepper3: Clone {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `D`: Function type taking a mutable reference to a field vector.
-    /// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
+    /// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
     fn place<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction;
+          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
     /// Performs a step.
     ///
@@ -81,7 +82,8 @@ pub trait Stepper3: Clone {
     /// - `field`: Vector field to step in.
     /// - `interpolator`: Interpolator to use.
     /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
-    /// - `callback`: Closure that will be called with the resulting position if successful.
+    /// - `callback`: Closure that will be called with the displacement vector from the previous to
+    /// the current position, the current position and the total traced distance, if successful.
     ///
     /// # Returns
     ///
@@ -96,13 +98,13 @@ pub trait Stepper3: Clone {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `D`: Function type taking a mutable reference to a field vector.
-    /// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
+    /// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
     fn step<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction;
+          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
     /// Performs a step, producing regularly spaced output positions.
     ///
@@ -111,7 +113,8 @@ pub trait Stepper3: Clone {
     /// - `field`: Vector field to step in.
     /// - `interpolator`: Interpolator to use.
     /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
-    /// - `callback`: Closure that will be called with the resulting dense position if successful.
+    /// - `callback`: Closure that will be called with the displacement vector from the previous to
+    /// the current output position, the current output position and the total traced distance, if successful.
     ///
     /// # Returns
     ///
@@ -126,13 +129,13 @@ pub trait Stepper3: Clone {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `D`: Function type taking a mutable reference to a field vector.
-    /// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
+    /// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
     fn step_dense_output<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction;
+          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
     /// Returns a reference to the current stepper position.
     fn position(&self) -> &Point3<ftr>;
@@ -144,5 +147,7 @@ pub trait Stepper3: Clone {
 /// Defines the properties of a 3D stepper factory structure.
 pub trait StepperFactory3 {
     type Output: Stepper3;
+
+    /// Creates a new 3D stepper.
     fn produce(&self) -> Self::Output;
 }

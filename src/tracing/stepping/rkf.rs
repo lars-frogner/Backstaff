@@ -144,11 +144,11 @@ trait RKFStepper3 {
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
     {
         let place_result = self.perform_place(field, interpolator, direction_computer, position);
         if let StepperResult::Ok(_) = place_result {
-            if let StepperInstruction::Terminate = callback(0.0, &self.state().position) {
+            if let StepperInstruction::Terminate = callback(&self.state().previous_step_displacement, &self.state().position, self.state().distance) {
                 return StepperResult::Stopped(StoppingCause::StoppedByCallback)
             }
         }
@@ -160,11 +160,11 @@ trait RKFStepper3 {
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
-            if let StepperInstruction::Terminate = callback(self.state().distance, &self.state().position) {
+            if let StepperInstruction::Terminate = callback(&self.state().previous_step_displacement, &self.state().position, self.state().distance) {
                 return StepperResult::Stopped(StoppingCause::StoppedByCallback)
             }
         }
@@ -176,7 +176,7 @@ trait RKFStepper3 {
           G: Grid3<F>,
           I: Interpolator3,
           D: Fn(&mut Vec3<ftr>),
-          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
@@ -364,7 +364,7 @@ trait RKFStepper3 {
     fn compute_dense_output<F, G, C>(&mut self, grid: &G, callback: &mut C) -> StepperResult<()>
     where F: BFloat,
           G: Grid3<F>,
-          C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
     {
         #![allow(clippy::float_cmp)] // Allows the float comparison with zero
         let state = self.state();
@@ -374,12 +374,13 @@ trait RKFStepper3 {
 
         let mut next_output_distance = state.next_output_distance;
         if next_output_distance <= state.distance {
+            let dense_step_displacement = &state.previous_direction*state.config.dense_step_length;
             let coefs = self.compute_dense_interpolation_coefs();
             loop {
                 let fraction = (next_output_distance - previous_distance)/state.previous_step_length;
                 let output_position = self.interpolate_dense_position(grid, &coefs, fraction);
 
-                if let StepperInstruction::Terminate = callback(next_output_distance, &output_position) {
+                if let StepperInstruction::Terminate = callback(&dense_step_displacement, &output_position, next_output_distance) {
                     return StepperResult::Stopped(StoppingCause::StoppedByCallback)
                 }
 

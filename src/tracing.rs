@@ -31,7 +31,8 @@ pub enum TracerResult {
 /// - `stepper`: Stepper to use (will be consumed).
 /// - `start_position`: Position where the tracing should start.
 /// - `sense`: Whether the field line should be traced in the same or opposite direction as the field.
-/// - `callback`: Closure that will be called with the natural position of each step.
+/// - `callback`: Closure that for each natural step will be called with the displacement vector from the
+/// previous to the current position, the current position and the total traced distance.
 ///
 /// # Returns
 ///
@@ -46,13 +47,13 @@ pub enum TracerResult {
 /// - `G`: Type of grid.
 /// - `I`: Type of interpolator.
 /// - `S`: Type of stepper.
-/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
 pub fn trace_3d_field_line<F, G, I, St, C>(field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>, sense: SteppingSense, callback: &mut C) -> TracerResult
 where F: BFloat,
       G: Grid3<F>,
       I: Interpolator3,
       St: Stepper3,
-      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
 {
     match sense {
         SteppingSense::Same => {
@@ -73,7 +74,8 @@ where F: BFloat,
 /// - `stepper`: Stepper to use (will be consumed).
 /// - `start_position`: Position where the tracing should start.
 /// - `sense`: Whether the field line should be traced in the same or opposite direction as the field.
-/// - `callback`: Closure that will be called with regularly spaced positions along the field line.
+/// - `callback`: Closure that for each regularly spaced step will be called with the displacement vector from the
+/// previous to the current position, the current position and the total traced distance.
 ///
 /// # Returns
 ///
@@ -88,13 +90,13 @@ where F: BFloat,
 /// - `G`: Type of grid.
 /// - `I`: Type of interpolator.
 /// - `St`: Type of stepper.
-/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
 pub fn trace_3d_field_line_dense<F, G, I, St, C>(field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>, sense: SteppingSense, callback: &mut C) -> TracerResult
 where F: BFloat,
       G: Grid3<F>,
       I: Interpolator3,
       St: Stepper3,
-      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
 {
     match sense {
         SteppingSense::Same => {
@@ -116,7 +118,8 @@ where F: BFloat,
 /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
 /// - `stepper`: Stepper to use (will be consumed).
 /// - `start_position`: Position where the tracing should start.
-/// - `callback`: Closure that will be called with the natural position of each step.
+/// - `callback`: Closure that for each natural step will be called with the displacement vector from the
+/// previous to the current position, the current position and the total traced distance.
 ///
 /// # Returns
 ///
@@ -132,14 +135,14 @@ where F: BFloat,
 /// - `I`: Type of interpolator.
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
-/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
 pub fn custom_trace_3d_field_line<F, G, I, D, St, C>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, mut stepper: St, start_position: &Point3<ftr>, callback: &mut C) -> TracerResult
 where F: BFloat,
       G: Grid3<F>,
       I: Interpolator3,
       D: Fn(&mut Vec3<ftr>),
       St: Stepper3,
-      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
 {
     match stepper.place(field, interpolator, direction_computer, start_position, callback) {
         StepperResult::Ok(_) => {},
@@ -162,7 +165,8 @@ where F: BFloat,
 /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
 /// - `stepper`: Stepper to use (will be consumed).
 /// - `start_position`: Position where the tracing should start.
-/// - `callback`: Closure that will be called with regularly spaced positions along the field line.
+/// - `callback`: Closure that for each regularly spaced step will be called with the displacement vector from the
+/// previous to the current position, the current position and the total traced distance.
 ///
 /// # Returns
 ///
@@ -178,14 +182,14 @@ where F: BFloat,
 /// - `I`: Type of interpolator.
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
-/// - `C`: Mutable function type taking a distance and a reference to a position and returning a `StepperInstruction`.
+/// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
 pub fn custom_trace_3d_field_line_dense<F, G, I, D, St, C>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, mut stepper: St, start_position: &Point3<ftr>, callback: &mut C) -> TracerResult
 where F: BFloat,
       G: Grid3<F>,
       I: Interpolator3,
       D: Fn(&mut Vec3<ftr>),
       St: Stepper3,
-      C: FnMut(ftr, &Point3<ftr>) -> StepperInstruction
+      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
 {
     match stepper.place(field, interpolator, direction_computer, start_position, callback) {
         StepperResult::Ok(_) => {},
