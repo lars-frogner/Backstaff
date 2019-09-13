@@ -14,6 +14,13 @@ use crate::tracing::ftr;
 use super::{StepperResult, StoppingCause, StepperInstruction};
 use Dim3::{X, Y, Z};
 
+/// Type of RKF stepper.
+#[derive(Clone, Copy, Debug)]
+pub enum RKFStepperType {
+    RKF23,
+    RKF45
+}
+
 #[derive(Clone, Debug)]
 struct RKFStepperState3 {
     /// Configuration parameters for the stepper.
