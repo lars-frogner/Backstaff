@@ -8,7 +8,7 @@ use std::io::Write;
 use serde::Serialize;
 use rayon::prelude::*;
 use crate::num::BFloat;
-use crate::io::utils::{save_data_as_pickle, write_data_as_pickle};
+use crate::io::utils;
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
 use crate::field::{ScalarField3, VectorField3};
@@ -95,7 +95,7 @@ pub trait FieldLine3: Clone + fmt::Debug + Serialize {
 
     /// Serializes the field line data into pickle format and saves at the given path.
     fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
-        save_data_as_pickle(file_path, &self)
+        utils::save_data_as_pickle(file_path, &self)
     }
 }
 
@@ -158,7 +158,7 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     ///
     /// All the field line data is saved as a single pickled structure.
     pub fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
-        save_data_as_pickle(file_path, &self)
+        utils::save_data_as_pickle(file_path, &self)
     }
 
     /// Serializes the field line data in parallel into pickle format and saves at the given path.
@@ -169,7 +169,7 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     {
         let write_to_buffer = |field_line: &L| {
             let mut buffer = Vec::with_capacity(field_line.number_of_points()*mem::size_of::<ftr>());
-            write_data_as_pickle(&mut buffer, field_line)?;
+            utils::write_data_as_pickle(&mut buffer, field_line)?;
             Ok(buffer)
         };
         let buffers = self.field_lines.par_iter().map(write_to_buffer).collect::<io::Result<Vec<Vec<u8>>>>()?;
