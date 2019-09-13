@@ -348,26 +348,48 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
 
     /// Returns a `Result` with a reference to the scalar field representing the given variable,
     /// reading it from file and caching it if has not already been cached.
-    pub fn get_scalar_field(&mut self, variable_name: &str) -> io::Result<&ScalarField3<fdt, G>> {
+    pub fn obtain_scalar_field(&mut self, variable_name: &str) -> io::Result<&ScalarField3<fdt, G>> {
         Ok(self.scalar_fields.entry(variable_name.to_string()).or_insert(self.reader.read_scalar_field(variable_name)?))
     }
 
     /// Returns a `Result` with a reference to the vector field representing the given variable,
     /// reading it from file and caching it if has not already been cached.
-    pub fn get_vector_field(&mut self, variable_name: &str) -> io::Result<&VectorField3<fdt, G>> {
+    pub fn obtain_vector_field(&mut self, variable_name: &str) -> io::Result<&VectorField3<fdt, G>> {
         Ok(self.vector_fields.entry(variable_name.to_string()).or_insert(self.reader.read_vector_field(variable_name)?))
     }
 
-    /// Calls `get_scalar_field` and unwraps the `Result`,
-    /// panicking with the associated error message if the result is `Err`.
-    pub fn expect_scalar_field(&mut self, variable_name: &str) -> &ScalarField3<fdt, G> {
-        self.get_scalar_field(variable_name).unwrap_or_else(|err| panic!("{}", err))
+    /// Makes sure the scalar field representing the giveb variable is cached.
+    pub fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
+        self.obtain_scalar_field(variable_name).map(|_| ())
     }
 
-    /// Calls `get_vector_field` and unwraps the `Result`,
-    /// panicking with the associated error message if the result is `Err`.
-    pub fn expect_vector_field(&mut self, variable_name: &str) -> &VectorField3<fdt, G> {
-        self.get_vector_field(variable_name).unwrap_or_else(|err| panic!("{}", err))
+    /// Makes sure the scalar field representing the giveb variable is cached.
+    pub fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
+        self.obtain_vector_field(variable_name).map(|_| ())
+    }
+
+    /// Returns a reference to the scalar field representing the given variable.
+    ///
+    /// Panics if the field is not cached.
+    pub fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<fdt, G> {
+        self.scalar_fields.get(variable_name).expect("Scalar field is not cached.")
+    }
+
+    /// Returns a reference to the vector field representing the given variable.
+    ///
+    /// Panics if the field is not cached.
+    pub fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<fdt, G> {
+        self.vector_fields.get(variable_name).expect("Vector field is not cached.")
+    }
+
+    /// Whether the scalar field representing the given variable is cached.
+    pub fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
+        self.scalar_fields.contains_key(variable_name)
+    }
+
+    /// Whether the vector field representing the given variable is cached.
+    pub fn vector_field_is_cached(&self, variable_name: &str) -> bool {
+        self.vector_fields.contains_key(variable_name)
     }
 
     /// Removes the scalar field representing the given variable from the cache.
