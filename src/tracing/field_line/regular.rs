@@ -73,19 +73,23 @@ impl FieldLine3 for RegularFieldLine3 {
     {
         let sense = self.sense;
         if let Some(length) = self.max_length {
-            trace_3d_field_line_dense(field, interpolator, stepper, start_position, sense, &mut |dist, pos| {
-                if dist <= length {
-                    self.positions.push(pos.clone());
-                    StepperInstruction::Continue
-                } else {
-                    StepperInstruction::Terminate
+            trace_3d_field_line_dense(field, interpolator, stepper, start_position, sense,
+                &mut |_, position, distance| {
+                    if distance <= length {
+                        self.positions.push(position.clone());
+                        StepperInstruction::Continue
+                    } else {
+                        StepperInstruction::Terminate
+                    }
                 }
-            })
+            )
         } else {
-            trace_3d_field_line_dense(field, interpolator, stepper, start_position, sense, &mut |_, pos| {
-                self.positions.push(pos.clone());
-                StepperInstruction::Continue
-            })
+            trace_3d_field_line_dense(field, interpolator, stepper, start_position, sense,
+                &mut |_, position, _| {
+                    self.positions.push(position.clone());
+                    StepperInstruction::Continue
+                }
+            )
         }
     }
 
@@ -110,19 +114,23 @@ impl FieldLine3 for DualRegularFieldLine3 {
         let mut backward_positions = VecDeque::new();
 
         let tracer_result = if let Some(length) = self.max_length {
-            trace_3d_field_line_dense(field, interpolator, stepper.clone(), start_position, SteppingSense::Opposite, &mut |dist, pos| {
-                if dist <= length {
-                    backward_positions.push_front(pos.clone());
-                    StepperInstruction::Continue
-                } else {
-                    StepperInstruction::Terminate
+            trace_3d_field_line_dense(field, interpolator, stepper.clone(), start_position, SteppingSense::Opposite,
+                &mut |_, position, distance| {
+                    if distance <= length {
+                        backward_positions.push_front(position.clone());
+                        StepperInstruction::Continue
+                    } else {
+                        StepperInstruction::Terminate
+                    }
                 }
-            })
+            )
         } else {
-            trace_3d_field_line_dense(field, interpolator, stepper.clone(), start_position, SteppingSense::Opposite, &mut |_, pos| {
-                backward_positions.push_front(pos.clone());
-                StepperInstruction::Continue
-            })
+            trace_3d_field_line_dense(field, interpolator, stepper.clone(), start_position, SteppingSense::Opposite,
+                &mut |_, position, _| {
+                    backward_positions.push_front(position.clone());
+                    StepperInstruction::Continue
+                }
+            )
         };
 
         if let TracerResult::Void = tracer_result {
@@ -133,19 +141,23 @@ impl FieldLine3 for DualRegularFieldLine3 {
         let mut forward_positions = Vec::new();
 
         let tracer_result = if let Some(length) = self.max_length {
-            trace_3d_field_line_dense(field, interpolator, stepper, start_position, SteppingSense::Same, &mut |dist, pos| {
-                if dist <= length {
-                    forward_positions.push(pos.clone());
-                    StepperInstruction::Continue
-                } else {
-                    StepperInstruction::Terminate
+            trace_3d_field_line_dense(field, interpolator, stepper, start_position, SteppingSense::Same,
+                &mut |_, position, distance| {
+                    if distance <= length {
+                        forward_positions.push(position.clone());
+                        StepperInstruction::Continue
+                    } else {
+                        StepperInstruction::Terminate
+                    }
                 }
-            })
+            )
         } else {
-            trace_3d_field_line_dense(field, interpolator, stepper, start_position, SteppingSense::Same, &mut |_, pos| {
-                forward_positions.push(pos.clone());
-                StepperInstruction::Continue
-            })
+            trace_3d_field_line_dense(field, interpolator, stepper, start_position, SteppingSense::Same,
+                &mut |_, position, _| {
+                    forward_positions.push(position.clone());
+                    StepperInstruction::Continue
+                }
+            )
         };
 
         if let TracerResult::Void = tracer_result {
@@ -231,7 +243,7 @@ mod tests {
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig{ dense_step_length: 0.1, ..RKFStepperConfig::default() });
         let seeder = vec![Point3::new(12.0, 12.0, -10.0), Point3::new(12.0, 12.0, -7.0)];
 
-        let field_line_set = FieldLineSet3::trace(&magnetic_field, &interpolator, stepper_factory, seeder, &|| DualRegularFieldLine3::new(None) ).unwrap();
+        let field_line_set = FieldLineSet3::trace(seeder, &|| DualRegularFieldLine3::new(None), &magnetic_field, &interpolator, stepper_factory).unwrap();
         field_line_set.save_as_combined_pickles("data/regular_field_line_set.pickle").unwrap();
     }
 }
