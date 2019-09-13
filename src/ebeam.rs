@@ -2,11 +2,16 @@
 
 pub mod distribution;
 pub mod accelerator;
+pub mod execution;
 
+use std::{io, path, fs, mem};
+use std::io::Write;
 use std::collections::HashMap;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
+use serde::Serialize;
+use serde::ser::{Serializer, SerializeStruct};
 use rayon::prelude::*;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::io::utils;
 use crate::geometry::Point3;
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
@@ -28,13 +33,37 @@ pub struct ElectronBeam {
 }
 
 /// A set of non-thermal electron beams propagating through the solar atmosphere.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ElectronBeamSwarm {
     beams: Vec<ElectronBeam>
 }
 
 impl ElectronBeam {
-    fn generate<D, G, I, S>(mut distribution: D, snapshot: &SnapshotCacher3<G>, interpolator: &I, stepper: S, sense: SteppingSense) -> Option<Self>
+    /// Generates an electron beam with the given initial distribution
+    /// and propagates it through the atmosphere in the given snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// - `distribution`: Initial distribution of the beam electrons.
+    /// - `snapshot`: Snapshot representing the atmosphere.
+    /// - `interpolator`: Interpolator to use.
+    /// - `stepper`: Stepper to use (will be consumed).
+    /// - `sense`: Whether to propagate the beam along or against the magnetic field direction.
+    ///
+    /// # Returns
+    ///
+    /// An `Option` which is either:
+    ///
+    /// - `Some`: Contains a new propagated `ElectronBeam`.
+    /// - `None`: No electron beam was generated.
+    ///
+    /// # Type parameters
+    ///
+    /// - `D`: Type of distribution.
+    /// - `G`: Type of grid.
+    /// - `I`: Type of interpolator.
+    /// - `S`: Type of stepper.
+    pub fn generate<D, G, I, S>(mut distribution: D, snapshot: &SnapshotCacher3<G>, interpolator: &I, stepper: S, sense: SteppingSense) -> Option<Self>
     where D: Distribution,
           G: Grid3<fdt>,
           I: Interpolator3,
@@ -72,9 +101,42 @@ impl ElectronBeam {
             TracerResult::Void => None
         }
     }
+
+    /// Returns the number of points making up the electron beam
+    pub fn number_of_points(&self) -> usize { self.positions.len() }
+
+    /// Serializes the electron beam data into pickle format and saves at the given path.
+    pub fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+        utils::save_data_as_pickle(file_path, &self)
+    }
 }
 
 impl ElectronBeamSwarm {
+    /// Generates a set of electron beams using the given seeder and accelerator,
+    /// and propagates them through the atmosphere in the given snapshot.
+    ///
+    /// # Parameters
+    ///
+    /// - `seeder`: Seeder to use for generating start positions.
+    /// - `snapshot`: Snapshot representing the atmosphere.
+    /// - `accelerator`: Accelerator to use for generating initial electron distributions.
+    /// - `interpolator`: Interpolator to use.
+    /// - `stepper_factory`: Factory structure to use for producing steppers.
+    ///
+    /// # Returns
+    ///
+    /// An `Option` which is either:
+    ///
+    /// - `Some`: Contains a new `ElectronBeamSwarm` with propagated electron beams.
+    /// - `None`: No electron beams were generated.
+    ///
+    /// # Type parameters
+    ///
+    /// - `Sd`: Type of seeder.
+    /// - `G`: Type of grid.
+    /// - `A`: Type of accelerator.
+    /// - `I`: Type of interpolator.
+    /// - `StF`: Type of stepper factory.
     pub fn generate<Sd, G, A, I, StF>(seeder: Sd, mut snapshot: SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF) -> Option<Self>
     where Sd: Seeder3 + IntoParallelIterator<Item = Point3<ftr>>,
           G: Grid3<fdt>,
@@ -112,6 +174,29 @@ impl ElectronBeamSwarm {
         } else {
             Some(ElectronBeamSwarm{ beams })
         }
+    }
+
+    /// Serializes the electron beam data into pickle format and saves at the given path.
+    ///
+    /// All the electron beam data is saved as a single pickled structure.
+    pub fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+        utils::save_data_as_pickle(file_path, &self)
+    }
+
+    /// Serializes the electron beam data in parallel into pickle format and saves at the given path.
+    ///
+    /// The data is saved in a file containing a separate pickled structure for each electron beam.
+    pub fn save_as_combined_pickles<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+        let write_to_buffer = |beam: &ElectronBeam| {
+            let mut buffer = Vec::with_capacity(beam.number_of_points()*mem::size_of::<ftr>());
+            utils::write_data_as_pickle(&mut buffer, beam)?;
+            Ok(buffer)
+        };
+        let buffers = self.beams.par_iter().map(write_to_buffer).collect::<io::Result<Vec<Vec<u8>>>>()?;
+
+        let mut file = fs::File::create(file_path)?;
+        file.write_all(&buffers.concat())?;
+        Ok(())
     }
 }
 
