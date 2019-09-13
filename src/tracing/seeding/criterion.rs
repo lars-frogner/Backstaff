@@ -169,4 +169,10 @@ impl IntoParallelIterator for CriterionSeeder3 {
     }
 }
 
-impl Seeder3 for CriterionSeeder3 {}
+impl Seeder3 for CriterionSeeder3 {
+    fn retain<P>(&mut self, predicate: P)
+    where P: FnMut(&Point3<ftr>) -> bool
+    {
+        self.seed_points.retain(predicate);
+    }
+}

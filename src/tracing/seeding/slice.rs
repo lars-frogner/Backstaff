@@ -253,4 +253,10 @@ impl IntoParallelIterator for SliceSeeder3 {
     }
 }
 
-impl Seeder3 for SliceSeeder3 {}
+impl Seeder3 for SliceSeeder3 {
+    fn retain<P>(&mut self, predicate: P)
+    where P: FnMut(&Point3<ftr>) -> bool
+    {
+        self.seed_points.retain(predicate);
+    }
+}
