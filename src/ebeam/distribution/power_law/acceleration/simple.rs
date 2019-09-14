@@ -167,7 +167,7 @@ impl Accelerator for SimplePowerLawAccelerator {
 
     fn prepare_snapshot_for_generation<G: Grid3<fdt>>(snapshot: &mut SnapshotCacher3<G>) -> io::Result<()> {
         snapshot.cache_scalar_field("tg")?;
-        snapshot.cache_scalar_field("ne")?;
+        snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("qjoule")?;
         snapshot.cache_vector_field("e")
     }
@@ -192,7 +192,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         let temperature = feb::from(interpolator.interp_scalar_field(snapshot.cached_scalar_field("tg"), position).expect_inside());
         assert!(temperature > 0.0, "Temperature must be larger than zero.");
 
-        let electron_density = interpolator.interp_scalar_field(snapshot.cached_scalar_field("ne"), position).expect_inside();
+        let electron_density = interpolator.interp_scalar_field(snapshot.cached_scalar_field("nel"), position).expect_inside();
         let electron_density = feb::from(electron_density)/U_L3; // [electrons/cm^3]
         assert!(electron_density > 0.0, "Electron density must be larger than zero.");
 

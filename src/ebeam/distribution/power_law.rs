@@ -186,7 +186,7 @@ impl Distribution for PowerLawDistribution {
           I: Interpolator3
     {
         let mut deposition_position = new_position - displacement*0.5;
-        let electron_density_field = snapshot.cached_scalar_field("ne");
+        let electron_density_field = snapshot.cached_scalar_field("nel");
 
         let electron_density = interpolator.interp_scalar_field(electron_density_field, &Point3::from(&deposition_position))
                                            .unwrap_and_update_position(&mut deposition_position);
