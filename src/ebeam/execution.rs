@@ -170,7 +170,7 @@ impl ElectronBeamSimulator {
     }
 
     fn read_acceleration_duration<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
-        reader.get_numerical_param::<feb>("duration")
+        reader.get_numerical_param::<feb>("dt")
               .unwrap_or_else(|err| panic!("{}", err))
               *U_T
     }
