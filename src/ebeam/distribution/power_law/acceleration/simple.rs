@@ -89,7 +89,7 @@ impl SimplePowerLawAccelerator {
                 return None
             }
         };
-        let lower_cutoff_energy = intersection_energy*KEV_TO_ERG*MC2_ELECTRON;
+        let lower_cutoff_energy = intersection_energy*KEV_TO_ERG/MC2_ELECTRON;
         Some(lower_cutoff_energy)
     }
 
