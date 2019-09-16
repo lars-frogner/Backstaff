@@ -50,9 +50,7 @@ impl SimplePowerLawAccelerator {
     {
         let joule_heating_field = snapshot.cached_scalar_field("qjoule");
         let joule_heating = feb::from(interpolator.interp_scalar_field(joule_heating_field, position).expect_inside());
-        let joule_heating = joule_heating*U_E/U_T; // [erg/(cm^3 s)]
-
-        assert!(joule_heating >= 0.0, "Joule heating must be larger than or equal to zero.");
+        let joule_heating = feb::max(0.0, joule_heating*U_E/U_T); // [erg/(cm^3 s)]
 
         self.particle_energy_fraction*joule_heating
     }
