@@ -6,7 +6,7 @@ use ndarray::prelude::*;
 use serde::Serialize;
 use rayon::prelude::*;
 use crate::num::BFloat;
-use crate::geometry::{Dim3, Dim2, In3D, In2D, Point3, Idx3, Idx2, Coords2, CoordRefs3, CoordRefs2};
+use crate::geometry::{Dim3, Dim2, In3D, In2D, Vec3, Vec2, Point3, Idx3, Idx2, Coords2, CoordRefs3, CoordRefs2};
 use crate::grid::{CoordLocation, Grid3, Grid2};
 use crate::grid::regular::RegularGrid2;
 use crate::interpolation::Interpolator3;
@@ -78,6 +78,9 @@ where F: BFloat,
 
     /// Returns a reference to the 3D array of field values.
     pub fn values(&self) -> &Array3<F> { &self.values }
+
+    /// Returns the field value at the given 3D index.
+    pub fn value(&self, indices: &Idx3<usize>) -> F { self.values[[indices[X], indices[Y], indices[Z]]] }
 
     /// Returns the 3D shape of the grid.
     pub fn shape(&self) -> &In3D<usize> { self.grid.shape() }
@@ -348,6 +351,15 @@ where F: BFloat,
         In3D::new(self.values(X), self.values(Y), self.values(Z))
     }
 
+    /// Returns the field vector at the given 3D index.
+    pub fn vector(&self, indices: &Idx3<usize>) -> Vec3<F> {
+        Vec3::new(
+            self.values(X)[[indices[X], indices[Y], indices[Z]]],
+            self.values(Y)[[indices[X], indices[Y], indices[Z]]],
+            self.values(Z)[[indices[X], indices[Y], indices[Z]]]
+        )
+    }
+
     /// Returns a reference to the coordinate locations specifying
     /// where in the grid cell the values of the given component are defined.
     pub fn locations(&self, dim: Dim3) -> &In3D<CoordLocation> { self.components[dim].locations() }
@@ -488,6 +500,9 @@ where F: BFloat,
     /// Returns a reference to the 2D array of field values.
     pub fn values(&self) -> &Array2<F> { &self.values }
 
+    /// Returns the field value at the given 2D index.
+    pub fn value(&self, indices: &Idx2<usize>) -> F { self.values[[indices[Dim2::X], indices[Dim2::Y]]] }
+
     /// Returns a reference to the coordinate locations specifying
     /// where in the grid cell the values are defined.
     pub fn locations(&self) -> &In2D<CoordLocation> { &self.locations }
@@ -575,6 +590,14 @@ where F: BFloat,
         In2D::new(self.values(Dim2::X), self.values(Dim2::Y))
     }
 
+    /// Returns the field vector at the given 2D index.
+    pub fn vector(&self, indices: &Idx2<usize>) -> Vec2<F> {
+        Vec2::new(
+            self.values(Dim2::X)[[indices[Dim2::X], indices[Dim2::Y]]],
+            self.values(Dim2::Y)[[indices[Dim2::X], indices[Dim2::Y]]]
+        )
+    }
+
     /// Returns a reference to the coordinate locations specifying
     /// where in the grid cell the values of the given component are defined.
     pub fn locations(&self, dim: Dim2) -> &In2D<CoordLocation> { self.components[dim].locations() }
@@ -637,6 +660,15 @@ where F: BFloat,
     /// Returns a reference to the 3D array of field values for each component.
     pub fn all_values(&self) -> In3D<&Array2<F>> {
         In3D::new(self.values(X), self.values(Y), self.values(Z))
+    }
+
+    /// Returns the field vector at the given 3D index.
+    pub fn vector(&self, indices: &Idx2<usize>) -> Vec3<F> {
+        Vec3::new(
+            self.values(X)[[indices[Dim2::X], indices[Dim2::Y]]],
+            self.values(Y)[[indices[Dim2::X], indices[Dim2::Y]]],
+            self.values(Y)[[indices[Dim2::X], indices[Dim2::Y]]]
+        )
     }
 
     /// Returns a reference to the 2D array of field values for the
