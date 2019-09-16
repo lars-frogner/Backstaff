@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 from fields import Coords3, Coords2, ScalarField2
 from field_lines import FieldLine3, FieldLineSet3
+from electron_beams import ElectronBeam, ElectronBeamSwarm
 
 scripts_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(scripts_path)
@@ -41,10 +42,35 @@ def read_3d_field_line_set_from_combined_pickles(file_path):
     return field_line_set
 
 
-def __parse_scalarfield2(data):
-    coords = __parse_coords2(data['coords'])
-    values = __parse_ndarray(data['values'])
-    return ScalarField2(coords, values)
+def read_electron_beam_swarm_from_single_pickle(file_path):
+    with file_path.open(mode='rb') as f:
+        data = pickle.load(f)
+    return __parse_electronbeamswarm(data)
+
+
+def read_electron_beam_swarm_from_combined_pickles(file_path):
+    electron_beam_swarm = ElectronBeamSwarm([])
+    with file_path.open(mode='rb') as f:
+        while True:
+            try:
+                data = pickle.load(f)
+            except EOFError:
+                break
+            electron_beam = __parse_electronbeam(data)
+            electron_beam_swarm.insert(electron_beam)
+    return electron_beam_swarm
+
+
+def __parse_electronbeamswarm(data):
+    return ElectronBeamSwarm([__parse_electronbeam(d) for d in data['beams']])
+
+def __parse_electronbeam(data):
+    trajectory = __parse_vec_of_vec3(data['trajectory'])
+    initial_scalar_values = data['initial_scalar_values']
+    initial_vector_values = __parse_map_of_vec3(data['initial_vector_values'])
+    evolving_scalar_values = __parse_map_of_vec_of_float(data['evolving_scalar_values'])
+    evolving_vector_values = __parse_map_of_vec_of_vec3(data['evolving_vector_values'])
+    return ElectronBeam(trajectory, initial_scalar_values, initial_vector_values, evolving_scalar_values, evolving_vector_values)
 
 def __parse_fieldlineset3(data):
     return FieldLineSet3([__parse_fieldline3(d) for d in data['field_lines']])
@@ -55,6 +81,11 @@ def __parse_fieldline3(data):
     vector_values = __parse_map_of_vec_of_float(data['vector_values'])
     return FieldLine3(positions, scalar_values, vector_values)
 
+def __parse_scalarfield2(data):
+    coords = __parse_coords2(data['coords'])
+    values = __parse_ndarray(data['values'])
+    return ScalarField2(coords, values)
+
 def __parse_ndarray(data):
     return np.asfarray(data['data']).reshape(data['dim'])
 
@@ -63,6 +94,9 @@ def __parse_coords2(data):
 
 def __parse_vec_of_float(data):
     return np.asfarray(data)
+
+def __parse_map_of_vec3(data):
+    return {name: np.asfarray(vec3) for name, vec3 in data.items()}
 
 def __parse_vec_of_vec3(data):
     return Coords3(*list(zip(*data)))
