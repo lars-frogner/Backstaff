@@ -2,6 +2,7 @@
 
 pub mod power_law;
 
+use std::collections::HashMap;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
@@ -40,6 +41,12 @@ pub trait Distribution {
     ///
     /// Returns `None` if the direction is not sufficiently well-defined.
     fn determine_propagation_sense(&self, magnetic_field_direction: &Vec3<fdt>) -> PropagationSense;
+
+    /// Creates a hash map containing scalar-valued properties of the distribution.
+    fn scalar_properties(&self) -> HashMap<String, feb>;
+
+    /// Creates a hash map containing vector-valued properties of the distribution.
+    fn vector_properties(&self) -> HashMap<String, Vec3<feb>>;
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.

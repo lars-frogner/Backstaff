@@ -2,6 +2,7 @@
 
 pub mod acceleration;
 
+use std::collections::HashMap;
 use crate::constants::AMU;
 use crate::units::solar::{U_L, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
@@ -192,6 +193,19 @@ impl Distribution for PowerLawDistribution {
         } else {
             None
         }
+    }
+
+    fn scalar_properties(&self) -> HashMap<String, feb> {
+        let mut properties = HashMap::new();
+        properties.insert("total_power_density".to_string(), self.properties.total_power_density);
+        properties.insert("lower_cutoff_energy".to_string(), self.properties.lower_cutoff_energy);
+        properties
+    }
+
+    fn vector_properties(&self) -> HashMap<String, Vec3<feb>> {
+        let mut properties = HashMap::new();
+        properties.insert("acceleration_direction".to_string(), Vec3::from(&self.properties.acceleration_direction));
+        properties
     }
 
     fn propagate<G, I>(&mut self, snapshot: &SnapshotCacher3<G>, interpolator: &I, displacement: &Vec3<ftr>, new_position: &Point3<ftr>) -> PropagationResult
