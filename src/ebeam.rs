@@ -312,7 +312,7 @@ impl Serialize for ElectronBeam {
         s.serialize_field("initial_scalar_values", &self.initial_scalar_values)?;
         s.serialize_field("initial_vector_values", &self.initial_vector_values)?;
         s.serialize_field("evolving_scalar_values", &self.evolving_scalar_values)?;
-        s.serialize_field("evolving_vector_values", &self.evolving_scalar_values)?;
+        s.serialize_field("evolving_vector_values", &self.evolving_vector_values)?;
         s.end()
     }
 }
