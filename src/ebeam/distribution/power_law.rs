@@ -2,7 +2,8 @@
 
 pub mod acceleration;
 
-use crate::units::solar::{U_L, U_L3};
+use crate::constants::AMU;
+use crate::units::solar::{U_L, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
@@ -46,8 +47,8 @@ pub struct PowerLawDistributionProperties {
     acceleration_position: Point3<fdt>,
     /// Direction of acceleration of the electrons.
     acceleration_direction: Vec3<fdt>,
-    /// Total electron number density at the acceleration site [electrons/cm^3].
-    electron_density: feb
+    /// Total mass density at the acceleration site [g/cm^3].
+    mass_density: feb
 }
 
 /// A non-thermal power-law distribution over electron energy,
@@ -74,6 +75,14 @@ pub struct PowerLawDistribution {
 }
 
 impl PowerLawDistribution {
+    /// Fraction of a mass of plasma assumed to be made up of hydrogen.
+    const HYDROGEN_MASS_FRACTION: feb = 0.735;
+
+    /// Conversion factor from mass density [g] to electron density [1/cm^3],
+    /// assuming a fully ionized plasma with no metals and the hard-coded value for
+    /// the hydrogen mass fraction.
+    const MASS_DENSITY_TO_ELECTRON_DENSITY: feb = (1.0 + Self::HYDROGEN_MASS_FRACTION)/(2.0*AMU);
+
     /// 2*pi*(classical electron radius)^2 [cm^2]
     const COLLISION_SCALE: feb = 4.989_344e-25;
 
@@ -112,11 +121,11 @@ impl PowerLawDistribution {
         };
 
         let acceleration_alignment_threshold = feb::cos(config.min_acceleration_angle.to_radians()) as fdt;
-
         let mean_energy = properties.lower_cutoff_energy*(properties.delta - 1.0)/(properties.delta - 2.0);
+        let electron_density = Self::compute_electron_density(properties.mass_density);
 
         let estimated_depletion_distance = Self::estimate_depletion_distance(
-            properties.electron_density,
+            electron_density,
             properties.delta,
             pitch_angle_factor,
             properties.total_power_density,
@@ -140,6 +149,10 @@ impl PowerLawDistribution {
             collisional_depth,
             remaining_power_density
         })
+    }
+
+    fn compute_electron_density(mass_density: feb) -> feb {
+        mass_density*Self::MASS_DENSITY_TO_ELECTRON_DENSITY
     }
 
     fn estimate_depletion_distance(electron_density: feb, delta: feb, pitch_angle_factor: feb, total_power_density: feb, lower_cutoff_energy: feb, mean_energy: feb, depletion_power_density: feb) -> feb {
@@ -186,13 +199,13 @@ impl Distribution for PowerLawDistribution {
           I: Interpolator3
     {
         let mut deposition_position = new_position - displacement*0.5;
-        let electron_density_field = snapshot.cached_scalar_field("nel");
+        let mass_density_field = snapshot.cached_scalar_field("r");
 
-        let electron_density = interpolator.interp_scalar_field(electron_density_field, &Point3::from(&deposition_position))
-                                           .unwrap_and_update_position(&mut deposition_position);
+        let mass_density = interpolator.interp_scalar_field(mass_density_field, &Point3::from(&deposition_position))
+                                       .unwrap_and_update_position(&mut deposition_position);
 
-        let electron_density = feb::from(electron_density)/U_L3; // [electrons/cm^3]
-        let step_length = displacement.length()*U_L;             // [cm]
+        let electron_density = Self::compute_electron_density(feb::from(mass_density)*U_R); // [electrons/cm^3]
+        let step_length = displacement.length()*U_L;                                        // [cm]
 
         let collisional_depth_increase = Self::compute_collisional_depth_increase(
             electron_density,

@@ -4,7 +4,7 @@ use std::io;
 use std::sync::Arc;
 use nrfind;
 use crate::constants::{KBOLTZMANN, MC2_ELECTRON, KEV_TO_ERG};
-use crate::units::solar::{U_T, U_E, U_L3};
+use crate::units::solar::{U_T, U_E, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::geometry::{Dim3, In3D, Vec3, Point3};
 use crate::grid::Grid3;
@@ -72,7 +72,7 @@ impl SimplePowerLawAccelerator {
         }
         let beta = KEV_TO_ERG/(KBOLTZMANN*temperature);                              // [1/keV]
         let thermal_fraction = KEV_TO_ERG*(3.0/2.0)*electron_density*feb::sqrt(beta)
-                               /(total_energy_density*(self.delta - 1.0));         // [1/keV^(3/2)]
+                               /(total_energy_density*(self.delta - 1.0));           // [1/keV^(3/2)]
 
         let difference = |energy| thermal_fraction*energy*feb::exp(-beta*energy) - 1.0;
         let derivative = |energy| thermal_fraction*(1.0 - beta*energy)*feb::exp(-beta*energy);
@@ -166,8 +166,8 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
 
     fn prepare_snapshot_for_generation<G: Grid3<fdt>>(snapshot: &mut SnapshotCacher3<G>) -> io::Result<()> {
+        snapshot.cache_scalar_field("r")?;
         snapshot.cache_scalar_field("tg")?;
-        snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("qjoule")?;
         snapshot.cache_vector_field("e")
     }
@@ -192,8 +192,9 @@ impl Accelerator for SimplePowerLawAccelerator {
         let temperature = feb::from(interpolator.interp_scalar_field(snapshot.cached_scalar_field("tg"), position).expect_inside());
         assert!(temperature > 0.0, "Temperature must be larger than zero.");
 
-        let electron_density = interpolator.interp_scalar_field(snapshot.cached_scalar_field("nel"), position).expect_inside();
-        let electron_density = feb::from(electron_density)/U_L3; // [electrons/cm^3]
+        let mass_density = interpolator.interp_scalar_field(snapshot.cached_scalar_field("r"), position).expect_inside();
+        let mass_density = feb::from(mass_density)*U_R;                                      // [g/cm^3]
+        let electron_density = PowerLawDistribution::compute_electron_density(mass_density); // [electrons/cm^3]
         assert!(electron_density > 0.0, "Electron density must be larger than zero.");
 
         let lower_cutoff_energy = match self.estimate_cutoff_energy_from_thermal_intersection(temperature, electron_density, total_energy_density) {
@@ -213,7 +214,7 @@ impl Accelerator for SimplePowerLawAccelerator {
             lower_cutoff_energy,
             acceleration_position: position.clone(),
             acceleration_direction,
-            electron_density
+            mass_density
         };
         PowerLawDistribution::new(self.distribution_config.clone(), distribution_properties)
     }
