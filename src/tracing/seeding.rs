@@ -9,6 +9,9 @@ use super::ftr;
 
 /// Defines the properties of a 3D seed point generator.
 pub trait Seeder3: IntoIterator<Item = Point3<ftr>> + IntoParallelIterator<Item = Point3<ftr>> {
+    /// Returns the number of seed points that will be produced by the seeder.
+    fn number_of_points(&self) -> usize;
+
     /// Filters the seed points using the given predicate.
     fn retain<P>(&mut self, predicate: P)
     where P: FnMut(&Point3<ftr>) -> bool;
