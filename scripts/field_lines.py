@@ -1,10 +1,6 @@
 import numpy as np
 from fields import Coords3
 
-grid_bounds = ((-0.015625, 23.98438),
-               (-0.015625, 23.98438),
-               (-14.33274, 2.525689))
-
 
 class FieldLine3:
     def __init__(self, positions, scalar_values, vector_values):
@@ -55,6 +51,10 @@ class FieldLineSet3:
 if __name__ == "__main__":
     import reading
     from pathlib import Path
+
+    grid_bounds = ((-0.015625, 23.98438),
+                   (-0.015625, 23.98438),
+                   (-14.33274, 2.525689))
 
     field_line_set = reading.read_3d_field_line_set_from_combined_pickles(Path(reading.data_path, 'field_line_set.pickle'))
 
