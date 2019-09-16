@@ -225,6 +225,54 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         Some(wrapped_point)
     }
 
+    /// Given a 1D index that may be outside the grid boundaries for the given dimension,
+    /// returns a new index wrapped around the boundaries to the inside of the grid,
+    /// or the index of the closest grid cell if the index is outside
+    /// a non-periodic boundary.
+    fn wrap_idx_to_closest(&self, dim: Dim3, idx: isize) -> usize {
+        let length = self.shape()[dim];
+        if self.is_periodic(dim) {
+            if idx < 0 {
+                wrap_idx_lower(length, idx)
+            } else if (idx as usize) >= length {
+                wrap_idx_upper(length, idx)
+            } else {
+                idx as usize
+            }
+        } else if idx < 0 {
+            0
+        } else if (idx as usize) >= length {
+            length - 1
+        } else {
+            idx as usize
+        }
+    }
+
+    /// Creates a vector containing 1D indices running from the given lower
+    /// (inclusive) to upper (exclusive) index, wrapping around periodic
+    /// boundaries and truncating the range if crossing non-periodic
+    /// boundaries.
+    fn create_idx_range_list<I>(&self, dim: Dim3, lower_idx: I, upper_idx: I) -> Vec<usize>
+    where I: num::Integer + num::cast::ToPrimitive
+    {
+        debug_assert!(upper_idx >= lower_idx);
+
+        let lower_idx = I::to_isize(&lower_idx).expect("Conversion failed");
+        let upper_idx = I::to_isize(&upper_idx).expect("Conversion failed");
+
+        let wrapped_lower_idx = self.wrap_idx_to_closest(dim, lower_idx);
+        let wrapped_upper_idx = self.wrap_idx_to_closest(dim, upper_idx - 1) + 1;
+
+        if wrapped_upper_idx >= wrapped_lower_idx {
+            (wrapped_lower_idx..wrapped_upper_idx).collect()
+        } else {
+            let length = self.shape()[dim];
+            let mut index_list: Vec<_> = (wrapped_lower_idx..length).collect();
+            index_list.append(&mut (0..wrapped_upper_idx).collect());
+            index_list
+        }
+    }
+
     /// Slices the grid across the x-axis and returns the corresponding 2D grid.
     fn slice_across_x(&self) -> Self::XSliceGrid {
         let centers = self.centers();
@@ -578,4 +626,14 @@ fn wrap_coordinate_lower<F: BFloat>(upper_bound: F, extent: F, coord: F) -> F {
 
 fn wrap_coordinate_upper<F: BFloat>(lower_bound: F, extent: F, coord: F) -> F {
     F::max(lower_bound + ((coord - lower_bound) % extent), lower_bound)
+}
+
+fn wrap_idx_lower(length: usize, idx: isize) -> usize {
+    debug_assert!(idx < 0);
+    length - (((length as isize - idx) as usize) % length)
+}
+
+fn wrap_idx_upper(length: usize, idx: isize) -> usize {
+    debug_assert!(idx >= (length as isize));
+    (idx as usize) % length
 }
