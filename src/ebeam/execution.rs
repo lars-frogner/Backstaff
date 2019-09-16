@@ -90,16 +90,12 @@ impl ElectronBeamSimulator {
 
     /// Generates a new set of electron beams using the current parameter values.
     pub fn generate_beams(&self, verbose: bool) -> Option<ElectronBeamSwarm> {
-        if verbose { println!("Reading snapshot.."); }
         let mut snapshot = self.create_cacher();
-
         if verbose { println!("Finding acceleration sites.."); }
         let seeder = self.create_seeder(&mut snapshot);
-
-        if verbose { println!("Computing electron distributions.."); }
+        if verbose { println!("Found {} acceleration sites", seeder.number_of_points()); }
         let accelerator = self.create_accelerator();
-
-        if verbose { println!("Propagating beams.."); }
+        if verbose { println!("Generating and propagating electron distributions.."); }
         let interpolator = self.create_interpolator();
         let beams = match self.rkf_stepper_type {
             RKFStepperType::RKF23 => {
