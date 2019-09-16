@@ -73,13 +73,17 @@ impl SimplePowerLawAccelerator {
         let beta = KEV_TO_ERG/(KBOLTZMANN*temperature);                              // [1/keV]
         let thermal_fraction = KEV_TO_ERG*(3.0/2.0)*electron_density*feb::sqrt(beta)
                                /(total_energy_density*(self.delta - 1.0));           // [1/keV^(3/2)]
+        let ln_thermal_fraction = feb::ln(thermal_fraction);
 
-        let difference = |energy| thermal_fraction*energy*feb::exp(-beta*energy) - 1.0;
-        let derivative = |energy| thermal_fraction*(1.0 - beta*energy)*feb::exp(-beta*energy);
+        let difference = |energy| ln_thermal_fraction + feb::ln(energy) - beta*energy;
+        let derivative = |energy| 1.0/energy - beta;
+
+        // Make sure the initial guess never results in a positive initial derivative
+        let initial_guess = feb::max(0.9/beta, self.config.initial_cutoff_energy_guess);
 
         let intersection_energy = match nrfind::find_root(&difference,
                                                           &derivative,
-                                                          self.config.initial_cutoff_energy_guess,
+                                                          initial_guess,
                                                           self.config.acceptable_root_finding_error,
                                                           self.config.max_root_finding_iterations)
         {
