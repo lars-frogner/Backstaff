@@ -154,6 +154,26 @@ impl<L: FieldLine3> FieldLineSet3<L> {
         }
     }
 
+    /// Extracts and stores the value of the given scalar field at each field line point for each field line.
+    pub fn extract_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    where L: Send,
+          F: BFloat,
+          G: Grid3<F>,
+          I: Interpolator3
+    {
+        self.field_lines.par_iter_mut().for_each(|field_line| field_line.extract_scalars(field, interpolator));
+    }
+
+    /// Extracts and stores the value of the given vector field at each field line point for each field line.
+    pub fn extract_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    where L: Send,
+          F: BFloat,
+          G: Grid3<F>,
+          I: Interpolator3
+    {
+        self.field_lines.par_iter_mut().for_each(|field_line| field_line.extract_vectors(field, interpolator));
+    }
+
     /// Serializes the field line data into pickle format and saves at the given path.
     ///
     /// All the field line data is saved as a single pickled structure.
