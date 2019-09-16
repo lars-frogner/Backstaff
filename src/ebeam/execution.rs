@@ -33,8 +33,6 @@ pub struct ElectronBeamSimulator {
     pub distribution_config: PowerLawDistributionConfig,
     /// Configuration parameters for the acceleration model.
     pub accelerator_config: SimplePowerLawAccelerationConfig,
-    /// Physical extent of the acceleration site [Mm].
-    pub acceleration_site_extent: fdt,
     /// Duration of the acceleration events [s].
     pub acceleration_duration: feb,
     /// Fraction of the released reconnection energy going into acceleration of electrons.
@@ -62,7 +60,6 @@ impl ElectronBeamSimulator {
         let maximum_acceleration_depth         = Self::read_maximum_acceleration_depth(&reader);
         let distribution_config                = Self::read_distribution_config(&reader);
         let accelerator_config                 = Self::read_accelerator_config(&reader);
-        let acceleration_site_extent           = Self::read_acceleration_site_extent(&reader);
         let acceleration_duration              = Self::read_acceleration_duration(&reader);
         let particle_energy_fraction           = Self::read_particle_energy_fraction(&reader);
         let power_law_delta                    = Self::read_power_law_delta(&reader);
@@ -78,7 +75,6 @@ impl ElectronBeamSimulator {
             maximum_acceleration_depth,
             distribution_config,
             accelerator_config,
-            acceleration_site_extent,
             acceleration_duration,
             particle_energy_fraction,
             power_law_delta,
@@ -165,13 +161,6 @@ impl ElectronBeamSimulator {
             acceptable_root_finding_error,
             max_root_finding_iterations
         }
-    }
-
-    fn read_acceleration_site_extent<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
-        // Online version always uses an extent of 5 grid cells
-        reader.get_numerical_param::<fdt>("dx")
-              .unwrap_or_else(|err| panic!("{}", err))
-              *5.0
     }
 
     fn read_acceleration_duration<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
@@ -266,7 +255,6 @@ impl ElectronBeamSimulator {
         SimplePowerLawAccelerator::new(
             self.distribution_config.clone(),
             self.accelerator_config.clone(),
-            self.acceleration_site_extent,
             self.acceleration_duration,
             self.particle_energy_fraction,
             self.power_law_delta,

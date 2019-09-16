@@ -1,14 +1,12 @@
 //! Simple model for acceleration of non-thermal electron beams described by power-law distributions.
 
 use std::io;
-use std::sync::Arc;
 use nrfind;
 use crate::constants::{KBOLTZMANN, MC2_ELECTRON, KEV_TO_ERG};
 use crate::units::solar::{U_T, U_E, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::geometry::{Dim3, In3D, Vec3, Point3};
+use crate::geometry::{Dim3, Vec3, Point3, Idx3};
 use crate::grid::Grid3;
-use crate::grid::regular::RegularGrid3;
 use crate::interpolation::Interpolator3;
 use super::super::{PitchAngleDistribution, PowerLawDistributionConfig, PowerLawDistributionProperties, PowerLawDistribution};
 use super::super::super::super::feb;
@@ -33,7 +31,6 @@ pub struct SimplePowerLawAccelerationConfig {
 pub struct SimplePowerLawAccelerator {
     distribution_config: PowerLawDistributionConfig,
     config: SimplePowerLawAccelerationConfig,
-    extent: fdt,
     duration: feb,
     particle_energy_fraction: feb,
     delta: feb,
@@ -41,8 +38,9 @@ pub struct SimplePowerLawAccelerator {
 }
 
 impl SimplePowerLawAccelerator {
-    /// Spatial resolution of the acceleration event (number of points in each direction).
-    const RESOLUTION: usize = 5;
+    /// How many adjacent grid cells in each direction to include when
+    /// computing the average electric field around the acceleration site.
+    const ELECTRIC_FIELD_PROBING_SPAN: isize = 2;
 
     fn compute_total_power_density<G, I>(&self, snapshot: &SnapshotCacher3<G>, interpolator: &I, position: &Point3<fdt>) -> feb
     where G: Grid3<fdt>,
@@ -95,18 +93,33 @@ impl SimplePowerLawAccelerator {
         Some(lower_cutoff_energy)
     }
 
-    fn determine_acceleration_direction<G, I>(&self, snapshot: &SnapshotCacher3<G>, interpolator: &I, position: &Point3<fdt>) -> Option<Vec3<fdt>>
-    where G: Grid3<fdt>,
-          I: Interpolator3
+    fn determine_acceleration_direction<G>(&self, snapshot: &SnapshotCacher3<G>, position: &Point3<fdt>) -> Option<Vec3<fdt>>
+    where G: Grid3<fdt>
     {
-        let grid = Arc::new(self.construct_grid(position));
-        let local_electric_field = snapshot.cached_vector_field("e").resampled_to_grid(grid, interpolator);
+        let electric_field = snapshot.cached_vector_field("e");
+        let grid = electric_field.grid();
 
-        let total_electric_vector = Vec3::new(
-            local_electric_field.values(X).sum(),
-            local_electric_field.values(Y).sum(),
-            local_electric_field.values(Z).sum()
+        let center_grid_cell: Idx3<isize> = Idx3::from(&grid.find_grid_cell(position).expect_inside());
+        let lower_indices = Idx3::new(
+            center_grid_cell[X] - Self::ELECTRIC_FIELD_PROBING_SPAN,
+            center_grid_cell[Y] - Self::ELECTRIC_FIELD_PROBING_SPAN,
+            center_grid_cell[Z] - Self::ELECTRIC_FIELD_PROBING_SPAN
         );
+        let upper_indices = Idx3::new(
+            center_grid_cell[X] + Self::ELECTRIC_FIELD_PROBING_SPAN + 1,
+            center_grid_cell[Y] + Self::ELECTRIC_FIELD_PROBING_SPAN + 1,
+            center_grid_cell[Z] + Self::ELECTRIC_FIELD_PROBING_SPAN + 1
+        );
+
+        let mut total_electric_vector = Vec3::zero();
+
+        for &k in grid.create_idx_range_list(Z, lower_indices[Z], upper_indices[Z]).iter() {
+            for &j in grid.create_idx_range_list(Y, lower_indices[Y], upper_indices[Y]).iter() {
+                for &i in grid.create_idx_range_list(X, lower_indices[X], upper_indices[X]).iter() {
+                    total_electric_vector = total_electric_vector + electric_field.vector(&Idx3::new(i, j, k));
+                }
+            }
+        }
         let squared_total_electric_vector = total_electric_vector.squared_length();
 
         if squared_total_electric_vector > std::f32::EPSILON {
@@ -115,15 +128,6 @@ impl SimplePowerLawAccelerator {
         } else {
             None
         }
-    }
-
-    fn construct_grid(&self, position: &Point3<fdt>) -> RegularGrid3<fdt> {
-        let shape = In3D::same(Self::RESOLUTION);
-        let extent_vec = Vec3::equal_components(0.5*self.extent);
-        let lower_bounds = position - &extent_vec;
-        let upper_bounds = position + &extent_vec;
-        let is_periodic = In3D::same(false);
-        RegularGrid3::from_bounds(shape, lower_bounds.to_vec3(), upper_bounds.to_vec3(), is_periodic)
     }
 }
 
@@ -134,7 +138,6 @@ impl SimplePowerLawAccelerator {
     ///
     /// - `distribution_config`: Configuration parameters for the distribution.
     /// - `config`: Configuration parameters for the accelerator.
-    /// - `extent`: Spatial extent of the acceleration event [cm].
     /// - `duration`: Duration of the acceleration events [s].
     /// - `particle_energy_fraction`: Fraction of the total energy release going into acceleration of non-thermal particles.
     /// - `delta`: Exponent of the inverse power-law.
@@ -143,11 +146,10 @@ impl SimplePowerLawAccelerator {
     /// # Returns
     ///
     /// A new `SimplePowerLawAccelerator`.
-    pub fn new(distribution_config: PowerLawDistributionConfig, config: SimplePowerLawAccelerationConfig, extent: fdt, duration: feb, particle_energy_fraction: feb, delta: feb, pitch_angle_distribution: PitchAngleDistribution) -> Self {
+    pub fn new(distribution_config: PowerLawDistributionConfig, config: SimplePowerLawAccelerationConfig, duration: feb, particle_energy_fraction: feb, delta: feb, pitch_angle_distribution: PitchAngleDistribution) -> Self {
         distribution_config.validate();
         config.validate();
 
-        assert!(extent > 0.0, "Extent must be larger than zero.");
         assert!(duration >= 0.0, "Duration must be larger than or equal to zero.");
         assert!(particle_energy_fraction >= 0.0, "Particle energy fraction must be larger than or equal to zero.");
         assert!(delta > 2.0, "Power-law delta must be larger than two.");
@@ -155,7 +157,6 @@ impl SimplePowerLawAccelerator {
         SimplePowerLawAccelerator{
             distribution_config,
             config,
-            extent,
             duration,
             particle_energy_fraction,
             delta,
@@ -204,7 +205,7 @@ impl Accelerator for SimplePowerLawAccelerator {
             None => return None
         };
 
-        let acceleration_direction = match self.determine_acceleration_direction(snapshot, interpolator, position) {
+        let acceleration_direction = match self.determine_acceleration_direction(snapshot, position) {
             Some(direction) => direction,
             None => return None
         };
