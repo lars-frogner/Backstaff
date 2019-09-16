@@ -19,6 +19,8 @@ pub trait Seeder3: IntoIterator<Item = Point3<ftr>> + IntoParallelIterator<Item 
 
 // Let a vector of points work as a seeder.
 impl Seeder3 for Vec<Point3<ftr>> {
+    fn number_of_points(&self) -> usize { self.len() }
+
     fn retain<P>(&mut self, predicate: P)
     where P: FnMut(&Point3<ftr>) -> bool
     {
