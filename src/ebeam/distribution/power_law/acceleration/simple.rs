@@ -5,9 +5,8 @@ use nrfind;
 use crate::constants::{KBOLTZMANN, MC2_ELECTRON, KEV_TO_ERG};
 use crate::units::solar::{U_T, U_E, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::geometry::{Dim3, Vec3, Point3, Idx3};
+use crate::geometry::{Dim3, Vec3, Idx3};
 use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
 use super::super::{PitchAngleDistribution, PowerLawDistributionConfig, PowerLawDistributionProperties, PowerLawDistribution};
 use super::super::super::super::feb;
 use super::super::super::super::accelerator::Accelerator;
@@ -42,12 +41,11 @@ impl SimplePowerLawAccelerator {
     /// computing the average electric field around the acceleration site.
     const ELECTRIC_FIELD_PROBING_SPAN: isize = 2;
 
-    fn compute_total_power_density<G, I>(&self, snapshot: &SnapshotCacher3<G>, interpolator: &I, position: &Point3<fdt>) -> feb
-    where G: Grid3<fdt>,
-          I: Interpolator3
+    fn compute_total_power_density<G>(&self, snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
+    where G: Grid3<fdt>
     {
         let joule_heating_field = snapshot.cached_scalar_field("qjoule");
-        let joule_heating = feb::from(interpolator.interp_scalar_field(joule_heating_field, position).expect_inside());
+        let joule_heating = feb::from(joule_heating_field.value(indices));
         let joule_heating = feb::max(0.0, joule_heating*U_E/U_T); // [erg/(cm^3 s)]
 
         self.particle_energy_fraction*joule_heating
@@ -93,22 +91,21 @@ impl SimplePowerLawAccelerator {
         Some(lower_cutoff_energy)
     }
 
-    fn determine_acceleration_direction<G>(&self, snapshot: &SnapshotCacher3<G>, position: &Point3<fdt>) -> Option<Vec3<fdt>>
+    fn determine_acceleration_direction<G>(&self, snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> Option<Vec3<fdt>>
     where G: Grid3<fdt>
     {
         let electric_field = snapshot.cached_vector_field("e");
         let grid = electric_field.grid();
 
-        let center_grid_cell: Idx3<isize> = Idx3::from(&grid.find_grid_cell(position).expect_inside());
         let lower_indices = Idx3::new(
-            center_grid_cell[X] - Self::ELECTRIC_FIELD_PROBING_SPAN,
-            center_grid_cell[Y] - Self::ELECTRIC_FIELD_PROBING_SPAN,
-            center_grid_cell[Z] - Self::ELECTRIC_FIELD_PROBING_SPAN
+            indices[X] as isize - Self::ELECTRIC_FIELD_PROBING_SPAN,
+            indices[Y] as isize - Self::ELECTRIC_FIELD_PROBING_SPAN,
+            indices[Z] as isize - Self::ELECTRIC_FIELD_PROBING_SPAN
         );
         let upper_indices = Idx3::new(
-            center_grid_cell[X] + Self::ELECTRIC_FIELD_PROBING_SPAN + 1,
-            center_grid_cell[Y] + Self::ELECTRIC_FIELD_PROBING_SPAN + 1,
-            center_grid_cell[Z] + Self::ELECTRIC_FIELD_PROBING_SPAN + 1
+            indices[X] as isize + Self::ELECTRIC_FIELD_PROBING_SPAN + 1,
+            indices[Y] as isize + Self::ELECTRIC_FIELD_PROBING_SPAN + 1,
+            indices[Z] as isize + Self::ELECTRIC_FIELD_PROBING_SPAN + 1
         );
 
         let mut total_electric_vector = Vec3::zero();
@@ -182,21 +179,19 @@ impl Accelerator for SimplePowerLawAccelerator {
         snapshot.cache_vector_field("b")
     }
 
-    fn generate_distribution<G, I>(&self, snapshot: &SnapshotCacher3<G>, interpolator: &I, position: &Point3<fdt>) -> Option<Self::DistributionType>
-    where G: Grid3<fdt>,
-          I: Interpolator3
+    fn generate_distribution<G>(&self, snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> Option<Self::DistributionType>
+    where G: Grid3<fdt>
     {
-        let total_power_density = self.compute_total_power_density(snapshot, interpolator, &position);
+        let total_power_density = self.compute_total_power_density(snapshot, indices);
         if total_power_density < self.config.min_total_power_density {
             return None
         }
         let total_energy_density = total_power_density*self.duration;
 
-        let temperature = feb::from(interpolator.interp_scalar_field(snapshot.cached_scalar_field("tg"), position).expect_inside());
+        let temperature = feb::from(snapshot.cached_scalar_field("tg").value(indices));
         assert!(temperature > 0.0, "Temperature must be larger than zero.");
 
-        let mass_density = interpolator.interp_scalar_field(snapshot.cached_scalar_field("r"), position).expect_inside();
-        let mass_density = feb::from(mass_density)*U_R;                                      // [g/cm^3]
+        let mass_density = feb::from(snapshot.cached_scalar_field("r").value(indices))*U_R;  // [g/cm^3]
         let electron_density = PowerLawDistribution::compute_electron_density(mass_density); // [electrons/cm^3]
         assert!(electron_density > 0.0, "Electron density must be larger than zero.");
 
@@ -205,7 +200,7 @@ impl Accelerator for SimplePowerLawAccelerator {
             None => return None
         };
 
-        let acceleration_direction = match self.determine_acceleration_direction(snapshot, position) {
+        let acceleration_direction = match self.determine_acceleration_direction(snapshot, indices) {
             Some(direction) => direction,
             None => return None
         };
@@ -215,7 +210,7 @@ impl Accelerator for SimplePowerLawAccelerator {
             pitch_angle_distribution: self.pitch_angle_distribution,
             total_power_density,
             lower_cutoff_energy,
-            acceleration_position: position.clone(),
+            acceleration_position: snapshot.reader().grid().centers().point(indices),
             acceleration_direction,
             mass_density
         };

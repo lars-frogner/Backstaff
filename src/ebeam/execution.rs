@@ -8,8 +8,7 @@ use crate::geometry::Dim3;
 use crate::grid::Grid3;
 use crate::grid::hor_regular::HorRegularGrid3;
 use crate::interpolation::poly_fit::PolyFitInterpolator3;
-use crate::tracing::ftr;
-use crate::tracing::seeding::Seeder3;
+use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::seeding::criterion::CriterionSeeder3;
 use crate::tracing::stepping::rkf::{RKFStepperType, RKFStepperConfig};
 use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
@@ -26,9 +25,9 @@ pub struct ElectronBeamSimulator {
     /// Beams will be generated where the reconnection factor value is larger than this.
     pub reconnection_factor_threshold: fdt,
     /// Smallest depth at which electrons will be accelerated [Mm].
-    pub minimum_acceleration_depth: ftr,
+    pub minimum_acceleration_depth: fdt,
     /// Largest depth at which electrons will be accelerated [Mm].
-    pub maximum_acceleration_depth: ftr,
+    pub maximum_acceleration_depth: fdt,
     /// Configuration parameters for the electron distribution model.
     pub distribution_config: PowerLawDistributionConfig,
     /// Configuration parameters for the acceleration model.
@@ -89,7 +88,7 @@ impl ElectronBeamSimulator {
         let mut snapshot = self.create_cacher();
         if verbose { println!("Finding acceleration sites.."); }
         let seeder = self.create_seeder(&mut snapshot);
-        if verbose { println!("Found {} acceleration sites", seeder.number_of_points()); }
+        if verbose { println!("Found {} acceleration sites", seeder.number_of_indices()); }
         let accelerator = self.create_accelerator();
         if verbose { println!("Generating and propagating electron distributions.."); }
         let interpolator = self.create_interpolator();
@@ -117,11 +116,11 @@ impl ElectronBeamSimulator {
         reader.get_numerical_param("krec_lim").unwrap_or_else(|err| panic!("{}", err))
     }
 
-    fn read_minimum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> ftr {
+    fn read_minimum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
         reader.get_numerical_param("z_rec_ulim").unwrap_or_else(|err| panic!("{}", err))
     }
 
-    fn read_maximum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> ftr {
+    fn read_maximum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
         reader.get_numerical_param("z_rec_llim").unwrap_or_else(|err| panic!("{}", err))
     }
 
@@ -245,8 +244,10 @@ impl ElectronBeamSimulator {
 
         snapshot.drop_scalar_field(reconnection_factor_variable);
 
-        seeder.retain(|point| {
-            point[Dim3::Z] >= self.minimum_acceleration_depth && point[Dim3::Z] <= self.maximum_acceleration_depth
+        let z_coordinates = &snapshot.reader().grid().centers()[Dim3::Z];
+        seeder.retain_indices(|indices| {
+            z_coordinates[indices[Dim3::Z]] >= self.minimum_acceleration_depth &&
+            z_coordinates[indices[Dim3::Z]] <= self.maximum_acceleration_depth
         });
         seeder
     }

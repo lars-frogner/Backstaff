@@ -18,7 +18,7 @@ use crate::grid::Grid3;
 use crate::field::{ScalarField3, VectorField3};
 use crate::interpolation::Interpolator3;
 use crate::tracing::{self, ftr, TracerResult};
-use crate::tracing::seeding::Seeder3;
+use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::{SteppingSense, StepperInstruction, Stepper3, StepperFactory3};
 use self::distribution::{DepletionStatus, PropagationResult, Distribution};
 use self::accelerator::Accelerator;
@@ -198,13 +198,13 @@ impl ElectronBeamSwarm {
     ///
     /// # Type parameters
     ///
-    /// - `Sd`: Type of seeder.
+    /// - `Sd`: Type of index seeder.
     /// - `G`: Type of grid.
     /// - `A`: Type of accelerator.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
     pub fn generate<Sd, G, A, I, StF>(seeder: Sd, mut snapshot: SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF) -> Option<Self>
-    where Sd: Seeder3 + IntoParallelIterator<Item = Point3<ftr>>,
+    where Sd: IndexSeeder3,
           G: Grid3<fdt>,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
@@ -215,8 +215,8 @@ impl ElectronBeamSwarm {
 
         let seed_iter = seeder.into_par_iter();
         let distributions: Vec<_> = seed_iter.filter_map(
-            |position| {
-                accelerator.generate_distribution(&snapshot, interpolator, &Point3::from(&position))
+            |indices| {
+                accelerator.generate_distribution(&snapshot, &indices)
             }
         ).collect();
 
