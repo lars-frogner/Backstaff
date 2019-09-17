@@ -86,24 +86,20 @@ impl ElectronBeamSimulator {
     /// Generates a new set of electron beams using the current parameter values.
     pub fn generate_beams(&self, verbose: bool) -> Option<ElectronBeamSwarm> {
         let mut snapshot = self.create_cacher();
-        if verbose { println!("Finding acceleration sites.."); }
+        snapshot.reader_mut().set_verbose(verbose);
         let seeder = self.create_seeder(&mut snapshot);
-        if verbose { println!("Found {} acceleration sites", seeder.number_of_indices()); }
         let accelerator = self.create_accelerator();
-        if verbose { println!("Generating and propagating electron distributions.."); }
         let interpolator = self.create_interpolator();
-        let beams = match self.rkf_stepper_type {
+        match self.rkf_stepper_type {
             RKFStepperType::RKF23 => {
                 let stepper_factory = self.create_rkf23_stepper_factory();
-                ElectronBeamSwarm::generate(seeder, snapshot, accelerator, &interpolator, stepper_factory)
+                ElectronBeamSwarm::generate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
             },
             RKFStepperType::RKF45 => {
                 let stepper_factory = self.create_rkf45_stepper_factory();
-                ElectronBeamSwarm::generate(seeder, snapshot, accelerator, &interpolator, stepper_factory)
+                ElectronBeamSwarm::generate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
             }
-        };
-        if verbose { println!("Done"); }
-        beams
+        }
     }
 
     fn read_use_normalized_reconnection_factor<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> bool {
