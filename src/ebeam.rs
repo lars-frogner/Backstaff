@@ -101,7 +101,7 @@ impl ElectronBeam {
         let initial_vector_values = distribution.vector_properties();
 
         let mut evolving_scalar_values = HashMap::new();
-        evolving_scalar_values.insert("qbeam".to_string(), deposited_power_densities);
+        evolving_scalar_values.insert("deposited_power_density".to_string(), deposited_power_densities);
 
         let evolving_vector_values = HashMap::new();
 
