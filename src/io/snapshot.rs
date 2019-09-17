@@ -28,6 +28,7 @@ pub struct SnapshotReader3<G: Grid3<fdt>> {
     endianness: Endianness,
     grid: Arc<G>,
     variable_descriptors: HashMap<String, VariableDescriptor>,
+    verbose: bool
 }
 
 /// Wrapper for `SnapshotReader3` that reads snapshot variables only on first request and
@@ -78,8 +79,14 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             params,
             endianness,
             grid,
-            variable_descriptors
+            variable_descriptors,
+            verbose: false
         })
+    }
+
+    /// Specifies whether progress messages should be printed.
+    pub fn set_verbose(&mut self, verbose: bool) {
+        self.verbose = verbose;
     }
 
     /// Wraps the reader in a snapshot cacher structure.
@@ -105,7 +112,13 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     /// - `Err`: Contains an error encountered while locating the variable or reading the data.
     pub fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable_descriptor = self.get_variable_descriptor(variable_name)?;
-        let values = self.read_variable_from_binary_file(variable_descriptor)?;
+        let file_path = if variable_descriptor.is_primary { &self.snap_path } else { &self.aux_path };
+        if self.verbose { println!("Reading {} from {}", variable_name, file_path.file_name().unwrap().to_string_lossy()); }
+        let shape = self.grid.shape();
+        let length = shape[X]*shape[Y]*shape[Z];
+        let offset = length*variable_descriptor.index;
+        let buffer = super::utils::read_f32_from_binary_file(file_path, length, offset, self.endianness)?;
+        let values = Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap();
         Ok(ScalarField3::new(variable_name.to_string(), Arc::clone(&self.grid), variable_descriptor.locations.clone(), values))
     }
 
@@ -322,15 +335,6 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
                                        format!("Variable `{}` not found", name)))
         }
     }
-
-    fn read_variable_from_binary_file(&self, variable_descriptor: &VariableDescriptor) -> io::Result<Array3<fdt>> {
-        let file_path = if variable_descriptor.is_primary { &self.snap_path } else { &self.aux_path };
-        let shape = self.grid.shape();
-        let length = shape[X]*shape[Y]*shape[Z];
-        let offset = length*variable_descriptor.index;
-        let buffer = super::utils::read_f32_from_binary_file(file_path, length, offset, self.endianness)?;
-        Ok(Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap())
-    }
 }
 
 impl<G: Grid3<fdt>> SnapshotCacher3<G> {
@@ -345,6 +349,9 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
 
     /// Returns a reference to the reader.
     pub fn reader(&self) -> &SnapshotReader3<G> { &self.reader }
+
+    /// Returns a mutable reference to the reader.
+    pub fn reader_mut(&mut self) -> &mut SnapshotReader3<G> { &mut self.reader }
 
     /// Returns a `Result` with a reference to the scalar field representing the given variable,
     /// reading it from file and caching it if has not already been cached.
