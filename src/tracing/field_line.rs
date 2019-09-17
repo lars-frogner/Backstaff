@@ -127,7 +127,7 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     /// - `StF`: Type of stepper factory.
     pub fn trace<Sd, FI, F, G, I, StF>(seeder: Sd, field_line_initializer: &FI, field: &VectorField3<F, G>, interpolator: &I, stepper_factory: StF) -> Option<Self>
     where L: Send,
-          Sd: Seeder3 + IntoParallelIterator<Item = Point3<ftr>>,
+          Sd: Seeder3,
           FI: Fn() -> L + Sync,
           F: BFloat,
           G: Grid3<F>,
