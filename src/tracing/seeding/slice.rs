@@ -256,7 +256,7 @@ impl IntoParallelIterator for SliceSeeder3 {
 impl Seeder3 for SliceSeeder3 {
     fn number_of_points(&self) -> usize { self.seed_points.len() }
 
-    fn retain<P>(&mut self, predicate: P)
+    fn retain_points<P>(&mut self, predicate: P)
     where P: FnMut(&Point3<ftr>) -> bool
     {
         self.seed_points.retain(predicate);

@@ -1,24 +1,24 @@
-//! Generation of seed points by evaluating a criterion on field values.
+//! Generation of seed indices by evaluating a criterion on field values.
 
 use std::vec;
 use rayon::prelude::*;
 use crate::num::BFloat;
-use crate::geometry::{Dim3, Vec3, Point3};
+use crate::geometry::{Dim3, Vec3, Point3, Idx3};
 use crate::grid::Grid3;
 use crate::field::{self, ScalarField3, VectorField3};
 use crate::interpolation::Interpolator3;
-use super::Seeder3;
+use super::IndexSeeder3;
 use super::super::ftr;
 use Dim3::{X, Y, Z};
 
-/// Generator for seed points found by evaluating a criterion on values of a 3D field.
+/// Generator for seed indices found by evaluating a criterion on values of a 3D field.
 #[derive(Clone, Debug)]
 pub struct CriterionSeeder3 {
-    seed_points: Vec<Point3<ftr>>
+    seed_indices: Vec<Idx3<usize>>
 }
 
 impl CriterionSeeder3 {
-    /// Creates a new seeder producing seed points at positions where
+    /// Creates a new seeder producing indices corresponding to positions where
     /// a given criterion on the local scalar field value is satisfied.
     ///
     /// Uses the original locations of the field values.
@@ -26,7 +26,7 @@ impl CriterionSeeder3 {
     /// # Parameters
     ///
     /// - `field`: Scalar field whose values to evaluate.
-    /// - `evaluate_criterion`: Closure returning true for a field value whose position should be a seed point.
+    /// - `evaluate_criterion`: Closure returning true for a field value whose indices should be a seed.
     ///
     /// # Returns
     ///
@@ -43,24 +43,22 @@ impl CriterionSeeder3 {
           C: Fn(F) -> bool + Sync
     {
         let shape = field.shape();
-        let coords = field.coords();
         let values_slice = field.values().as_slice_memory_order().expect("Values array not contiguous.");
 
-        let seed_points = values_slice.par_iter().enumerate().filter_map(
+        let seed_indices = values_slice.par_iter().enumerate().filter_map(
             |(idx, &value)| {
                 if evaluate_criterion(value) {
-                    let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
-                    Some(Point3::from(&coords.point(&indices)))
+                    Some(field::compute_3d_array_indices_from_flat_idx(&shape, idx))
                 } else {
                     None
                 }
             }
         ).collect();
 
-        CriterionSeeder3{ seed_points }
+        CriterionSeeder3{ seed_indices }
     }
 
-    /// Creates a new seeder producing seed points at positions where
+    /// Creates a new seeder producing indices corresponding to positions where
     /// a given criterion on the local scalar field value is satisfied.
     ///
     /// Interpolates the field values to the grid cell centers before evaluating the criterion.
@@ -69,7 +67,7 @@ impl CriterionSeeder3 {
     ///
     /// - `field`: Scalar field whose values to evaluate.
     /// - `interpolator`: Interpolator to use.
-    /// - `evaluate_criterion`: Closure returning true for a field value whose position should be a seed point.
+    /// - `evaluate_criterion`: Closure returning true for a field value whose indices should be a seed.
     ///
     /// # Returns
     ///
@@ -90,23 +88,23 @@ impl CriterionSeeder3 {
         let shape = field.shape();
         let center_coords = field.grid().centers();
 
-        let seed_points = (0..shape[X]*shape[Y]*shape[Z]).into_par_iter().filter_map(
+        let seed_indices = (0..shape[X]*shape[Y]*shape[Z]).into_par_iter().filter_map(
             |idx| {
                 let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
                 let point = center_coords.point(&indices);
                 let value = interpolator.interp_scalar_field(field, &point).expect_inside();
                 if evaluate_criterion(value) {
-                    Some(Point3::from(&point))
+                    Some(indices)
                 } else {
                     None
                 }
             }
         ).collect();
 
-        CriterionSeeder3{ seed_points }
+        CriterionSeeder3{ seed_indices }
     }
 
-    /// Creates a new seeder producing seed points at positions where
+    /// Creates a new seeder producing indices corresponding to positions where
     /// a given criterion on the local vector field value is satisfied.
     ///
     /// Interpolates the field vectors to the grid cell centers before evaluating the criterion.
@@ -115,7 +113,7 @@ impl CriterionSeeder3 {
     ///
     /// - `field`: Vector field whose values to evaluate.
     /// - `interpolator`: Interpolator to use.
-    /// - `evaluate_criterion`: Closure returning true for a field vector whose position should be a seed point.
+    /// - `evaluate_criterion`: Closure returning true for a field vector whose indices should be a seed.
     ///
     /// # Returns
     ///
@@ -136,45 +134,54 @@ impl CriterionSeeder3 {
         let shape = field.shape();
         let center_coords = field.grid().centers();
 
-        let seed_points = (0..shape[X]*shape[Y]*shape[Z]).into_par_iter().filter_map(
+        let seed_indices = (0..shape[X]*shape[Y]*shape[Z]).into_par_iter().filter_map(
             |idx| {
                 let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
                 let point = center_coords.point(&indices);
                 let vector = interpolator.interp_vector_field(field, &point).expect_inside();
                 if evaluate_criterion(&vector) {
-                    Some(Point3::from(&point))
+                    Some(indices)
                 } else {
                     None
                 }
             }
         ).collect();
 
-        CriterionSeeder3{ seed_points }
+        CriterionSeeder3{ seed_indices }
+    }
+
+    /// Creates a list of seed points from the seed indices by indexing the center coordinates
+    /// of the given grid.
+    pub fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
+    where F: BFloat,
+          G: Grid3<F>
+    {
+        self.seed_indices.par_iter().map(|indices| Point3::from(&grid.centers().point(indices))).collect()
     }
 }
 
 impl IntoIterator for CriterionSeeder3 {
-    type Item = Point3<ftr>;
+    type Item = Idx3<usize>;
     type IntoIter = vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
-        self.seed_points.into_iter()
+        self.seed_indices.into_iter()
     }
 }
 
 impl IntoParallelIterator for CriterionSeeder3 {
-    type Item = Point3<ftr>;
+    type Item = Idx3<usize>;
     type Iter = rayon::vec::IntoIter<Self::Item>;
     fn into_par_iter(self) -> Self::Iter {
-        self.seed_points.into_par_iter()
+        self.seed_indices.into_par_iter()
     }
 }
 
-impl Seeder3 for CriterionSeeder3 {
-    fn number_of_points(&self) -> usize { self.seed_points.len() }
+impl IndexSeeder3 for CriterionSeeder3 {
+    fn number_of_indices(&self) -> usize { self.seed_indices.len() }
 
-    fn retain<P>(&mut self, predicate: P)
-    where P: FnMut(&Point3<ftr>) -> bool
+    fn retain_indices<P>(&mut self, predicate: P)
+    where P: FnMut(&Idx3<usize>) -> bool
     {
-        self.seed_points.retain(predicate);
+        self.seed_indices.retain(predicate);
     }
 }
