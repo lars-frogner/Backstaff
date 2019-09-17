@@ -381,7 +381,7 @@ trait RKFStepper3 {
 
         let mut next_output_distance = state.next_output_distance;
         if next_output_distance <= state.distance {
-            let dense_step_displacement = &state.previous_direction*state.config.dense_step_length;
+            let dense_step_displacement = &state.previous_step_displacement*(state.config.dense_step_length/state.previous_step_length);
             let coefs = self.compute_dense_interpolation_coefs();
             loop {
                 let fraction = (next_output_distance - previous_distance)/state.previous_step_length;
