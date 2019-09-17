@@ -221,12 +221,17 @@ impl Distribution for PowerLawDistribution {
         let electron_density = Self::compute_electron_density(feb::from(mass_density)*U_R); // [electrons/cm^3]
         let step_length = displacement.length()*U_L;                                        // [cm]
 
-        let collisional_depth_increase = Self::compute_collisional_depth_increase(
-            electron_density,
-            self.pitch_angle_factor,
-            self.mean_energy,
-            step_length
-        );
+        let collisional_depth_increase = if electron_density > std::f64::EPSILON {
+            Self::compute_collisional_depth_increase(
+                electron_density,
+                self.pitch_angle_factor,
+                self.mean_energy,
+                step_length
+            )
+        } else {
+            0.0
+        };
+
         let slope_correction_factor = 1.0;// + slope_corr*z_weight;
         let new_collisional_depth = self.collisional_depth + slope_correction_factor*collisional_depth_increase;
 
@@ -247,8 +252,6 @@ impl Distribution for PowerLawDistribution {
         } else {
             DepletionStatus::Depleted
         };
-
-        assert!(deposited_power_density.is_finite());
 
         PropagationResult{ deposited_power_density, deposition_position, depletion_status }
     }
