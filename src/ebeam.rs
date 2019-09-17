@@ -188,6 +188,7 @@ impl ElectronBeamSwarm {
     /// - `accelerator`: Accelerator to use for generating initial electron distributions.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper_factory`: Factory structure to use for producing steppers.
+    /// - `verbose`: Whether to print status messages.
     ///
     /// # Returns
     ///
@@ -203,7 +204,7 @@ impl ElectronBeamSwarm {
     /// - `A`: Type of accelerator.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate<Sd, G, A, I, StF>(seeder: Sd, mut snapshot: SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF) -> Option<Self>
+    pub fn generate<Sd, G, A, I, StF>(seeder: Sd, mut snapshot: SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: bool) -> Option<Self>
     where Sd: IndexSeeder3,
           G: Grid3<fdt>,
           A: Accelerator + Sync + Send,
@@ -213,6 +214,7 @@ impl ElectronBeamSwarm {
     {
         A::prepare_snapshot_for_generation(&mut snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
+        if verbose{ println!("Generating electron distributions at {} acceleration sites", seeder.number_of_indices()); }
         let seed_iter = seeder.into_par_iter();
         let distributions: Vec<_> = seed_iter.filter_map(
             |indices| {
@@ -222,6 +224,7 @@ impl ElectronBeamSwarm {
 
         A::prepare_snapshot_for_propagation(&mut snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
+        if verbose{ println!("Attempting to propagate {} electron distributions", distributions.len()); }
         let beams: Vec<_> = distributions.into_par_iter().filter_map(
             |distribution| {
                 let magnetic_field = snapshot.cached_vector_field("b");
@@ -234,6 +237,7 @@ impl ElectronBeamSwarm {
                 }
             }
         ).collect();
+        if verbose{ println!("Successfully propagated {} electron distributions", beams.len()); }
 
         if beams.is_empty() {
             None
