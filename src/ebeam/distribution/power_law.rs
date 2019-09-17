@@ -24,8 +24,9 @@ pub enum PitchAngleDistribution {
 /// Configuration parameters for power-law distributions.
 #[derive(Clone, Debug)]
 pub struct PowerLawDistributionConfig {
-    /// Distributions with an acceleration direction with a smaller angle
-    /// to the magnetic field normal than this are discarded [deg].
+    /// The acceleration direction has to be at least this many degrees
+    /// away from the perpendicular direction of the magnetic field in order
+    /// for the distribution to be included.
     pub min_acceleration_angle: feb,
     /// Distributions with an initial estimated depletion distance smaller than this value are discarded [cm].
     pub min_estimated_depletion_distance: feb,
