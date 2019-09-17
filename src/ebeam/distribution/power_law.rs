@@ -3,7 +3,7 @@
 pub mod acceleration;
 
 use std::collections::HashMap;
-use crate::constants::AMU;
+use crate::constants::{AMU, MC2_ELECTRON, KEV_TO_ERG};
 use crate::units::solar::{U_L, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::geometry::{Vec3, Point3};
@@ -198,7 +198,7 @@ impl Distribution for PowerLawDistribution {
     fn scalar_properties(&self) -> HashMap<String, feb> {
         let mut properties = HashMap::new();
         properties.insert("total_power_density".to_string(), self.properties.total_power_density);
-        properties.insert("lower_cutoff_energy".to_string(), self.properties.lower_cutoff_energy);
+        properties.insert("lower_cutoff_energy".to_string(), self.properties.lower_cutoff_energy*MC2_ELECTRON/KEV_TO_ERG); // [keV]
         properties
     }
 
@@ -247,6 +247,8 @@ impl Distribution for PowerLawDistribution {
         } else {
             DepletionStatus::Depleted
         };
+
+        assert!(deposited_power_density.is_finite());
 
         PropagationResult{ deposited_power_density, deposition_position, depletion_status }
     }
