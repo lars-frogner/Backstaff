@@ -68,7 +68,7 @@ impl ElectronBeam {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `S`: Type of stepper.
-    pub fn generate<D, G, I, S>(mut distribution: D, snapshot: &SnapshotCacher3<G>, interpolator: &I, stepper: S, sense: SteppingSense) -> Option<Self>
+    pub fn generate_and_propagate<D, G, I, S>(mut distribution: D, snapshot: &SnapshotCacher3<G>, interpolator: &I, stepper: S, sense: SteppingSense) -> Option<Self>
     where D: Distribution,
           G: Grid3<fdt>,
           I: Interpolator3,
@@ -204,7 +204,7 @@ impl ElectronBeamSwarm {
     /// - `A`: Type of accelerator.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate<Sd, G, A, I, StF>(seeder: Sd, mut snapshot: SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: bool) -> Option<Self>
+    pub fn generate_and_propagate<Sd, G, A, I, StF>(seeder: Sd, mut snapshot: SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: bool) -> Option<Self>
     where Sd: IndexSeeder3,
           G: Grid3<fdt>,
           A: Accelerator + Sync + Send,
@@ -232,7 +232,7 @@ impl ElectronBeamSwarm {
                 let mut magnetic_field_direction = interpolator.interp_vector_field(magnetic_field, acceleration_position).expect_inside();
                 magnetic_field_direction.normalize();
                 match distribution.determine_propagation_sense(&magnetic_field_direction) {
-                    Some(sense) => ElectronBeam::generate(distribution, &snapshot, interpolator, stepper_factory.produce(), sense),
+                    Some(sense) => ElectronBeam::generate_and_propagate(distribution, &snapshot, interpolator, stepper_factory.produce(), sense),
                     None => None
                 }
             }

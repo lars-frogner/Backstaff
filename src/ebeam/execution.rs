@@ -83,8 +83,8 @@ impl ElectronBeamSimulator {
         }
     }
 
-    /// Generates a new set of electron beams using the current parameter values.
-    pub fn generate_beams(&self, verbose: bool) -> Option<ElectronBeamSwarm> {
+    /// Generates and propagates a new set of electron beams using the current parameter values.
+    pub fn generate_and_propagate_beams(&self, verbose: bool) -> Option<ElectronBeamSwarm> {
         let mut snapshot = self.create_cacher();
         snapshot.reader_mut().set_verbose(verbose);
         let seeder = self.create_seeder(&mut snapshot);
@@ -93,11 +93,11 @@ impl ElectronBeamSimulator {
         match self.rkf_stepper_type {
             RKFStepperType::RKF23 => {
                 let stepper_factory = self.create_rkf23_stepper_factory();
-                ElectronBeamSwarm::generate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
+                ElectronBeamSwarm::generate_and_propagate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
             },
             RKFStepperType::RKF45 => {
                 let stepper_factory = self.create_rkf45_stepper_factory();
-                ElectronBeamSwarm::generate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
+                ElectronBeamSwarm::generate_and_propagate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
             }
         }
     }
