@@ -226,7 +226,7 @@ impl RKFStepper3 for RKF45Stepper3 {
         vec![coef_vec_1, coef_vec_2, coef_vec_3, coef_vec_4, coef_vec_5]
     }
 
-    fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Point3<ftr>
+    fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Option<Point3<ftr>>
     where F: BFloat,
           G: Grid3<F>
     {
@@ -237,14 +237,7 @@ impl RKFStepper3 for RKF45Stepper3 {
         let position =  &coefs[1] + position*one_minus_fraction;
         let position = (&coefs[0] + position*fraction).to_point3();
 
-        if self.state().previous_step_wrapped {
-            // If the previous step wrapped around a periodic boundary,
-            // this output position might fall on either side of the boundary,
-            // so we have to wrap it in case it falls on the outside
-            Point3::from(&grid.wrap_point(&Point3::from(&position)).expect("Wrapping point is outside non-periodic boundary."))
-        } else {
-            position
-        }
+        grid.wrap_point(&Point3::from(&position)).map(|pos| Point3::from(&pos))
     }
 }
 

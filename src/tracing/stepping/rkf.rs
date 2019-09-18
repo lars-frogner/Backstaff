@@ -125,7 +125,7 @@ trait RKFStepper3 {
 
     fn compute_dense_interpolation_coefs(&self) -> Vec<Vec3<ftr>>;
 
-    fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Point3<ftr>
+    fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Option<Point3<ftr>>
     where F: BFloat,
           G: Grid3<F>;
 
@@ -385,12 +385,13 @@ trait RKFStepper3 {
             let coefs = self.compute_dense_interpolation_coefs();
             loop {
                 let fraction = (next_output_distance - previous_distance)/state.previous_step_length;
-                let output_position = self.interpolate_dense_position(grid, &coefs, fraction);
-
+                let output_position = match self.interpolate_dense_position(grid, &coefs, fraction) {
+                    Some(position) => position,
+                    None => return StepperResult::Stopped(StoppingCause::OutOfBounds)
+                };
                 if let StepperInstruction::Terminate = callback(&dense_step_displacement, &output_position, next_output_distance) {
                     return StepperResult::Stopped(StoppingCause::StoppedByCallback)
                 }
-
                 next_output_distance += state.config.dense_step_length;
                 if next_output_distance > state.distance {
                     break
