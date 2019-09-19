@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from fields import Coords3, Coords2, ScalarField2
 from field_lines import FieldLine3, FieldLineSet3
-from electron_beams import ElectronBeam, ElectronBeamSwarm
+from electron_beams import ElectronBeam, ElectronBeamSwarm, DistributionRejectionMap
 
 scripts_path = os.path.dirname(os.path.realpath(__file__))
 project_path = os.path.dirname(scripts_path)
@@ -61,16 +61,25 @@ def read_electron_beam_swarm_from_combined_pickles(file_path):
     return electron_beam_swarm
 
 
+def read_electron_distribution_rejection_map(file_path):
+    with file_path.open(mode='rb') as f:
+        data = pickle.load(f)
+    positions = __parse_vec_of_vec3(data['positions'])
+    rejection_causes = np.asarray(data['rejection_causes'], dtype=np.ubyte)
+    possible_rejection_causes = data['possible_rejection_causes']
+    return DistributionRejectionMap(positions, rejection_causes, possible_rejection_causes)
+
+
 def __parse_electronbeamswarm(data):
     return ElectronBeamSwarm([__parse_electronbeam(d) for d in data['beams']])
 
 def __parse_electronbeam(data):
     trajectory = __parse_vec_of_vec3(data['trajectory'])
-    initial_scalar_values = data['initial_scalar_values']
-    initial_vector_values = __parse_map_of_vec3(data['initial_vector_values'])
-    evolving_scalar_values = __parse_map_of_vec_of_float(data['evolving_scalar_values'])
-    evolving_vector_values = __parse_map_of_vec_of_vec3(data['evolving_vector_values'])
-    return ElectronBeam(trajectory, initial_scalar_values, initial_vector_values, evolving_scalar_values, evolving_vector_values)
+    fixed_scalar_values = data['fixed_scalar_values']
+    fixed_vector_values = __parse_map_of_vec3(data['fixed_vector_values'])
+    varying_scalar_values = __parse_map_of_vec_of_float(data['varying_scalar_values'])
+    varying_vector_values = __parse_map_of_vec_of_vec3(data['varying_vector_values'])
+    return ElectronBeam(trajectory, fixed_scalar_values, fixed_vector_values, varying_scalar_values, varying_vector_values)
 
 def __parse_fieldlineset3(data):
     return FieldLineSet3([__parse_fieldline3(d) for d in data['field_lines']])
