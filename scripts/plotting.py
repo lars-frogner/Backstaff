@@ -5,6 +5,7 @@ import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.offsetbox import AnchoredText
 
 
 def create_2d_subplots(dpi=200, **kwargs):
@@ -51,6 +52,10 @@ def set_3d_spatial_axis_labels(ax, unit='Mm'):
     ax.set_xlabel('x [{}]'.format(unit))
     ax.set_ylabel('y [{}]'.format(unit))
     ax.set_zlabel('z [{}]'.format(unit))
+
+
+def get_default_colors():
+    return plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
 def get_linear_normalizer(vmin, vmax, clip=False):
@@ -102,8 +107,14 @@ def add_3d_line_collection(ax, x, y, z, colors, lw=1.0, alpha=1.0):
     return ax.add_collection(lc)
 
 
-def render(fig, output_path=None):
-    fig.tight_layout()
+def add_textbox(ax, text, loc, pad=0.4):
+    textbox = AnchoredText(text, loc, pad=pad)
+    ax.add_artist(textbox)
+
+
+def render(fig, tight_layout=True, output_path=None):
+    if tight_layout:
+        fig.tight_layout()
     if output_path is not None:
         plt.savefig(output_path)
     else:
