@@ -31,10 +31,10 @@ pub type feb = f64;
 #[derive(Clone, Debug)]
 pub struct ElectronBeam {
     trajectory: Vec<Point3<ftr>>,
-    initial_scalar_values: HashMap<String, feb>,
-    initial_vector_values: HashMap<String, Vec3<feb>>,
-    evolving_scalar_values: HashMap<String, Vec<feb>>,
-    evolving_vector_values: HashMap<String, Vec<Vec3<feb>>>,
+    fixed_scalar_values: HashMap<String, feb>,
+    fixed_vector_values: HashMap<String, Vec3<feb>>,
+    varying_scalar_values: HashMap<String, Vec<feb>>,
+    varying_vector_values: HashMap<String, Vec<Vec3<feb>>>,
 }
 
 /// A set of non-thermal electron beams propagating through the solar atmosphere.
@@ -76,12 +76,13 @@ impl ElectronBeam {
     {
         let mut trajectory = Vec::new();
         let mut deposited_power_densities = Vec::new();
+        let mut total_propagation_distance = 0.0;
 
         let magnetic_field = snapshot.cached_vector_field("b");
         let start_position = Point3::from(distribution.acceleration_position());
 
         let tracer_result = tracing::trace_3d_field_line_dense(magnetic_field, interpolator, stepper, &start_position, sense,
-            &mut |displacement, position, _| {
+            &mut |displacement, position, distance| {
                 let PropagationResult{
                     deposited_power_density,
                     deposition_position,
@@ -90,6 +91,7 @@ impl ElectronBeam {
 
                 trajectory.push(deposition_position);
                 deposited_power_densities.push(deposited_power_density);
+                total_propagation_distance = distance;
 
                 match depletion_status {
                     DepletionStatus::Undepleted => StepperInstruction::Continue,
@@ -97,21 +99,23 @@ impl ElectronBeam {
                 }
             }
         );
-        let initial_scalar_values = distribution.scalar_properties();
-        let initial_vector_values = distribution.vector_properties();
+        let mut fixed_scalar_values = distribution.scalar_properties();
+        fixed_scalar_values.insert("total_propagation_distance".to_string(), total_propagation_distance);
 
-        let mut evolving_scalar_values = HashMap::new();
-        evolving_scalar_values.insert("deposited_power_density".to_string(), deposited_power_densities);
+        let fixed_vector_values = distribution.vector_properties();
 
-        let evolving_vector_values = HashMap::new();
+        let mut varying_scalar_values = HashMap::new();
+        varying_scalar_values.insert("deposited_power_density".to_string(), deposited_power_densities);
+
+        let varying_vector_values = HashMap::new();
 
         match tracer_result {
             TracerResult::Ok(_) => Some(ElectronBeam{
                 trajectory,
-                initial_scalar_values,
-                initial_vector_values,
-                evolving_scalar_values,
-                evolving_vector_values
+                fixed_scalar_values,
+                fixed_vector_values,
+                varying_scalar_values,
+                varying_vector_values
             }),
             TracerResult::Void => None
         }
@@ -124,27 +128,27 @@ impl ElectronBeam {
     pub fn number_of_points(&self) -> usize { self.trajectory.len() }
 
     /// Extracts and stores the value of the given scalar field at the initial position of the beam.
-    pub fn extract_initial_scalar<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_scalar<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
     {
         let value = interpolator.interp_scalar_field(field, &Point3::from(&self.trajectory[0])).expect_inside();
-        self.initial_scalar_values.insert(field.name().to_string(), num::NumCast::from(value).expect("Conversion failed."));
+        self.fixed_scalar_values.insert(field.name().to_string(), num::NumCast::from(value).expect("Conversion failed."));
     }
 
     /// Extracts and stores the value of the given vector field at the initial position of the beam.
-    pub fn extract_initial_vector<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_vector<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
     {
         let vector = interpolator.interp_vector_field(field, &Point3::from(&self.trajectory[0])).expect_inside();
-        self.initial_vector_values.insert(field.name().to_string(), Vec3::from(&vector));
+        self.fixed_vector_values.insert(field.name().to_string(), Vec3::from(&vector));
     }
 
     /// Extracts and stores the value of the given scalar field at each position of the beam.
-    pub fn extract_evolving_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_varying_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
@@ -154,11 +158,11 @@ impl ElectronBeam {
             let value = interpolator.interp_scalar_field(field, &Point3::from(pos)).expect_inside();
             values.push(num::NumCast::from(value).expect("Conversion failed."));
         }
-        self.evolving_scalar_values.insert(field.name().to_string(), values);
+        self.varying_scalar_values.insert(field.name().to_string(), values);
     }
 
     /// Extracts and stores the value of the given vector field at each position of the beam.
-    pub fn extract_evolving_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_varying_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
@@ -168,7 +172,7 @@ impl ElectronBeam {
             let value = interpolator.interp_vector_field(field, &Point3::from(pos)).expect_inside();
             values.push(Vec3::from(&value));
         }
-        self.evolving_vector_values.insert(field.name().to_string(), values);
+        self.varying_vector_values.insert(field.name().to_string(), values);
     }
 
     /// Serializes the electron beam data into pickle format and saves at the given path.
@@ -204,7 +208,7 @@ impl ElectronBeamSwarm {
     /// - `A`: Type of accelerator.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_and_propagate<Sd, G, A, I, StF>(seeder: Sd, mut snapshot: SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: bool) -> Option<Self>
+    pub fn generate_and_propagate<Sd, G, A, I, StF>(seeder: Sd, snapshot: &mut SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: bool) -> Option<Self>
     where Sd: IndexSeeder3,
           G: Grid3<fdt>,
           A: Accelerator + Sync + Send,
@@ -212,17 +216,17 @@ impl ElectronBeamSwarm {
           I: Interpolator3,
           StF: StepperFactory3 + Sync
     {
-        A::prepare_snapshot_for_generation(&mut snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
+        A::prepare_snapshot_for_generation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
         if verbose{ println!("Generating electron distributions at {} acceleration sites", seeder.number_of_indices()); }
         let seed_iter = seeder.into_par_iter();
         let distributions: Vec<_> = seed_iter.filter_map(
             |indices| {
-                accelerator.generate_distribution(&snapshot, &indices)
+                accelerator.generate_distribution(snapshot, &indices)
             }
         ).collect();
 
-        A::prepare_snapshot_for_propagation(&mut snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
+        A::prepare_snapshot_for_propagation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
         if verbose{ println!("Attempting to propagate {} electron distributions", distributions.len()); }
         let beams: Vec<_> = distributions.into_par_iter().filter_map(
@@ -232,7 +236,7 @@ impl ElectronBeamSwarm {
                 let mut magnetic_field_direction = interpolator.interp_vector_field(magnetic_field, acceleration_position).expect_inside();
                 magnetic_field_direction.normalize();
                 match distribution.determine_propagation_sense(&magnetic_field_direction) {
-                    Some(sense) => ElectronBeam::generate_and_propagate(distribution, &snapshot, interpolator, stepper_factory.produce(), sense),
+                    Some(sense) => ElectronBeam::generate_and_propagate(distribution, snapshot, interpolator, stepper_factory.produce(), sense),
                     None => None
                 }
             }
@@ -250,39 +254,39 @@ impl ElectronBeamSwarm {
     pub fn number_of_beams(&self) -> usize { self.beams.len() }
 
     /// Extracts and stores the value of the given scalar field at the initial position for each beam.
-    pub fn extract_initial_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
     {
-        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_initial_scalar(field, interpolator));
+        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_fixed_scalar(field, interpolator));
     }
 
     /// Extracts and stores the value of the given vector field at the initial position for each beam.
-    pub fn extract_initial_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
     {
-        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_initial_vector(field, interpolator));
+        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_fixed_vector(field, interpolator));
     }
 
     /// Extracts and stores the value of the given scalar field at each position for each beam.
-    pub fn extract_evolving_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_varying_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
     {
-        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_evolving_scalars(field, interpolator));
+        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_varying_scalars(field, interpolator));
     }
 
     /// Extracts and stores the value of the given vector field at each position for each beam.
-    pub fn extract_evolving_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_varying_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where F: BFloat,
           G: Grid3<F>,
           I: Interpolator3
     {
-        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_evolving_vectors(field, interpolator));
+        self.beams.par_iter_mut().for_each(|field_line| field_line.extract_varying_vectors(field, interpolator));
     }
 
     /// Serializes the electron beam data into pickle format and saves at the given path.
@@ -313,10 +317,10 @@ impl Serialize for ElectronBeam {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut s = serializer.serialize_struct("ElectronBeam", 5)?;
         s.serialize_field("trajectory", &self.trajectory)?;
-        s.serialize_field("initial_scalar_values", &self.initial_scalar_values)?;
-        s.serialize_field("initial_vector_values", &self.initial_vector_values)?;
-        s.serialize_field("evolving_scalar_values", &self.evolving_scalar_values)?;
-        s.serialize_field("evolving_vector_values", &self.evolving_vector_values)?;
+        s.serialize_field("fixed_scalar_values", &self.fixed_scalar_values)?;
+        s.serialize_field("fixed_vector_values", &self.fixed_vector_values)?;
+        s.serialize_field("varying_scalar_values", &self.varying_scalar_values)?;
+        s.serialize_field("varying_vector_values", &self.varying_vector_values)?;
         s.end()
     }
 }
