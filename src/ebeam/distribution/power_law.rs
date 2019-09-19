@@ -28,8 +28,6 @@ pub struct PowerLawDistributionConfig {
     /// away from the perpendicular direction of the magnetic field in order
     /// for the distribution to be included.
     pub min_acceleration_angle: feb,
-    /// Distributions with an initial estimated depletion distance smaller than this value are discarded [cm].
-    pub min_estimated_depletion_distance: feb,
     /// Distributions with remaining power densities smaller than this value are discarded [erg/(cm^3 s)].
     pub min_remaining_power_density: feb
 }
@@ -70,6 +68,8 @@ pub struct PowerLawDistribution {
     acceleration_alignment_threshold: fdt,
     /// Mean energy of the electrons in the distribution [units of electron rest energy].
     mean_energy: feb,
+    /// Estimated propagation distance until the remaining power density drops below the minimum value [cm].
+    estimated_depletion_distance: feb,
     /// Current collisional depth [dimensionless]. Increases as the distribution propagates.
     collisional_depth: feb,
     /// Current remaining energy per volume and time [erg/(cm^3 s)]. Decreases as the distribution propagates.
@@ -116,7 +116,7 @@ impl PowerLawDistribution {
     /// Decreases as the distribution propagates.
     pub fn remaining_power_density(&self) -> feb { self.remaining_power_density }
 
-    fn new(config: PowerLawDistributionConfig, properties: PowerLawDistributionProperties) -> Option<Self> {
+    fn new(config: PowerLawDistributionConfig, properties: PowerLawDistributionProperties) -> Self {
         let pitch_angle_factor = match properties.pitch_angle_distribution {
             PitchAngleDistribution::Peaked => 2.0,
             PitchAngleDistribution::Isotropic => 4.0
@@ -135,23 +135,23 @@ impl PowerLawDistribution {
             mean_energy,
             config.min_remaining_power_density
         );
-        if estimated_depletion_distance < config.min_estimated_depletion_distance {
-            return None
-        }
 
         let collisional_depth = 0.0;
         let remaining_power_density = properties.total_power_density;
 
-        Some(PowerLawDistribution{
+        PowerLawDistribution{
             config,
             properties,
             pitch_angle_factor,
             acceleration_alignment_threshold,
             mean_energy,
+            estimated_depletion_distance,
             collisional_depth,
             remaining_power_density
-        })
+        }
     }
+
+    fn estimated_depletion_distance(&self) -> feb { self.estimated_depletion_distance }
 
     fn compute_electron_density(mass_density: feb) -> feb {
         mass_density*Self::MASS_DENSITY_TO_ELECTRON_DENSITY
@@ -200,6 +200,7 @@ impl Distribution for PowerLawDistribution {
         let mut properties = HashMap::new();
         properties.insert("total_power_density".to_string(), self.properties.total_power_density);
         properties.insert("lower_cutoff_energy".to_string(), self.properties.lower_cutoff_energy*MC2_ELECTRON/KEV_TO_ERG); // [keV]
+        properties.insert("estimated_depletion_distance".to_string(), self.estimated_depletion_distance/U_L); // [Mm]
         properties
     }
 
@@ -260,22 +261,20 @@ impl Distribution for PowerLawDistribution {
 
 impl PowerLawDistributionConfig {
     const DEFAULT_MIN_ACCELERATION_ANGLE:           feb = 20.0; // [deg]
-    const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7;  // [cm]
     const DEFAULT_MIN_REMAINING_POWER_DENSITY:      feb = 1e-6; // [erg/(cm^3 s)]
-
-    /// Creates a new configuration struct with the default values.
-    pub fn default() -> Self {
-        PowerLawDistributionConfig {
-            min_acceleration_angle: Self::DEFAULT_MIN_ACCELERATION_ANGLE,
-            min_estimated_depletion_distance: Self::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
-            min_remaining_power_density: Self::DEFAULT_MIN_REMAINING_POWER_DENSITY
-        }
-    }
 
     /// Panics if any of the configuration parameter values are invalid.
     pub fn validate(&self) {
         assert!(self.min_acceleration_angle >= 0.0, "Minimum acceleration angle must be larger than or equal to zero.");
-        assert!(self.min_estimated_depletion_distance >= 0.0, "Minimum estimated depletion distance must be larger than or equal to zero.");
         assert!(self.min_remaining_power_density >= 0.0, "Minimum remaining power density must be larger than or equal to zero.");
+    }
+}
+
+impl Default for PowerLawDistributionConfig {
+    fn default() -> Self {
+        PowerLawDistributionConfig {
+            min_acceleration_angle: Self::DEFAULT_MIN_ACCELERATION_ANGLE,
+            min_remaining_power_density: Self::DEFAULT_MIN_REMAINING_POWER_DENSITY
+        }
     }
 }
