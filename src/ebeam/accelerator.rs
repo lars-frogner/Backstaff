@@ -16,9 +16,9 @@ pub trait Accelerator {
     /// Makes sure the fields required to propagate distributions are cached in the snapshot cacher.
     fn prepare_snapshot_for_propagation<G: Grid3<fdt>>(snapshot: &mut SnapshotCacher3<G>) -> io::Result<()>;
 
-    /// Generates a new acceleration event at the given 3D index in the given snapshot.
+    /// Tries to generate a new distribution at the given 3D index in the given snapshot.
     ///
-    /// Returns `None` if the distribution could not be generated.
+    /// Returns `None` if the distribution was rejected.
     fn generate_distribution<G>(&self, snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> Option<Self::DistributionType>
     where G: Grid3<fdt>;
 }
