@@ -1,6 +1,7 @@
 //! Execeution of electron beam simulations.
 
 use std::path;
+use rayon::prelude::*;
 use crate::units::solar::{U_L, U_T, U_E};
 use crate::io::Endianness;
 use crate::io::snapshot::{fdt, SnapshotReader3, SnapshotCacher3};
@@ -15,7 +16,7 @@ use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
 use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
 use super::{feb, ElectronBeamSwarm};
 use super::distribution::power_law::{PitchAngleDistribution, PowerLawDistributionConfig};
-use super::distribution::power_law::acceleration::simple::{SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator};
+use super::distribution::power_law::acceleration::simple::{DistributionRejectionMap, SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator};
 
 /// Convenience object for running offline electron beam simulations.
 pub struct ElectronBeamSimulator {
@@ -84,22 +85,49 @@ impl ElectronBeamSimulator {
     }
 
     /// Generates and propagates a new set of electron beams using the current parameter values.
-    pub fn generate_and_propagate_beams(&self, verbose: bool) -> Option<ElectronBeamSwarm> {
+    pub fn generate_and_propagate_beams(&self, extra_fixed_scalars: Option<&Vec<&str>>, verbose: bool) -> Option<ElectronBeamSwarm> {
         let mut snapshot = self.create_cacher();
         snapshot.reader_mut().set_verbose(verbose);
         let seeder = self.create_seeder(&mut snapshot);
         let accelerator = self.create_accelerator();
         let interpolator = self.create_interpolator();
-        match self.rkf_stepper_type {
+        let beams = match self.rkf_stepper_type {
             RKFStepperType::RKF23 => {
                 let stepper_factory = self.create_rkf23_stepper_factory();
-                ElectronBeamSwarm::generate_and_propagate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
+                ElectronBeamSwarm::generate_and_propagate(seeder, &mut snapshot, accelerator, &interpolator, stepper_factory, verbose)
             },
             RKFStepperType::RKF45 => {
                 let stepper_factory = self.create_rkf45_stepper_factory();
-                ElectronBeamSwarm::generate_and_propagate(seeder, snapshot, accelerator, &interpolator, stepper_factory, verbose)
+                ElectronBeamSwarm::generate_and_propagate(seeder, &mut snapshot, accelerator, &interpolator, stepper_factory, verbose)
             }
+        };
+        if let Some(mut beams) = beams {
+            if let Some(extra_fixed_scalars) = extra_fixed_scalars {
+                for name in extra_fixed_scalars {
+                    beams.extract_fixed_scalars(snapshot.obtain_scalar_field(name)
+                                                        .unwrap_or_else(|err| panic!("Could not read field: {}", err)),
+                                                &interpolator);
+                }
+            }
+            Some(beams)
+        } else {
+            None
         }
+    }
+
+    /// Creates a distribution rejection map using the current parameter values.
+    pub fn generate_rejection_map(&self, verbose: bool) -> DistributionRejectionMap {
+        let mut snapshot = self.create_cacher();
+        snapshot.reader_mut().set_verbose(verbose);
+        let seeder = self.create_seeder(&mut snapshot);
+        let accelerator = self.create_accelerator();
+        let interpolator = self.create_interpolator();
+        SimplePowerLawAccelerator::prepare_snapshot_for_rejection_cause_detection(&mut snapshot)
+                                  .unwrap_or_else(|err| panic!("Could not cache fields: {}", err));
+        seeder.into_par_iter().filter_map(
+            |indices| accelerator.detect_rejection_causes(&snapshot, &interpolator, &indices)
+                                 .map(|causes| (snapshot.reader().grid().centers().point(&indices), causes))
+        ).collect()
     }
 
     fn read_use_normalized_reconnection_factor<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> bool {
@@ -124,17 +152,12 @@ impl ElectronBeamSimulator {
         // Online version always uses 20 degrees
         let min_acceleration_angle = 20.0;
 
-        let min_estimated_depletion_distance = reader.get_numerical_param::<feb>("min_stop_dist")
-                                                     .unwrap_or_else(|err| panic!("{}", err))
-                                                     *U_L;
-
         let min_remaining_power_density = reader.get_numerical_param::<feb>("min_stop_en")
                                                 .unwrap_or_else(|err| panic!("{}", err))
                                                 *U_E/U_T;
 
         PowerLawDistributionConfig{
             min_acceleration_angle,
-            min_estimated_depletion_distance,
             min_remaining_power_density
         }
     }
@@ -144,6 +167,10 @@ impl ElectronBeamSimulator {
                                             .unwrap_or_else(|err| panic!("{}", err))
                                             *U_E/U_T;
 
+        let min_estimated_depletion_distance = reader.get_numerical_param::<feb>("min_stop_dist")
+                                                     .unwrap_or_else(|err| panic!("{}", err))
+                                                     *U_L;
+
         // Online version always uses 4 keV
         let initial_cutoff_energy_guess = 4.0;
 
@@ -152,6 +179,7 @@ impl ElectronBeamSimulator {
 
         SimplePowerLawAccelerationConfig{
             min_total_power_density,
+            min_estimated_depletion_distance,
             initial_cutoff_energy_guess,
             acceptable_root_finding_error,
             max_root_finding_iterations
