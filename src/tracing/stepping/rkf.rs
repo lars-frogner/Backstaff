@@ -419,8 +419,22 @@ impl RKFStepperConfig {
     const DEFAULT_INITIAL_STEP_LENGTH: ftr = 1e-4;
     const DEFAULT_SUDDEN_REVERSALS_FOR_SINK: u32 = 3;
 
-    /// Creates a new configuration struct with the default values.
-    pub fn default() -> Self {
+    fn validate(&self) {
+        assert!(self.dense_step_length > 0.0, "Dense step size must be larger than zero.");
+        assert!(self.max_step_attempts > 0, "Maximum number of step attempts must be larger than zero.");
+        assert!(self.absolute_tolerance > 0.0, "Absolute error tolerance must be larger than zero.");
+        assert!(self.relative_tolerance >= 0.0, "Relative error tolerance must be larger than or equal to zero.");
+        assert!(self.safety_factor > 0.0 && self.safety_factor <= 1.0, "Safety factor must be in the range (0, 1].");
+        assert!(self.min_step_scale > 0.0, "Minimum step scale must be larger than zero.");
+        assert!(self.max_step_scale >= self.min_step_scale, "Maximum step scale must be larger than or equal to the minimum step scale.");
+        assert!(self.initial_step_length > 0.0, "Initial step size must be larger than zero.");
+        assert!(self.initial_error > 0.0 && self.initial_error <= 1.0, "Initial error must be in the range (0, 1].");
+        assert!(self.sudden_reversals_for_sink > 0, "Number of sudden reversals for sink must be larger than zero.");
+    }
+}
+
+impl Default for RKFStepperConfig {
+    fn default() -> Self {
         RKFStepperConfig {
             dense_step_length: Self::DEFAULT_DENSE_STEP_LENGTH,
             max_step_attempts: Self::DEFAULT_MAX_STEP_ATTEMPTS,
@@ -434,19 +448,6 @@ impl RKFStepperConfig {
             sudden_reversals_for_sink: Self::DEFAULT_SUDDEN_REVERSALS_FOR_SINK,
             use_pi_control: true
         }
-    }
-
-    fn validate(&self) {
-        assert!(self.dense_step_length > 0.0, "Dense step size must be larger than zero.");
-        assert!(self.max_step_attempts > 0, "Maximum number of step attempts must be larger than zero.");
-        assert!(self.absolute_tolerance > 0.0, "Absolute error tolerance must be larger than zero.");
-        assert!(self.relative_tolerance >= 0.0, "Relative error tolerance must be larger than or equal to zero.");
-        assert!(self.safety_factor > 0.0 && self.safety_factor <= 1.0, "Safety factor must be in the range (0, 1].");
-        assert!(self.min_step_scale > 0.0, "Minimum step scale must be larger than zero.");
-        assert!(self.max_step_scale >= self.min_step_scale, "Maximum step scale must be larger than or equal to the minimum step scale.");
-        assert!(self.initial_step_length > 0.0, "Initial step size must be larger than zero.");
-        assert!(self.initial_error > 0.0 && self.initial_error <= 1.0, "Initial error must be in the range (0, 1].");
-        assert!(self.sudden_reversals_for_sink > 0, "Number of sudden reversals for sink must be larger than zero.");
     }
 }
 
