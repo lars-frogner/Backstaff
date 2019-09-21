@@ -4,6 +4,7 @@ use std::io;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::geometry::Idx3;
 use crate::grid::Grid3;
+use crate::interpolation::Interpolator3;
 use super::distribution::Distribution;
 
 /// Specifies the properties of an acceleration process producing non-thermal electrons.
@@ -19,6 +20,7 @@ pub trait Accelerator {
     /// Tries to generate a new distribution at the given 3D index in the given snapshot.
     ///
     /// Returns `None` if the distribution was rejected.
-    fn generate_distribution<G>(&self, snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> Option<Self::DistributionType>
-    where G: Grid3<fdt>;
+    fn generate_distribution<G, I>(&self, snapshot: &SnapshotCacher3<G>, interpolator: &I, indices: &Idx3<usize>) -> Option<Self::DistributionType>
+    where G: Grid3<fdt>,
+          I: Interpolator3;
 }
