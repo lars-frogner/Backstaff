@@ -18,8 +18,9 @@ pub enum Verbose {
 }
 
 impl Verbose {
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn is_yes(&self) -> bool {
-        match self {
+        match *self {
             Verbose::Yes => true,
             Verbose::No => false
         }
