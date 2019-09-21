@@ -9,10 +9,7 @@ use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
-use super::feb;
-
-/// Direction of propagation of the non-thermal electrons with respect to the magnetic field.
-pub type PropagationSense = Option<SteppingSense>;
+use super::{feb, ElectronBeamMetadata};
 
 /// Whether or not a distribution is depleted.
 #[derive(Clone, Copy, Debug)]
@@ -34,19 +31,22 @@ pub struct PropagationResult {
 
 /// Defines the properties of a non-thermal electron distribution.
 pub trait Distribution {
+    type MetadataType: ElectronBeamMetadata;
+
     /// Returns the position where the distribution originates.
     fn acceleration_position(&self) -> &Point3<fdt>;
 
-    /// Finds the direction that the distribution will move along the magnetic field.
-    ///
-    /// Returns `None` if the direction is not sufficiently well-defined.
-    fn determine_propagation_sense(&self, magnetic_field_direction: &Vec3<fdt>) -> PropagationSense;
+    /// Returns the direction of propagation of the electrons relative to the magnetic field direction.
+    fn propagation_sense(&self) -> SteppingSense;
 
     /// Creates a hash map containing scalar-valued properties of the distribution.
     fn scalar_properties(&self) -> HashMap<String, feb>;
 
     /// Creates a hash map containing vector-valued properties of the distribution.
     fn vector_properties(&self) -> HashMap<String, Vec3<feb>>;
+
+    /// Returns a pointer to the electron beam metadata object associated with the distribution.
+    fn metadata(&self) -> &Self::MetadataType;
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
