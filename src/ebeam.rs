@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde::ser::{Serializer, SerializeStruct};
 use rayon::prelude::*;
 use crate::num::BFloat;
+use crate::io::Verbose;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::io::utils;
 use crate::geometry::{Vec3, Point3};
@@ -19,7 +20,7 @@ use crate::field::{ScalarField3, VectorField3};
 use crate::interpolation::Interpolator3;
 use crate::tracing::{self, ftr, TracerResult};
 use crate::tracing::seeding::IndexSeeder3;
-use crate::tracing::stepping::{SteppingSense, StepperInstruction, Stepper3, StepperFactory3};
+use crate::tracing::stepping::{StepperInstruction, Stepper3, StepperFactory3};
 use self::distribution::{DepletionStatus, PropagationResult, Distribution};
 use self::accelerator::Accelerator;
 
@@ -27,23 +28,54 @@ use self::accelerator::Accelerator;
 #[allow(non_camel_case_types)]
 pub type feb = f64;
 
+/// Marker trait for electron beam metadata types.
+pub trait ElectronBeamMetadata: Clone + std::fmt::Debug + Serialize + Send + Sync {}
+
 /// A beam of non-thermal electrons propagating through the solar atmosphere.
 #[derive(Clone, Debug)]
-pub struct ElectronBeam {
+pub struct ElectronBeam<D: Distribution> {
     trajectory: Vec<Point3<ftr>>,
     fixed_scalar_values: HashMap<String, feb>,
     fixed_vector_values: HashMap<String, Vec3<feb>>,
     varying_scalar_values: HashMap<String, Vec<feb>>,
     varying_vector_values: HashMap<String, Vec<Vec3<feb>>>,
+    metadata: D::MetadataType
 }
 
 /// A set of non-thermal electron beams propagating through the solar atmosphere.
 #[derive(Clone, Debug, Serialize)]
-pub struct ElectronBeamSwarm {
-    beams: Vec<ElectronBeam>
+pub struct ElectronBeamSwarm<A: Accelerator> {
+    beams: Vec<ElectronBeam<A::DistributionType>>
 }
 
-impl ElectronBeam {
+impl<D: Distribution> ElectronBeam<D> {
+    /// Generates an electron beam with the given initial distribution,
+    /// but does not propagate it.
+    ///
+    /// # Parameters
+    ///
+    /// - `distribution`: Initial distribution of the beam electrons.
+    ///
+    /// # Returns
+    ///
+    /// A new unpropagated `ElectronBeam`.
+    pub fn generate_unpropagated(distribution: D) -> Self {
+        let mut fixed_scalar_values = distribution.scalar_properties();
+        fixed_scalar_values.insert("total_propagation_distance".to_string(), 0.0);
+
+        let mut varying_scalar_values = HashMap::new();
+        varying_scalar_values.insert("deposited_power_density".to_string(), vec![0.0]);
+
+        ElectronBeam{
+            trajectory: vec![Point3::from(distribution.acceleration_position())],
+            fixed_scalar_values,
+            fixed_vector_values:  distribution.vector_properties(),
+            varying_scalar_values,
+            varying_vector_values: HashMap::new(),
+            metadata: distribution.metadata().clone()
+        }
+    }
+
     /// Generates an electron beam with the given initial distribution
     /// and propagates it through the atmosphere in the given snapshot.
     ///
@@ -53,7 +85,6 @@ impl ElectronBeam {
     /// - `snapshot`: Snapshot representing the atmosphere.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper`: Stepper to use (will be consumed).
-    /// - `sense`: Whether to propagate the beam along or against the magnetic field direction.
     ///
     /// # Returns
     ///
@@ -64,13 +95,11 @@ impl ElectronBeam {
     ///
     /// # Type parameters
     ///
-    /// - `D`: Type of distribution.
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `S`: Type of stepper.
-    pub fn generate_and_propagate<D, G, I, S>(mut distribution: D, snapshot: &SnapshotCacher3<G>, interpolator: &I, stepper: S, sense: SteppingSense) -> Option<Self>
-    where D: Distribution,
-          G: Grid3<fdt>,
+    pub fn generate_propagated<G, I, S>(mut distribution: D, snapshot: &SnapshotCacher3<G>, interpolator: &I, stepper: S) -> Option<Self>
+    where G: Grid3<fdt>,
           I: Interpolator3,
           S: Stepper3
     {
@@ -81,7 +110,7 @@ impl ElectronBeam {
         let magnetic_field = snapshot.cached_vector_field("b");
         let start_position = Point3::from(distribution.acceleration_position());
 
-        let tracer_result = tracing::trace_3d_field_line_dense(magnetic_field, interpolator, stepper, &start_position, sense,
+        let tracer_result = tracing::trace_3d_field_line_dense(magnetic_field, interpolator, stepper, &start_position, distribution.propagation_sense(),
             &mut |displacement, position, distance| {
                 let PropagationResult{
                     deposited_power_density,
@@ -109,13 +138,16 @@ impl ElectronBeam {
 
         let varying_vector_values = HashMap::new();
 
+        let metadata = distribution.metadata().clone();
+
         match tracer_result {
             TracerResult::Ok(_) => Some(ElectronBeam{
                 trajectory,
                 fixed_scalar_values,
                 fixed_vector_values,
                 varying_scalar_values,
-                varying_vector_values
+                varying_vector_values,
+                metadata
             }),
             TracerResult::Void => None
         }
@@ -181,7 +213,55 @@ impl ElectronBeam {
     }
 }
 
-impl ElectronBeamSwarm {
+impl<A: Accelerator> ElectronBeamSwarm<A> {
+    /// Generates a set of electron beams using the given seeder and accelerator
+    /// but does not propagate them.
+    ///
+    /// # Parameters
+    ///
+    /// - `seeder`: Seeder to use for generating acceleration positions.
+    /// - `snapshot`: Snapshot representing the atmosphere.
+    /// - `accelerator`: Accelerator to use for generating electron distributions.
+    /// - `interpolator`: Interpolator to use.
+    /// - `verbose`: Whether to print status messages.
+    ///
+    /// # Returns
+    ///
+    /// An `Option` which is either:
+    ///
+    /// - `Some`: Contains a new `ElectronBeamSwarm` with unpropagated electron beams.
+    /// - `None`: No electron beams were generated.
+    ///
+    /// # Type parameters
+    ///
+    /// - `Sd`: Type of index seeder.
+    /// - `G`: Type of grid.
+    /// - `I`: Type of interpolator.
+    pub fn generate_unpropagated<Sd, G, I>(seeder: Sd, snapshot: &mut SnapshotCacher3<G>, accelerator: A, interpolator: &I, verbose: Verbose) -> Option<Self>
+    where Sd: IndexSeeder3,
+          G: Grid3<fdt>,
+          A: Accelerator + Sync + Send,
+          A::DistributionType: Send,
+          I: Interpolator3
+    {
+        A::prepare_snapshot_for_generation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
+
+        if verbose.is_yes() { println!("Generating electron distributions at {} acceleration sites", seeder.number_of_indices()); }
+        let seed_iter = seeder.into_par_iter();
+        let beams: Vec<_> = seed_iter.filter_map(
+            |indices| {
+                accelerator.generate_distribution(snapshot, interpolator, &indices)
+                           .map(ElectronBeam::generate_unpropagated)
+            }
+        ).collect();
+
+        if beams.is_empty() {
+            None
+        } else {
+            Some(ElectronBeamSwarm{ beams })
+        }
+    }
+
     /// Generates a set of electron beams using the given seeder and accelerator,
     /// and propagates them through the atmosphere in the given snapshot.
     ///
@@ -205,10 +285,9 @@ impl ElectronBeamSwarm {
     ///
     /// - `Sd`: Type of index seeder.
     /// - `G`: Type of grid.
-    /// - `A`: Type of accelerator.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_and_propagate<Sd, G, A, I, StF>(seeder: Sd, snapshot: &mut SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: bool) -> Option<Self>
+    pub fn generate_propagated<Sd, G, I, StF>(seeder: Sd, snapshot: &mut SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: Verbose) -> Option<Self>
     where Sd: IndexSeeder3,
           G: Grid3<fdt>,
           A: Accelerator + Sync + Send,
@@ -218,30 +297,21 @@ impl ElectronBeamSwarm {
     {
         A::prepare_snapshot_for_generation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
-        if verbose{ println!("Generating electron distributions at {} acceleration sites", seeder.number_of_indices()); }
+        if verbose.is_yes() { println!("Generating electron distributions at {} acceleration sites", seeder.number_of_indices()); }
         let seed_iter = seeder.into_par_iter();
         let distributions: Vec<_> = seed_iter.filter_map(
             |indices| {
-                accelerator.generate_distribution(snapshot, &indices)
+                accelerator.generate_distribution(snapshot, interpolator, &indices)
             }
         ).collect();
 
         A::prepare_snapshot_for_propagation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
-        if verbose{ println!("Attempting to propagate {} electron distributions", distributions.len()); }
+        if verbose.is_yes() { println!("Attempting to propagate {} electron distributions", distributions.len()); }
         let beams: Vec<_> = distributions.into_par_iter().filter_map(
-            |distribution| {
-                let magnetic_field = snapshot.cached_vector_field("b");
-                let acceleration_position = distribution.acceleration_position();
-                let mut magnetic_field_direction = interpolator.interp_vector_field(magnetic_field, acceleration_position).expect_inside();
-                magnetic_field_direction.normalize();
-                match distribution.determine_propagation_sense(&magnetic_field_direction) {
-                    Some(sense) => ElectronBeam::generate_and_propagate(distribution, snapshot, interpolator, stepper_factory.produce(), sense),
-                    None => None
-                }
-            }
+            |distribution| ElectronBeam::generate_propagated(distribution, snapshot, interpolator, stepper_factory.produce())
         ).collect();
-        if verbose{ println!("Successfully propagated {} electron distributions", beams.len()); }
+        if verbose.is_yes() { println!("Successfully propagated {} electron distributions", beams.len()); }
 
         if beams.is_empty() {
             None
@@ -300,7 +370,7 @@ impl ElectronBeamSwarm {
     ///
     /// The data is saved in a file containing a separate pickled structure for each electron beam.
     pub fn save_as_combined_pickles<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
-        let write_to_buffer = |beam: &ElectronBeam| {
+        let write_to_buffer = |beam: &ElectronBeam<A::DistributionType>| {
             let mut buffer = Vec::with_capacity(beam.number_of_points()*mem::size_of::<ftr>());
             utils::write_data_as_pickle(&mut buffer, beam)?;
             Ok(buffer)
@@ -313,14 +383,15 @@ impl ElectronBeamSwarm {
     }
 }
 
-impl Serialize for ElectronBeam {
+impl<D: Distribution> Serialize for ElectronBeam<D> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("ElectronBeam", 5)?;
+        let mut s = serializer.serialize_struct("ElectronBeam", 6)?;
         s.serialize_field("trajectory", &self.trajectory)?;
         s.serialize_field("fixed_scalar_values", &self.fixed_scalar_values)?;
         s.serialize_field("fixed_vector_values", &self.fixed_vector_values)?;
         s.serialize_field("varying_scalar_values", &self.varying_scalar_values)?;
         s.serialize_field("varying_vector_values", &self.varying_vector_values)?;
+        s.serialize_field("metadata", &self.metadata)?;
         s.end()
     }
 }
