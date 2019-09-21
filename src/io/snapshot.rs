@@ -10,7 +10,7 @@ use ndarray::prelude::*;
 use crate::geometry::{Dim3, In3D, Coords3};
 use crate::grid::{CoordLocation, GridType, Grid3};
 use crate::field::{ScalarField3, VectorField3};
-use super::Endianness;
+use super::{Endianness, Verbose};
 use super::utils::read_text_file;
 use Dim3::{X, Y, Z};
 use CoordLocation::{Center, LowerEdge};
@@ -28,7 +28,7 @@ pub struct SnapshotReader3<G: Grid3<fdt>> {
     endianness: Endianness,
     grid: Arc<G>,
     variable_descriptors: HashMap<String, VariableDescriptor>,
-    verbose: bool
+    verbose: Verbose
 }
 
 /// Wrapper for `SnapshotReader3` that reads snapshot variables only on first request and
@@ -80,12 +80,12 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             endianness,
             grid,
             variable_descriptors,
-            verbose: false
+            verbose: Verbose::No
         })
     }
 
     /// Specifies whether progress messages should be printed.
-    pub fn set_verbose(&mut self, verbose: bool) {
+    pub fn set_verbose(&mut self, verbose: Verbose) {
         self.verbose = verbose;
     }
 
@@ -113,7 +113,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     pub fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable_descriptor = self.get_variable_descriptor(variable_name)?;
         let file_path = if variable_descriptor.is_primary { &self.snap_path } else { &self.aux_path };
-        if self.verbose { println!("Reading {} from {}", variable_name, file_path.file_name().unwrap().to_string_lossy()); }
+        if self.verbose.is_yes() { println!("Reading {} from {}", variable_name, file_path.file_name().unwrap().to_string_lossy()); }
         let shape = self.grid.shape();
         let length = shape[X]*shape[Y]*shape[Z];
         let offset = length*variable_descriptor.index;
