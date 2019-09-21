@@ -11,8 +11,8 @@ use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
-use super::{PropagationSense, DepletionStatus, PropagationResult, Distribution};
-use super::super::feb;
+use super::{DepletionStatus, PropagationResult, Distribution};
+use super::super::{feb, ElectronBeamMetadata};
 
 /// An electron pitch-angle distribution which is either peaked or isotropic.
 #[derive(Clone, Copy, Debug)]
@@ -24,31 +24,35 @@ pub enum PitchAngleDistribution {
 /// Configuration parameters for power-law distributions.
 #[derive(Clone, Debug)]
 pub struct PowerLawDistributionConfig {
-    /// The acceleration direction has to be at least this many degrees
-    /// away from the perpendicular direction of the magnetic field in order
-    /// for the distribution to be included.
-    pub min_acceleration_angle: feb,
     /// Distributions with remaining power densities smaller than this value are discarded [erg/(cm^3 s)].
     pub min_remaining_power_density: feb
 }
 
 /// Properties of a power-law distribution of non-thermal electrons.
 #[derive(Clone, Debug)]
-pub struct PowerLawDistributionProperties {
+pub struct PowerLawDistributionProperties<M: ElectronBeamMetadata> {
     /// Exponent of the inverse power-law.
     delta: feb,
-    /// Type of pitch angle distribution of the non-thermal electrons.
-    pitch_angle_distribution: PitchAngleDistribution,
+    /// Factor which is 2 for a peaked and 4 for an isotropic pitch angle distribution.
+    pitch_angle_factor: feb,
     /// Total energy injected into the distribution per volume and time [erg/(cm^3 s)].
     total_power_density: feb,
     /// Lower cut-off energy [units of electron rest energy].
     lower_cutoff_energy: feb,
+    /// Mean energy of the electrons in the distribution [units of electron rest energy].
+    mean_energy: feb,
+    /// Estimated propagation distance until the remaining power density drops below the minimum value [cm].
+    estimated_depletion_distance: feb,
     /// Position where the distribution originates [Mm].
     acceleration_position: Point3<fdt>,
     /// Direction of acceleration of the electrons.
     acceleration_direction: Vec3<fdt>,
+    /// Direction of propagation of the electrons relative to the magnetic field direction.
+    propagation_sense: SteppingSense,
     /// Total mass density at the acceleration site [g/cm^3].
-    mass_density: feb
+    mass_density: feb,
+    /// Electron beam metadata object for holding arbitrary information about the distribution.
+    metadata: M
 }
 
 /// A non-thermal power-law distribution over electron energy,
@@ -58,25 +62,16 @@ pub struct PowerLawDistributionProperties {
 /// The probability density for an electron energy `E` is
 /// `P(E) = (delta - 1)*lower_cutoff_energy^(delta - 1)*E^(-delta)`.
 #[derive(Clone, Debug)]
-pub struct PowerLawDistribution {
+pub struct PowerLawDistribution<M: ElectronBeamMetadata> {
     config: PowerLawDistributionConfig,
-    properties: PowerLawDistributionProperties,
-    /// Factor which is 2 for a peaked and 4 for an isotropic pitch angle distribution.
-    pitch_angle_factor: feb,
-    /// Cosine of the minimum angle that the acceleration direction must be away from
-    /// the normal of the magnetic field direction in order for the electrons to be propagated.
-    acceleration_alignment_threshold: fdt,
-    /// Mean energy of the electrons in the distribution [units of electron rest energy].
-    mean_energy: feb,
-    /// Estimated propagation distance until the remaining power density drops below the minimum value [cm].
-    estimated_depletion_distance: feb,
+    properties: PowerLawDistributionProperties<M>,
     /// Current collisional depth [dimensionless]. Increases as the distribution propagates.
     collisional_depth: feb,
     /// Current remaining energy per volume and time [erg/(cm^3 s)]. Decreases as the distribution propagates.
     remaining_power_density: feb
 }
 
-impl PowerLawDistribution {
+impl<M: ElectronBeamMetadata> PowerLawDistribution<M> {
     /// Fraction of a mass of plasma assumed to be made up of hydrogen.
     const HYDROGEN_MASS_FRACTION: feb = 0.735;
 
@@ -94,9 +89,6 @@ impl PowerLawDistribution {
     /// Returns the exponent of the inverse power-law.
     pub fn delta(&self) -> feb { self.properties.delta }
 
-    /// Returns the type of pitch angle distribution of the non-thermal electrons.
-    pub fn pitch_angle_distribution(&self) -> PitchAngleDistribution { self.properties.pitch_angle_distribution }
-
     /// Returns the total energy injected into the distribution per volume and time [erg/(cm^3 s)].
     pub fn total_power_density(&self) -> feb { self.properties.total_power_density }
 
@@ -104,7 +96,11 @@ impl PowerLawDistribution {
     pub fn lower_cutoff_energy(&self) -> feb { self.properties.lower_cutoff_energy }
 
     /// Returns the mean energy of the electrons in the distribution [units of electron rest energy].
-    pub fn mean_energy(&self) -> feb { self.mean_energy }
+    pub fn mean_energy(&self) -> feb { self.properties.mean_energy }
+
+    /// Returns the estimated propagation distance until the remaining
+    /// power density drops below the minimum value [cm].
+    pub fn estimated_depletion_distance(&self) -> feb { self.properties.estimated_depletion_distance }
 
     /// Returns the current collisional depth.
     ///
@@ -116,42 +112,16 @@ impl PowerLawDistribution {
     /// Decreases as the distribution propagates.
     pub fn remaining_power_density(&self) -> feb { self.remaining_power_density }
 
-    fn new(config: PowerLawDistributionConfig, properties: PowerLawDistributionProperties) -> Self {
-        let pitch_angle_factor = match properties.pitch_angle_distribution {
-            PitchAngleDistribution::Peaked => 2.0,
-            PitchAngleDistribution::Isotropic => 4.0
-        };
-
-        let acceleration_alignment_threshold = feb::cos(config.min_acceleration_angle.to_radians()) as fdt;
-        let mean_energy = properties.lower_cutoff_energy*(properties.delta - 1.0)/(properties.delta - 2.0);
-        let electron_density = Self::compute_electron_density(properties.mass_density);
-
-        let estimated_depletion_distance = Self::estimate_depletion_distance(
-            electron_density,
-            properties.delta,
-            pitch_angle_factor,
-            properties.total_power_density,
-            properties.lower_cutoff_energy,
-            mean_energy,
-            config.min_remaining_power_density
-        );
-
+    fn new(config: PowerLawDistributionConfig, properties: PowerLawDistributionProperties<M>) -> Self {
         let collisional_depth = 0.0;
         let remaining_power_density = properties.total_power_density;
-
         PowerLawDistribution{
             config,
             properties,
-            pitch_angle_factor,
-            acceleration_alignment_threshold,
-            mean_energy,
-            estimated_depletion_distance,
             collisional_depth,
             remaining_power_density
         }
     }
-
-    fn estimated_depletion_distance(&self) -> feb { self.estimated_depletion_distance }
 
     fn compute_electron_density(mass_density: feb) -> feb {
         mass_density*Self::MASS_DENSITY_TO_ELECTRON_DENSITY
@@ -161,6 +131,17 @@ impl PowerLawDistribution {
         feb::powi(lower_cutoff_energy, 2)*
         (feb::powf(depletion_power_density/total_power_density, 2.0/(2.0 - delta)) - 1.0)/
         (pitch_angle_factor*Self::compute_collisional_coef(electron_density, mean_energy))
+    }
+
+    fn compute_mean_energy(delta: feb, lower_cutoff_energy: feb) -> feb {
+        lower_cutoff_energy*(delta - 1.0)/(delta - 2.0)
+    }
+
+    fn determine_pitch_angle_factor(pitch_angle_distribution: PitchAngleDistribution) -> feb {
+        match pitch_angle_distribution {
+            PitchAngleDistribution::Peaked => 2.0,
+            PitchAngleDistribution::Isotropic => 4.0
+        }
     }
 
     fn compute_collisional_depth_increase(electron_density: feb, pitch_angle_factor: feb, mean_energy: feb, step_length: feb) -> feb {
@@ -180,27 +161,18 @@ impl PowerLawDistribution {
     }
 }
 
-impl Distribution for PowerLawDistribution {
+impl<M: ElectronBeamMetadata> Distribution for PowerLawDistribution<M> {
+    type MetadataType = M;
+
     fn acceleration_position(&self) -> &Point3<fdt> { &self.properties.acceleration_position }
 
-    fn determine_propagation_sense(&self, magnetic_field_direction: &Vec3<fdt>) -> PropagationSense {
-        let aligment = self.properties.acceleration_direction.dot(magnetic_field_direction);
-        if fdt::abs(aligment) > self.acceleration_alignment_threshold {
-            if aligment > 0.0 {
-                Some(SteppingSense::Same)
-            } else {
-                Some(SteppingSense::Opposite)
-            }
-        } else {
-            None
-        }
-    }
+    fn propagation_sense(&self) -> SteppingSense { self.properties.propagation_sense }
 
     fn scalar_properties(&self) -> HashMap<String, feb> {
         let mut properties = HashMap::new();
         properties.insert("total_power_density".to_string(), self.properties.total_power_density);
         properties.insert("lower_cutoff_energy".to_string(), self.properties.lower_cutoff_energy*MC2_ELECTRON/KEV_TO_ERG); // [keV]
-        properties.insert("estimated_depletion_distance".to_string(), self.estimated_depletion_distance/U_L); // [Mm]
+        properties.insert("estimated_depletion_distance".to_string(), self.properties.estimated_depletion_distance/U_L); // [Mm]
         properties
     }
 
@@ -209,6 +181,8 @@ impl Distribution for PowerLawDistribution {
         properties.insert("acceleration_direction".to_string(), Vec3::from(&self.properties.acceleration_direction));
         properties
     }
+
+    fn metadata(&self) -> &Self::MetadataType { &self.properties.metadata }
 
     fn propagate<G, I>(&mut self, snapshot: &SnapshotCacher3<G>, interpolator: &I, displacement: &Vec3<ftr>, new_position: &Point3<ftr>) -> PropagationResult
     where G: Grid3<fdt>,
@@ -226,8 +200,8 @@ impl Distribution for PowerLawDistribution {
         let collisional_depth_increase = if electron_density > std::f64::EPSILON {
             Self::compute_collisional_depth_increase(
                 electron_density,
-                self.pitch_angle_factor,
-                self.mean_energy,
+                self.properties.pitch_angle_factor,
+                self.properties.mean_energy,
                 step_length
             )
         } else {
@@ -260,12 +234,10 @@ impl Distribution for PowerLawDistribution {
 }
 
 impl PowerLawDistributionConfig {
-    const DEFAULT_MIN_ACCELERATION_ANGLE:           feb = 20.0; // [deg]
     const DEFAULT_MIN_REMAINING_POWER_DENSITY:      feb = 1e-6; // [erg/(cm^3 s)]
 
     /// Panics if any of the configuration parameter values are invalid.
     pub fn validate(&self) {
-        assert!(self.min_acceleration_angle >= 0.0, "Minimum acceleration angle must be larger than or equal to zero.");
         assert!(self.min_remaining_power_density >= 0.0, "Minimum remaining power density must be larger than or equal to zero.");
     }
 }
@@ -273,7 +245,6 @@ impl PowerLawDistributionConfig {
 impl Default for PowerLawDistributionConfig {
     fn default() -> Self {
         PowerLawDistributionConfig {
-            min_acceleration_angle: Self::DEFAULT_MIN_ACCELERATION_ANGLE,
             min_remaining_power_density: Self::DEFAULT_MIN_REMAINING_POWER_DENSITY
         }
     }
