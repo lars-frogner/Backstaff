@@ -84,13 +84,13 @@ impl ElectronBeamSimulator {
     }
 
     /// Generates a new set of electron beams using the current parameter values.
-    pub fn generate_beams(&self, propagate_beams: bool, extra_fixed_scalars: Option<&Vec<&str>>, verbose: Verbose) -> Option<ElectronBeamSwarm<SimplePowerLawAccelerator>> {
+    pub fn generate_beams(&self, propagate_beams: bool, extra_fixed_scalars: Option<&Vec<&str>>, verbose: Verbose) -> ElectronBeamSwarm<SimplePowerLawAccelerator> {
         let mut snapshot = self.create_cacher();
         snapshot.reader_mut().set_verbose(verbose);
         let seeder = self.create_seeder(&mut snapshot);
         let accelerator = self.create_accelerator();
         let interpolator = self.create_interpolator();
-        let beams = if propagate_beams {
+        let mut beams = if propagate_beams {
             match self.rkf_stepper_type {
                 RKFStepperType::RKF23 => {
                     let stepper_factory = self.create_rkf23_stepper_factory();
@@ -104,18 +104,14 @@ impl ElectronBeamSimulator {
         } else {
             ElectronBeamSwarm::generate_unpropagated(seeder, &mut snapshot, accelerator, &interpolator, verbose)
         };
-        if let Some(mut beams) = beams {
-            if let Some(extra_fixed_scalars) = extra_fixed_scalars {
-                for name in extra_fixed_scalars {
-                    beams.extract_fixed_scalars(snapshot.obtain_scalar_field(name)
-                                                        .unwrap_or_else(|err| panic!("Could not read field: {}", err)),
-                                                &interpolator);
-                }
+        if let Some(extra_fixed_scalars) = extra_fixed_scalars {
+            for name in extra_fixed_scalars {
+                beams.extract_fixed_scalars(snapshot.obtain_scalar_field(name)
+                                                    .unwrap_or_else(|err| panic!("Could not read field: {}", err)),
+                                            &interpolator);
             }
-            Some(beams)
-        } else {
-            None
         }
+        beams
     }
 
     fn read_use_normalized_reconnection_factor<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> bool {
