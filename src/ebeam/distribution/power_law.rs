@@ -2,7 +2,6 @@
 
 pub mod acceleration;
 
-use std::collections::HashMap;
 use crate::constants::{AMU, MC2_ELECTRON, KEV_TO_ERG};
 use crate::units::solar::{U_L, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
@@ -12,7 +11,7 @@ use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
 use super::{DepletionStatus, PropagationResult, Distribution};
-use super::super::{feb, ElectronBeamMetadata};
+use super::super::{feb, FixedBeamScalarValues, FixedBeamVectorValues, ElectronBeamProperties, ElectronBeamMetadata};
 
 /// An electron pitch-angle distribution which is either peaked or isotropic.
 #[derive(Clone, Copy, Debug)]
@@ -28,9 +27,9 @@ pub struct PowerLawDistributionConfig {
     pub min_remaining_power_density: feb
 }
 
-/// Properties of a power-law distribution of non-thermal electrons.
+/// Data associated with a power-law distribution.
 #[derive(Clone, Debug)]
-pub struct PowerLawDistributionProperties<M: ElectronBeamMetadata> {
+pub struct PowerLawDistributionData<M: ElectronBeamMetadata> {
     /// Exponent of the inverse power-law.
     delta: feb,
     /// Factor which is 2 for a peaked and 4 for an isotropic pitch angle distribution.
@@ -55,6 +54,19 @@ pub struct PowerLawDistributionProperties<M: ElectronBeamMetadata> {
     metadata: M
 }
 
+/// Exposed properties of a power-law distribution.
+#[derive(Clone, Debug)]
+pub struct PowerLawDistributionProperties {
+    /// Total energy injected into the distribution per volume and time [erg/(cm^3 s)].
+    total_power_density: feb,
+    /// Lower cut-off energy [keV].
+    lower_cutoff_energy: feb,
+    /// Estimated propagation distance until the remaining power density drops below the minimum value [Mm].
+    estimated_depletion_distance: feb,
+    /// Direction of acceleration of the electrons.
+    acceleration_direction: Vec3<feb>
+}
+
 /// A non-thermal power-law distribution over electron energy,
 /// parameterized by an exponent `delta`, a `total_power_density`
 /// and a `lower_cutoff_energy`.
@@ -64,7 +76,7 @@ pub struct PowerLawDistributionProperties<M: ElectronBeamMetadata> {
 #[derive(Clone, Debug)]
 pub struct PowerLawDistribution<M: ElectronBeamMetadata> {
     config: PowerLawDistributionConfig,
-    properties: PowerLawDistributionProperties<M>,
+    data: PowerLawDistributionData<M>,
     /// Current collisional depth [dimensionless]. Increases as the distribution propagates.
     collisional_depth: feb,
     /// Current remaining energy per volume and time [erg/(cm^3 s)]. Decreases as the distribution propagates.
@@ -87,20 +99,20 @@ impl<M: ElectronBeamMetadata> PowerLawDistribution<M> {
     const COULOMB_OFFSET: feb = 37.853_791;
 
     /// Returns the exponent of the inverse power-law.
-    pub fn delta(&self) -> feb { self.properties.delta }
+    pub fn delta(&self) -> feb { self.data.delta }
 
     /// Returns the total energy injected into the distribution per volume and time [erg/(cm^3 s)].
-    pub fn total_power_density(&self) -> feb { self.properties.total_power_density }
+    pub fn total_power_density(&self) -> feb { self.data.total_power_density }
 
     /// Returns the lower cut-off energy [units of electron rest energy].
-    pub fn lower_cutoff_energy(&self) -> feb { self.properties.lower_cutoff_energy }
+    pub fn lower_cutoff_energy(&self) -> feb { self.data.lower_cutoff_energy }
 
     /// Returns the mean energy of the electrons in the distribution [units of electron rest energy].
-    pub fn mean_energy(&self) -> feb { self.properties.mean_energy }
+    pub fn mean_energy(&self) -> feb { self.data.mean_energy }
 
     /// Returns the estimated propagation distance until the remaining
     /// power density drops below the minimum value [cm].
-    pub fn estimated_depletion_distance(&self) -> feb { self.properties.estimated_depletion_distance }
+    pub fn estimated_depletion_distance(&self) -> feb { self.data.estimated_depletion_distance }
 
     /// Returns the current collisional depth.
     ///
@@ -112,12 +124,12 @@ impl<M: ElectronBeamMetadata> PowerLawDistribution<M> {
     /// Decreases as the distribution propagates.
     pub fn remaining_power_density(&self) -> feb { self.remaining_power_density }
 
-    fn new(config: PowerLawDistributionConfig, properties: PowerLawDistributionProperties<M>) -> Self {
+    fn new(config: PowerLawDistributionConfig, data: PowerLawDistributionData<M>) -> Self {
         let collisional_depth = 0.0;
-        let remaining_power_density = properties.total_power_density;
+        let remaining_power_density = data.total_power_density;
         PowerLawDistribution{
             config,
-            properties,
+            data,
             collisional_depth,
             remaining_power_density
         }
@@ -161,28 +173,42 @@ impl<M: ElectronBeamMetadata> PowerLawDistribution<M> {
     }
 }
 
+impl ElectronBeamProperties for PowerLawDistributionProperties {
+    type NestedTuplesOfValues = (feb, (feb, (feb, Vec3<feb>)));
+    #[allow(clippy::type_complexity)]
+    type NestedTuplesOfVecs = (Vec<feb>, (Vec<feb>, (Vec<feb>, Vec<Vec3<feb>>)));
+
+    fn into_nested_tuples_of_values(self) -> Self::NestedTuplesOfValues {
+        (self.total_power_density, (self.lower_cutoff_energy, (self.estimated_depletion_distance, self.acceleration_direction)))
+    }
+
+    fn distribute_nested_tuples_of_vecs_into_maps(vecs: Self::NestedTuplesOfVecs, scalar_values: &mut FixedBeamScalarValues, vector_values: &mut FixedBeamVectorValues) {
+        let (total_power_densities, (lower_cutoff_energies, (estimated_depletion_distances, acceleration_directions))) = vecs;
+        scalar_values.insert("total_power_density".to_string(), total_power_densities);
+        scalar_values.insert("lower_cutoff_energy".to_string(), lower_cutoff_energies);
+        scalar_values.insert("estimated_depletion_distance".to_string(), estimated_depletion_distances);
+        vector_values.insert("acceleration_direction".to_string(), acceleration_directions);
+    }
+}
+
 impl<M: ElectronBeamMetadata> Distribution for PowerLawDistribution<M> {
+    type PropertiesType = PowerLawDistributionProperties;
     type MetadataType = M;
 
-    fn acceleration_position(&self) -> &Point3<fdt> { &self.properties.acceleration_position }
+    fn acceleration_position(&self) -> &Point3<fdt> { &self.data.acceleration_position }
 
-    fn propagation_sense(&self) -> SteppingSense { self.properties.propagation_sense }
+    fn propagation_sense(&self) -> SteppingSense { self.data.propagation_sense }
 
-    fn scalar_properties(&self) -> HashMap<String, feb> {
-        let mut properties = HashMap::new();
-        properties.insert("total_power_density".to_string(), self.properties.total_power_density);
-        properties.insert("lower_cutoff_energy".to_string(), self.properties.lower_cutoff_energy*MC2_ELECTRON/KEV_TO_ERG); // [keV]
-        properties.insert("estimated_depletion_distance".to_string(), self.properties.estimated_depletion_distance/U_L); // [Mm]
-        properties
+    fn properties(&self) -> Self::PropertiesType {
+        PowerLawDistributionProperties{
+            total_power_density: self.data.total_power_density,
+            lower_cutoff_energy: self.data.lower_cutoff_energy*MC2_ELECTRON/KEV_TO_ERG,
+            estimated_depletion_distance: self.data.estimated_depletion_distance/U_L,
+            acceleration_direction: Vec3::from(&self.data.acceleration_direction)
+        }
     }
 
-    fn vector_properties(&self) -> HashMap<String, Vec3<feb>> {
-        let mut properties = HashMap::new();
-        properties.insert("acceleration_direction".to_string(), Vec3::from(&self.properties.acceleration_direction));
-        properties
-    }
-
-    fn metadata(&self) -> &Self::MetadataType { &self.properties.metadata }
+    fn metadata(&self) -> Self::MetadataType { self.data.metadata.clone() }
 
     fn propagate<G, I>(&mut self, snapshot: &SnapshotCacher3<G>, interpolator: &I, displacement: &Vec3<ftr>, new_position: &Point3<ftr>) -> PropagationResult
     where G: Grid3<fdt>,
@@ -200,8 +226,8 @@ impl<M: ElectronBeamMetadata> Distribution for PowerLawDistribution<M> {
         let collisional_depth_increase = if electron_density > std::f64::EPSILON {
             Self::compute_collisional_depth_increase(
                 electron_density,
-                self.properties.pitch_angle_factor,
-                self.properties.mean_energy,
+                self.data.pitch_angle_factor,
+                self.data.mean_energy,
                 step_length
             )
         } else {
@@ -212,9 +238,9 @@ impl<M: ElectronBeamMetadata> Distribution for PowerLawDistribution<M> {
         let new_collisional_depth = self.collisional_depth + slope_correction_factor*collisional_depth_increase;
 
         let new_remaining_power_density = Self::compute_remaining_power_density(
-            self.properties.delta,
-            self.properties.total_power_density,
-            self.properties.lower_cutoff_energy,
+            self.data.delta,
+            self.data.total_power_density,
+            self.data.lower_cutoff_energy,
             new_collisional_depth
         );
 
@@ -234,7 +260,7 @@ impl<M: ElectronBeamMetadata> Distribution for PowerLawDistribution<M> {
 }
 
 impl PowerLawDistributionConfig {
-    const DEFAULT_MIN_REMAINING_POWER_DENSITY:      feb = 1e-6; // [erg/(cm^3 s)]
+    const DEFAULT_MIN_REMAINING_POWER_DENSITY: feb = 1e-6; // [erg/(cm^3 s)]
 
     /// Panics if any of the configuration parameter values are invalid.
     pub fn validate(&self) {
