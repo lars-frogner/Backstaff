@@ -2,14 +2,13 @@
 
 pub mod power_law;
 
-use std::collections::HashMap;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::geometry::{Vec3, Point3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
-use super::{feb, ElectronBeamMetadata};
+use super::{feb, ElectronBeamProperties, ElectronBeamMetadata};
 
 /// Whether or not a distribution is depleted.
 #[derive(Clone, Copy, Debug)]
@@ -31,6 +30,7 @@ pub struct PropagationResult {
 
 /// Defines the properties of a non-thermal electron distribution.
 pub trait Distribution {
+    type PropertiesType: ElectronBeamProperties;
     type MetadataType: ElectronBeamMetadata;
 
     /// Returns the position where the distribution originates.
@@ -39,14 +39,11 @@ pub trait Distribution {
     /// Returns the direction of propagation of the electrons relative to the magnetic field direction.
     fn propagation_sense(&self) -> SteppingSense;
 
-    /// Creates a hash map containing scalar-valued properties of the distribution.
-    fn scalar_properties(&self) -> HashMap<String, feb>;
+    /// Returns an object holding properties associated with the distribution.
+    fn properties(&self) -> Self::PropertiesType;
 
-    /// Creates a hash map containing vector-valued properties of the distribution.
-    fn vector_properties(&self) -> HashMap<String, Vec3<feb>>;
-
-    /// Returns a pointer to the electron beam metadata object associated with the distribution.
-    fn metadata(&self) -> &Self::MetadataType;
+    /// Returns an object holding metadata associated with the distribution.
+    fn metadata(&self) -> Self::MetadataType;
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
