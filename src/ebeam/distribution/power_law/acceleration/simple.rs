@@ -11,7 +11,7 @@ use crate::geometry::{Dim3, Vec3, Point3, Idx3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::stepping::SteppingSense;
-use super::super::{PitchAngleDistribution, PowerLawDistributionConfig, PowerLawDistributionProperties, PowerLawDistribution};
+use super::super::{PitchAngleDistribution, PowerLawDistributionConfig, PowerLawDistributionData, PowerLawDistribution};
 use super::super::super::super::{feb, ElectronBeamMetadata};
 use super::super::super::super::accelerator::Accelerator;
 use Dim3::{X, Y, Z};
@@ -351,7 +351,7 @@ impl Accelerator for SimplePowerLawAccelerator {
 
         let propagation_sense = Self::find_propagation_sense(acceleration_alignment_factor);
 
-        let distribution_properties = PowerLawDistributionProperties{
+        let distribution_data = PowerLawDistributionData{
             delta: self.delta,
             pitch_angle_factor: self.pitch_angle_factor,
             total_power_density,
@@ -364,7 +364,7 @@ impl Accelerator for SimplePowerLawAccelerator {
             mass_density,
             metadata: rejection_cause_code
         };
-        Some(SimplePowerLawDistribution::new(self.distribution_config.clone(), distribution_properties))
+        Some(SimplePowerLawDistribution::new(self.distribution_config.clone(), distribution_data))
     }
 }
 
