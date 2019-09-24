@@ -11,7 +11,7 @@ use crate::geometry::{Dim3, In3D, Coords3};
 use crate::grid::{CoordLocation, GridType, Grid3};
 use crate::field::{ScalarField3, VectorField3};
 use super::{Endianness, Verbose};
-use super::utils::read_text_file;
+use super::utils;
 use Dim3::{X, Y, Z};
 use CoordLocation::{Center, LowerEdge};
 
@@ -191,7 +191,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     }
 
     fn read_grid_from_mesh_file<P: AsRef<path::Path>>(params: &Params, mesh_path: P) -> io::Result<G> {
-        let file = fs::File::open(mesh_path)?;
+        let file = utils::open_file_and_map_err(mesh_path)?;
         let mut lines = io::BufReader::new(file).lines();
         let coord_names = ["x", "y", "z"];
         let mut center_coord_vecs = VecDeque::new();
@@ -472,7 +472,7 @@ struct Params {
 
 impl Params {
     fn new<P: AsRef<path::Path>>(params_path: P) -> io::Result<Self> {
-        let params_text = read_text_file(params_path)?;
+        let params_text = utils::read_text_file(params_path)?;
         let params_map = Self::parse_params_text(&params_text);
         Ok(Params{ params_map })
     }
