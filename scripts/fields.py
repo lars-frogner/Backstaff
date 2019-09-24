@@ -39,8 +39,11 @@ if __name__ == "__main__":
     import plotting
     from pathlib import Path
 
-    field = reading.read_2d_scalar_field(Path(reading.data_path, 'phd_run', 'en024031_emer3.0str_351.pickle'))
-    field_coarse = reading.read_2d_scalar_field(Path(reading.data_path, 'phd_run', 'en024031_emer3.0str_coarse_351.pickle'))
+    field = reading.read_2d_scalar_field(
+        Path(reading.DATA_PATH, 'phd_run', 'en024031_emer3.0str_351.pickle'))
+    field_coarse = reading.read_2d_scalar_field(
+        Path(reading.DATA_PATH, 'phd_run',
+             'en024031_emer3.0str_coarse_351.pickle'))
     fig, axes = plotting.create_2d_subplots(ncols=2)
     field.add_to_plot(axes[0])
     field_coarse.add_to_plot(axes[1])

@@ -12,20 +12,27 @@ class FieldLine3:
         self.vector_values = vector_values
 
     def add_to_plot_as_scatter(self, ax, c='k', s=1.0):
-        ax.scatter(self.positions.x, self.positions.y, self.positions.z, c=c, s=s)
+        ax.scatter(self.positions.x,
+                   self.positions.y,
+                   self.positions.z,
+                   c=c,
+                   s=s)
 
     def add_to_plot_as_line(self, ax, c='k', lw=1.0, alpha=1.0):
         for pos_x, pos_y, pos_z in zip(*self.find_nonwrapping_segments()):
             ax.plot(pos_x, pos_y, pos_z, c=c, lw=lw, alpha=alpha)
 
     def find_nonwrapping_segments(self, threshold=20.0):
-        step_lengths = np.sqrt(np.diff(self.positions.x)**2 + np.diff(self.positions.y)**2 + np.diff(self.positions.z)**2)
-        wrap_indices = np.where(step_lengths > threshold*np.mean(step_lengths))[0]
+        step_lengths = np.sqrt(
+            np.diff(self.positions.x)**2 + np.diff(self.positions.y)**2 +
+            np.diff(self.positions.z)**2)
+        wrap_indices = np.where(
+            step_lengths > threshold * np.mean(step_lengths))[0]
         if wrap_indices.size > 0:
             wrap_indices += 1
             return np.split(self.positions.x, wrap_indices), \
-                   np.split(self.positions.y, wrap_indices), \
-                   np.split(self.positions.z, wrap_indices)
+                np.split(self.positions.y, wrap_indices), \
+                np.split(self.positions.z, wrap_indices)
         else:
             return [self.positions.x], [self.positions.y], [self.positions.z]
 
@@ -52,11 +59,11 @@ if __name__ == "__main__":
     import reading
     from pathlib import Path
 
-    grid_bounds = ((-0.015625, 23.98438),
-                   (-0.015625, 23.98438),
-                   (-14.33274, 2.525689))
+    grid_bounds = ((-0.015625, 23.98438), (-0.015625, 23.98438), (-14.33274,
+                                                                  2.525689))
 
-    field_line_set = reading.read_3d_field_line_set_from_combined_pickles(Path(reading.data_path, 'field_line_set.pickle'))
+    field_line_set = reading.read_3d_field_line_set_from_combined_pickles(
+        Path(reading.DATA_PATH, 'field_line_set.pickle'))
 
     import matplotlib.pyplot as plt
     import plotting
