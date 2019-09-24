@@ -2,6 +2,7 @@
 
 pub mod acceleration;
 
+use rayon::prelude::*;
 use crate::constants::{AMU, MC2_ELECTRON, KEV_TO_ERG};
 use crate::units::solar::{U_L, U_R};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
@@ -11,7 +12,7 @@ use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
 use super::{DepletionStatus, PropagationResult, Distribution};
-use super::super::{feb, FixedBeamScalarValues, FixedBeamVectorValues, ElectronBeamProperties, ElectronBeamMetadata};
+use super::super::{feb, FixedBeamScalarValues, FixedBeamVectorValues, ElectronBeamPropertiesCollection, ElectronBeamMetadataCollection};
 
 /// An electron pitch-angle distribution which is either peaked or isotropic.
 #[derive(Clone, Copy, Debug)]
@@ -29,7 +30,7 @@ pub struct PowerLawDistributionConfig {
 
 /// Data associated with a power-law distribution.
 #[derive(Clone, Debug)]
-pub struct PowerLawDistributionData<M: ElectronBeamMetadata> {
+pub struct PowerLawDistributionData<M: ElectronBeamMetadataCollection> {
     /// Exponent of the inverse power-law.
     delta: feb,
     /// Factor which is 2 for a peaked and 4 for an isotropic pitch angle distribution.
@@ -51,7 +52,7 @@ pub struct PowerLawDistributionData<M: ElectronBeamMetadata> {
     /// Total mass density at the acceleration site [g/cm^3].
     mass_density: feb,
     /// Electron beam metadata object for holding arbitrary information about the distribution.
-    metadata: M
+    metadata: <M as ElectronBeamMetadataCollection>::Item
 }
 
 /// Exposed properties of a power-law distribution.
@@ -67,6 +68,15 @@ pub struct PowerLawDistributionProperties {
     acceleration_direction: Vec3<feb>
 }
 
+/// Property values of each individual distribution in a set of power-law distributions.
+#[derive(Clone, Default, Debug)]
+pub struct PowerLawDistributionPropertiesCollection {
+    total_power_densities: Vec<feb>,
+    lower_cutoff_energies: Vec<feb>,
+    estimated_depletion_distances: Vec<feb>,
+    acceleration_directions: Vec<Vec3<feb>>
+}
+
 /// A non-thermal power-law distribution over electron energy,
 /// parameterized by an exponent `delta`, a `total_power_density`
 /// and a `lower_cutoff_energy`.
@@ -74,7 +84,7 @@ pub struct PowerLawDistributionProperties {
 /// The probability density for an electron energy `E` is
 /// `P(E) = (delta - 1)*lower_cutoff_energy^(delta - 1)*E^(-delta)`.
 #[derive(Clone, Debug)]
-pub struct PowerLawDistribution<M: ElectronBeamMetadata> {
+pub struct PowerLawDistribution<M: ElectronBeamMetadataCollection> {
     config: PowerLawDistributionConfig,
     data: PowerLawDistributionData<M>,
     /// Current collisional depth [dimensionless]. Increases as the distribution propagates.
@@ -83,7 +93,7 @@ pub struct PowerLawDistribution<M: ElectronBeamMetadata> {
     remaining_power_density: feb
 }
 
-impl<M: ElectronBeamMetadata> PowerLawDistribution<M> {
+impl<M: ElectronBeamMetadataCollection> PowerLawDistribution<M> {
     /// Fraction of a mass of plasma assumed to be made up of hydrogen.
     const HYDROGEN_MASS_FRACTION: feb = 0.735;
 
@@ -173,33 +183,54 @@ impl<M: ElectronBeamMetadata> PowerLawDistribution<M> {
     }
 }
 
-impl ElectronBeamProperties for PowerLawDistributionProperties {
-    type NestedTuplesOfValues = (feb, (feb, (feb, Vec3<feb>)));
-    #[allow(clippy::type_complexity)]
-    type NestedTuplesOfVecs = (Vec<feb>, (Vec<feb>, (Vec<feb>, Vec<Vec3<feb>>)));
+impl ElectronBeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
+    type Item = PowerLawDistributionProperties;
 
-    fn into_nested_tuples_of_values(self) -> Self::NestedTuplesOfValues {
-        (self.total_power_density, (self.lower_cutoff_energy, (self.estimated_depletion_distance, self.acceleration_direction)))
-    }
-
-    fn distribute_nested_tuples_of_vecs_into_maps(vecs: Self::NestedTuplesOfVecs, scalar_values: &mut FixedBeamScalarValues, vector_values: &mut FixedBeamVectorValues) {
-        let (total_power_densities, (lower_cutoff_energies, (estimated_depletion_distances, acceleration_directions))) = vecs;
-        scalar_values.insert("total_power_density".to_string(), total_power_densities);
-        scalar_values.insert("lower_cutoff_energy".to_string(), lower_cutoff_energies);
-        scalar_values.insert("estimated_depletion_distance".to_string(), estimated_depletion_distances);
-        vector_values.insert("acceleration_direction".to_string(), acceleration_directions);
+    fn distribute_into_maps(self, scalar_values: &mut FixedBeamScalarValues, vector_values: &mut FixedBeamVectorValues) {
+        scalar_values.insert("total_power_density".to_string(), self.total_power_densities);
+        scalar_values.insert("lower_cutoff_energy".to_string(), self.lower_cutoff_energies);
+        scalar_values.insert("estimated_depletion_distance".to_string(), self.estimated_depletion_distances);
+        vector_values.insert("acceleration_direction".to_string(), self.acceleration_directions);
     }
 }
 
-impl<M: ElectronBeamMetadata> Distribution for PowerLawDistribution<M> {
-    type PropertiesType = PowerLawDistributionProperties;
-    type MetadataType = M;
+impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionPropertiesCollection {
+    fn par_extend<I>(&mut self, par_iter: I)
+    where I: IntoParallelIterator<Item=PowerLawDistributionProperties>
+    {
+        let nested_tuples_iter = par_iter.into_par_iter().map(
+            |data| (data.total_power_density,
+                    (data.lower_cutoff_energy,
+                     (data.estimated_depletion_distance,
+                      data.acceleration_direction)))
+        );
+
+        let (total_power_densities,
+             (lower_cutoff_energies,
+              (estimated_depletion_distances,
+               acceleration_directions))):
+            (Vec<_>,
+             (Vec<_>,
+              (Vec<_>,
+               Vec<_>)))
+            = nested_tuples_iter.unzip();
+
+        self.total_power_densities.par_extend(total_power_densities);
+        self.lower_cutoff_energies.par_extend(lower_cutoff_energies);
+        self.estimated_depletion_distances.par_extend(estimated_depletion_distances);
+        self.acceleration_directions.par_extend(acceleration_directions);
+    }
+}
+
+impl<M: ElectronBeamMetadataCollection> Distribution for PowerLawDistribution<M> {
+    type PropertiesCollectionType = PowerLawDistributionPropertiesCollection;
+    type MetadataCollectionType = M;
 
     fn acceleration_position(&self) -> &Point3<fdt> { &self.data.acceleration_position }
 
     fn propagation_sense(&self) -> SteppingSense { self.data.propagation_sense }
 
-    fn properties(&self) -> Self::PropertiesType {
+    fn properties(&self) -> <Self::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item {
         PowerLawDistributionProperties{
             total_power_density: self.data.total_power_density,
             lower_cutoff_energy: self.data.lower_cutoff_energy*MC2_ELECTRON/KEV_TO_ERG,
@@ -208,7 +239,9 @@ impl<M: ElectronBeamMetadata> Distribution for PowerLawDistribution<M> {
         }
     }
 
-    fn metadata(&self) -> Self::MetadataType { self.data.metadata.clone() }
+    fn metadata(&self) -> <Self::MetadataCollectionType as ElectronBeamMetadataCollection>::Item {
+        self.data.metadata.clone()
+    }
 
     fn propagate<G, I>(&mut self, snapshot: &SnapshotCacher3<G>, interpolator: &I, displacement: &Vec3<ftr>, new_position: &Point3<ftr>) -> PropagationResult
     where G: Grid3<fdt>,

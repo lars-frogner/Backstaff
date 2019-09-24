@@ -1,6 +1,7 @@
 //! Simple model for acceleration of non-thermal electron beams described by power-law distributions.
 
 use std::io;
+use rayon::prelude::*;
 use serde::Serialize;
 use serde::ser::{Serializer, SerializeTuple};
 use nrfind;
@@ -12,7 +13,7 @@ use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::stepping::SteppingSense;
 use super::super::{PitchAngleDistribution, PowerLawDistributionConfig, PowerLawDistributionData, PowerLawDistribution};
-use super::super::super::super::{feb, ElectronBeamMetadata};
+use super::super::super::super::{feb, ElectronBeamMetadataCollection};
 use super::super::super::super::accelerator::Accelerator;
 use Dim3::{X, Y, Z};
 
@@ -26,11 +27,17 @@ enum RejectionCause {
 }
 
 /// Encodes the rejection conditions satisfied when generating a distribution.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RejectionCauseCode(u8);
 
-type SimplePowerLawAcceleratorMetadata = RejectionCauseCode;
-type SimplePowerLawDistribution = PowerLawDistribution<SimplePowerLawAcceleratorMetadata>;
+/// Holds a rejection cause code for each distribution.
+#[derive(Clone, Default, Debug)]
+pub struct RejectionCauseCodeCollection {
+    rejection_cause_codes: Vec<RejectionCauseCode>,
+}
+
+type SimplePowerLawAcceleratorMetadataCollection = RejectionCauseCodeCollection;
+type SimplePowerLawDistribution = PowerLawDistribution<SimplePowerLawAcceleratorMetadataCollection>;
 
 /// Configuration parameters for the simple power-law acceleration model.
 #[derive(Clone, Debug)]
@@ -79,16 +86,27 @@ impl Default for RejectionCauseCode {
     }
 }
 
-impl Serialize for RejectionCauseCode {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut tup = serializer.serialize_tuple(2)?;
-        tup.serialize_element("rejection_cause_code")?;
-        tup.serialize_element(&self.0)?;
-        tup.end()
+impl ElectronBeamMetadataCollection for RejectionCauseCodeCollection {
+    type Item = RejectionCauseCode;
+}
+
+impl ParallelExtend<RejectionCauseCode> for RejectionCauseCodeCollection {
+    fn par_extend<I>(&mut self, par_iter: I)
+    where
+        I: IntoParallelIterator<Item=RejectionCauseCode>,
+    {
+        self.rejection_cause_codes.par_extend(par_iter);
     }
 }
 
-impl ElectronBeamMetadata for RejectionCauseCode {}
+impl Serialize for RejectionCauseCodeCollection {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut tup = serializer.serialize_tuple(2)?;
+        tup.serialize_element("rejection_cause_code")?;
+        tup.serialize_element(&self.rejection_cause_codes)?;
+        tup.end()
+    }
+}
 
 impl SimplePowerLawAccelerator {
     /// How many adjacent grid cells in each direction to include when

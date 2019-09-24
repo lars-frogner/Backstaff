@@ -8,7 +8,7 @@ use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
-use super::{feb, ElectronBeamProperties, ElectronBeamMetadata};
+use super::{feb, ElectronBeamPropertiesCollection, ElectronBeamMetadataCollection};
 
 /// Whether or not a distribution is depleted.
 #[derive(Clone, Copy, Debug)]
@@ -30,8 +30,8 @@ pub struct PropagationResult {
 
 /// Defines the properties of a non-thermal electron distribution.
 pub trait Distribution {
-    type PropertiesType: ElectronBeamProperties;
-    type MetadataType: ElectronBeamMetadata;
+    type PropertiesCollectionType: ElectronBeamPropertiesCollection;
+    type MetadataCollectionType: ElectronBeamMetadataCollection;
 
     /// Returns the position where the distribution originates.
     fn acceleration_position(&self) -> &Point3<fdt>;
@@ -40,10 +40,10 @@ pub trait Distribution {
     fn propagation_sense(&self) -> SteppingSense;
 
     /// Returns an object holding properties associated with the distribution.
-    fn properties(&self) -> Self::PropertiesType;
+    fn properties(&self) -> <Self::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item;
 
     /// Returns an object holding metadata associated with the distribution.
-    fn metadata(&self) -> Self::MetadataType;
+    fn metadata(&self) -> <Self::MetadataCollectionType as ElectronBeamMetadataCollection>::Item;
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
