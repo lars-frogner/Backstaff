@@ -8,9 +8,17 @@ use serde::Serialize;
 use serde_pickle;
 use super::Endianness;
 
+/// Opens file with the given path and returns it, or returns an error with the
+/// file path included in the error message.
+pub fn open_file_and_map_err<P: AsRef<path::Path>>(file_path: P) -> io::Result<fs::File> {
+    let file_path = file_path.as_ref();
+    fs::File::open(file_path)
+             .map_err(|err| io::Error::new(err.kind(), format!("Could not open {}: {}", file_path.to_string_lossy(), err)))
+}
+
 /// Reads and returns the content of the specified text file.
 pub fn read_text_file<P: AsRef<path::Path>>(file_path: P) -> io::Result<String> {
-    let file = fs::File::open(file_path)?;
+    let file = open_file_and_map_err(file_path)?;
     let mut text = String::new();
     let _ = io::BufReader::new(file).read_to_string(&mut text)?;
     Ok(text)
@@ -18,7 +26,7 @@ pub fn read_text_file<P: AsRef<path::Path>>(file_path: P) -> io::Result<String> 
 
 /// Reads and returns a buffer of f32 values from the specified binary file.
 pub fn read_f32_from_binary_file<P: AsRef<path::Path>>(file_path: P, length: usize, offset: usize, endianness: Endianness) -> io::Result<Vec<f32>> {
-    let mut file = fs::File::open(file_path)?;
+    let mut file = open_file_and_map_err(file_path)?;
     file.seek(SeekFrom::Start((offset*mem::size_of::<f32>()) as u64))?;
     let mut buffer = vec![0.0; length];
     match endianness {
@@ -30,7 +38,7 @@ pub fn read_f32_from_binary_file<P: AsRef<path::Path>>(file_path: P, length: usi
 
 /// Reads and returns a buffer of f64 values from the specified binary file.
 pub fn read_f64_from_binary_file<P: AsRef<path::Path>>(file_path: P, length: usize, offset: usize, endianness: Endianness) -> io::Result<Vec<f64>> {
-    let mut file = fs::File::open(file_path)?;
+    let mut file = open_file_and_map_err(file_path)?;
     file.seek(SeekFrom::Start((offset*mem::size_of::<f64>()) as u64))?;
     let mut buffer = vec![0.0; length];
     match endianness {
