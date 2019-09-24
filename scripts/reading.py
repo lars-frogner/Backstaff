@@ -1,14 +1,13 @@
 import os
 import pickle
 import numpy as np
-from pathlib import Path
 from fields import Coords3, Coords2, ScalarField2
 from field_lines import FieldLine3, FieldLineSet3
-from electron_beams import ElectronBeam, ElectronBeamSwarm, DistributionRejectionMap
+from electron_beams import ElectronBeamSwarm
 
-scripts_path = os.path.dirname(os.path.realpath(__file__))
-project_path = os.path.dirname(scripts_path)
-data_path = os.path.join(project_path, 'data')
+SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
+PROJECT_PATH = os.path.dirname(SCRIPTS_PATH)
+DATA_PATH = os.path.join(PROJECT_PATH, 'data')
 
 
 def read_2d_scalar_field(file_path):
@@ -42,76 +41,123 @@ def read_3d_field_line_set_from_combined_pickles(file_path):
     return field_line_set
 
 
-def read_electron_beam_swarm_from_single_pickle(file_path):
+def read_electron_beam_swarm_from_single_pickle(file_path, **kwargs):
     with file_path.open(mode='rb') as f:
         data = pickle.load(f)
-    return __parse_electronbeamswarm(data)
+    return __parse_electronbeamswarm(data, **kwargs)
 
 
-def read_electron_beam_swarm_from_combined_pickles(file_path):
-    electron_beam_swarm = ElectronBeamSwarm([])
+def read_electron_beam_swarm_from_combined_pickles(file_path, **kwargs):
+    data = {}
     with file_path.open(mode='rb') as f:
-        while True:
-            try:
-                data = pickle.load(f)
-            except EOFError:
-                break
-            electron_beam = __parse_electronbeam(data)
-            electron_beam_swarm.insert(electron_beam)
-    return electron_beam_swarm
+        data['number_of_beams'] = pickle.load(f)
+        data['fixed_scalar_values'] = pickle.load(f)
+        data['fixed_vector_values'] = pickle.load(f)
+        data['varying_scalar_values'] = pickle.load(f)
+        data['varying_vector_values'] = pickle.load(f)
+        data['metadata'] = pickle.load(f)
+    return __parse_electronbeamswarm(data, **kwargs)
 
 
-def read_electron_distribution_rejection_map(file_path):
-    with file_path.open(mode='rb') as f:
-        data = pickle.load(f)
-    positions = __parse_vec_of_vec3(data['positions'])
-    rejection_causes = np.asarray(data['rejection_causes'], dtype=np.ubyte)
-    possible_rejection_causes = data['possible_rejection_causes']
-    return DistributionRejectionMap(positions, rejection_causes, possible_rejection_causes)
+def __parse_electronbeamswarm(data, **kwargs):
+    number_of_beams = data.pop('number_of_beams')
+    fixed_scalar_values = __parse_map_of_vec_of_float(
+        data['fixed_scalar_values'])
+    fixed_vector_values = __parse_map_of_vec_of_vec3(
+        data.pop('fixed_vector_values'))
+    varying_scalar_values = __parse_map_of_vec_of_vec_of_float(
+        data.pop('varying_scalar_values'))
+    varying_vector_values = __parse_map_of_vec_of_vec_of_vec3(
+        data.pop('varying_vector_values'))
+    metadata = __parse_electronbeamswarm_metadata(data['metadata'])
+    return ElectronBeamSwarm(number_of_beams, fixed_scalar_values,
+                             fixed_vector_values, varying_scalar_values,
+                             varying_vector_values, metadata, **kwargs)
 
 
-def __parse_electronbeamswarm(data):
-    return ElectronBeamSwarm([__parse_electronbeam(d) for d in data['beams']])
+def __parse_electronbeamswarm_metadata(metadata):
+    label = metadata[0]
+    values = metadata[1]
+    if label == 'rejection_cause_code':
+        metadata = {label: np.array(values, dtype=np.ubyte)}
+    else:
+        raise NotImplementedError('Invalid metadata label {}'.format(label))
+    return metadata
 
-def __parse_electronbeam(data):
-    trajectory = __parse_vec_of_vec3(data['trajectory'])
-    fixed_scalar_values = data['fixed_scalar_values']
-    fixed_vector_values = __parse_map_of_vec3(data['fixed_vector_values'])
-    varying_scalar_values = __parse_map_of_vec_of_float(data['varying_scalar_values'])
-    varying_vector_values = __parse_map_of_vec_of_vec3(data['varying_vector_values'])
-    return ElectronBeam(trajectory, fixed_scalar_values, fixed_vector_values, varying_scalar_values, varying_vector_values)
 
 def __parse_fieldlineset3(data):
     return FieldLineSet3([__parse_fieldline3(d) for d in data['field_lines']])
 
+
 def __parse_fieldline3(data):
-    positions = __parse_vec_of_vec3(data['positions'])
+    positions = __parse_vec_of_vec_of_vec3_into_vec_of_coords3(
+        data['positions'])
     scalar_values = __parse_map_of_vec_of_float(data['scalar_values'])
     vector_values = __parse_map_of_vec_of_float(data['vector_values'])
     return FieldLine3(positions, scalar_values, vector_values)
+
 
 def __parse_scalarfield2(data):
     coords = __parse_coords2(data['coords'])
     values = __parse_ndarray(data['values'])
     return ScalarField2(coords, values)
 
+
+def __parse_coords2(data):
+    return Coords2(__parse_vec_of_float(data[0]),
+                   __parse_vec_of_float(data[1]))
+
+
 def __parse_ndarray(data):
     return np.asfarray(data['data']).reshape(data['dim'])
 
-def __parse_coords2(data):
-    return Coords2(__parse_vec_of_float(data[0]), __parse_vec_of_float(data[1]))
 
 def __parse_vec_of_float(data):
     return np.asfarray(data)
 
+
 def __parse_map_of_vec3(data):
     return {name: np.asfarray(vec3) for name, vec3 in data.items()}
 
+
 def __parse_vec_of_vec3(data):
-    return Coords3(*list(zip(*data)))
+    return np.asfarray(data).T
+
+
+def __parse_vec_of_vec3_into_coords3(data):
+    arr = __parse_vec_of_vec3(data)
+    return Coords3(arr[0, :], arr[1, :], arr[2, :])
+
+
+def __parse_vec_of_vec_of_vec3(data):
+    return [__parse_vec_of_vec3(vec) for vec in data]
+
+
+def __parse_vec_of_vec_of_float(data):
+    return [__parse_vec_of_float(vec) for vec in data]
+
+
+def __parse_vec_of_vec_of_vec3_into_vec_of_coords3(data):
+    return [__parse_vec_of_vec3_into_coords3(vec) for vec in data]
+
 
 def __parse_map_of_vec_of_float(data):
-    return {name: np.asfarray(vec) for name, vec in data.items()}
+    return {name: __parse_vec_of_float(vec) for name, vec in data.items()}
+
 
 def __parse_map_of_vec_of_vec3(data):
     return {name: __parse_vec_of_vec3(vec) for name, vec in data.items()}
+
+
+def __parse_map_of_vec_of_vec_of_float(data):
+    return {
+        name: __parse_vec_of_vec_of_float(vec)
+        for name, vec in data.items()
+    }
+
+
+def __parse_map_of_vec_of_vec_of_vec3(data):
+    return {
+        name: __parse_vec_of_vec_of_vec3(vec)
+        for name, vec in data.items()
+    }
