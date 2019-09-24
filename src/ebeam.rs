@@ -1,28 +1,28 @@
 //! Non-thermal electron beam physics in Bifrost simulations.
 
-pub mod distribution;
 pub mod accelerator;
+pub mod distribution;
 pub mod execution;
 
-use std::{io, path, fs};
-use std::io::Write;
-use std::collections::HashMap;
-use serde::Serialize;
-use serde::ser::{Serializer, SerializeStruct};
-use rayon::prelude::*;
-use crate::num::BFloat;
-use crate::io::Verbose;
+use self::accelerator::Accelerator;
+use self::distribution::{DepletionStatus, Distribution, PropagationResult};
+use crate::field::{ScalarField3, VectorField3};
+use crate::geometry::{Dim3, Point3, Vec3};
+use crate::grid::Grid3;
+use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::io::utils;
-use crate::geometry::{Dim3, Vec3, Point3};
-use crate::grid::Grid3;
-use crate::field::{ScalarField3, VectorField3};
-use crate::interpolation::Interpolator3;
-use crate::tracing::{self, ftr, TracerResult};
+use crate::io::Verbose;
+use crate::num::BFloat;
 use crate::tracing::seeding::IndexSeeder3;
-use crate::tracing::stepping::{StepperInstruction, Stepper3, StepperFactory3};
-use self::distribution::{DepletionStatus, PropagationResult, Distribution};
-use self::accelerator::Accelerator;
+use crate::tracing::stepping::{Stepper3, StepperFactory3, StepperInstruction};
+use crate::tracing::{self, ftr, TracerResult};
+use rayon::prelude::*;
+use serde::ser::{SerializeStruct, Serializer};
+use serde::Serialize;
+use std::collections::HashMap;
+use std::io::Write;
+use std::{fs, io, path};
 use Dim3::{X, Y, Z};
 
 /// Floating-point precision to use for electron beam physics.
@@ -37,17 +37,23 @@ type VaryingBeamVectorValues = HashMap<String, Vec<Vec<Vec3<feb>>>>;
 
 /// Defines the required behaviour of a type representing
 /// a collection of objects holding electron beam properties.
-pub trait ElectronBeamPropertiesCollection: Default + Sync + Send {
+pub trait BeamPropertiesCollection: Default + Sync + Send {
     type Item: Send;
 
     /// Moves the property values into the appropriate entries of the
     /// gives hash maps.
-    fn distribute_into_maps(self, scalar_values: &mut FixedBeamScalarValues, vector_values: &mut FixedBeamVectorValues);
+    fn distribute_into_maps(
+        self,
+        scalar_values: &mut FixedBeamScalarValues,
+        vector_values: &mut FixedBeamVectorValues,
+    );
 }
 
 /// Defines the required behaviour of a type representing
 /// a collection of objects holding electron beam metadata.
-pub trait ElectronBeamMetadataCollection: Clone + Default + std::fmt::Debug + Serialize + Sync + Send {
+pub trait BeamMetadataCollection:
+    Clone + Default + std::fmt::Debug + Serialize + Sync + Send
+{
     type Item: Clone + std::fmt::Debug + Send;
 }
 
@@ -59,27 +65,29 @@ pub struct ElectronBeamSwarm<A: Accelerator> {
     fixed_vector_values: FixedBeamVectorValues,
     varying_scalar_values: VaryingBeamScalarValues,
     varying_vector_values: VaryingBeamVectorValues,
-    metadata: <A::DistributionType as Distribution>::MetadataCollectionType
+    metadata: <A::DistributionType as Distribution>::MetadataCollectionType,
 }
 
 struct UnpropagatedElectronBeam<D: Distribution> {
     acceleration_position: Point3<ftr>,
-    distribution_properties: <D::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item,
-    metadata: <D::MetadataCollectionType as ElectronBeamMetadataCollection>::Item
+    distribution_properties:
+        <D::PropertiesCollectionType as BeamPropertiesCollection>::Item,
+    metadata: <D::MetadataCollectionType as BeamMetadataCollection>::Item,
 }
 
 struct PropagatedElectronBeam<D: Distribution> {
     trajectory: BeamTrajectory,
-    distribution_properties: <D::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item,
+    distribution_properties:
+        <D::PropertiesCollectionType as BeamPropertiesCollection>::Item,
     total_propagation_distance: feb,
     deposited_power_densities: Vec<feb>,
-    metadata: <D::MetadataCollectionType as ElectronBeamMetadataCollection>::Item
+    metadata: <D::MetadataCollectionType as BeamMetadataCollection>::Item,
 }
 
 impl<A> FromParallelIterator<UnpropagatedElectronBeam<A::DistributionType>> for ElectronBeamSwarm<A>
 where A: Accelerator,
-      <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item>,
-      <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as ElectronBeamMetadataCollection>::Item>
+      <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
+      <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as BeamMetadataCollection>::Item>
 {
     fn from_par_iter<I>(par_iter: I) -> Self
     where I: IntoParallelIterator<Item=UnpropagatedElectronBeam<A::DistributionType>>
@@ -134,8 +142,8 @@ where A: Accelerator,
 
 impl<A> FromParallelIterator<PropagatedElectronBeam<A::DistributionType>> for ElectronBeamSwarm<A>
 where A: Accelerator,
-      <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item>,
-      <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as ElectronBeamMetadataCollection>::Item>
+      <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
+      <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as BeamMetadataCollection>::Item>
 {
     fn from_par_iter<I>(par_iter: I) -> Self
     where I: IntoParallelIterator<Item=PropagatedElectronBeam<A::DistributionType>>
@@ -227,20 +235,27 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     where Sd: IndexSeeder3,
           G: Grid3<fdt>,
           A: Accelerator + Sync,
-          <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item>,
-          <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as ElectronBeamMetadataCollection>::Item>,
+          <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
+          <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as BeamMetadataCollection>::Item>,
           I: Interpolator3
     {
-        A::prepare_snapshot_for_generation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
+        A::prepare_snapshot_for_generation(snapshot)
+            .unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
-        if verbose.is_yes() { println!("Generating electron distributions at {} acceleration sites", seeder.number_of_indices()); }
+        if verbose.is_yes() {
+            println!(
+                "Generating electron distributions at {} acceleration sites",
+                seeder.number_of_indices()
+            );
+        }
         let seed_iter = seeder.into_par_iter();
-        seed_iter.filter_map(
-            |indices| {
-                accelerator.generate_distribution(snapshot, interpolator, &indices)
-                           .map(Self::generate_unpropagated_beam)
-            }
-        ).collect()
+        seed_iter
+            .filter_map(|indices| {
+                accelerator
+                    .generate_distribution(snapshot, interpolator, &indices)
+                    .map(Self::generate_unpropagated_beam)
+            })
+            .collect()
     }
 
     /// Generates a set of electron beams using the given seeder and accelerator,
@@ -270,117 +285,178 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           G: Grid3<fdt>,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
-          <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as ElectronBeamPropertiesCollection>::Item>,
-          <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as ElectronBeamMetadataCollection>::Item>,
+          <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
+          <A::DistributionType as Distribution>::MetadataCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::MetadataCollectionType as BeamMetadataCollection>::Item>,
           I: Interpolator3,
           StF: StepperFactory3 + Sync
     {
-        A::prepare_snapshot_for_generation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
+        A::prepare_snapshot_for_generation(snapshot)
+            .unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
-        if verbose.is_yes() { println!("Generating electron distributions at {} acceleration sites", seeder.number_of_indices()); }
+        if verbose.is_yes() {
+            println!(
+                "Generating electron distributions at {} acceleration sites",
+                seeder.number_of_indices()
+            );
+        }
         let seed_iter = seeder.into_par_iter();
-        let distributions: Vec<_> = seed_iter.filter_map(
-            |indices| {
+        let distributions: Vec<_> = seed_iter
+            .filter_map(|indices| {
                 accelerator.generate_distribution(snapshot, interpolator, &indices)
-            }
-        ).collect();
+            })
+            .collect();
 
-        A::prepare_snapshot_for_propagation(snapshot).unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
+        A::prepare_snapshot_for_propagation(snapshot)
+            .unwrap_or_else(|err| panic!("Snapshot preparation failed: {}", err));
 
-        if verbose.is_yes() { println!("Attempting to propagate {} electron distributions", distributions.len()); }
-        let electron_beam_swarm: Self = distributions.into_par_iter().filter_map(
-            |distribution| Self::generate_propagated_beam(distribution, snapshot, interpolator, stepper_factory.produce())
-        ).collect();
+        if verbose.is_yes() {
+            println!(
+                "Attempting to propagate {} electron distributions",
+                distributions.len()
+            );
+        }
+        let electron_beam_swarm: Self = distributions
+            .into_par_iter()
+            .filter_map(|distribution| {
+                Self::generate_propagated_beam(
+                    distribution,
+                    snapshot,
+                    interpolator,
+                    stepper_factory.produce(),
+                )
+            })
+            .collect();
 
-        if verbose.is_yes() { println!("Successfully propagated {} electron distributions", electron_beam_swarm.number_of_beams()); }
+        if verbose.is_yes() {
+            println!(
+                "Successfully propagated {} electron distributions",
+                electron_beam_swarm.number_of_beams()
+            );
+        }
         electron_beam_swarm
     }
 
     /// Returns the number of beams making up the electron beam set.
-    pub fn number_of_beams(&self) -> usize { self.number_of_beams }
+    pub fn number_of_beams(&self) -> usize {
+        self.number_of_beams
+    }
 
     /// Extracts and stores the value of the given scalar field at the initial position for each beam.
     pub fn extract_fixed_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
         let initial_coords_x = &self.fixed_scalar_values["x0"];
         let initial_coords_y = &self.fixed_scalar_values["y0"];
         let initial_coords_z = &self.fixed_scalar_values["z0"];
-        let values = initial_coords_x.into_par_iter().zip(initial_coords_y).zip(initial_coords_z).map(
-            |((&beam_x0, &beam_y0), &beam_z0)| {
+        let values = initial_coords_x
+            .into_par_iter()
+            .zip(initial_coords_y)
+            .zip(initial_coords_z)
+            .map(|((&beam_x0, &beam_y0), &beam_z0)| {
                 let acceleration_position = Point3::from_components(beam_x0, beam_y0, beam_z0);
-                let value = interpolator.interp_scalar_field(field, &acceleration_position).expect_inside();
+                let value = interpolator
+                    .interp_scalar_field(field, &acceleration_position)
+                    .expect_inside();
                 num::NumCast::from(value).expect("Conversion failed.")
-            }
-        ).collect();
-        self.fixed_scalar_values.insert(field.name().to_string(), values);
+            })
+            .collect();
+        self.fixed_scalar_values
+            .insert(field.name().to_string(), values);
     }
 
     /// Extracts and stores the value of the given vector field at the initial position for each beam.
     pub fn extract_fixed_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
         let initial_coords_x = &self.fixed_scalar_values["x0"];
         let initial_coords_y = &self.fixed_scalar_values["y0"];
         let initial_coords_z = &self.fixed_scalar_values["z0"];
-        let vectors = initial_coords_x.into_par_iter().zip(initial_coords_y).zip(initial_coords_z).map(
-            |((&beam_x0, &beam_y0), &beam_z0)| {
+        let vectors = initial_coords_x
+            .into_par_iter()
+            .zip(initial_coords_y)
+            .zip(initial_coords_z)
+            .map(|((&beam_x0, &beam_y0), &beam_z0)| {
                 let acceleration_position = Point3::from_components(beam_x0, beam_y0, beam_z0);
-                let vector = interpolator.interp_vector_field(field, &acceleration_position).expect_inside();
+                let vector = interpolator
+                    .interp_vector_field(field, &acceleration_position)
+                    .expect_inside();
                 Vec3::from(&vector)
-            }
-        ).collect();
-        self.fixed_vector_values.insert(field.name().to_string(), vectors);
+            })
+            .collect();
+        self.fixed_vector_values
+            .insert(field.name().to_string(), vectors);
     }
 
     /// Extracts and stores the value of the given scalar field at each position for each beam.
     pub fn extract_varying_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
         let coords_x = &self.varying_scalar_values["x"];
         let coords_y = &self.varying_scalar_values["y"];
         let coords_z = &self.varying_scalar_values["z"];
-        let values = coords_x.into_par_iter().zip(coords_y).zip(coords_z).map(
-            |((beam_coords_x, beam_coords_y), beam_coords_z)| {
-                beam_coords_x.iter().zip(beam_coords_y).zip(beam_coords_z).map(
-                    |((&beam_x, &beam_y), &beam_z)| {
+        let values = coords_x
+            .into_par_iter()
+            .zip(coords_y)
+            .zip(coords_z)
+            .map(|((beam_coords_x, beam_coords_y), beam_coords_z)| {
+                beam_coords_x
+                    .iter()
+                    .zip(beam_coords_y)
+                    .zip(beam_coords_z)
+                    .map(|((&beam_x, &beam_y), &beam_z)| {
                         let position = Point3::from_components(beam_x, beam_y, beam_z);
-                        let value = interpolator.interp_scalar_field(field, &position).expect_inside();
+                        let value = interpolator
+                            .interp_scalar_field(field, &position)
+                            .expect_inside();
                         num::NumCast::from(value).expect("Conversion failed.")
-                    }
-                ).collect()
-            }
-        ).collect();
-        self.varying_scalar_values.insert(field.name().to_string(), values);
+                    })
+                    .collect()
+            })
+            .collect();
+        self.varying_scalar_values
+            .insert(field.name().to_string(), values);
     }
 
     /// Extracts and stores the value of the given vector field at each position for each beam.
     pub fn extract_varying_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
         let coords_x = &self.varying_scalar_values["x"];
         let coords_y = &self.varying_scalar_values["y"];
         let coords_z = &self.varying_scalar_values["z"];
-        let vectors = coords_x.into_par_iter().zip(coords_y).zip(coords_z).map(
-            |((beam_coords_x, beam_coords_y), beam_coords_z)| {
-                beam_coords_x.iter().zip(beam_coords_y).zip(beam_coords_z).map(
-                    |((&beam_x, &beam_y), &beam_z)| {
+        let vectors = coords_x
+            .into_par_iter()
+            .zip(coords_y)
+            .zip(coords_z)
+            .map(|((beam_coords_x, beam_coords_y), beam_coords_z)| {
+                beam_coords_x
+                    .iter()
+                    .zip(beam_coords_y)
+                    .zip(beam_coords_z)
+                    .map(|((&beam_x, &beam_y), &beam_z)| {
                         let position = Point3::from_components(beam_x, beam_y, beam_z);
-                        let vector = interpolator.interp_vector_field(field, &position).expect_inside();
+                        let vector = interpolator
+                            .interp_vector_field(field, &position)
+                            .expect_inside();
                         Vec3::from(&vector)
-                    }
-                ).collect()
-            }
-        ).collect();
-        self.varying_vector_values.insert(field.name().to_string(), vectors);
+                    })
+                    .collect()
+            })
+            .collect();
+        self.varying_vector_values
+            .insert(field.name().to_string(), vectors);
     }
 
     /// Serializes the electron beam data into pickle format and saves at the given path.
@@ -397,35 +473,57 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let mut buffer_1 = Vec::new();
         utils::write_data_as_pickle(&mut buffer_1, &self.number_of_beams)?;
 
-        let (mut result_2, mut result_3, mut result_4, mut result_5, mut result_6) = (Ok(()), Ok(()), Ok(()), Ok(()), Ok(()));
-        let (mut buffer_2, mut buffer_3, mut buffer_4, mut buffer_5, mut buffer_6) = (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let (mut result_2, mut result_3, mut result_4, mut result_5, mut result_6) =
+            (Ok(()), Ok(()), Ok(()), Ok(()), Ok(()));
+        let (mut buffer_2, mut buffer_3, mut buffer_4, mut buffer_5, mut buffer_6) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         rayon::scope(|s| {
-            s.spawn(|_| result_2 = utils::write_data_as_pickle(&mut buffer_2, &self.fixed_scalar_values));
-            s.spawn(|_| result_3 = utils::write_data_as_pickle(&mut buffer_3, &self.fixed_vector_values));
-            s.spawn(|_| result_4 = utils::write_data_as_pickle(&mut buffer_4, &self.varying_scalar_values));
-            s.spawn(|_| result_5 = utils::write_data_as_pickle(&mut buffer_5, &self.varying_vector_values));
+            s.spawn(|_| {
+                result_2 = utils::write_data_as_pickle(&mut buffer_2, &self.fixed_scalar_values)
+            });
+            s.spawn(|_| {
+                result_3 = utils::write_data_as_pickle(&mut buffer_3, &self.fixed_vector_values)
+            });
+            s.spawn(|_| {
+                result_4 = utils::write_data_as_pickle(&mut buffer_4, &self.varying_scalar_values)
+            });
+            s.spawn(|_| {
+                result_5 = utils::write_data_as_pickle(&mut buffer_5, &self.varying_vector_values)
+            });
             s.spawn(|_| result_6 = utils::write_data_as_pickle(&mut buffer_6, &self.metadata));
         });
-        result_2?; result_3?; result_4?; result_5?; result_6?;
+        result_2?;
+        result_3?;
+        result_4?;
+        result_5?;
+        result_6?;
 
         let mut file = fs::File::create(file_path)?;
         file.write_all(&[buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6].concat())?;
         Ok(())
     }
 
-    fn generate_unpropagated_beam(distribution: A::DistributionType) -> UnpropagatedElectronBeam<A::DistributionType> {
+    fn generate_unpropagated_beam(
+        distribution: A::DistributionType,
+    ) -> UnpropagatedElectronBeam<A::DistributionType> {
         let acceleration_position = Point3::from(distribution.acceleration_position());
-        UnpropagatedElectronBeam{
+        UnpropagatedElectronBeam {
             acceleration_position,
             distribution_properties: distribution.properties(),
-            metadata: distribution.metadata()
+            metadata: distribution.metadata(),
         }
     }
 
-    fn generate_propagated_beam<G, I, S>(mut distribution: A::DistributionType, snapshot: &SnapshotCacher3<G>, interpolator: &I, stepper: S) -> Option<PropagatedElectronBeam<A::DistributionType>>
-    where G: Grid3<fdt>,
-          I: Interpolator3,
-          S: Stepper3
+    fn generate_propagated_beam<G, I, S>(
+        mut distribution: A::DistributionType,
+        snapshot: &SnapshotCacher3<G>,
+        interpolator: &I,
+        stepper: S,
+    ) -> Option<PropagatedElectronBeam<A::DistributionType>>
+    where
+        G: Grid3<fdt>,
+        I: Interpolator3,
+        S: Stepper3,
     {
         let mut trajectory = (Vec::new(), Vec::new(), Vec::new());
         let mut deposited_power_densities = Vec::new();
@@ -434,12 +532,17 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let magnetic_field = snapshot.cached_vector_field("b");
         let start_position = Point3::from(distribution.acceleration_position());
 
-        let tracer_result = tracing::trace_3d_field_line_dense(magnetic_field, interpolator, stepper, &start_position, distribution.propagation_sense(),
+        let tracer_result = tracing::trace_3d_field_line_dense(
+            magnetic_field,
+            interpolator,
+            stepper,
+            &start_position,
+            distribution.propagation_sense(),
             &mut |displacement, position, distance| {
-                let PropagationResult{
+                let PropagationResult {
                     deposited_power_density,
                     deposition_position,
-                    depletion_status
+                    depletion_status,
                 } = distribution.propagate(snapshot, interpolator, displacement, position);
 
                 trajectory.0.push(deposition_position[X]);
@@ -450,23 +553,23 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
                 match depletion_status {
                     DepletionStatus::Undepleted => StepperInstruction::Continue,
-                    DepletionStatus::Depleted => StepperInstruction::Terminate
+                    DepletionStatus::Depleted => StepperInstruction::Terminate,
                 }
-            }
+            },
         );
 
         let distribution_properties = distribution.properties();
         let metadata = distribution.metadata();
 
         match tracer_result {
-            TracerResult::Ok(_) => Some(PropagatedElectronBeam{
+            TracerResult::Ok(_) => Some(PropagatedElectronBeam {
                 trajectory,
                 distribution_properties,
                 total_propagation_distance,
                 deposited_power_densities,
-                metadata
+                metadata,
             }),
-            TracerResult::Void => None
+            TracerResult::Void => None,
         }
     }
 }

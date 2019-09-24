@@ -1,15 +1,15 @@
 //! Field lines with natural spacing between points.
 
-use std::collections::{HashMap, VecDeque};
-use serde::ser::{Serialize, Serializer, SerializeStruct};
-use crate::num::BFloat;
-use crate::geometry::{Vec3, Point3};
-use crate::grid::Grid3;
-use crate::field::{VectorField3};
-use crate::interpolation::Interpolator3;
-use super::super::{ftr, TracerResult, trace_3d_field_line};
-use super::super::stepping::{Stepper3, SteppingSense, StepperInstruction};
+use super::super::stepping::{Stepper3, StepperInstruction, SteppingSense};
+use super::super::{ftr, trace_3d_field_line, TracerResult};
 use super::FieldLine3;
+use crate::field::VectorField3;
+use crate::geometry::{Point3, Vec3};
+use crate::grid::Grid3;
+use crate::interpolation::Interpolator3;
+use crate::num::BFloat;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+use std::collections::{HashMap, VecDeque};
 
 /// A field line of a 3D vector field with points corresponding to the natural position of each step.
 #[derive(Clone, Debug)]
@@ -18,7 +18,7 @@ pub struct NaturalFieldLine3 {
     max_length: Option<ftr>,
     positions: Vec<Point3<ftr>>,
     scalar_values: HashMap<String, Vec<ftr>>,
-    vector_values: HashMap<String, Vec<Vec3<ftr>>>
+    vector_values: HashMap<String, Vec<Vec3<ftr>>>,
 }
 
 /// A field line of a 3D vector field with points corresponding to the natural position of each step,
@@ -28,21 +28,24 @@ pub struct DualNaturalFieldLine3 {
     max_length: Option<ftr>,
     positions: Vec<Point3<ftr>>,
     scalar_values: HashMap<String, Vec<ftr>>,
-    vector_values: HashMap<String, Vec<Vec3<ftr>>>
+    vector_values: HashMap<String, Vec<Vec3<ftr>>>,
 }
 
 impl NaturalFieldLine3 {
     /// Creates a new empty field line.
     pub fn new(sense: SteppingSense, max_length: Option<ftr>) -> Self {
         if let Some(length) = max_length {
-            assert!(length >= 0.0, "Maximum field line length must be non-negative.");
+            assert!(
+                length >= 0.0,
+                "Maximum field line length must be non-negative."
+            );
         }
-        NaturalFieldLine3{
+        NaturalFieldLine3 {
             sense,
             max_length,
             positions: Vec::new(),
             scalar_values: HashMap::new(),
-            vector_values: HashMap::new()
+            vector_values: HashMap::new(),
         }
     }
 }
@@ -51,29 +54,46 @@ impl DualNaturalFieldLine3 {
     /// Creates a new empty field line.
     pub fn new(max_length: Option<ftr>) -> Self {
         if let Some(length) = max_length {
-            assert!(length >= 0.0, "Maximum field line length must be non-negative.");
+            assert!(
+                length >= 0.0,
+                "Maximum field line length must be non-negative."
+            );
         }
-        DualNaturalFieldLine3{
+        DualNaturalFieldLine3 {
             max_length,
             positions: Vec::new(),
             scalar_values: HashMap::new(),
-            vector_values: HashMap::new()
+            vector_values: HashMap::new(),
         }
     }
 }
 
 impl FieldLine3 for NaturalFieldLine3 {
-    fn positions(&self) -> &Vec<Point3<ftr>> { &self.positions }
+    fn positions(&self) -> &Vec<Point3<ftr>> {
+        &self.positions
+    }
 
-    fn trace<F, G, I, S>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: S, start_position: &Point3<ftr>) -> TracerResult
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          S: Stepper3
+    fn trace<F, G, I, S>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        stepper: S,
+        start_position: &Point3<ftr>,
+    ) -> TracerResult
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        S: Stepper3,
     {
         let sense = self.sense;
         if let Some(length) = self.max_length {
-            trace_3d_field_line(field, interpolator, stepper, start_position, sense,
+            trace_3d_field_line(
+                field,
+                interpolator,
+                stepper,
+                start_position,
+                sense,
                 &mut |_, position, distance| {
                     if distance <= length {
                         self.positions.push(position.clone());
@@ -81,14 +101,19 @@ impl FieldLine3 for NaturalFieldLine3 {
                     } else {
                         StepperInstruction::Terminate
                     }
-                }
+                },
             )
         } else {
-            trace_3d_field_line(field, interpolator, stepper, start_position, sense,
+            trace_3d_field_line(
+                field,
+                interpolator,
+                stepper,
+                start_position,
+                sense,
                 &mut |_, position, _| {
                     self.positions.push(position.clone());
                     StepperInstruction::Continue
-                }
+                },
             )
         }
     }
@@ -103,18 +128,32 @@ impl FieldLine3 for NaturalFieldLine3 {
 }
 
 impl FieldLine3 for DualNaturalFieldLine3 {
-    fn positions(&self) -> &Vec<Point3<ftr>> { &self.positions }
+    fn positions(&self) -> &Vec<Point3<ftr>> {
+        &self.positions
+    }
 
-    fn trace<F, G, I, S>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: S, start_position: &Point3<ftr>) -> TracerResult
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          S: Stepper3
+    fn trace<F, G, I, S>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        stepper: S,
+        start_position: &Point3<ftr>,
+    ) -> TracerResult
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        S: Stepper3,
     {
         let mut backward_positions = VecDeque::new();
 
         let tracer_result = if let Some(length) = self.max_length {
-            trace_3d_field_line(field, interpolator, stepper.clone(), start_position, SteppingSense::Opposite,
+            trace_3d_field_line(
+                field,
+                interpolator,
+                stepper.clone(),
+                start_position,
+                SteppingSense::Opposite,
                 &mut |_, position, distance| {
                     if distance <= length {
                         backward_positions.push_front(position.clone());
@@ -122,26 +161,36 @@ impl FieldLine3 for DualNaturalFieldLine3 {
                     } else {
                         StepperInstruction::Terminate
                     }
-                }
+                },
             )
         } else {
-            trace_3d_field_line(field, interpolator, stepper.clone(), start_position, SteppingSense::Opposite,
+            trace_3d_field_line(
+                field,
+                interpolator,
+                stepper.clone(),
+                start_position,
+                SteppingSense::Opposite,
                 &mut |_, position, _| {
                     backward_positions.push_front(position.clone());
                     StepperInstruction::Continue
-                }
+                },
             )
         };
 
         if let TracerResult::Void = tracer_result {
-            return TracerResult::Void
+            return TracerResult::Void;
         }
         backward_positions.pop_back().unwrap(); // Remove start position
 
         let mut forward_positions = Vec::new();
 
         let tracer_result = if let Some(length) = self.max_length {
-            trace_3d_field_line(field, interpolator, stepper, start_position, SteppingSense::Same,
+            trace_3d_field_line(
+                field,
+                interpolator,
+                stepper,
+                start_position,
+                SteppingSense::Same,
                 &mut |_, position, distance| {
                     if distance <= length {
                         forward_positions.push(position.clone());
@@ -149,19 +198,24 @@ impl FieldLine3 for DualNaturalFieldLine3 {
                     } else {
                         StepperInstruction::Terminate
                     }
-                }
+                },
             )
         } else {
-            trace_3d_field_line(field, interpolator, stepper, start_position, SteppingSense::Same,
+            trace_3d_field_line(
+                field,
+                interpolator,
+                stepper,
+                start_position,
+                SteppingSense::Same,
                 &mut |_, position, _| {
                     forward_positions.push(position.clone());
                     StepperInstruction::Continue
-                }
+                },
             )
         };
 
         if let TracerResult::Void = tracer_result {
-            return TracerResult::Void
+            return TracerResult::Void;
         }
 
         self.positions = Vec::from(backward_positions);
@@ -205,18 +259,22 @@ mod tests {
     use super::*;
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
-    use crate::io::Endianness;
-    use crate::io::snapshot::SnapshotReader3;
     use crate::interpolation::poly_fit::PolyFitInterpolator3;
-    use crate::tracing::stepping::rkf::RKFStepperConfig;
-    use crate::tracing::stepping::rkf::rkf23::{RKF23Stepper3};
-    use crate::tracing::stepping::rkf::rkf45::{RKF45Stepper3, RKF45StepperFactory3};
-    use crate::tracing::seeding::slice::SliceSeeder3;
+    use crate::io::snapshot::SnapshotReader3;
+    use crate::io::Endianness;
     use crate::tracing::field_line::FieldLineSet3;
+    use crate::tracing::seeding::slice::SliceSeeder3;
+    use crate::tracing::stepping::rkf::rkf23::RKF23Stepper3;
+    use crate::tracing::stepping::rkf::rkf45::{RKF45Stepper3, RKF45StepperFactory3};
+    use crate::tracing::stepping::rkf::RKFStepperConfig;
 
     #[test]
     fn tracing_and_saving_natural_field_line_works() {
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(
+            "data/en024031_emer3.0sml_ebeam_631.idl",
+            Endianness::Little,
+        )
+        .unwrap();
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
         let interpolator = PolyFitInterpolator3;
@@ -232,20 +290,38 @@ mod tests {
         field_line_23.trace(&magnetic_field, &interpolator, stepper_23, &start_position);
         field_line_45.trace(&magnetic_field, &interpolator, stepper_45, &start_position);
 
-        field_line_23.save_as_pickle("data/natural_field_line_23.pickle").unwrap();
-        field_line_45.save_as_pickle("data/natural_field_line_45.pickle").unwrap();
+        field_line_23
+            .save_as_pickle("data/natural_field_line_23.pickle")
+            .unwrap();
+        field_line_45
+            .save_as_pickle("data/natural_field_line_45.pickle")
+            .unwrap();
     }
 
     #[test]
     fn tracing_and_saving_natural_field_line_set_works() {
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new("data/en024031_emer3.0sml_ebeam_631.idl", Endianness::Little).unwrap();
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(
+            "data/en024031_emer3.0sml_ebeam_631.idl",
+            Endianness::Little,
+        )
+        .unwrap();
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
         let interpolator = PolyFitInterpolator3;
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig::default());
-        let seeder = SliceSeeder3::stratified(magnetic_field.grid(), Dim3::Z, 0.0, In2D::same(3), 1, 0.6);
+        let seeder =
+            SliceSeeder3::stratified(magnetic_field.grid(), Dim3::Z, 0.0, In2D::same(3), 1, 0.6);
 
-        let field_line_set = FieldLineSet3::trace(seeder, &|| DualNaturalFieldLine3::new(None), &magnetic_field, &interpolator, stepper_factory).unwrap();
-        field_line_set.save_as_combined_pickles("data/natural_field_line_set.pickle").unwrap();
+        let field_line_set = FieldLineSet3::trace(
+            seeder,
+            &|| DualNaturalFieldLine3::new(None),
+            &magnetic_field,
+            &interpolator,
+            stepper_factory,
+        )
+        .unwrap();
+        field_line_set
+            .save_as_combined_pickles("data/natural_field_line_set.pickle")
+            .unwrap();
     }
 }

@@ -1,26 +1,26 @@
 //! Generation of seed points in a slice through a field.
 
-use std::vec;
-use std::collections::HashSet;
-use std::iter::FromIterator;
-use rand::distributions::{Distribution, Uniform};
+use super::super::ftr;
+use super::Seeder3;
+use crate::field::{ScalarField3, VectorField3};
+use crate::geometry::{Dim2, Dim3, In2D, Point2, Point3, Vec3};
+use crate::grid::{CoordLocation, Grid2, Grid3};
+use crate::interpolation::Interpolator3;
+use crate::num::BFloat;
+use crate::random;
 use rand::distributions::uniform::SampleUniform;
+use rand::distributions::{Distribution, Uniform};
 use rayon;
 use rayon::prelude::*;
-use crate::num::BFloat;
-use crate::geometry::{Dim3, Dim2, In2D, Vec3, Point3, Point2};
-use crate::grid::{Grid3, Grid2, CoordLocation};
-use crate::field::{ScalarField3, VectorField3};
-use crate::interpolation::Interpolator3;
-use crate::random;
-use super::Seeder3;
-use super::super::ftr;
+use std::collections::HashSet;
+use std::iter::FromIterator;
+use std::vec;
 use Dim3::{X, Y, Z};
 
 /// Generator for seed points in a slice of a 3D field.
 #[derive(Clone, Debug)]
 pub struct SliceSeeder3 {
-    seed_points: Vec<Point3<ftr>>
+    seed_points: Vec<Point3<ftr>>,
 }
 
 impl SliceSeeder3 {
@@ -42,12 +42,15 @@ impl SliceSeeder3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     pub fn regular<F, G>(grid: &G, axis: Dim3, coord: ftr, shape: In2D<usize>) -> Self
-    where F: BFloat,
-          G: Grid3<F>
+    where
+        F: BFloat,
+        G: Grid3<F>,
     {
         let slice_grid = grid.regular_slice_across_axis(axis).reshaped(shape);
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
-        SliceSeeder3{ seed_points: Self::construct_seed_points_from_slice_points(slice_centers, axis, coord) }
+        SliceSeeder3 {
+            seed_points: Self::construct_seed_points_from_slice_points(slice_centers, axis, coord),
+        }
     }
 
     /// Creates a new seeder producing randomly spaced seed points in a 2D slice of a 3D grid.
@@ -68,8 +71,9 @@ impl SliceSeeder3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     pub fn random<F, G>(grid: &G, axis: Dim3, coord: ftr, n_seeds: usize) -> Self
-    where F: BFloat + SampleUniform,
-          G: Grid3<F>
+    where
+        F: BFloat + SampleUniform,
+        G: Grid3<F>,
     {
         Self::stratified(grid, axis, coord, In2D::same(1), n_seeds, 1.0)
     }
@@ -93,35 +97,57 @@ impl SliceSeeder3 {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    pub fn stratified<F, G>(grid: &G, axis: Dim3, coord: ftr, shape: In2D<usize>, n_seeds_per_cell: usize, randomness: ftr) -> Self
-    where F: BFloat + SampleUniform,
-          G: Grid3<F>
+    pub fn stratified<F, G>(
+        grid: &G,
+        axis: Dim3,
+        coord: ftr,
+        shape: In2D<usize>,
+        n_seeds_per_cell: usize,
+        randomness: ftr,
+    ) -> Self
+    where
+        F: BFloat + SampleUniform,
+        G: Grid3<F>,
     {
-        assert_ne!(n_seeds_per_cell, 0, "Number of seeds per cell must be larger than zero.");
-        assert!(randomness >= 0.0 && randomness <= 1.0, "Randomness must be in the range [0, 1].");
+        assert_ne!(
+            n_seeds_per_cell, 0,
+            "Number of seeds per cell must be larger than zero."
+        );
+        assert!(
+            randomness >= 0.0 && randomness <= 1.0,
+            "Randomness must be in the range [0, 1]."
+        );
 
         if randomness == 0.0 {
-            return Self::regular(grid, axis, coord, shape)
+            return Self::regular(grid, axis, coord, shape);
         }
 
         let slice_grid = grid.regular_slice_across_axis(axis).reshaped(shape);
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
         let slice_cell_extents = slice_grid.cell_extents();
 
-        let offset_limit = F::from(0.5*randomness).expect("Conversion failed.");
+        let offset_limit = F::from(0.5 * randomness).expect("Conversion failed.");
         let rng = rand::thread_rng();
         let mut uniform_offset_samples = Uniform::new(-offset_limit, offset_limit).sample_iter(rng);
 
-        let mut stratified_points = Vec::with_capacity(slice_centers.len()*n_seeds_per_cell);
+        let mut stratified_points = Vec::with_capacity(slice_centers.len() * n_seeds_per_cell);
         for center in slice_centers {
             for _ in 0..n_seeds_per_cell {
                 stratified_points.push(Point2::new(
-                    center[Dim2::X] + uniform_offset_samples.next().unwrap()*slice_cell_extents[Dim2::X],
-                    center[Dim2::Y] + uniform_offset_samples.next().unwrap()*slice_cell_extents[Dim2::Y]
+                    center[Dim2::X]
+                        + uniform_offset_samples.next().unwrap() * slice_cell_extents[Dim2::X],
+                    center[Dim2::Y]
+                        + uniform_offset_samples.next().unwrap() * slice_cell_extents[Dim2::Y],
                 ));
             }
         }
-        SliceSeeder3{ seed_points: Self::construct_seed_points_from_slice_points(stratified_points, axis, coord) }
+        SliceSeeder3 {
+            seed_points: Self::construct_seed_points_from_slice_points(
+                stratified_points,
+                axis,
+                coord,
+            ),
+        }
     }
 
     /// Creates a new seeder producing seed points in a 2D slice of a 3D scalar field,
@@ -147,30 +173,53 @@ impl SliceSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
-    pub fn scalar_field_pdf<F, G, I, C>(field: &ScalarField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
-    where F: BFloat + SampleUniform,
-          G: Grid3<F>,
-          I: Interpolator3,
-          C: Fn(F) -> F
+    pub fn scalar_field_pdf<F, G, I, C>(
+        field: &ScalarField3<F, G>,
+        interpolator: &I,
+        axis: Dim3,
+        coord: ftr,
+        compute_pdf_value: &C,
+        n_seeds: usize,
+    ) -> Self
+    where
+        F: BFloat + SampleUniform,
+        G: Grid3<F>,
+        I: Interpolator3,
+        C: Fn(F) -> F,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
-        let slice_field = field.regular_slice_across_axis(interpolator, axis, F::from(coord).expect("Conversion failed."), CoordLocation::Center);
+        let slice_field = field.regular_slice_across_axis(
+            interpolator,
+            axis,
+            F::from(coord).expect("Conversion failed."),
+            CoordLocation::Center,
+        );
         let slice_values = slice_field.values();
         let slice_grid = slice_field.grid();
         let slice_shape = slice_grid.shape();
 
-        let mut pdf = Vec::with_capacity(slice_shape[Dim2::X]*slice_shape[Dim2::Y]);
+        let mut pdf = Vec::with_capacity(slice_shape[Dim2::X] * slice_shape[Dim2::Y]);
         for j in 0..slice_shape[Dim2::Y] {
             for i in 0..slice_shape[Dim2::X] {
                 pdf.push(compute_pdf_value(slice_values[[i, j]]));
             }
         }
-        let indices = HashSet::<usize>::from_iter(random::draw_from_distribution(&pdf, n_seeds).into_iter());
+        let indices =
+            HashSet::<usize>::from_iter(random::draw_from_distribution(&pdf, n_seeds).into_iter());
 
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
-        let slice_seed_points = indices.into_iter().map(|index| slice_centers[index].clone()).collect();
-        SliceSeeder3{ seed_points: Self::construct_seed_points_from_slice_points(slice_seed_points, axis, coord) }
+        let slice_seed_points = indices
+            .into_iter()
+            .map(|index| slice_centers[index].clone())
+            .collect();
+        SliceSeeder3 {
+            seed_points: Self::construct_seed_points_from_slice_points(
+                slice_seed_points,
+                axis,
+                coord,
+            ),
+        }
     }
 
     /// Creates a new seeder producing seed points in a 2D slice of a 3D vector field,
@@ -196,43 +245,80 @@ impl SliceSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
-    pub fn vector_field_pdf<F, G, I, C>(field: &VectorField3<F, G>, interpolator: &I, axis: Dim3, coord: ftr, compute_pdf_value: &C, n_seeds: usize) -> Self
-    where F: BFloat + SampleUniform,
-          G: Grid3<F>,
-          I: Interpolator3,
-          C: Fn(&Vec3<F>) -> F
+    pub fn vector_field_pdf<F, G, I, C>(
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        axis: Dim3,
+        coord: ftr,
+        compute_pdf_value: &C,
+        n_seeds: usize,
+    ) -> Self
+    where
+        F: BFloat + SampleUniform,
+        G: Grid3<F>,
+        I: Interpolator3,
+        C: Fn(&Vec3<F>) -> F,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
-        let slice_field = field.regular_slice_across_axis(interpolator, axis, F::from(coord).expect("Conversion failed."), CoordLocation::Center);
+        let slice_field = field.regular_slice_across_axis(
+            interpolator,
+            axis,
+            F::from(coord).expect("Conversion failed."),
+            CoordLocation::Center,
+        );
         let slice_values = slice_field.all_values();
         let slice_grid = slice_field.grid();
         let slice_shape = slice_grid.shape();
 
-        let mut pdf = Vec::with_capacity(slice_shape[Dim2::X]*slice_shape[Dim2::Y]);
+        let mut pdf = Vec::with_capacity(slice_shape[Dim2::X] * slice_shape[Dim2::Y]);
         for j in 0..slice_shape[Dim2::Y] {
             for i in 0..slice_shape[Dim2::X] {
                 pdf.push(compute_pdf_value(&Vec3::new(
                     slice_values[X][[i, j]],
                     slice_values[Y][[i, j]],
-                    slice_values[Z][[i, j]]
+                    slice_values[Z][[i, j]],
                 )));
             }
         }
-        let indices = HashSet::<usize>::from_iter(random::draw_from_distribution(&pdf, n_seeds).into_iter());
+        let indices =
+            HashSet::<usize>::from_iter(random::draw_from_distribution(&pdf, n_seeds).into_iter());
 
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
-        let slice_seed_points = indices.into_iter().map(|index| slice_centers[index].clone()).collect();
-        SliceSeeder3{ seed_points: Self::construct_seed_points_from_slice_points(slice_seed_points, axis, coord) }
+        let slice_seed_points = indices
+            .into_iter()
+            .map(|index| slice_centers[index].clone())
+            .collect();
+        SliceSeeder3 {
+            seed_points: Self::construct_seed_points_from_slice_points(
+                slice_seed_points,
+                axis,
+                coord,
+            ),
+        }
     }
 
-    fn construct_seed_points_from_slice_points<F>(slice_points: Vec<Point2<F>>, axis: Dim3, coord: ftr) -> Vec<Point3<ftr>>
-    where F: BFloat
+    fn construct_seed_points_from_slice_points<F>(
+        slice_points: Vec<Point2<F>>,
+        axis: Dim3,
+        coord: ftr,
+    ) -> Vec<Point3<ftr>>
+    where
+        F: BFloat,
     {
         match axis {
-            X => slice_points.into_iter().map(|point| Point3::from_components(coord, point[Dim2::X], point[Dim2::Y])).collect(),
-            Y => slice_points.into_iter().map(|point| Point3::from_components(point[Dim2::X], coord, point[Dim2::Y])).collect(),
-            Z => slice_points.into_iter().map(|point| Point3::from_components(point[Dim2::X], point[Dim2::Y], coord)).collect()
+            X => slice_points
+                .into_iter()
+                .map(|point| Point3::from_components(coord, point[Dim2::X], point[Dim2::Y]))
+                .collect(),
+            Y => slice_points
+                .into_iter()
+                .map(|point| Point3::from_components(point[Dim2::X], coord, point[Dim2::Y]))
+                .collect(),
+            Z => slice_points
+                .into_iter()
+                .map(|point| Point3::from_components(point[Dim2::X], point[Dim2::Y], coord))
+                .collect(),
         }
     }
 }
@@ -254,10 +340,13 @@ impl IntoParallelIterator for SliceSeeder3 {
 }
 
 impl Seeder3 for SliceSeeder3 {
-    fn number_of_points(&self) -> usize { self.seed_points.len() }
+    fn number_of_points(&self) -> usize {
+        self.seed_points.len()
+    }
 
     fn retain_points<P>(&mut self, predicate: P)
-    where P: FnMut(&Point3<ftr>) -> bool
+    where
+        P: FnMut(&Point3<ftr>) -> bool,
     {
         self.seed_points.retain(predicate);
     }

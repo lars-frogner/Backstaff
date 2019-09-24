@@ -3,24 +3,24 @@
 pub mod natural;
 pub mod regular;
 
-use std::{io, fs, path, mem, fmt};
-use std::io::Write;
-use serde::Serialize;
-use rayon::prelude::*;
-use crate::num::BFloat;
-use crate::io::utils;
-use crate::geometry::{Vec3, Point3};
-use crate::grid::Grid3;
-use crate::field::{ScalarField3, VectorField3};
-use crate::interpolation::Interpolator3;
-use super::stepping::{StepperFactory3, Stepper3};
 use super::seeding::Seeder3;
+use super::stepping::{Stepper3, StepperFactory3};
 use super::{ftr, TracerResult};
+use crate::field::{ScalarField3, VectorField3};
+use crate::geometry::{Point3, Vec3};
+use crate::grid::Grid3;
+use crate::interpolation::Interpolator3;
+use crate::io::utils;
+use crate::num::BFloat;
+use rayon::prelude::*;
+use serde::Serialize;
+use std::io::Write;
+use std::{fmt, fs, io, mem, path};
 
 /// Collection of 3D field lines.
 #[derive(Clone, Debug, Serialize)]
 pub struct FieldLineSet3<L: FieldLine3> {
-    field_lines: Vec<L>
+    field_lines: Vec<L>,
 }
 
 /// Defines the properties of a field line of a 3D vector field.
@@ -50,11 +50,18 @@ pub trait FieldLine3: Clone + fmt::Debug + Serialize {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `St`: Type of stepper.
-    fn trace<F, G, I, St>(&mut self, field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>) -> TracerResult
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          St: Stepper3;
+    fn trace<F, G, I, St>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        stepper: St,
+        start_position: &Point3<ftr>,
+    ) -> TracerResult
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        St: Stepper3;
 
     /// Stores the given scalar values for the field line points.
     fn add_scalar_values(&mut self, field_name: String, values: Vec<ftr>);
@@ -63,17 +70,22 @@ pub trait FieldLine3: Clone + fmt::Debug + Serialize {
     fn add_vector_values(&mut self, field_name: String, values: Vec<Vec3<ftr>>);
 
     /// Returns the number of points making up the field line.
-    fn number_of_points(&self) -> usize { self.positions().len() }
+    fn number_of_points(&self) -> usize {
+        self.positions().len()
+    }
 
     /// Extracts and stores the value of the given scalar field at each field line point.
     fn extract_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
         let mut values = Vec::with_capacity(self.number_of_points());
         for pos in self.positions() {
-            let value = interpolator.interp_scalar_field(field, &Point3::from(pos)).expect_inside();
+            let value = interpolator
+                .interp_scalar_field(field, &Point3::from(pos))
+                .expect_inside();
             values.push(num::NumCast::from(value).expect("Conversion failed."));
         }
         self.add_scalar_values(field.name().to_string(), values);
@@ -81,13 +93,16 @@ pub trait FieldLine3: Clone + fmt::Debug + Serialize {
 
     /// Extracts and stores the value of the given vector field at each field line point.
     fn extract_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
         let mut values = Vec::with_capacity(self.number_of_points());
         for pos in self.positions() {
-            let value = interpolator.interp_vector_field(field, &Point3::from(pos)).expect_inside();
+            let value = interpolator
+                .interp_vector_field(field, &Point3::from(pos))
+                .expect_inside();
             values.push(Vec3::from(&value));
         }
         self.add_vector_values(field.name().to_string(), values);
@@ -125,53 +140,71 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn trace<Sd, FI, F, G, I, StF>(seeder: Sd, field_line_initializer: &FI, field: &VectorField3<F, G>, interpolator: &I, stepper_factory: StF) -> Option<Self>
-    where L: Send,
-          Sd: Seeder3,
-          FI: Fn() -> L + Sync,
-          F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          StF: StepperFactory3 + Sync
+    pub fn trace<Sd, FI, F, G, I, StF>(
+        seeder: Sd,
+        field_line_initializer: &FI,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        stepper_factory: StF,
+    ) -> Option<Self>
+    where
+        L: Send,
+        Sd: Seeder3,
+        FI: Fn() -> L + Sync,
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        StF: StepperFactory3 + Sync,
     {
         let seed_iter = seeder.into_par_iter();
 
-        let field_lines: Vec<L> = seed_iter.filter_map(
-            |start_position| {
+        let field_lines: Vec<L> = seed_iter
+            .filter_map(|start_position| {
                 let mut field_line = field_line_initializer();
-                if let TracerResult::Ok(_) = field_line.trace(field, interpolator, stepper_factory.produce(), &start_position) {
+                if let TracerResult::Ok(_) = field_line.trace(
+                    field,
+                    interpolator,
+                    stepper_factory.produce(),
+                    &start_position,
+                ) {
                     Some(field_line)
                 } else {
                     None
                 }
-            }
-        ).collect();
+            })
+            .collect();
 
         if field_lines.is_empty() {
             None
         } else {
-            Some(FieldLineSet3{ field_lines })
+            Some(FieldLineSet3 { field_lines })
         }
     }
 
     /// Extracts and stores the value of the given scalar field at each field line point for each field line.
     pub fn extract_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
-    where L: Send,
-          F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        L: Send,
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
-        self.field_lines.par_iter_mut().for_each(|field_line| field_line.extract_scalars(field, interpolator));
+        self.field_lines
+            .par_iter_mut()
+            .for_each(|field_line| field_line.extract_scalars(field, interpolator));
     }
 
     /// Extracts and stores the value of the given vector field at each field line point for each field line.
     pub fn extract_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
-    where L: Send,
-          F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3
+    where
+        L: Send,
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
     {
-        self.field_lines.par_iter_mut().for_each(|field_line| field_line.extract_vectors(field, interpolator));
+        self.field_lines
+            .par_iter_mut()
+            .for_each(|field_line| field_line.extract_vectors(field, interpolator));
     }
 
     /// Serializes the field line data into pickle format and saves at the given path.
@@ -185,14 +218,20 @@ impl<L: FieldLine3> FieldLineSet3<L> {
     ///
     /// The data is saved in a file containing a separate pickled structure for each field line.
     pub fn save_as_combined_pickles<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()>
-    where L: Sync
+    where
+        L: Sync,
     {
         let write_to_buffer = |field_line: &L| {
-            let mut buffer = Vec::with_capacity(field_line.number_of_points()*mem::size_of::<ftr>());
+            let mut buffer =
+                Vec::with_capacity(field_line.number_of_points() * mem::size_of::<ftr>());
             utils::write_data_as_pickle(&mut buffer, field_line)?;
             Ok(buffer)
         };
-        let buffers = self.field_lines.par_iter().map(write_to_buffer).collect::<io::Result<Vec<Vec<u8>>>>()?;
+        let buffers = self
+            .field_lines
+            .par_iter()
+            .map(write_to_buffer)
+            .collect::<io::Result<Vec<Vec<u8>>>>()?;
 
         let mut file = fs::File::create(file_path)?;
         file.write_all(&buffers.concat())?;

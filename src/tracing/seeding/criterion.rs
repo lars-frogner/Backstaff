@@ -1,20 +1,20 @@
 //! Generation of seed indices by evaluating a criterion on field values.
 
-use std::vec;
-use rayon::prelude::*;
-use crate::num::BFloat;
-use crate::geometry::{Dim3, Vec3, Point3, Idx3};
-use crate::grid::Grid3;
-use crate::field::{self, ScalarField3, VectorField3};
-use crate::interpolation::Interpolator3;
-use super::IndexSeeder3;
 use super::super::ftr;
+use super::IndexSeeder3;
+use crate::field::{self, ScalarField3, VectorField3};
+use crate::geometry::{Dim3, Idx3, Point3, Vec3};
+use crate::grid::Grid3;
+use crate::interpolation::Interpolator3;
+use crate::num::BFloat;
+use rayon::prelude::*;
+use std::vec;
 use Dim3::{X, Y, Z};
 
 /// Generator for seed indices found by evaluating a criterion on values of a 3D field.
 #[derive(Clone, Debug)]
 pub struct CriterionSeeder3 {
-    seed_indices: Vec<Idx3<usize>>
+    seed_indices: Vec<Idx3<usize>>,
 }
 
 impl CriterionSeeder3 {
@@ -37,25 +37,34 @@ impl CriterionSeeder3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     /// - `C`: Function type taking a floating point value and returning a boolean value.
-    pub fn on_scalar_field_values<F, G, C>(field: &ScalarField3<F, G>, evaluate_criterion: &C) -> Self
-    where F: BFloat,
-          G: Grid3<F>,
-          C: Fn(F) -> bool + Sync
+    pub fn on_scalar_field_values<F, G, C>(
+        field: &ScalarField3<F, G>,
+        evaluate_criterion: &C,
+    ) -> Self
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        C: Fn(F) -> bool + Sync,
     {
         let shape = field.shape();
-        let values_slice = field.values().as_slice_memory_order().expect("Values array not contiguous.");
+        let values_slice = field
+            .values()
+            .as_slice_memory_order()
+            .expect("Values array not contiguous.");
 
-        let seed_indices = values_slice.par_iter().enumerate().filter_map(
-            |(idx, &value)| {
+        let seed_indices = values_slice
+            .par_iter()
+            .enumerate()
+            .filter_map(|(idx, &value)| {
                 if evaluate_criterion(value) {
                     Some(field::compute_3d_array_indices_from_flat_idx(&shape, idx))
                 } else {
                     None
                 }
-            }
-        ).collect();
+            })
+            .collect();
 
-        CriterionSeeder3{ seed_indices }
+        CriterionSeeder3 { seed_indices }
     }
 
     /// Creates a new seeder producing indices corresponding to positions where
@@ -79,29 +88,37 @@ impl CriterionSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a floating point value and returning a boolean value.
-    pub fn on_centered_scalar_field_values<F, G, I, C>(field: &ScalarField3<F, G>, interpolator: &I, evaluate_criterion: &C) -> Self
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          C: Fn(F) -> bool + Sync
+    pub fn on_centered_scalar_field_values<F, G, I, C>(
+        field: &ScalarField3<F, G>,
+        interpolator: &I,
+        evaluate_criterion: &C,
+    ) -> Self
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        C: Fn(F) -> bool + Sync,
     {
         let shape = field.shape();
         let center_coords = field.grid().centers();
 
-        let seed_indices = (0..shape[X]*shape[Y]*shape[Z]).into_par_iter().filter_map(
-            |idx| {
+        let seed_indices = (0..shape[X] * shape[Y] * shape[Z])
+            .into_par_iter()
+            .filter_map(|idx| {
                 let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
                 let point = center_coords.point(&indices);
-                let value = interpolator.interp_scalar_field(field, &point).expect_inside();
+                let value = interpolator
+                    .interp_scalar_field(field, &point)
+                    .expect_inside();
                 if evaluate_criterion(value) {
                     Some(indices)
                 } else {
                     None
                 }
-            }
-        ).collect();
+            })
+            .collect();
 
-        CriterionSeeder3{ seed_indices }
+        CriterionSeeder3 { seed_indices }
     }
 
     /// Creates a new seeder producing indices corresponding to positions where
@@ -125,38 +142,50 @@ impl CriterionSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a boolean value.
-    pub fn on_centered_vector_field_values<F, G, I, C>(field: &VectorField3<F, G>, interpolator: &I, evaluate_criterion: &C) -> Self
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          C: Fn(&Vec3<F>) -> bool + Sync
+    pub fn on_centered_vector_field_values<F, G, I, C>(
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        evaluate_criterion: &C,
+    ) -> Self
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        C: Fn(&Vec3<F>) -> bool + Sync,
     {
         let shape = field.shape();
         let center_coords = field.grid().centers();
 
-        let seed_indices = (0..shape[X]*shape[Y]*shape[Z]).into_par_iter().filter_map(
-            |idx| {
+        let seed_indices = (0..shape[X] * shape[Y] * shape[Z])
+            .into_par_iter()
+            .filter_map(|idx| {
                 let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
                 let point = center_coords.point(&indices);
-                let vector = interpolator.interp_vector_field(field, &point).expect_inside();
+                let vector = interpolator
+                    .interp_vector_field(field, &point)
+                    .expect_inside();
                 if evaluate_criterion(&vector) {
                     Some(indices)
                 } else {
                     None
                 }
-            }
-        ).collect();
+            })
+            .collect();
 
-        CriterionSeeder3{ seed_indices }
+        CriterionSeeder3 { seed_indices }
     }
 
     /// Creates a list of seed points from the seed indices by indexing the center coordinates
     /// of the given grid.
     pub fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
-    where F: BFloat,
-          G: Grid3<F>
+    where
+        F: BFloat,
+        G: Grid3<F>,
     {
-        self.seed_indices.par_iter().map(|indices| Point3::from(&grid.centers().point(indices))).collect()
+        self.seed_indices
+            .par_iter()
+            .map(|indices| Point3::from(&grid.centers().point(indices)))
+            .collect()
     }
 }
 
@@ -177,10 +206,13 @@ impl IntoParallelIterator for CriterionSeeder3 {
 }
 
 impl IndexSeeder3 for CriterionSeeder3 {
-    fn number_of_indices(&self) -> usize { self.seed_indices.len() }
+    fn number_of_indices(&self) -> usize {
+        self.seed_indices.len()
+    }
 
     fn retain_indices<P>(&mut self, predicate: P)
-    where P: FnMut(&Idx3<usize>) -> bool
+    where
+        P: FnMut(&Idx3<usize>) -> bool,
     {
         self.seed_indices.retain(predicate);
     }

@@ -1,21 +1,23 @@
 //! Execeution of electron beam simulations.
 
-use std::path;
-use crate::units::solar::{U_L, U_T, U_E};
-use crate::io::{Endianness, Verbose};
-use crate::io::snapshot::{fdt, SnapshotReader3, SnapshotCacher3};
+use super::distribution::power_law::acceleration::simple::{
+    SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
+};
+use super::distribution::power_law::{PitchAngleDistribution, PowerLawDistributionConfig};
+use super::{feb, ElectronBeamSwarm};
 use crate::geometry::Dim3;
-use crate::grid::Grid3;
 use crate::grid::hor_regular::HorRegularGrid3;
+use crate::grid::Grid3;
 use crate::interpolation::poly_fit::PolyFitInterpolator3;
-use crate::tracing::seeding::IndexSeeder3;
+use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
+use crate::io::{Endianness, Verbose};
 use crate::tracing::seeding::criterion::CriterionSeeder3;
-use crate::tracing::stepping::rkf::{RKFStepperType, RKFStepperConfig};
+use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
 use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
-use super::{feb, ElectronBeamSwarm};
-use super::distribution::power_law::{PitchAngleDistribution, PowerLawDistributionConfig};
-use super::distribution::power_law::acceleration::simple::{SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator};
+use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
+use crate::units::solar::{U_E, U_L, U_T};
+use std::path;
 
 /// Convenience object for running offline electron beam simulations.
 pub struct ElectronBeamSimulator {
@@ -43,7 +45,7 @@ pub struct ElectronBeamSimulator {
     /// Type of stepper to use.
     pub rkf_stepper_type: RKFStepperType,
     /// Configuration parameters for the stepper.
-    pub rkf_stepper_config: RKFStepperConfig
+    pub rkf_stepper_config: RKFStepperConfig,
 }
 
 impl ElectronBeamSimulator {
@@ -53,20 +55,21 @@ impl ElectronBeamSimulator {
         let param_file_path = param_file_path.as_ref().to_path_buf();
         let reader = Self::create_reader(&param_file_path.as_path());
 
-        let use_normalized_reconnection_factor = Self::read_use_normalized_reconnection_factor(&reader);
-        let reconnection_factor_threshold      = Self::read_reconnection_factor_threshold(&reader);
-        let minimum_acceleration_depth         = Self::read_minimum_acceleration_depth(&reader);
-        let maximum_acceleration_depth         = Self::read_maximum_acceleration_depth(&reader);
-        let distribution_config                = Self::read_distribution_config(&reader);
-        let accelerator_config                 = Self::read_accelerator_config(&reader);
-        let acceleration_duration              = Self::read_acceleration_duration(&reader);
-        let particle_energy_fraction           = Self::read_particle_energy_fraction(&reader);
-        let power_law_delta                    = Self::read_power_law_delta(&reader);
-        let pitch_angle_distribution           = Self::read_pitch_angle_distribution(&reader);
-        let rkf_stepper_type                   = Self::read_rkf_stepper_type(&reader);
-        let rkf_stepper_config                 = Self::read_rkf_stepper_config(&reader);
+        let use_normalized_reconnection_factor =
+            Self::read_use_normalized_reconnection_factor(&reader);
+        let reconnection_factor_threshold = Self::read_reconnection_factor_threshold(&reader);
+        let minimum_acceleration_depth = Self::read_minimum_acceleration_depth(&reader);
+        let maximum_acceleration_depth = Self::read_maximum_acceleration_depth(&reader);
+        let distribution_config = Self::read_distribution_config(&reader);
+        let accelerator_config = Self::read_accelerator_config(&reader);
+        let acceleration_duration = Self::read_acceleration_duration(&reader);
+        let particle_energy_fraction = Self::read_particle_energy_fraction(&reader);
+        let power_law_delta = Self::read_power_law_delta(&reader);
+        let pitch_angle_distribution = Self::read_pitch_angle_distribution(&reader);
+        let rkf_stepper_type = Self::read_rkf_stepper_type(&reader);
+        let rkf_stepper_config = Self::read_rkf_stepper_config(&reader);
 
-        ElectronBeamSimulator{
+        ElectronBeamSimulator {
             param_file_path,
             use_normalized_reconnection_factor,
             reconnection_factor_threshold,
@@ -79,12 +82,17 @@ impl ElectronBeamSimulator {
             power_law_delta,
             pitch_angle_distribution,
             rkf_stepper_type,
-            rkf_stepper_config
+            rkf_stepper_config,
         }
     }
 
     /// Generates a new set of electron beams using the current parameter values.
-    pub fn generate_beams(&self, propagate_beams: bool, extra_fixed_scalars: Option<&Vec<&str>>, verbose: Verbose) -> ElectronBeamSwarm<SimplePowerLawAccelerator> {
+    pub fn generate_beams(
+        &self,
+        propagate_beams: bool,
+        extra_fixed_scalars: Option<&Vec<&str>>,
+        verbose: Verbose,
+    ) -> ElectronBeamSwarm<SimplePowerLawAccelerator> {
         let mut snapshot = self.create_cacher();
         snapshot.reader_mut().set_verbose(verbose);
         let seeder = self.create_seeder(&mut snapshot);
@@ -94,62 +102,101 @@ impl ElectronBeamSimulator {
             match self.rkf_stepper_type {
                 RKFStepperType::RKF23 => {
                     let stepper_factory = self.create_rkf23_stepper_factory();
-                    ElectronBeamSwarm::generate_propagated(seeder, &mut snapshot, accelerator, &interpolator, stepper_factory, verbose)
-                },
+                    ElectronBeamSwarm::generate_propagated(
+                        seeder,
+                        &mut snapshot,
+                        accelerator,
+                        &interpolator,
+                        stepper_factory,
+                        verbose,
+                    )
+                }
                 RKFStepperType::RKF45 => {
                     let stepper_factory = self.create_rkf45_stepper_factory();
-                    ElectronBeamSwarm::generate_propagated(seeder, &mut snapshot, accelerator, &interpolator, stepper_factory, verbose)
+                    ElectronBeamSwarm::generate_propagated(
+                        seeder,
+                        &mut snapshot,
+                        accelerator,
+                        &interpolator,
+                        stepper_factory,
+                        verbose,
+                    )
                 }
             }
         } else {
-            ElectronBeamSwarm::generate_unpropagated(seeder, &mut snapshot, accelerator, &interpolator, verbose)
+            ElectronBeamSwarm::generate_unpropagated(
+                seeder,
+                &mut snapshot,
+                accelerator,
+                &interpolator,
+                verbose,
+            )
         };
         if let Some(extra_fixed_scalars) = extra_fixed_scalars {
             for name in extra_fixed_scalars {
-                beams.extract_fixed_scalars(snapshot.obtain_scalar_field(name)
-                                                    .unwrap_or_else(|err| panic!("Could not read field: {}", err)),
-                                            &interpolator);
+                beams.extract_fixed_scalars(
+                    snapshot
+                        .obtain_scalar_field(name)
+                        .unwrap_or_else(|err| panic!("Could not read field: {}", err)),
+                    &interpolator,
+                );
             }
         }
         beams
     }
 
     fn read_use_normalized_reconnection_factor<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> bool {
-        let use_normalized_reconnection_factor: u8 = reader.get_numerical_param("norm_krec")
-                                                           .unwrap_or_else(|err| panic!("{}", err));
+        let use_normalized_reconnection_factor: u8 = reader
+            .get_numerical_param("norm_krec")
+            .unwrap_or_else(|err| panic!("{}", err));
         use_normalized_reconnection_factor > 0
     }
 
     fn read_reconnection_factor_threshold<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
-        reader.get_numerical_param("krec_lim").unwrap_or_else(|err| panic!("{}", err))
+        reader
+            .get_numerical_param("krec_lim")
+            .unwrap_or_else(|err| panic!("{}", err))
     }
 
     fn read_minimum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
-        reader.get_numerical_param("z_rec_ulim").unwrap_or_else(|err| panic!("{}", err))
+        reader
+            .get_numerical_param("z_rec_ulim")
+            .unwrap_or_else(|err| panic!("{}", err))
     }
 
     fn read_maximum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
-        reader.get_numerical_param("z_rec_llim").unwrap_or_else(|err| panic!("{}", err))
+        reader
+            .get_numerical_param("z_rec_llim")
+            .unwrap_or_else(|err| panic!("{}", err))
     }
 
-    fn read_distribution_config<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> PowerLawDistributionConfig {
-        let min_remaining_power_density = reader.get_numerical_param::<feb>("min_stop_en")
-                                                .unwrap_or_else(|err| panic!("{}", err))
-                                                *U_E/U_T;
+    fn read_distribution_config<G: Grid3<fdt>>(
+        reader: &SnapshotReader3<G>,
+    ) -> PowerLawDistributionConfig {
+        let min_remaining_power_density = reader
+            .get_numerical_param::<feb>("min_stop_en")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_E
+            / U_T;
 
-        PowerLawDistributionConfig{
-            min_remaining_power_density
+        PowerLawDistributionConfig {
+            min_remaining_power_density,
         }
     }
 
-    fn read_accelerator_config<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> SimplePowerLawAccelerationConfig {
-        let min_total_power_density = reader.get_numerical_param::<feb>("min_beam_en")
-                                            .unwrap_or_else(|err| panic!("{}", err))
-                                            *U_E/U_T;
+    fn read_accelerator_config<G: Grid3<fdt>>(
+        reader: &SnapshotReader3<G>,
+    ) -> SimplePowerLawAccelerationConfig {
+        let min_total_power_density = reader
+            .get_numerical_param::<feb>("min_beam_en")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_E
+            / U_T;
 
-        let min_estimated_depletion_distance = reader.get_numerical_param::<feb>("min_stop_dist")
-                                                     .unwrap_or_else(|err| panic!("{}", err))
-                                                     *U_L;
+        let min_estimated_depletion_distance = reader
+            .get_numerical_param::<feb>("min_stop_dist")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_L;
 
         // Online version always uses 20 degrees
         let min_acceleration_angle = 20.0;
@@ -160,34 +207,39 @@ impl ElectronBeamSimulator {
         let acceptable_root_finding_error = 1e-3;
         let max_root_finding_iterations = 100;
 
-        SimplePowerLawAccelerationConfig{
+        SimplePowerLawAccelerationConfig {
             enforce_rejection: true,
             min_total_power_density,
             min_estimated_depletion_distance,
             min_acceleration_angle,
             initial_cutoff_energy_guess,
             acceptable_root_finding_error,
-            max_root_finding_iterations
+            max_root_finding_iterations,
         }
     }
 
     fn read_acceleration_duration<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
-        reader.get_numerical_param::<feb>("dt")
-              .unwrap_or_else(|err| panic!("{}", err))
-              *U_T
+        reader
+            .get_numerical_param::<feb>("dt")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_T
     }
 
     fn read_particle_energy_fraction<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
-        reader.get_numerical_param("qjoule_acc_frac")
-              .unwrap_or_else(|err| panic!("{}", err))
+        reader
+            .get_numerical_param("qjoule_acc_frac")
+            .unwrap_or_else(|err| panic!("{}", err))
     }
 
     fn read_power_law_delta<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
-        reader.get_numerical_param("power_law_index")
-              .unwrap_or_else(|err| panic!("{}", err))
+        reader
+            .get_numerical_param("power_law_index")
+            .unwrap_or_else(|err| panic!("{}", err))
     }
 
-    fn read_pitch_angle_distribution<G: Grid3<fdt>>(_reader: &SnapshotReader3<G>) -> PitchAngleDistribution {
+    fn read_pitch_angle_distribution<G: Grid3<fdt>>(
+        _reader: &SnapshotReader3<G>,
+    ) -> PitchAngleDistribution {
         // Online version always uses a peaked distribution
         PitchAngleDistribution::Peaked
     }
@@ -198,8 +250,9 @@ impl ElectronBeamSimulator {
     }
 
     fn read_rkf_stepper_config<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> RKFStepperConfig {
-        let dense_step_length = reader.get_numerical_param("ds_out")
-                                      .unwrap_or_else(|err| panic!("{}", err));
+        let dense_step_length = reader
+            .get_numerical_param("ds_out")
+            .unwrap_or_else(|err| panic!("{}", err));
 
         // The following values are always used in the online version
         let max_step_attempts = 16;
@@ -212,8 +265,9 @@ impl ElectronBeamSimulator {
         let initial_error = 1e-4;
         let sudden_reversals_for_sink = 3;
 
-        let use_pi_control: u8 = reader.get_numerical_param("use_pi_ctrl")
-                                       .unwrap_or_else(|err| panic!("{}", err));
+        let use_pi_control: u8 = reader
+            .get_numerical_param("use_pi_ctrl")
+            .unwrap_or_else(|err| panic!("{}", err));
         let use_pi_control = use_pi_control > 0;
 
         RKFStepperConfig {
@@ -227,13 +281,13 @@ impl ElectronBeamSimulator {
             initial_step_length,
             initial_error,
             sudden_reversals_for_sink,
-            use_pi_control
+            use_pi_control,
         }
     }
 
     fn create_reader(param_file_path: &path::Path) -> SnapshotReader3<HorRegularGrid3<fdt>> {
         SnapshotReader3::new(param_file_path, Endianness::Little)
-                        .unwrap_or_else(|err| panic!("Could not read snapshot: {}", err))
+            .unwrap_or_else(|err| panic!("Could not read snapshot: {}", err))
     }
 
     fn create_cacher(&self) -> SnapshotCacher3<HorRegularGrid3<fdt>> {
@@ -241,22 +295,26 @@ impl ElectronBeamSimulator {
     }
 
     fn create_seeder<G: Grid3<fdt>>(&self, snapshot: &mut SnapshotCacher3<G>) -> CriterionSeeder3 {
-        let reconnection_factor_variable = if self.use_normalized_reconnection_factor { "krec_norm" } else { "krec" };
-        let reconnection_factor_field = snapshot.obtain_scalar_field(reconnection_factor_variable)
-                                                .unwrap_or_else(|err| panic!("Could not obtain reconnection factor field: {}", err));
+        let reconnection_factor_variable = if self.use_normalized_reconnection_factor {
+            "krec_norm"
+        } else {
+            "krec"
+        };
+        let reconnection_factor_field = snapshot
+            .obtain_scalar_field(reconnection_factor_variable)
+            .unwrap_or_else(|err| panic!("Could not obtain reconnection factor field: {}", err));
 
-        let mut seeder = CriterionSeeder3::on_scalar_field_values(reconnection_factor_field,
-            &|reconnection_factor| {
-                reconnection_factor >= self.reconnection_factor_threshold
-            }
+        let mut seeder = CriterionSeeder3::on_scalar_field_values(
+            reconnection_factor_field,
+            &|reconnection_factor| reconnection_factor >= self.reconnection_factor_threshold,
         );
 
         snapshot.drop_scalar_field(reconnection_factor_variable);
 
         let z_coordinates = &snapshot.reader().grid().centers()[Dim3::Z];
         seeder.retain_indices(|indices| {
-            z_coordinates[indices[Dim3::Z]] >= self.minimum_acceleration_depth &&
-            z_coordinates[indices[Dim3::Z]] <= self.maximum_acceleration_depth
+            z_coordinates[indices[Dim3::Z]] >= self.minimum_acceleration_depth
+                && z_coordinates[indices[Dim3::Z]] <= self.maximum_acceleration_depth
         });
         seeder
     }
@@ -268,7 +326,7 @@ impl ElectronBeamSimulator {
             self.acceleration_duration,
             self.particle_energy_fraction,
             self.power_law_delta,
-            self.pitch_angle_distribution
+            self.pitch_angle_distribution,
         )
     }
 

@@ -1,15 +1,15 @@
 //! Tracing field lines of a vector field.
 
+pub mod field_line;
 pub mod seeding;
 pub mod stepping;
-pub mod field_line;
 
-use crate::num::BFloat;
-use crate::geometry::{Vec3, Point3};
-use crate::grid::Grid3;
+use self::stepping::{Stepper3, StepperInstruction, StepperResult, SteppingSense, StoppingCause};
 use crate::field::VectorField3;
+use crate::geometry::{Point3, Vec3};
+use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
-use self::stepping::{Stepper3, SteppingSense, StepperResult, StoppingCause, StepperInstruction};
+use crate::num::BFloat;
 
 /// Floating-point precision to use for tracing.
 #[allow(non_camel_case_types)]
@@ -19,7 +19,7 @@ pub type ftr = f64;
 #[derive(Clone, Debug)]
 pub enum TracerResult {
     Ok(Option<StoppingCause>),
-    Void
+    Void,
 }
 
 /// Traces a field line through a 3D vector field.
@@ -48,20 +48,43 @@ pub enum TracerResult {
 /// - `I`: Type of interpolator.
 /// - `S`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
-pub fn trace_3d_field_line<F, G, I, St, C>(field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>, sense: SteppingSense, callback: &mut C) -> TracerResult
-where F: BFloat,
-      G: Grid3<F>,
-      I: Interpolator3,
-      St: Stepper3,
-      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+pub fn trace_3d_field_line<F, G, I, St, C>(
+    field: &VectorField3<F, G>,
+    interpolator: &I,
+    stepper: St,
+    start_position: &Point3<ftr>,
+    sense: SteppingSense,
+    callback: &mut C,
+) -> TracerResult
+where
+    F: BFloat,
+    G: Grid3<F>,
+    I: Interpolator3,
+    St: Stepper3,
+    C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
     match sense {
-        SteppingSense::Same => {
-            custom_trace_3d_field_line(field, interpolator, &|dir| { dir.normalize(); }, stepper, start_position, callback)
-        },
-        SteppingSense::Opposite => {
-            custom_trace_3d_field_line(field, interpolator, &|dir| { dir.normalize(); dir.reverse(); }, stepper, start_position, callback)
-        },
+        SteppingSense::Same => custom_trace_3d_field_line(
+            field,
+            interpolator,
+            &|dir| {
+                dir.normalize();
+            },
+            stepper,
+            start_position,
+            callback,
+        ),
+        SteppingSense::Opposite => custom_trace_3d_field_line(
+            field,
+            interpolator,
+            &|dir| {
+                dir.normalize();
+                dir.reverse();
+            },
+            stepper,
+            start_position,
+            callback,
+        ),
     }
 }
 
@@ -91,20 +114,43 @@ where F: BFloat,
 /// - `I`: Type of interpolator.
 /// - `St`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
-pub fn trace_3d_field_line_dense<F, G, I, St, C>(field: &VectorField3<F, G>, interpolator: &I, stepper: St, start_position: &Point3<ftr>, sense: SteppingSense, callback: &mut C) -> TracerResult
-where F: BFloat,
-      G: Grid3<F>,
-      I: Interpolator3,
-      St: Stepper3,
-      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+pub fn trace_3d_field_line_dense<F, G, I, St, C>(
+    field: &VectorField3<F, G>,
+    interpolator: &I,
+    stepper: St,
+    start_position: &Point3<ftr>,
+    sense: SteppingSense,
+    callback: &mut C,
+) -> TracerResult
+where
+    F: BFloat,
+    G: Grid3<F>,
+    I: Interpolator3,
+    St: Stepper3,
+    C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
     match sense {
-        SteppingSense::Same => {
-            custom_trace_3d_field_line_dense(field, interpolator, &|dir| { dir.normalize(); }, stepper, start_position, callback)
-        },
-        SteppingSense::Opposite => {
-            custom_trace_3d_field_line_dense(field, interpolator, &|dir| { dir.normalize(); dir.reverse(); }, stepper, start_position, callback)
-        },
+        SteppingSense::Same => custom_trace_3d_field_line_dense(
+            field,
+            interpolator,
+            &|dir| {
+                dir.normalize();
+            },
+            stepper,
+            start_position,
+            callback,
+        ),
+        SteppingSense::Opposite => custom_trace_3d_field_line_dense(
+            field,
+            interpolator,
+            &|dir| {
+                dir.normalize();
+                dir.reverse();
+            },
+            stepper,
+            start_position,
+            callback,
+        ),
     }
 }
 
@@ -136,23 +182,39 @@ where F: BFloat,
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
-pub fn custom_trace_3d_field_line<F, G, I, D, St, C>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, mut stepper: St, start_position: &Point3<ftr>, callback: &mut C) -> TracerResult
-where F: BFloat,
-      G: Grid3<F>,
-      I: Interpolator3,
-      D: Fn(&mut Vec3<ftr>),
-      St: Stepper3,
-      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+pub fn custom_trace_3d_field_line<F, G, I, D, St, C>(
+    field: &VectorField3<F, G>,
+    interpolator: &I,
+    direction_computer: &D,
+    mut stepper: St,
+    start_position: &Point3<ftr>,
+    callback: &mut C,
+) -> TracerResult
+where
+    F: BFloat,
+    G: Grid3<F>,
+    I: Interpolator3,
+    D: Fn(&mut Vec3<ftr>),
+    St: Stepper3,
+    C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
-    match stepper.place(field, interpolator, direction_computer, start_position, callback) {
-        StepperResult::Ok(_) => {},
-        StepperResult::Stopped(_) => return TracerResult::Void
+    match stepper.place(
+        field,
+        interpolator,
+        direction_computer,
+        start_position,
+        callback,
+    ) {
+        StepperResult::Ok(_) => {}
+        StepperResult::Stopped(_) => return TracerResult::Void,
     };
     loop {
-        if let StepperResult::Stopped(cause) = stepper.step(field, interpolator, direction_computer, callback) {
-            return TracerResult::Ok(Some(cause))
+        if let StepperResult::Stopped(cause) =
+            stepper.step(field, interpolator, direction_computer, callback)
+        {
+            return TracerResult::Ok(Some(cause));
         }
-    };
+    }
 }
 
 /// Traces a field line through a 3D vector field, producing regularly spaced output
@@ -183,21 +245,37 @@ where F: BFloat,
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a position and a distance and returning a `StepperInstruction`.
-pub fn custom_trace_3d_field_line_dense<F, G, I, D, St, C>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, mut stepper: St, start_position: &Point3<ftr>, callback: &mut C) -> TracerResult
-where F: BFloat,
-      G: Grid3<F>,
-      I: Interpolator3,
-      D: Fn(&mut Vec3<ftr>),
-      St: Stepper3,
-      C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+pub fn custom_trace_3d_field_line_dense<F, G, I, D, St, C>(
+    field: &VectorField3<F, G>,
+    interpolator: &I,
+    direction_computer: &D,
+    mut stepper: St,
+    start_position: &Point3<ftr>,
+    callback: &mut C,
+) -> TracerResult
+where
+    F: BFloat,
+    G: Grid3<F>,
+    I: Interpolator3,
+    D: Fn(&mut Vec3<ftr>),
+    St: Stepper3,
+    C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
-    match stepper.place(field, interpolator, direction_computer, start_position, callback) {
-        StepperResult::Ok(_) => {},
-        StepperResult::Stopped(_) => return TracerResult::Void
+    match stepper.place(
+        field,
+        interpolator,
+        direction_computer,
+        start_position,
+        callback,
+    ) {
+        StepperResult::Ok(_) => {}
+        StepperResult::Stopped(_) => return TracerResult::Void,
     };
     loop {
-        if let StepperResult::Stopped(cause) = stepper.step_dense_output(field, interpolator, direction_computer, callback) {
-            return TracerResult::Ok(Some(cause))
+        if let StepperResult::Stopped(cause) =
+            stepper.step_dense_output(field, interpolator, direction_computer, callback)
+        {
+            return TracerResult::Ok(Some(cause));
         }
-    };
+    }
 }

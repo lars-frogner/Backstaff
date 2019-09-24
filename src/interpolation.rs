@@ -2,10 +2,10 @@
 
 pub mod poly_fit;
 
-use crate::num::BFloat;
+use crate::field::{ScalarField3, VectorField3};
 use crate::geometry::{Point3, Vec3};
 use crate::grid::{Grid3, GridPointQuery3};
-use crate::field::{ScalarField3, VectorField3};
+use crate::num::BFloat;
 
 /// Defines the properties of a 3D interpolator.
 pub trait Interpolator3: Clone + Sync + Send {
@@ -30,9 +30,14 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    fn interp_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> GridPointQuery3<F, F>
-    where F: BFloat,
-          G: Grid3<F>;
+    fn interp_scalar_field<F, G>(
+        &self,
+        field: &ScalarField3<F, G>,
+        interp_point: &Point3<F>,
+    ) -> GridPointQuery3<F, F>
+    where
+        F: BFloat,
+        G: Grid3<F>;
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -52,9 +57,14 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    fn interp_extrap_scalar_field<F, G>(&self, field: &ScalarField3<F, G>, interp_point: &Point3<F>) -> F
-    where F: BFloat,
-          G: Grid3<F>;
+    fn interp_extrap_scalar_field<F, G>(
+        &self,
+        field: &ScalarField3<F, G>,
+        interp_point: &Point3<F>,
+    ) -> F
+    where
+        F: BFloat,
+        G: Grid3<F>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -77,9 +87,14 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    fn interp_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> GridPointQuery3<F, Vec3<F>>
-    where F: BFloat,
-          G: Grid3<F>;
+    fn interp_vector_field<F, G>(
+        &self,
+        field: &VectorField3<F, G>,
+        interp_point: &Point3<F>,
+    ) -> GridPointQuery3<F, Vec3<F>>
+    where
+        F: BFloat,
+        G: Grid3<F>;
 
     /// Computes the interpolated or extrapolated value of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -99,7 +114,12 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    fn interp_extrap_vector_field<F, G>(&self, field: &VectorField3<F, G>, interp_point: &Point3<F>) -> Vec3<F>
-    where F: BFloat,
-          G: Grid3<F>;
+    fn interp_extrap_vector_field<F, G>(
+        &self,
+        field: &VectorField3<F, G>,
+        interp_point: &Point3<F>,
+    ) -> Vec3<F>
+    where
+        F: BFloat,
+        G: Grid3<F>;
 }

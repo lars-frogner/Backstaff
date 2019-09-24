@@ -5,20 +5,20 @@
 pub mod rkf23;
 pub mod rkf45;
 
-use crate::num::BFloat;
+use super::{StepperInstruction, StepperResult, StoppingCause};
+use crate::field::VectorField3;
 use crate::geometry::{Dim3, Point3, Vec3};
 use crate::grid::{Grid3, GridPointQuery3};
-use crate::field::VectorField3;
 use crate::interpolation::Interpolator3;
+use crate::num::BFloat;
 use crate::tracing::ftr;
-use super::{StepperResult, StoppingCause, StepperInstruction};
 use Dim3::{X, Y, Z};
 
 /// Type of RKF stepper.
 #[derive(Clone, Copy, Debug)]
 pub enum RKFStepperType {
     RKF23,
-    RKF45
+    RKF45,
 }
 
 #[derive(Clone, Debug)]
@@ -54,7 +54,7 @@ struct RKFStepperState3 {
     previous_step_wrapped: bool,
     /// Distance along the field line where the next dense output position
     /// should be computed.
-    next_output_distance: ftr
+    next_output_distance: ftr,
 }
 
 /// Configuration parameters for RKF steppers.
@@ -81,25 +81,25 @@ pub struct RKFStepperConfig {
     /// Number of sudden direction reversals before the area is considered a sink.
     pub sudden_reversals_for_sink: u32,
     /// Whether to use Proportional Integral (PI) control for stabilizing the stepping.
-    pub use_pi_control: bool
+    pub use_pi_control: bool,
 }
 
 #[derive(Clone, Debug)]
 struct PIControlParams {
     k_i: ftr,
-    k_p: ftr
+    k_p: ftr,
 }
 
 #[derive(Clone, Debug)]
 enum ComputedDirection3 {
     Standard(Vec3<ftr>),
-    WithWrappedPosition((Point3<ftr>, Vec3<ftr>))
+    WithWrappedPosition((Point3<ftr>, Vec3<ftr>)),
 }
 
 #[derive(Clone, Debug)]
 enum StepError {
     Acceptable(ftr),
-    TooLarge(ftr)
+    TooLarge(ftr),
 }
 
 #[derive(Clone, Debug)]
@@ -108,26 +108,38 @@ struct StepAttempt3 {
     next_direction: Vec3<ftr>,
     intermediate_directions: Vec<Vec3<ftr>>,
     step_displacement: Vec3<ftr>,
-    step_wrapped: bool
+    step_wrapped: bool,
 }
 
 trait RKFStepper3 {
     fn state(&self) -> &RKFStepperState3;
     fn state_mut(&mut self) -> &mut RKFStepperState3;
 
-    fn attempt_step<F, G, I, D>(&self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<StepAttempt3>
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          D: Fn(&mut Vec3<ftr>);
+    fn attempt_step<F, G, I, D>(
+        &self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        direction_computer: &D,
+    ) -> StepperResult<StepAttempt3>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        D: Fn(&mut Vec3<ftr>);
 
     fn compute_error_deltas(&self, attempt: &StepAttempt3) -> Vec3<ftr>;
 
     fn compute_dense_interpolation_coefs(&self) -> Vec<Vec3<ftr>>;
 
-    fn interpolate_dense_position<F, G>(&self, grid: &G, coefs: &[Vec3<ftr>], fraction: ftr) -> Option<Point3<ftr>>
-    where F: BFloat,
-          G: Grid3<F>;
+    fn interpolate_dense_position<F, G>(
+        &self,
+        grid: &G,
+        coefs: &[Vec3<ftr>],
+        fraction: ftr,
+    ) -> Option<Point3<ftr>>
+    where
+        F: BFloat,
+        G: Grid3<F>;
 
     fn reset_state(&mut self, position: &Point3<ftr>, direction: &Vec3<ftr>) {
         let state = self.state_mut();
@@ -146,44 +158,74 @@ trait RKFStepper3 {
         state.next_output_distance = state.config.dense_step_length;
     }
 
-    fn place_with_callback<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>, callback: &mut C) -> StepperResult<()>
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          D: Fn(&mut Vec3<ftr>),
-          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+    fn place_with_callback<F, G, I, D, C>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        direction_computer: &D,
+        position: &Point3<ftr>,
+        callback: &mut C,
+    ) -> StepperResult<()>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        D: Fn(&mut Vec3<ftr>),
+        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let place_result = self.perform_place(field, interpolator, direction_computer, position);
         if let StepperResult::Ok(_) = place_result {
-            if let StepperInstruction::Terminate = callback(&self.state().previous_step_displacement, &self.state().position, self.state().distance) {
-                return StepperResult::Stopped(StoppingCause::StoppedByCallback)
+            if let StepperInstruction::Terminate = callback(
+                &self.state().previous_step_displacement,
+                &self.state().position,
+                self.state().distance,
+            ) {
+                return StepperResult::Stopped(StoppingCause::StoppedByCallback);
             }
         }
         place_result
     }
 
-    fn step_with_callback<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          D: Fn(&mut Vec3<ftr>),
-          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+    fn step_with_callback<F, G, I, D, C>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        direction_computer: &D,
+        callback: &mut C,
+    ) -> StepperResult<()>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        D: Fn(&mut Vec3<ftr>),
+        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
-            if let StepperInstruction::Terminate = callback(&self.state().previous_step_displacement, &self.state().position, self.state().distance) {
-                return StepperResult::Stopped(StoppingCause::StoppedByCallback)
+            if let StepperInstruction::Terminate = callback(
+                &self.state().previous_step_displacement,
+                &self.state().position,
+                self.state().distance,
+            ) {
+                return StepperResult::Stopped(StoppingCause::StoppedByCallback);
             }
         }
         step_result
     }
 
-    fn step_with_callback_dense_output<F, G, I, D, C>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, callback: &mut C) -> StepperResult<()>
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          D: Fn(&mut Vec3<ftr>),
-          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+    fn step_with_callback_dense_output<F, G, I, D, C>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        direction_computer: &D,
+        callback: &mut C,
+    ) -> StepperResult<()>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        D: Fn(&mut Vec3<ftr>),
+        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
@@ -193,25 +235,43 @@ trait RKFStepper3 {
         }
     }
 
-    fn perform_place<F, G, I, D>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>) -> StepperResult<()>
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          D: Fn(&mut Vec3<ftr>)
+    fn perform_place<F, G, I, D>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        direction_computer: &D,
+        position: &Point3<ftr>,
+    ) -> StepperResult<()>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        D: Fn(&mut Vec3<ftr>),
     {
         match Self::compute_direction(field, interpolator, direction_computer, position) {
-            StepperResult::Ok(ComputedDirection3::Standard(direction)) => self.reset_state(position, &direction),
-            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((wrapped_position, direction))) => self.reset_state(&wrapped_position, &direction),
-            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause)
+            StepperResult::Ok(ComputedDirection3::Standard(direction)) => {
+                self.reset_state(position, &direction)
+            }
+            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((
+                wrapped_position,
+                direction,
+            ))) => self.reset_state(&wrapped_position, &direction),
+            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
         };
         StepperResult::Ok(())
     }
 
-    fn perform_step<F, G, I, D>(&mut self, field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D) -> StepperResult<()>
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          D: Fn(&mut Vec3<ftr>)
+    fn perform_step<F, G, I, D>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        direction_computer: &D,
+    ) -> StepperResult<()>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        D: Fn(&mut Vec3<ftr>),
     {
         let grid = field.grid();
         let mut attempts = 0;
@@ -219,7 +279,7 @@ trait RKFStepper3 {
         while attempts < self.state().config.max_step_attempts {
             let step_attempt = match self.attempt_step(field, interpolator, direction_computer) {
                 StepperResult::Ok(step_attempt) => step_attempt,
-                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause)
+                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
             };
 
             attempts += 1;
@@ -234,7 +294,7 @@ trait RKFStepper3 {
                     }
 
                     if self.check_for_sink(&step_attempt) {
-                        return StepperResult::Stopped(StoppingCause::Sink)
+                        return StepperResult::Stopped(StoppingCause::Sink);
                     }
 
                     self.apply_step_attempt(step_attempt);
@@ -255,11 +315,17 @@ trait RKFStepper3 {
         }
     }
 
-    fn compute_direction<F, G, I, D>(field: &VectorField3<F, G>, interpolator: &I, direction_computer: &D, position: &Point3<ftr>) -> StepperResult<ComputedDirection3>
-    where F: BFloat,
-          G: Grid3<F>,
-          I: Interpolator3,
-          D: Fn(&mut Vec3<ftr>)
+    fn compute_direction<F, G, I, D>(
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+        direction_computer: &D,
+        position: &Point3<ftr>,
+    ) -> StepperResult<ComputedDirection3>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+        D: Fn(&mut Vec3<ftr>),
     {
         match interpolator.interp_vector_field(field, &Point3::from(position)) {
             GridPointQuery3::Inside(field_vector) => {
@@ -267,27 +333,28 @@ trait RKFStepper3 {
                     StepperResult::Stopped(StoppingCause::Null)
                 } else {
                     StepperResult::Ok(ComputedDirection3::Standard(
-                        Self::apply_direction_computer(field_vector, direction_computer)
+                        Self::apply_direction_computer(field_vector, direction_computer),
                     ))
                 }
-            },
+            }
             GridPointQuery3::WrappedInside((field_vector, wrapped_position)) => {
                 if field_vector.is_zero() {
                     StepperResult::Stopped(StoppingCause::Null)
                 } else {
                     StepperResult::Ok(ComputedDirection3::WithWrappedPosition((
                         Point3::from(&wrapped_position),
-                        Self::apply_direction_computer(field_vector, direction_computer)
+                        Self::apply_direction_computer(field_vector, direction_computer),
                     )))
                 }
-            },
-            GridPointQuery3::Outside => StepperResult::Stopped(StoppingCause::OutOfBounds)
+            }
+            GridPointQuery3::Outside => StepperResult::Stopped(StoppingCause::OutOfBounds),
         }
     }
 
     fn apply_direction_computer<F, D>(field_vector: Vec3<F>, direction_computer: &D) -> Vec3<ftr>
-    where F: BFloat,
-          D: Fn(&mut Vec3<ftr>)
+    where
+        F: BFloat,
+        D: Fn(&mut Vec3<ftr>),
     {
         let mut direction = Vec3::from(&field_vector);
         direction_computer(&mut direction);
@@ -295,18 +362,27 @@ trait RKFStepper3 {
     }
 
     fn compute_error<F, G>(&self, grid: &G, attempt: &StepAttempt3) -> StepError
-    where F: BFloat,
-          G: Grid3<F>
+    where
+        F: BFloat,
+        G: Grid3<F>,
     {
         let state = self.state();
         let error_deltas = self.compute_error_deltas(attempt);
 
         let grid_extents: Vec3<ftr> = Vec3::from(grid.extents());
-        let errors = Vec3::new(error_deltas[X]/(state.config.absolute_tolerance + state.config.relative_tolerance*grid_extents[X]),
-                               error_deltas[Y]/(state.config.absolute_tolerance + state.config.relative_tolerance*grid_extents[Y]),
-                               error_deltas[Z]/(state.config.absolute_tolerance + state.config.relative_tolerance*grid_extents[Z]));
+        let errors = Vec3::new(
+            error_deltas[X]
+                / (state.config.absolute_tolerance
+                    + state.config.relative_tolerance * grid_extents[X]),
+            error_deltas[Y]
+                / (state.config.absolute_tolerance
+                    + state.config.relative_tolerance * grid_extents[Y]),
+            error_deltas[Z]
+                / (state.config.absolute_tolerance
+                    + state.config.relative_tolerance * grid_extents[Z]),
+        );
 
-        let error = ftr::sqrt(0.5*errors.squared_length());
+        let error = ftr::sqrt(0.5 * errors.squared_length());
 
         if error <= 1.0 {
             StepError::Acceptable(error)
@@ -321,7 +397,8 @@ trait RKFStepper3 {
             // Use max step scale directly for very small error to avoid division by zero
             state.config.max_step_scale
         } else {
-            let step_scale = state.config.safety_factor*(state.error.powf(state.pi_control.k_i))/(new_error.powf(state.pi_control.k_p));
+            let step_scale = state.config.safety_factor * (state.error.powf(state.pi_control.k_i))
+                / (new_error.powf(state.pi_control.k_p));
             if step_scale < state.config.min_step_scale {
                 state.config.min_step_scale
             } else if step_scale > state.config.max_step_scale {
@@ -330,12 +407,15 @@ trait RKFStepper3 {
                 step_scale
             }
         };
-        state.step_length*step_scale
+        state.step_length * step_scale
     }
 
     fn compute_step_length_rejected(&self, new_error: ftr) -> ftr {
         let state = self.state();
-        ftr::max(state.config.safety_factor/(new_error.powf(state.pi_control.k_p)), state.config.min_step_scale)*state.step_length
+        ftr::max(
+            state.config.safety_factor / (new_error.powf(state.pi_control.k_p)),
+            state.config.min_step_scale,
+        ) * state.step_length
     }
 
     fn check_for_sink(&mut self, attempt: &StepAttempt3) -> bool {
@@ -369,9 +449,10 @@ trait RKFStepper3 {
     }
 
     fn compute_dense_output<F, G, C>(&mut self, grid: &G, callback: &mut C) -> StepperResult<()>
-    where F: BFloat,
-          G: Grid3<F>,
-          C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction
+    where
+        F: BFloat,
+        G: Grid3<F>,
+        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         #![allow(clippy::float_cmp)] // Allows the float comparison with zero
         let state = self.state();
@@ -381,20 +462,27 @@ trait RKFStepper3 {
 
         let mut next_output_distance = state.next_output_distance;
         if next_output_distance <= state.distance {
-            let dense_step_displacement = &state.previous_step_displacement*(state.config.dense_step_length/state.previous_step_length);
+            let dense_step_displacement = &state.previous_step_displacement
+                * (state.config.dense_step_length / state.previous_step_length);
             let coefs = self.compute_dense_interpolation_coefs();
             loop {
-                let fraction = (next_output_distance - previous_distance)/state.previous_step_length;
-                let output_position = match self.interpolate_dense_position(grid, &coefs, fraction) {
+                let fraction =
+                    (next_output_distance - previous_distance) / state.previous_step_length;
+                let output_position = match self.interpolate_dense_position(grid, &coefs, fraction)
+                {
                     Some(position) => position,
-                    None => return StepperResult::Stopped(StoppingCause::OutOfBounds)
+                    None => return StepperResult::Stopped(StoppingCause::OutOfBounds),
                 };
-                if let StepperInstruction::Terminate = callback(&dense_step_displacement, &output_position, next_output_distance) {
-                    return StepperResult::Stopped(StoppingCause::StoppedByCallback)
+                if let StepperInstruction::Terminate = callback(
+                    &dense_step_displacement,
+                    &output_position,
+                    next_output_distance,
+                ) {
+                    return StepperResult::Stopped(StoppingCause::StoppedByCallback);
                 }
                 next_output_distance += state.config.dense_step_length;
                 if next_output_distance > state.distance {
-                    break
+                    break;
                 }
             }
         }
@@ -420,16 +508,46 @@ impl RKFStepperConfig {
     const DEFAULT_SUDDEN_REVERSALS_FOR_SINK: u32 = 3;
 
     fn validate(&self) {
-        assert!(self.dense_step_length > 0.0, "Dense step size must be larger than zero.");
-        assert!(self.max_step_attempts > 0, "Maximum number of step attempts must be larger than zero.");
-        assert!(self.absolute_tolerance > 0.0, "Absolute error tolerance must be larger than zero.");
-        assert!(self.relative_tolerance >= 0.0, "Relative error tolerance must be larger than or equal to zero.");
-        assert!(self.safety_factor > 0.0 && self.safety_factor <= 1.0, "Safety factor must be in the range (0, 1].");
-        assert!(self.min_step_scale > 0.0, "Minimum step scale must be larger than zero.");
-        assert!(self.max_step_scale >= self.min_step_scale, "Maximum step scale must be larger than or equal to the minimum step scale.");
-        assert!(self.initial_step_length > 0.0, "Initial step size must be larger than zero.");
-        assert!(self.initial_error > 0.0 && self.initial_error <= 1.0, "Initial error must be in the range (0, 1].");
-        assert!(self.sudden_reversals_for_sink > 0, "Number of sudden reversals for sink must be larger than zero.");
+        assert!(
+            self.dense_step_length > 0.0,
+            "Dense step size must be larger than zero."
+        );
+        assert!(
+            self.max_step_attempts > 0,
+            "Maximum number of step attempts must be larger than zero."
+        );
+        assert!(
+            self.absolute_tolerance > 0.0,
+            "Absolute error tolerance must be larger than zero."
+        );
+        assert!(
+            self.relative_tolerance >= 0.0,
+            "Relative error tolerance must be larger than or equal to zero."
+        );
+        assert!(
+            self.safety_factor > 0.0 && self.safety_factor <= 1.0,
+            "Safety factor must be in the range (0, 1]."
+        );
+        assert!(
+            self.min_step_scale > 0.0,
+            "Minimum step scale must be larger than zero."
+        );
+        assert!(
+            self.max_step_scale >= self.min_step_scale,
+            "Maximum step scale must be larger than or equal to the minimum step scale."
+        );
+        assert!(
+            self.initial_step_length > 0.0,
+            "Initial step size must be larger than zero."
+        );
+        assert!(
+            self.initial_error > 0.0 && self.initial_error <= 1.0,
+            "Initial error must be in the range (0, 1]."
+        );
+        assert!(
+            self.sudden_reversals_for_sink > 0,
+            "Number of sudden reversals for sink must be larger than zero."
+        );
     }
 }
 
@@ -446,7 +564,7 @@ impl Default for RKFStepperConfig {
             initial_step_length: Self::DEFAULT_INITIAL_STEP_LENGTH,
             initial_error: Self::DEFAULT_INITIAL_ERROR,
             sudden_reversals_for_sink: Self::DEFAULT_SUDDEN_REVERSALS_FOR_SINK,
-            use_pi_control: true
+            use_pi_control: true,
         }
     }
 }
@@ -455,16 +573,16 @@ impl PIControlParams {
     fn activated(scheme_order: u8) -> Self {
         #[allow(clippy::cast_lossless)]
         let order = scheme_order as ftr;
-        let k_i = 0.4/order;
-        let k_p = 1.0/order - 0.75*k_i;
-        PIControlParams{ k_i, k_p }
+        let k_i = 0.4 / order;
+        let k_p = 1.0 / order - 0.75 * k_i;
+        PIControlParams { k_i, k_p }
     }
 
     fn deactivated(scheme_order: u8) -> Self {
         #[allow(clippy::cast_lossless)]
         let order = scheme_order as ftr;
         let k_i = 0.0;
-        let k_p = 1.0/order;
-        PIControlParams{ k_i, k_p }
+        let k_p = 1.0 / order;
+        PIControlParams { k_i, k_p }
     }
 }
