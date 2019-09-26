@@ -2,10 +2,7 @@
 
 pub mod acceleration;
 
-use super::super::{
-    feb, BeamMetadataCollection, BeamPropertiesCollection, FixedBeamScalarValues,
-    FixedBeamVectorValues,
-};
+use super::super::{feb, BeamPropertiesCollection, FixedBeamScalarValues, FixedBeamVectorValues};
 use super::{DepletionStatus, Distribution, PropagationResult};
 use crate::constants::{AMU, KEV_TO_ERG, MC2_ELECTRON};
 use crate::geometry::{Point3, Vec3};
@@ -33,7 +30,7 @@ pub struct PowerLawDistributionConfig {
 
 /// Data associated with a power-law distribution.
 #[derive(Clone, Debug)]
-pub struct PowerLawDistributionData<M: BeamMetadataCollection> {
+pub struct PowerLawDistributionData {
     /// Exponent of the inverse power-law.
     delta: feb,
     /// Factor which is 2 for a peaked and 4 for an isotropic pitch angle distribution.
@@ -54,8 +51,6 @@ pub struct PowerLawDistributionData<M: BeamMetadataCollection> {
     propagation_sense: SteppingSense,
     /// Total mass density at the acceleration site [g/cm^3].
     mass_density: feb,
-    /// Electron beam metadata object for holding arbitrary information about the distribution.
-    metadata: <M as BeamMetadataCollection>::Item,
 }
 
 /// Exposed properties of a power-law distribution.
@@ -87,16 +82,16 @@ pub struct PowerLawDistributionPropertiesCollection {
 /// The probability density for an electron energy `E` is
 /// `P(E) = (delta - 1)*lower_cutoff_energy^(delta - 1)*E^(-delta)`.
 #[derive(Clone, Debug)]
-pub struct PowerLawDistribution<M: BeamMetadataCollection> {
+pub struct PowerLawDistribution {
     config: PowerLawDistributionConfig,
-    data: PowerLawDistributionData<M>,
+    data: PowerLawDistributionData,
     /// Current collisional depth [dimensionless]. Increases as the distribution propagates.
     collisional_depth: feb,
     /// Current remaining energy per volume and time [erg/(cm^3 s)]. Decreases as the distribution propagates.
     remaining_power_density: feb,
 }
 
-impl<M: BeamMetadataCollection> PowerLawDistribution<M> {
+impl PowerLawDistribution {
     /// Fraction of a mass of plasma assumed to be made up of hydrogen.
     const HYDROGEN_MASS_FRACTION: feb = 0.735;
 
@@ -152,7 +147,7 @@ impl<M: BeamMetadataCollection> PowerLawDistribution<M> {
         self.remaining_power_density
     }
 
-    fn new(config: PowerLawDistributionConfig, data: PowerLawDistributionData<M>) -> Self {
+    fn new(config: PowerLawDistributionConfig, data: PowerLawDistributionData) -> Self {
         let collisional_depth = 0.0;
         let remaining_power_density = data.total_power_density;
         PowerLawDistribution {
@@ -293,9 +288,8 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
     }
 }
 
-impl<M: BeamMetadataCollection> Distribution for PowerLawDistribution<M> {
+impl Distribution for PowerLawDistribution {
     type PropertiesCollectionType = PowerLawDistributionPropertiesCollection;
-    type MetadataCollectionType = M;
 
     fn acceleration_position(&self) -> &Point3<fdt> {
         &self.data.acceleration_position
@@ -312,10 +306,6 @@ impl<M: BeamMetadataCollection> Distribution for PowerLawDistribution<M> {
             estimated_depletion_distance: self.data.estimated_depletion_distance / U_L,
             acceleration_direction: Vec3::from(&self.data.acceleration_direction),
         }
-    }
-
-    fn metadata(&self) -> <Self::MetadataCollectionType as BeamMetadataCollection>::Item {
-        self.data.metadata.clone()
     }
 
     fn propagate<G, I>(
