@@ -2,7 +2,7 @@
 
 pub mod power_law;
 
-use super::{feb, BeamMetadataCollection, BeamPropertiesCollection};
+use super::{feb, BeamPropertiesCollection};
 use crate::geometry::{Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
@@ -31,7 +31,6 @@ pub struct PropagationResult {
 /// Defines the properties of a non-thermal electron distribution.
 pub trait Distribution {
     type PropertiesCollectionType: BeamPropertiesCollection;
-    type MetadataCollectionType: BeamMetadataCollection;
 
     /// Returns the position where the distribution originates.
     fn acceleration_position(&self) -> &Point3<fdt>;
@@ -41,9 +40,6 @@ pub trait Distribution {
 
     /// Returns an object holding properties associated with the distribution.
     fn properties(&self) -> <Self::PropertiesCollectionType as BeamPropertiesCollection>::Item;
-
-    /// Returns an object holding metadata associated with the distribution.
-    fn metadata(&self) -> <Self::MetadataCollectionType as BeamMetadataCollection>::Item;
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
