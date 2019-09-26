@@ -11,6 +11,8 @@ use crate::geometry::{Dim3, Idx3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::io::Verbose;
+use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::SteppingSense;
 use crate::units::solar::{U_E, U_R, U_T};
 use nrfind;
@@ -38,9 +40,6 @@ pub struct RejectionCauseCode(u8);
 pub struct RejectionCauseCodeCollection {
     rejection_cause_codes: Vec<RejectionCauseCode>,
 }
-
-type SimplePowerLawAcceleratorMetadataCollection = RejectionCauseCodeCollection;
-type SimplePowerLawDistribution = PowerLawDistribution<SimplePowerLawAcceleratorMetadataCollection>;
 
 /// Configuration parameters for the simple power-law acceleration model.
 #[derive(Clone, Debug)]
@@ -164,8 +163,9 @@ impl SimplePowerLawAccelerator {
         &self,
         temperature: feb,
         electron_density: feb,
-        total_energy_density: feb,
+        total_power_density: feb,
     ) -> Option<feb> {
+        let total_energy_density = self.compute_total_energy_density(total_power_density);
         if total_energy_density < std::f64::EPSILON {
             return None;
         }
@@ -318,7 +318,7 @@ impl SimplePowerLawAccelerator {
         config.validate();
 
         let pitch_angle_factor =
-            SimplePowerLawDistribution::determine_pitch_angle_factor(pitch_angle_distribution);
+            PowerLawDistribution::determine_pitch_angle_factor(pitch_angle_distribution);
         let acceleration_alignment_threshold =
             feb::cos(config.min_acceleration_angle.to_radians()) as fdt;
 
@@ -342,136 +342,396 @@ impl SimplePowerLawAccelerator {
             delta,
         }
     }
-}
 
-impl Accelerator for SimplePowerLawAccelerator {
-    type DistributionType = SimplePowerLawDistribution;
-
-    fn prepare_snapshot_for_generation<G: Grid3<fdt>>(
-        snapshot: &mut SnapshotCacher3<G>,
-    ) -> io::Result<()> {
-        snapshot.cache_scalar_field("r")?;
-        snapshot.cache_scalar_field("tg")?;
-        snapshot.cache_scalar_field("qjoule")?;
-        snapshot.cache_vector_field("e")?;
-        snapshot.cache_vector_field("b")
-    }
-
-    fn prepare_snapshot_for_propagation<G: Grid3<fdt>>(
-        snapshot: &mut SnapshotCacher3<G>,
-    ) -> io::Result<()> {
-        snapshot.drop_scalar_field("tg");
-        snapshot.drop_scalar_field("qjoule");
-        snapshot.drop_vector_field("e");
-        Ok(())
-    }
-
-    fn generate_distribution<G, I>(
+    fn generate_distributions_with_rejection<Sd, G, I>(
         &self,
-        snapshot: &SnapshotCacher3<G>,
+        seeder: Sd,
+        snapshot: &mut SnapshotCacher3<G>,
         interpolator: &I,
-        indices: &Idx3<usize>,
-    ) -> Option<Self::DistributionType>
+        verbose: Verbose,
+    ) -> io::Result<Vec<PowerLawDistribution>>
     where
+        Sd: IndexSeeder3,
         G: Grid3<fdt>,
         I: Interpolator3,
     {
-        let mut rejection_cause_code = RejectionCauseCode::default();
-
-        let total_power_density = self.determine_total_power_density(snapshot, indices);
-        if total_power_density < self.config.min_total_power_density {
-            if self.config.enforce_rejection {
-                return None;
-            } else {
-                rejection_cause_code.add_cause(RejectionCause::TooLowTotalPowerDensity);
-            }
+        if verbose.is_yes() {
+            println!("Computing total power densities");
         }
+        snapshot.cache_scalar_field("qjoule")?;
+        let properties: Vec<_> = seeder
+            .into_par_iter()
+            .filter_map(|indices| {
+                let total_power_density = self.determine_total_power_density(snapshot, &indices);
+                if total_power_density < self.config.min_total_power_density {
+                    None
+                } else {
+                    Some((indices, total_power_density))
+                }
+            })
+            .collect();
+        snapshot.drop_scalar_field("qjoule");
 
-        let total_energy_density = self.compute_total_energy_density(total_power_density);
-
-        let temperature = Self::determine_temperature(snapshot, indices);
-        assert!(temperature > 0.0, "Temperature must be larger than zero.");
-
-        let mass_density = Self::determine_mass_density(snapshot, indices);
-        let electron_density = SimplePowerLawDistribution::compute_electron_density(mass_density);
-        assert!(
-            electron_density > 0.0,
-            "Electron density must be larger than zero."
-        );
-
-        let lower_cutoff_energy = match self.compute_lower_cutoff_energy(
-            temperature,
-            electron_density,
-            total_energy_density,
-        ) {
-            Some(energy) => energy,
-            None => return None,
-        };
-        let mean_energy =
-            SimplePowerLawDistribution::compute_mean_energy(self.delta, lower_cutoff_energy);
-
-        let estimated_depletion_distance = SimplePowerLawDistribution::estimate_depletion_distance(
-            electron_density,
-            self.delta,
-            self.pitch_angle_factor,
-            total_power_density,
-            lower_cutoff_energy,
-            mean_energy,
-            self.distribution_config.min_remaining_power_density,
-        );
-
-        if estimated_depletion_distance < self.config.min_estimated_depletion_distance {
-            if self.config.enforce_rejection {
-                return None;
-            } else {
-                rejection_cause_code.add_cause(RejectionCause::TooShortDepletionDistance);
-            }
+        if verbose.is_yes() {
+            println!("Computing lower cutoff energies and estimating depletion distances");
         }
+        snapshot.cache_scalar_field("r")?;
+        snapshot.cache_scalar_field("tg")?;
+        let properties: Vec<_> = properties
+            .into_par_iter()
+            .filter_map(|(indices, total_power_density)| {
+                let mass_density = Self::determine_mass_density(snapshot, &indices);
+                let electron_density = PowerLawDistribution::compute_electron_density(mass_density);
+                assert!(
+                    electron_density > 0.0,
+                    "Electron density must be larger than zero."
+                );
 
-        let acceleration_position = Self::determine_acceleration_position(snapshot, indices);
+                let temperature = Self::determine_temperature(snapshot, &indices);
+                assert!(temperature > 0.0, "Temperature must be larger than zero.");
 
-        let acceleration_direction = match self.determine_acceleration_direction(snapshot, indices)
-        {
-            Some(direction) => direction,
-            None => return None,
-        };
+                let lower_cutoff_energy = match self.compute_lower_cutoff_energy(
+                    temperature,
+                    electron_density,
+                    total_power_density,
+                ) {
+                    Some(energy) => energy,
+                    None => return None,
+                };
+                let mean_energy =
+                    PowerLawDistribution::compute_mean_energy(self.delta, lower_cutoff_energy);
 
-        let magnetic_field_direction = Self::determine_magnetic_field_direction(
-            snapshot,
-            interpolator,
-            &acceleration_position,
-        );
-        let acceleration_alignment_factor = Self::compute_acceleration_alignment_factor(
-            &magnetic_field_direction,
-            &acceleration_direction,
-        );
-        if fdt::abs(acceleration_alignment_factor) < self.acceleration_alignment_threshold {
-            if self.config.enforce_rejection {
-                return None;
-            } else {
-                rejection_cause_code.add_cause(RejectionCause::TooPerpendicularDirection);
-            }
+                let estimated_depletion_distance =
+                    PowerLawDistribution::estimate_depletion_distance(
+                        electron_density,
+                        self.delta,
+                        self.pitch_angle_factor,
+                        total_power_density,
+                        lower_cutoff_energy,
+                        mean_energy,
+                        self.distribution_config.min_remaining_power_density,
+                    );
+                if estimated_depletion_distance < self.config.min_estimated_depletion_distance {
+                    None
+                } else {
+                    Some((
+                        indices,
+                        total_power_density,
+                        mass_density,
+                        lower_cutoff_energy,
+                        mean_energy,
+                        estimated_depletion_distance,
+                    ))
+                }
+            })
+            .collect();
+        snapshot.drop_scalar_field("tg");
+
+        if verbose.is_yes() {
+            println!("Computing acceleration directions");
         }
+        snapshot.cache_vector_field("e")?;
+        let properties: Vec<_> = properties
+            .into_par_iter()
+            .filter_map(
+                |(
+                    indices,
+                    total_power_density,
+                    mass_density,
+                    lower_cutoff_energy,
+                    mean_energy,
+                    estimated_depletion_distance,
+                )| {
+                    let acceleration_position =
+                        Self::determine_acceleration_position(snapshot, &indices);
+                    self.determine_acceleration_direction(snapshot, &indices)
+                        .map(|acceleration_direction| {
+                            (
+                                indices,
+                                total_power_density,
+                                mass_density,
+                                lower_cutoff_energy,
+                                mean_energy,
+                                estimated_depletion_distance,
+                                acceleration_position,
+                                acceleration_direction,
+                            )
+                        })
+                },
+            )
+            .collect();
+        snapshot.drop_vector_field("e");
 
-        let propagation_sense = Self::find_propagation_sense(acceleration_alignment_factor);
+        if verbose.is_yes() {
+            println!("Testing alignment of acceleration directions with magnetic field directions");
+        }
+        snapshot.cache_vector_field("b")?;
+        Ok(properties
+            .into_par_iter()
+            .filter_map(
+                |(
+                    _,
+                    total_power_density,
+                    mass_density,
+                    lower_cutoff_energy,
+                    mean_energy,
+                    estimated_depletion_distance,
+                    acceleration_position,
+                    acceleration_direction,
+                )| {
+                    let magnetic_field_direction = Self::determine_magnetic_field_direction(
+                        snapshot,
+                        interpolator,
+                        &acceleration_position,
+                    );
+                    let acceleration_alignment_factor = Self::compute_acceleration_alignment_factor(
+                        &magnetic_field_direction,
+                        &acceleration_direction,
+                    );
+                    if fdt::abs(acceleration_alignment_factor)
+                        < self.acceleration_alignment_threshold
+                    {
+                        None
+                    } else {
+                        let propagation_sense =
+                            Self::find_propagation_sense(acceleration_alignment_factor);
 
-        let distribution_data = PowerLawDistributionData {
-            delta: self.delta,
-            pitch_angle_factor: self.pitch_angle_factor,
-            total_power_density,
-            lower_cutoff_energy,
-            mean_energy,
-            estimated_depletion_distance,
-            acceleration_position,
-            acceleration_direction,
-            propagation_sense,
-            mass_density,
-            metadata: rejection_cause_code,
-        };
-        Some(SimplePowerLawDistribution::new(
-            self.distribution_config.clone(),
-            distribution_data,
-        ))
+                        let distribution_data = PowerLawDistributionData {
+                            delta: self.delta,
+                            pitch_angle_factor: self.pitch_angle_factor,
+                            total_power_density,
+                            lower_cutoff_energy,
+                            mean_energy,
+                            estimated_depletion_distance,
+                            acceleration_position,
+                            acceleration_direction,
+                            propagation_sense,
+                            mass_density,
+                        };
+                        Some(PowerLawDistribution::new(
+                            self.distribution_config.clone(),
+                            distribution_data,
+                        ))
+                    }
+                },
+            )
+            .collect())
+    }
+
+    fn generate_distributions_without_rejection<Sd, G, I>(
+        &self,
+        seeder: Sd,
+        snapshot: &mut SnapshotCacher3<G>,
+        interpolator: &I,
+        verbose: Verbose,
+    ) -> io::Result<(Vec<PowerLawDistribution>, RejectionCauseCodeCollection)>
+    where
+        Sd: IndexSeeder3,
+        G: Grid3<fdt>,
+        I: Interpolator3,
+    {
+        if verbose.is_yes() {
+            println!("Computing total power densities");
+        }
+        snapshot.cache_scalar_field("qjoule")?;
+        let properties: Vec<_> = seeder
+            .into_par_iter()
+            .map(|indices| {
+                let mut rejection_cause_code = RejectionCauseCode::default();
+                let total_power_density = self.determine_total_power_density(snapshot, &indices);
+                if total_power_density < self.config.min_total_power_density {
+                    rejection_cause_code.add_cause(RejectionCause::TooLowTotalPowerDensity);
+                }
+                (rejection_cause_code, indices, total_power_density)
+            })
+            .collect();
+        snapshot.drop_scalar_field("qjoule");
+
+        if verbose.is_yes() {
+            println!("Computing lower cutoff energies and estimating depletion distances");
+        }
+        snapshot.cache_scalar_field("r")?;
+        snapshot.cache_scalar_field("tg")?;
+        let properties: Vec<_> = properties
+            .into_par_iter()
+            .filter_map(|(mut rejection_cause_code, indices, total_power_density)| {
+                let mass_density = Self::determine_mass_density(snapshot, &indices);
+                let electron_density = PowerLawDistribution::compute_electron_density(mass_density);
+                assert!(
+                    electron_density > 0.0,
+                    "Electron density must be larger than zero."
+                );
+
+                let temperature = Self::determine_temperature(snapshot, &indices);
+                assert!(temperature > 0.0, "Temperature must be larger than zero.");
+
+                let lower_cutoff_energy = match self.compute_lower_cutoff_energy(
+                    temperature,
+                    electron_density,
+                    total_power_density,
+                ) {
+                    Some(energy) => energy,
+                    None => return None,
+                };
+                let mean_energy =
+                    PowerLawDistribution::compute_mean_energy(self.delta, lower_cutoff_energy);
+
+                let estimated_depletion_distance =
+                    PowerLawDistribution::estimate_depletion_distance(
+                        electron_density,
+                        self.delta,
+                        self.pitch_angle_factor,
+                        total_power_density,
+                        lower_cutoff_energy,
+                        mean_energy,
+                        self.distribution_config.min_remaining_power_density,
+                    );
+                if estimated_depletion_distance < self.config.min_estimated_depletion_distance {
+                    rejection_cause_code.add_cause(RejectionCause::TooShortDepletionDistance);
+                }
+                Some((
+                    rejection_cause_code,
+                    indices,
+                    total_power_density,
+                    mass_density,
+                    lower_cutoff_energy,
+                    mean_energy,
+                    estimated_depletion_distance,
+                ))
+            })
+            .collect();
+        snapshot.drop_scalar_field("tg");
+
+        if verbose.is_yes() {
+            println!("Computing acceleration directions");
+        }
+        snapshot.cache_vector_field("e")?;
+        let properties: Vec<_> = properties
+            .into_par_iter()
+            .filter_map(
+                |(
+                    rejection_cause_code,
+                    indices,
+                    total_power_density,
+                    mass_density,
+                    lower_cutoff_energy,
+                    mean_energy,
+                    estimated_depletion_distance,
+                )| {
+                    let acceleration_position =
+                        Self::determine_acceleration_position(snapshot, &indices);
+                    self.determine_acceleration_direction(snapshot, &indices)
+                        .map(|acceleration_direction| {
+                            (
+                                rejection_cause_code,
+                                indices,
+                                total_power_density,
+                                mass_density,
+                                lower_cutoff_energy,
+                                mean_energy,
+                                estimated_depletion_distance,
+                                acceleration_position,
+                                acceleration_direction,
+                            )
+                        })
+                },
+            )
+            .collect();
+        snapshot.drop_vector_field("e");
+
+        if verbose.is_yes() {
+            println!("Testing alignment of acceleration directions with magnetic field directions");
+        }
+        snapshot.cache_vector_field("b")?;
+        let (rejection_cause_codes, distributions): (RejectionCauseCodeCollection, Vec<_>) =
+            properties
+                .into_par_iter()
+                .map(
+                    |(
+                        mut rejection_cause_code,
+                        _,
+                        total_power_density,
+                        mass_density,
+                        lower_cutoff_energy,
+                        mean_energy,
+                        estimated_depletion_distance,
+                        acceleration_position,
+                        acceleration_direction,
+                    )| {
+                        let magnetic_field_direction = Self::determine_magnetic_field_direction(
+                            snapshot,
+                            interpolator,
+                            &acceleration_position,
+                        );
+                        let acceleration_alignment_factor =
+                            Self::compute_acceleration_alignment_factor(
+                                &magnetic_field_direction,
+                                &acceleration_direction,
+                            );
+                        if fdt::abs(acceleration_alignment_factor)
+                            < self.acceleration_alignment_threshold
+                        {
+                            rejection_cause_code
+                                .add_cause(RejectionCause::TooPerpendicularDirection);
+                        }
+                        let propagation_sense =
+                            Self::find_propagation_sense(acceleration_alignment_factor);
+
+                        let distribution_data = PowerLawDistributionData {
+                            delta: self.delta,
+                            pitch_angle_factor: self.pitch_angle_factor,
+                            total_power_density,
+                            lower_cutoff_energy,
+                            mean_energy,
+                            estimated_depletion_distance,
+                            acceleration_position,
+                            acceleration_direction,
+                            propagation_sense,
+                            mass_density,
+                        };
+                        (
+                            rejection_cause_code,
+                            PowerLawDistribution::new(
+                                self.distribution_config.clone(),
+                                distribution_data,
+                            ),
+                        )
+                    },
+                )
+                .unzip();
+        Ok((distributions, rejection_cause_codes))
+    }
+}
+
+impl Accelerator for SimplePowerLawAccelerator {
+    type DistributionType = PowerLawDistribution;
+    type MetadataCollectionType = RejectionCauseCodeCollection;
+
+    fn generate_distributions<Sd, G, I>(
+        &self,
+        seeder: Sd,
+        snapshot: &mut SnapshotCacher3<G>,
+        interpolator: &I,
+        verbose: Verbose,
+    ) -> io::Result<(Vec<Self::DistributionType>, Self::MetadataCollectionType)>
+    where
+        Sd: IndexSeeder3,
+        G: Grid3<fdt>,
+        I: Interpolator3,
+    {
+        Ok(if self.config.enforce_rejection {
+            (
+                self.generate_distributions_with_rejection(
+                    seeder,
+                    snapshot,
+                    interpolator,
+                    verbose,
+                )?,
+                RejectionCauseCodeCollection::default(),
+            )
+        } else {
+            self.generate_distributions_without_rejection(seeder, snapshot, interpolator, verbose)?
+        })
     }
 }
 
