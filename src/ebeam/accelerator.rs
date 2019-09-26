@@ -1,36 +1,30 @@
 //! Accelerators combining an acceleration process and a resulting distribution.
 
 use super::distribution::Distribution;
-use crate::geometry::Idx3;
+use super::BeamMetadataCollection;
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::io::Verbose;
+use crate::tracing::seeding::IndexSeeder3;
 use std::io;
 
 /// Specifies the properties of an acceleration process producing non-thermal electrons.
 pub trait Accelerator {
     type DistributionType: Distribution;
+    type MetadataCollectionType: BeamMetadataCollection;
 
-    /// Makes sure the fields required to generate distributions are cached in the snapshot cacher.
-    fn prepare_snapshot_for_generation<G: Grid3<fdt>>(
-        snapshot: &mut SnapshotCacher3<G>,
-    ) -> io::Result<()>;
-
-    /// Makes sure the fields required to propagate distributions are cached in the snapshot cacher.
-    fn prepare_snapshot_for_propagation<G: Grid3<fdt>>(
-        snapshot: &mut SnapshotCacher3<G>,
-    ) -> io::Result<()>;
-
-    /// Tries to generate a new distribution at the given 3D index in the given snapshot.
-    ///
-    /// Returns `None` if the distribution was rejected.
-    fn generate_distribution<G, I>(
+    /// Generates a set of distributions with associated metadata in the given snapshot,
+    /// at the 3D indices produced by the given seeder.
+    fn generate_distributions<Sd, G, I>(
         &self,
-        snapshot: &SnapshotCacher3<G>,
+        seeder: Sd,
+        snapshot: &mut SnapshotCacher3<G>,
         interpolator: &I,
-        indices: &Idx3<usize>,
-    ) -> Option<Self::DistributionType>
+        verbose: Verbose,
+    ) -> io::Result<(Vec<Self::DistributionType>, Self::MetadataCollectionType)>
     where
+        Sd: IndexSeeder3,
         G: Grid3<fdt>,
         I: Interpolator3;
 }
