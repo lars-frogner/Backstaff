@@ -43,7 +43,7 @@ def set_3d_axes_equal(ax):
     ])
 
     origin = np.mean(limits, axis=1)
-    radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
+    radius = 0.5*np.max(np.abs(limits[:, 1] - limits[:, 0]))
     set_axes_radius(ax, origin, radius)
 
 
@@ -88,7 +88,7 @@ def colors_from_values(values,
 
     if relative_alpha:
         colors[:, -1] = np.maximum(
-            0.0, np.minimum(alpha, normalized_values * alpha))
+            0.0, np.minimum(alpha, normalized_values*alpha))
     else:
         colors[:, -1] = alpha
 
