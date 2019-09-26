@@ -27,7 +27,7 @@ class FieldLine3:
             np.diff(self.positions.x)**2 + np.diff(self.positions.y)**2 +
             np.diff(self.positions.z)**2)
         wrap_indices = np.where(
-            step_lengths > threshold * np.mean(step_lengths))[0]
+            step_lengths > threshold*np.mean(step_lengths))[0]
         if wrap_indices.size > 0:
             wrap_indices += 1
             return np.split(self.positions.x, wrap_indices), \
