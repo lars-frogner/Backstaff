@@ -91,10 +91,10 @@ impl ElectronBeamSimulator {
         &self,
         propagate_beams: bool,
         extra_fixed_scalars: Option<&Vec<&str>>,
+        extra_varying_scalars: Option<&Vec<&str>>,
         verbose: Verbose,
     ) -> ElectronBeamSwarm<SimplePowerLawAccelerator> {
         let mut snapshot = self.create_cacher();
-        snapshot.reader_mut().set_verbose(verbose);
         let seeder = self.create_seeder(&mut snapshot);
         let accelerator = self.create_accelerator();
         let interpolator = self.create_interpolator();
@@ -132,14 +132,28 @@ impl ElectronBeamSimulator {
                 verbose,
             )
         };
+        snapshot.drop_all_fields();
+
         if let Some(extra_fixed_scalars) = extra_fixed_scalars {
             for name in extra_fixed_scalars {
                 beams.extract_fixed_scalars(
-                    snapshot
-                        .obtain_scalar_field(name)
-                        .unwrap_or_else(|err| panic!("Could not read field: {}", err)),
+                    snapshot.obtain_scalar_field(name).unwrap_or_else(|err| {
+                        panic!("Could not read {} from snapshot: {}", name, err)
+                    }),
                     &interpolator,
                 );
+                snapshot.drop_scalar_field(name);
+            }
+        }
+        if let Some(extra_varying_scalars) = extra_varying_scalars {
+            for name in extra_varying_scalars {
+                beams.extract_varying_scalars(
+                    snapshot.obtain_scalar_field(name).unwrap_or_else(|err| {
+                        panic!("Could not read {} from snapshot: {}", name, err)
+                    }),
+                    &interpolator,
+                );
+                snapshot.drop_scalar_field(name);
             }
         }
         beams
@@ -287,7 +301,7 @@ impl ElectronBeamSimulator {
 
     fn create_reader(param_file_path: &path::Path) -> SnapshotReader3<HorRegularGrid3<fdt>> {
         SnapshotReader3::new(param_file_path, Endianness::Little)
-            .unwrap_or_else(|err| panic!("Could not read snapshot: {}", err))
+            .unwrap_or_else(|err| panic!("Could not create snapshot reader: {}", err))
     }
 
     fn create_cacher(&self) -> SnapshotCacher3<HorRegularGrid3<fdt>> {
