@@ -601,6 +601,12 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
     pub fn drop_vector_field(&mut self, variable_name: &str) {
         self.vector_fields.remove(variable_name);
     }
+
+    /// Removes all cached scalar and vector fields.
+    pub fn drop_all_fields(&mut self) {
+        self.scalar_fields.clear();
+        self.vector_fields.clear();
+    }
 }
 
 /// Writes arrays of variable values sequentially into a binary file.
