@@ -410,7 +410,8 @@ macro_rules! interp {
                     &value_subarray,
                     $interp_point,
                     $order
-                )
+                );
+                variation
             }
         }
     };
@@ -722,7 +723,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
 
 impl PolyFitInterpolatorConfig {
     const DEFAULT_ORDER: usize = 3;
-    const DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR: f64 = std::f64::INFINITY;
+    const DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR: f64 = 0.3;
 
     fn validate(&self) {
         assert!(
