@@ -410,8 +410,7 @@ macro_rules! interp {
                     &value_subarray,
                     $interp_point,
                     $order
-                );
-                variation
+                )
             }
         }
     };
