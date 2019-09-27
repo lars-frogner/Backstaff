@@ -259,7 +259,7 @@ mod tests {
     use super::*;
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
-    use crate::interpolation::poly_fit::PolyFitInterpolator3;
+    use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
     use crate::io::snapshot::SnapshotReader3;
     use crate::io::Endianness;
     use crate::tracing::field_line::FieldLineSet3;
@@ -277,7 +277,7 @@ mod tests {
         .unwrap();
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
-        let interpolator = PolyFitInterpolator3;
+        let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
 
         let stepper_23 = RKF23Stepper3::new(RKFStepperConfig::default());
         let stepper_45 = RKF45Stepper3::new(RKFStepperConfig::default());
@@ -307,7 +307,7 @@ mod tests {
         .unwrap();
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
-        let interpolator = PolyFitInterpolator3;
+        let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig::default());
         let seeder =
             SliceSeeder3::stratified(magnetic_field.grid(), Dim3::Z, 0.0, In2D::same(3), 1, 0.6);

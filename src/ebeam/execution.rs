@@ -8,7 +8,7 @@ use super::{feb, ElectronBeamSwarm};
 use crate::geometry::Dim3;
 use crate::grid::hor_regular::HorRegularGrid3;
 use crate::grid::Grid3;
-use crate::interpolation::poly_fit::PolyFitInterpolator3;
+use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
 use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
 use crate::io::{Endianness, Verbose};
 use crate::tracing::seeding::criterion::CriterionSeeder3;
@@ -42,6 +42,8 @@ pub struct ElectronBeamSimulator {
     pub power_law_delta: feb,
     /// Type of pitch angle distribution of the non-thermal electrons.
     pub pitch_angle_distribution: PitchAngleDistribution,
+    /// Configuration parameters for the interpolator.
+    pub interpolator_config: PolyFitInterpolatorConfig,
     /// Type of stepper to use.
     pub rkf_stepper_type: RKFStepperType,
     /// Configuration parameters for the stepper.
@@ -66,6 +68,7 @@ impl ElectronBeamSimulator {
         let particle_energy_fraction = Self::read_particle_energy_fraction(&reader);
         let power_law_delta = Self::read_power_law_delta(&reader);
         let pitch_angle_distribution = Self::read_pitch_angle_distribution(&reader);
+        let interpolator_config = Self::read_interpolator_config(&reader);
         let rkf_stepper_type = Self::read_rkf_stepper_type(&reader);
         let rkf_stepper_config = Self::read_rkf_stepper_config(&reader);
 
@@ -81,6 +84,7 @@ impl ElectronBeamSimulator {
             particle_energy_fraction,
             power_law_delta,
             pitch_angle_distribution,
+            interpolator_config,
             rkf_stepper_type,
             rkf_stepper_config,
         }
@@ -258,6 +262,17 @@ impl ElectronBeamSimulator {
         PitchAngleDistribution::Peaked
     }
 
+    fn read_interpolator_config<G: Grid3<fdt>>(
+        _reader: &SnapshotReader3<G>,
+    ) -> PolyFitInterpolatorConfig {
+        // Online version always 3'rd order
+        let order = 3;
+        PolyFitInterpolatorConfig {
+            order,
+            ..PolyFitInterpolatorConfig::default()
+        }
+    }
+
     fn read_rkf_stepper_type<G: Grid3<fdt>>(_reader: &SnapshotReader3<G>) -> RKFStepperType {
         // Online version typically uses 5th order stepper
         RKFStepperType::RKF45
@@ -345,7 +360,7 @@ impl ElectronBeamSimulator {
     }
 
     fn create_interpolator(&self) -> PolyFitInterpolator3 {
-        PolyFitInterpolator3
+        PolyFitInterpolator3::new(self.interpolator_config.clone())
     }
 
     fn create_rkf23_stepper_factory(&self) -> RKF23StepperFactory3 {

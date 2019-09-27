@@ -258,7 +258,7 @@ mod tests {
 
     use super::*;
     use crate::grid::hor_regular::HorRegularGrid3;
-    use crate::interpolation::poly_fit::PolyFitInterpolator3;
+    use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
     use crate::io::snapshot::SnapshotReader3;
     use crate::io::Endianness;
     use crate::tracing::field_line::FieldLineSet3;
@@ -275,7 +275,7 @@ mod tests {
         .unwrap();
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
-        let interpolator = PolyFitInterpolator3;
+        let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
 
         let stepper_23 = RKF23Stepper3::new(RKFStepperConfig {
             dense_step_length: 0.1,
@@ -311,7 +311,7 @@ mod tests {
         .unwrap();
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
-        let interpolator = PolyFitInterpolator3;
+        let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig {
             dense_step_length: 0.1,
             ..RKFStepperConfig::default()
