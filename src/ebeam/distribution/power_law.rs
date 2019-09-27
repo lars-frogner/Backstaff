@@ -340,9 +340,7 @@ impl Distribution for PowerLawDistribution {
             0.0
         };
 
-        let slope_correction_factor = 1.0; // + slope_corr*z_weight;
-        let new_collisional_depth =
-            self.collisional_depth + slope_correction_factor * collisional_depth_increase;
+        let new_collisional_depth = self.collisional_depth + collisional_depth_increase;
 
         let new_remaining_power_density = Self::compute_remaining_power_density(
             self.data.delta,
