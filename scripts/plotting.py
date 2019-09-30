@@ -65,6 +65,14 @@ def get_log_normalizer(vmin, vmax, clip=False):
     return mpl_colors.LogNorm(vmin=vmin, vmax=vmax, clip=clip)
 
 
+def get_symlog_normalizer(vmin, vmax, linthresh, linscale=1.0, clip=False):
+    return mpl_colors.SymLogNorm(linthresh,
+                                 linscale=linscale,
+                                 vmin=vmin,
+                                 vmax=vmax,
+                                 clip=clip)
+
+
 def get_normalizer(vmin, vmax, clip=False, log=False):
     return get_log_normalizer(vmin, vmax,
                               clip=clip) if log else get_linear_normalizer(
@@ -72,7 +80,21 @@ def get_normalizer(vmin, vmax, clip=False, log=False):
 
 
 def get_cmap(name):
-    return plt.get_cmap(name)
+    cmap = CUSTOM_COLORMAPS.get(name)
+    return plt.get_cmap(name) if cmap is None else cmap
+
+
+def define_linear_segmented_colormap(name,
+                                     colors,
+                                     bad_color='white',
+                                     N=256,
+                                     gamma=1.0):
+    cmap = mpl_colors.LinearSegmentedColormap.from_list(name,
+                                                        colors,
+                                                        N=N,
+                                                        gamma=gamma)
+    cmap.set_bad(color=bad_color)
+    return cmap
 
 
 def colors_from_values(values,
@@ -87,8 +109,8 @@ def colors_from_values(values,
     colors = cmap(normalized_values)
 
     if relative_alpha:
-        colors[:, -1] = np.maximum(
-            0.0, np.minimum(alpha, normalized_values*alpha))
+        colors[:, -1] = np.maximum(0.0,
+                                   np.minimum(alpha, normalized_values*alpha))
     else:
         colors[:, -1] = alpha
 
@@ -127,3 +149,16 @@ def render(fig, tight_layout=True, output_path=None):
         plt.savefig(output_path)
     else:
         plt.show()
+
+
+CUSTOM_COLORMAPS = {
+    'transport':
+    define_linear_segmented_colormap(
+        'transport',
+        np.vstack(
+            (plt.get_cmap('Blues')(np.linspace(1, 0,
+                                               128)), [[1.0, 1.0, 1.0, 1.0]],
+             plt.get_cmap('Oranges')(np.linspace(0, 1, 128)))),
+        bad_color='white',
+        N=257)
+}
