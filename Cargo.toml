@@ -3,6 +3,7 @@ name = "bifrost"
 version = "0.1.0"
 authors = ["Lars Frogner <lars.frogner@astro.uio.no>"]
 edition = "2018"
+default-run = "bifrost"
 
 [dependencies]
 rand = "0.7.0"
