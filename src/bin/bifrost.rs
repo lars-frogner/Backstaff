@@ -1,4 +1,4 @@
-//! Command line interface the `bifrost` crate.
+//! Command line interface for the `bifrost` crate.
 
 use bifrost::ebeam::execution::cli as ebeam;
 use clap::{self, App};
