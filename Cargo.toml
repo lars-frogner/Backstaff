@@ -16,6 +16,7 @@ serde-pickle = "0.5.0"
 rayon = "1.2.0"
 lazy_static = "1.4.0"
 nrfind = "1.0.2"
+clap = "2.33.0"
 
 [dev-dependencies]
 ndarray-stats = "0.2.0"
