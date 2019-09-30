@@ -216,8 +216,8 @@ impl ElectronBeamSimulator {
             .unwrap_or_else(|err| panic!("{}", err))
             * U_L;
 
-        // Online version always uses 20 degrees
-        let min_acceleration_angle = 20.0;
+        // Online version always uses 70 degrees
+        let max_acceleration_angle = 70.0;
 
         // Online version always uses 4 keV
         let initial_cutoff_energy_guess = 4.0;
@@ -229,7 +229,7 @@ impl ElectronBeamSimulator {
             enforce_rejection: true,
             min_total_power_density,
             min_estimated_depletion_distance,
-            min_acceleration_angle,
+            max_acceleration_angle,
             initial_cutoff_energy_guess,
             acceptable_root_finding_error,
             max_root_finding_iterations,

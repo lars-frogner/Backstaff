@@ -50,10 +50,9 @@ pub struct SimplePowerLawAccelerationConfig {
     pub min_total_power_density: feb,
     /// Distributions with an initial estimated depletion distance smaller than this value are discarded [cm].
     pub min_estimated_depletion_distance: feb,
-    /// The acceleration direction has to be at least this many degrees
-    /// away from the perpendicular direction of the magnetic field in order
-    /// for the distribution to be included.
-    pub min_acceleration_angle: feb,
+    /// Distributions with acceleration directions that are more degrees
+    /// than this away from the magnetic field axis are discarded.
+    pub max_acceleration_angle: feb,
     /// Initial guess to use when estimating lower cut-off energy [keV].
     pub initial_cutoff_energy_guess: feb,
     /// Target relative error when estimating lower cut-off energy.
@@ -320,7 +319,7 @@ impl SimplePowerLawAccelerator {
         let pitch_angle_factor =
             PowerLawDistribution::determine_pitch_angle_factor(pitch_angle_distribution);
         let acceleration_alignment_threshold =
-            feb::cos(config.min_acceleration_angle.to_radians()) as fdt;
+            feb::cos(config.max_acceleration_angle.to_radians()) as fdt;
 
         assert!(
             duration >= 0.0,
@@ -739,7 +738,7 @@ impl SimplePowerLawAccelerationConfig {
     const DEFAULT_ENFORCE_REJECTION: bool = true;
     const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
     const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
-    const DEFAULT_MIN_ACCELERATION_ANGLE: feb = 20.0; // [deg]
+    const DEFAULT_MAX_ACCELERATION_ANGLE: feb = 70.0; // [deg]
     const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 4.0; // [keV]
     const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
     const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
@@ -755,8 +754,8 @@ impl SimplePowerLawAccelerationConfig {
             "Minimum estimated depletion distance must be larger than or equal to zero."
         );
         assert!(
-            self.min_acceleration_angle >= 0.0,
-            "Minimum acceleration angle must be larger than or equal to zero."
+            self.max_acceleration_angle >= 0.0 && self.max_acceleration_angle <= 90.0,
+            "Maximum acceleration angle must be in the range [0, 90]."
         );
         assert!(
             self.initial_cutoff_energy_guess > 0.0,
@@ -779,7 +778,7 @@ impl Default for SimplePowerLawAccelerationConfig {
             enforce_rejection: Self::DEFAULT_ENFORCE_REJECTION,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             min_estimated_depletion_distance: Self::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
-            min_acceleration_angle: Self::DEFAULT_MIN_ACCELERATION_ANGLE,
+            max_acceleration_angle: Self::DEFAULT_MAX_ACCELERATION_ANGLE,
             initial_cutoff_energy_guess: Self::DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS,
             acceptable_root_finding_error: Self::DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR,
             max_root_finding_iterations: Self::DEFAULT_MAX_ROOT_FINDING_ITERATIONS,
