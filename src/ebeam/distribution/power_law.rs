@@ -349,7 +349,8 @@ impl Distribution for PowerLawDistribution {
             new_collisional_depth,
         );
 
-        let deposited_power_density = self.remaining_power_density - new_remaining_power_density;
+        let mut deposited_power_density =
+            self.remaining_power_density - new_remaining_power_density;
 
         self.collisional_depth = new_collisional_depth;
         self.remaining_power_density = new_remaining_power_density;
@@ -358,6 +359,9 @@ impl Distribution for PowerLawDistribution {
             if self.remaining_power_density >= self.config.min_remaining_power_density {
                 DepletionStatus::Undepleted
             } else {
+                // Deposit all the remaining power density
+                deposited_power_density += self.remaining_power_density;
+                self.remaining_power_density = 0.0;
                 DepletionStatus::Depleted
             };
 
