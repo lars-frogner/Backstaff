@@ -22,16 +22,14 @@ use std::path;
 /// Convenience object for running offline electron beam simulations.
 pub struct ElectronBeamSimulator {
     param_file_path: path::PathBuf,
-    /// Whether to use use a normalized version of the reconnection factor when seeding.
+    /// Whether to use a normalized version of the reconnection factor when seeding.
     pub use_normalized_reconnection_factor: bool,
     /// Beams will be generated where the reconnection factor value is larger than this.
     pub reconnection_factor_threshold: fdt,
     /// Smallest depth at which electrons will be accelerated [Mm].
-    pub minimum_acceleration_depth: fdt,
+    pub min_acceleration_depth: fdt,
     /// Largest depth at which electrons will be accelerated [Mm].
-    pub maximum_acceleration_depth: fdt,
-    /// Configuration parameters for the electron distribution model.
-    pub distribution_config: PowerLawDistributionConfig,
+    pub max_acceleration_depth: fdt,
     /// Configuration parameters for the acceleration model.
     pub accelerator_config: SimplePowerLawAccelerationConfig,
     /// Duration of the acceleration events [s].
@@ -42,6 +40,8 @@ pub struct ElectronBeamSimulator {
     pub power_law_delta: feb,
     /// Type of pitch angle distribution of the non-thermal electrons.
     pub pitch_angle_distribution: PitchAngleDistribution,
+    /// Configuration parameters for the electron distribution model.
+    pub distribution_config: PowerLawDistributionConfig,
     /// Configuration parameters for the interpolator.
     pub interpolator_config: PolyFitInterpolatorConfig,
     /// Type of stepper to use.
@@ -60,14 +60,14 @@ impl ElectronBeamSimulator {
         let use_normalized_reconnection_factor =
             Self::read_use_normalized_reconnection_factor(&reader);
         let reconnection_factor_threshold = Self::read_reconnection_factor_threshold(&reader);
-        let minimum_acceleration_depth = Self::read_minimum_acceleration_depth(&reader);
-        let maximum_acceleration_depth = Self::read_maximum_acceleration_depth(&reader);
-        let distribution_config = Self::read_distribution_config(&reader);
+        let min_acceleration_depth = Self::read_min_acceleration_depth(&reader);
+        let max_acceleration_depth = Self::read_max_acceleration_depth(&reader);
         let accelerator_config = Self::read_accelerator_config(&reader);
         let acceleration_duration = Self::read_acceleration_duration(&reader);
         let particle_energy_fraction = Self::read_particle_energy_fraction(&reader);
         let power_law_delta = Self::read_power_law_delta(&reader);
         let pitch_angle_distribution = Self::read_pitch_angle_distribution(&reader);
+        let distribution_config = Self::read_distribution_config(&reader);
         let interpolator_config = Self::read_interpolator_config(&reader);
         let rkf_stepper_type = Self::read_rkf_stepper_type(&reader);
         let rkf_stepper_config = Self::read_rkf_stepper_config(&reader);
@@ -76,14 +76,14 @@ impl ElectronBeamSimulator {
             param_file_path,
             use_normalized_reconnection_factor,
             reconnection_factor_threshold,
-            minimum_acceleration_depth,
-            maximum_acceleration_depth,
-            distribution_config,
+            min_acceleration_depth,
+            max_acceleration_depth,
             accelerator_config,
             acceleration_duration,
             particle_energy_fraction,
             power_law_delta,
             pitch_angle_distribution,
+            distribution_config,
             interpolator_config,
             rkf_stepper_type,
             rkf_stepper_config,
@@ -93,7 +93,7 @@ impl ElectronBeamSimulator {
     /// Generates a new set of electron beams using the current parameter values.
     pub fn generate_beams(
         &self,
-        propagate_beams: bool,
+        generate_only: bool,
         extra_fixed_scalars: Option<&Vec<&str>>,
         extra_varying_scalars: Option<&Vec<&str>>,
         verbose: Verbose,
@@ -102,7 +102,15 @@ impl ElectronBeamSimulator {
         let seeder = self.create_seeder(&mut snapshot);
         let accelerator = self.create_accelerator();
         let interpolator = self.create_interpolator();
-        let mut beams = if propagate_beams {
+        let mut beams = if generate_only {
+            ElectronBeamSwarm::generate_unpropagated(
+                seeder,
+                &mut snapshot,
+                accelerator,
+                &interpolator,
+                verbose,
+            )
+        } else {
             match self.rkf_stepper_type {
                 RKFStepperType::RKF23 => {
                     let stepper_factory = self.create_rkf23_stepper_factory();
@@ -127,14 +135,6 @@ impl ElectronBeamSimulator {
                     )
                 }
             }
-        } else {
-            ElectronBeamSwarm::generate_unpropagated(
-                seeder,
-                &mut snapshot,
-                accelerator,
-                &interpolator,
-                verbose,
-            )
         };
         snapshot.drop_all_fields();
 
@@ -176,30 +176,16 @@ impl ElectronBeamSimulator {
             .unwrap_or_else(|err| panic!("{}", err))
     }
 
-    fn read_minimum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
+    fn read_min_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
         reader
             .get_numerical_param("z_rec_ulim")
             .unwrap_or_else(|err| panic!("{}", err))
     }
 
-    fn read_maximum_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
+    fn read_max_acceleration_depth<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> fdt {
         reader
             .get_numerical_param("z_rec_llim")
             .unwrap_or_else(|err| panic!("{}", err))
-    }
-
-    fn read_distribution_config<G: Grid3<fdt>>(
-        reader: &SnapshotReader3<G>,
-    ) -> PowerLawDistributionConfig {
-        let min_remaining_power_density = reader
-            .get_numerical_param::<feb>("min_stop_en")
-            .unwrap_or_else(|err| panic!("{}", err))
-            * U_E
-            / U_T;
-
-        PowerLawDistributionConfig {
-            min_remaining_power_density,
-        }
     }
 
     fn read_accelerator_config<G: Grid3<fdt>>(
@@ -226,7 +212,7 @@ impl ElectronBeamSimulator {
         let max_root_finding_iterations = 100;
 
         SimplePowerLawAccelerationConfig {
-            enforce_rejection: true,
+            ignore_rejection: false,
             min_total_power_density,
             min_estimated_depletion_distance,
             max_acceleration_angle,
@@ -260,6 +246,20 @@ impl ElectronBeamSimulator {
     ) -> PitchAngleDistribution {
         // Online version always uses a peaked distribution
         PitchAngleDistribution::Peaked
+    }
+
+    fn read_distribution_config<G: Grid3<fdt>>(
+        reader: &SnapshotReader3<G>,
+    ) -> PowerLawDistributionConfig {
+        let min_remaining_power_density = reader
+            .get_numerical_param::<feb>("min_stop_en")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_E
+            / U_T;
+
+        PowerLawDistributionConfig {
+            min_remaining_power_density,
+        }
     }
 
     fn read_interpolator_config<G: Grid3<fdt>>(
@@ -342,8 +342,8 @@ impl ElectronBeamSimulator {
 
         let z_coordinates = &snapshot.reader().grid().centers()[Dim3::Z];
         seeder.retain_indices(|indices| {
-            z_coordinates[indices[Dim3::Z]] >= self.minimum_acceleration_depth
-                && z_coordinates[indices[Dim3::Z]] <= self.maximum_acceleration_depth
+            z_coordinates[indices[Dim3::Z]] >= self.min_acceleration_depth
+                && z_coordinates[indices[Dim3::Z]] <= self.max_acceleration_depth
         });
         seeder
     }
