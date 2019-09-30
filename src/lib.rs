@@ -1,4 +1,4 @@
-//! The `bifrost` crate provides useful tools for working with Bifrost in Rust.
+//! Useful tools for working with Bifrost in Rust.
 
 pub mod constants;
 pub mod ebeam;
