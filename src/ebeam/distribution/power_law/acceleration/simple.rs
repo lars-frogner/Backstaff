@@ -44,14 +44,16 @@ pub struct RejectionCauseCodeCollection {
 /// Configuration parameters for the simple power-law acceleration model.
 #[derive(Clone, Debug)]
 pub struct SimplePowerLawAccelerationConfig {
-    /// Whether to abort generation of a distribution whenever a rejection condition is met.
-    pub enforce_rejection: bool,
-    /// Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)].
+    /// Whether to generate a distribution even when it meets a rejection condition.
+    pub ignore_rejection: bool,
+    /// Distributions with total power densities smaller than this value
+    /// are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
-    /// Distributions with an initial estimated depletion distance smaller than this value are discarded [cm].
+    /// Distributions with an initial estimated depletion distance smaller
+    /// than this value are discarded [cm].
     pub min_estimated_depletion_distance: feb,
-    /// Distributions with acceleration directions that are more degrees
-    /// than this away from the magnetic field axis are discarded.
+    /// Distributions with acceleration directions angled more than
+    /// this away from the magnetic field axis are discarded [deg].
     pub max_acceleration_angle: feb,
     /// Initial guess to use when estimating lower cut-off energy [keV].
     pub initial_cutoff_energy_guess: feb,
@@ -718,7 +720,9 @@ impl Accelerator for SimplePowerLawAccelerator {
         G: Grid3<fdt>,
         I: Interpolator3,
     {
-        Ok(if self.config.enforce_rejection {
+        Ok(if self.config.ignore_rejection {
+            self.generate_distributions_without_rejection(seeder, snapshot, interpolator, verbose)?
+        } else {
             (
                 self.generate_distributions_with_rejection(
                     seeder,
@@ -728,14 +732,12 @@ impl Accelerator for SimplePowerLawAccelerator {
                 )?,
                 RejectionCauseCodeCollection::default(),
             )
-        } else {
-            self.generate_distributions_without_rejection(seeder, snapshot, interpolator, verbose)?
         })
     }
 }
 
 impl SimplePowerLawAccelerationConfig {
-    const DEFAULT_ENFORCE_REJECTION: bool = true;
+    const DEFAULT_IGNORE_REJECTION: bool = false;
     const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
     const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
     const DEFAULT_MAX_ACCELERATION_ANGLE: feb = 70.0; // [deg]
@@ -775,7 +777,7 @@ impl SimplePowerLawAccelerationConfig {
 impl Default for SimplePowerLawAccelerationConfig {
     fn default() -> Self {
         SimplePowerLawAccelerationConfig {
-            enforce_rejection: Self::DEFAULT_ENFORCE_REJECTION,
+            ignore_rejection: Self::DEFAULT_IGNORE_REJECTION,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             min_estimated_depletion_distance: Self::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
             max_acceleration_angle: Self::DEFAULT_MAX_ACCELERATION_ANGLE,
