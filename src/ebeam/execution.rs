@@ -1,10 +1,10 @@
 //! Execeution of electron beam simulations.
 
-use super::super::distribution::power_law::acceleration::simple::{
+use super::distribution::power_law::acceleration::simple::{
     SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
 };
-use super::super::distribution::power_law::{PitchAngleDistribution, PowerLawDistributionConfig};
-use super::super::{feb, ElectronBeamSwarm};
+use super::distribution::power_law::{PitchAngleDistribution, PowerLawDistributionConfig};
+use super::{feb, ElectronBeamSwarm};
 use crate::geometry::Dim3;
 use crate::grid::hor_regular::HorRegularGrid3;
 use crate::grid::Grid3;
