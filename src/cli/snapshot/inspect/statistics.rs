@@ -3,7 +3,7 @@
 use crate::field::ScalarField3;
 use crate::geometry::Dim3;
 use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotReader3};
+use crate::io::snapshot::{fdt, SnapshotCacher3};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
 use Dim3::{X, Y, Z};
@@ -26,13 +26,13 @@ pub fn build_subcommand_statistics<'a, 'b>() -> App<'a, 'b> {
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
 pub fn run_subcommand_statistics<G: Grid3<fdt>>(
     arguments: &ArgMatches,
-    reader: SnapshotReader3<G>,
+    cacher: &mut SnapshotCacher3<G>,
 ) {
     for quantity in arguments
         .values_of("QUANTITIES")
         .expect("No values for required argument")
     {
-        match reader.read_scalar_field(quantity) {
+        match cacher.obtain_scalar_field(quantity) {
             Ok(field) => print_statistics_report(&field),
             Err(err) => println!("Could not read {}: {}", quantity, err),
         }
