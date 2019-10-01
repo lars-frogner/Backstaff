@@ -7,7 +7,7 @@ use crate::grid::regular::RegularGrid2;
 use crate::grid::{CoordLocation, Grid2, Grid3};
 use crate::interpolation::Interpolator3;
 use crate::io::utils::save_data_as_pickle;
-use crate::num::BFloat;
+use crate::num::{BFloat, OrderableIndexValuePair};
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use serde::Serialize;
@@ -128,12 +128,64 @@ where
         self.values
     }
 
+    /// Computes the 3D indices and value of the minimum of the field.
+    ///
+    /// NaN values are ignored. Returns `None` if there are no finite values.
+    pub fn find_minimum(&self) -> Option<(Idx3<usize>, F)> {
+        self.values
+            .as_slice_memory_order()
+            .unwrap()
+            .par_iter()
+            .enumerate()
+            .filter_map(|(idx, &value)| {
+                if value.is_nan() {
+                    None
+                } else {
+                    Some(OrderableIndexValuePair(idx, value))
+                }
+            })
+            .min()
+            .map(|OrderableIndexValuePair(idx_of_min_value, min_value)| {
+                (
+                    compute_3d_array_indices_from_flat_idx(self.shape(), idx_of_min_value),
+                    min_value,
+                )
+            })
+    }
+
+    /// Computes the 3D indices and value of the maximum of the field.
+    ///
+    /// NaN values are ignored. Returns `None` if there are no finite values.
+    pub fn find_maximum(&self) -> Option<(Idx3<usize>, F)> {
+        self.values
+            .as_slice_memory_order()
+            .unwrap()
+            .par_iter()
+            .enumerate()
+            .filter_map(|(idx, &value)| {
+                if value.is_nan() {
+                    None
+                } else {
+                    Some(OrderableIndexValuePair(idx, value))
+                }
+            })
+            .max()
+            .map(|OrderableIndexValuePair(idx_of_max_value, max_value)| {
+                (
+                    compute_3d_array_indices_from_flat_idx(self.shape(), idx_of_max_value),
+                    max_value,
+                )
+            })
+    }
+
     /// Resamples the scalar field onto the given grid and returns the resampled field.
     pub fn resampled_to_grid<H, I>(&self, grid: Arc<H>, interpolator: &I) -> ScalarField3<F, H>
     where
         H: Grid3<F>,
         I: Interpolator3,
     {
+        // TODO: Support downsampling by averaging samples of original values within larger grid cell
+
         let new_coords = self.coords_from_grid(grid.as_ref());
 
         let grid_shape = grid.shape();
@@ -801,15 +853,70 @@ where
         self.values[[indices[Dim2::X], indices[Dim2::Y]]]
     }
 
+    /// Returns the 2D shape of the grid.
+    pub fn shape(&self) -> &In2D<usize> {
+        self.grid.shape()
+    }
+
     /// Returns a reference to the coordinate locations specifying
     /// where in the grid cell the values are defined.
     pub fn locations(&self) -> &In2D<CoordLocation> {
         &self.locations
     }
 
-    /// Returns the 2D shape of the grid.
-    pub fn shape(&self) -> &In2D<usize> {
-        self.grid.shape()
+    /// Consumes the scalar field and returns the owned array of field values.
+    pub fn into_values(self) -> Array2<F> {
+        self.values
+    }
+
+    /// Computes the 2D indices and value of the minimum of the field.
+    ///
+    /// NaN values are ignored. Returns `None` if there are no finite values.
+    pub fn find_minimum(&self) -> Option<(Idx2<usize>, F)> {
+        self.values
+            .as_slice_memory_order()
+            .unwrap()
+            .par_iter()
+            .enumerate()
+            .filter_map(|(idx, &value)| {
+                if value.is_nan() {
+                    None
+                } else {
+                    Some(OrderableIndexValuePair(idx, value))
+                }
+            })
+            .min()
+            .map(|OrderableIndexValuePair(idx_of_min_value, min_value)| {
+                (
+                    compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_min_value),
+                    min_value,
+                )
+            })
+    }
+
+    /// Computes the 2D indices and value of the maximum of the field.
+    ///
+    /// NaN values are ignored. Returns `None` if there are no finite values.
+    pub fn find_maximum(&self) -> Option<(Idx2<usize>, F)> {
+        self.values
+            .as_slice_memory_order()
+            .unwrap()
+            .par_iter()
+            .enumerate()
+            .filter_map(|(idx, &value)| {
+                if value.is_nan() {
+                    None
+                } else {
+                    Some(OrderableIndexValuePair(idx, value))
+                }
+            })
+            .max()
+            .map(|OrderableIndexValuePair(idx_of_max_value, max_value)| {
+                (
+                    compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_max_value),
+                    max_value,
+                )
+            })
     }
 
     /// Serializes the field data into pickle format and save at the given path.
