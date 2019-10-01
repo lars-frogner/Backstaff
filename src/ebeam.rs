@@ -17,6 +17,7 @@ use crate::num::BFloat;
 use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::{Stepper3, StepperFactory3, StepperInstruction};
 use crate::tracing::{self, ftr, TracerResult};
+use clap::{App, ArgMatches, SubCommand};
 use rayon::prelude::*;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -498,6 +499,17 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .insert(field.name().to_string(), vectors);
     }
 
+    /// Serializes the electron beam data into JSON format and saves at the given path.
+    pub fn save_as_json<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+        if self.verbose.is_yes() {
+            println!(
+                "Saving beam data in JSON format in {}",
+                file_path.as_ref().display()
+            );
+        }
+        utils::save_data_as_json(file_path, &self)
+    }
+
     /// Serializes the electron beam data into pickle format and saves at the given path.
     ///
     /// All the electron beam data is saved as a single pickled structure.
@@ -643,5 +655,17 @@ impl<A: Accelerator> Serialize for ElectronBeamSwarm<A> {
         )?;
         s.serialize_field("metadata", &self.metadata)?;
         s.end()
+    }
+}
+
+/// Builds a representation of the `ebeam` command line subcommand.
+pub fn build_subcommand_ebeam<'a, 'b>() -> App<'a, 'b> {
+    SubCommand::with_name("ebeam").subcommand(self::execution::build_subcommand_simulate())
+}
+
+/// Runs the actions for the `ebeam` subcommand using the given arguments.
+pub fn run_subcommand_ebeam(arguments: &ArgMatches) {
+    if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
+        self::execution::run_subcommand_simulate(simulate_arguments);
     }
 }

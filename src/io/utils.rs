@@ -4,6 +4,7 @@ use super::Endianness;
 use byteorder;
 use byteorder::{ByteOrder, ReadBytesExt};
 use serde::Serialize;
+use serde_json;
 use serde_pickle;
 use std::io::{Read, Seek, SeekFrom};
 use std::{fs, io, mem, path};
@@ -98,7 +99,17 @@ pub fn write_f64_into_byte_buffer(
     };
 }
 
-/// Serializes the given data into protocol 3 pickle format and save at the given path.
+/// Serializes the given data into JSON format and saves at the given path.
+pub fn save_data_as_json<P, T>(file_path: P, data: &T) -> io::Result<()>
+where
+    P: AsRef<path::Path>,
+    T: Serialize,
+{
+    let mut file = fs::File::create(file_path)?;
+    write_data_as_json(&mut file, data)
+}
+
+/// Serializes the given data into protocol 3 pickle format and saves at the given path.
 pub fn save_data_as_pickle<P, T>(file_path: P, data: &T) -> io::Result<()>
 where
     P: AsRef<path::Path>,
@@ -108,7 +119,12 @@ where
     write_data_as_pickle(&mut file, data)
 }
 
-/// Serializes the given data into protocol 3 pickle format and write to the given file.
+/// Serializes the given data into JSON format and writes to the given file.
+pub fn write_data_as_json<T: Serialize, W: io::Write>(writer: &mut W, data: &T) -> io::Result<()> {
+    serde_json::to_writer(writer, data).map_err(|err| err.into())
+}
+
+/// Serializes the given data into protocol 3 pickle format and writes to the given file.
 pub fn write_data_as_pickle<T: Serialize, W: io::Write>(
     writer: &mut W,
     data: &T,
