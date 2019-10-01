@@ -24,6 +24,17 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("output-format")
+                .short("f")
+                .long("output-format")
+                .value_name("FORMAT")
+                .help("Format to use for saving beam data")
+                .next_line_help(true)
+                .takes_value(true)
+                .possible_values(&["pickle", "json"])
+                .default_value("pickle"),
+        )
+        .arg(
             Arg::with_name("generate-only")
                 .short("g")
                 .long("generate-only")
@@ -65,6 +76,10 @@ pub fn run_subcommand_simulate(arguments: &ArgMatches) {
 
     let possible_output_path = arguments.value_of("output-path");
 
+    let output_format = arguments
+        .value_of("output-format")
+        .expect("No value for argument with default.");
+
     let generate_only = arguments.is_present("generate-only");
 
     let extra_fixed_scalars = arguments
@@ -88,9 +103,17 @@ pub fn run_subcommand_simulate(arguments: &ArgMatches) {
     );
 
     if let Some(output_path) = possible_output_path {
-        beams
-            .save_as_combined_pickles(output_path)
-            .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
+        if output_format == "pickle" {
+            beams
+                .save_as_combined_pickles(output_path)
+                .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
+        } else if output_format == "json" {
+            beams
+                .save_as_json(output_path)
+                .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
+        } else {
+            panic!("Invalid output format {}.", output_format)
+        }
     }
 }
 
