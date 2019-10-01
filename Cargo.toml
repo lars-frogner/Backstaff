@@ -2,26 +2,27 @@
 name = "bifrost"
 version = "0.1.0"
 authors = ["Lars Frogner <lars.frogner@astro.uio.no>"]
+description = "Useful tools for working with Bifrost"
 edition = "2018"
 default-run = "bifrost"
 
 [dependencies]
-rand = "0.7.0"
-num = "0.2.0"
-ieee754 = "0.2.6"
-ndarray = { version = "0.12.1", features = ["serde-1"] }
 byteorder = "1.3.2"
-regex = "1.2.1"
-serde = { version = "1.0", features = ["derive"] }
-serde-pickle = "0.5.0"
-serde_json = "1.0"
-rayon = "1.2.0"
-lazy_static = "1.4.0"
-nrfind = "1.0.2"
 clap = "2.33.0"
+ieee754 = "0.2.6"
+lazy_static = "1.4.0"
+ndarray = { version = "0.13.0", features = ["serde-1", "rayon"] }
+nrfind = "1.0.3"
+num = "0.2.0"
+rayon = "1.2.0"
+rand = "0.7.2"
+regex = "1.3.1"
+serde = { version = "1.0.101", features = ["derive"] }
+serde_json = "1.0.40"
+serde-pickle = "0.5.1"
 
 [dev-dependencies]
-ndarray-stats = "0.2.0"
+ndarray-stats = "0.3.0"
 
 [profile.release]
 debug = true
