@@ -1,5 +1,6 @@
 //! Useful tools for working with Bifrost in Rust.
 
+pub mod cli;
 pub mod constants;
 pub mod ebeam;
 pub mod field;

@@ -17,7 +17,6 @@ use crate::num::BFloat;
 use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::{Stepper3, StepperFactory3, StepperInstruction};
 use crate::tracing::{self, ftr, TracerResult};
-use clap::{App, ArgMatches, SubCommand};
 use rayon::prelude::*;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -655,17 +654,5 @@ impl<A: Accelerator> Serialize for ElectronBeamSwarm<A> {
         )?;
         s.serialize_field("metadata", &self.metadata)?;
         s.end()
-    }
-}
-
-/// Builds a representation of the `ebeam` command line subcommand.
-pub fn build_subcommand_ebeam<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("ebeam").subcommand(self::execution::build_subcommand_simulate())
-}
-
-/// Runs the actions for the `ebeam` subcommand using the given arguments.
-pub fn run_subcommand_ebeam(arguments: &ArgMatches) {
-    if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
-        self::execution::run_subcommand_simulate(simulate_arguments);
     }
 }
