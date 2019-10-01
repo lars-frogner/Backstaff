@@ -20,6 +20,7 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
                 .long("grid-type")
                 .value_name("TYPE")
                 .help("Type of grid to assume for the snapshot")
+                .next_line_help(true)
                 .takes_value(true)
                 .possible_values(&["horizontally-regular", "regular"])
                 .default_value("horizontally-regular"),
@@ -37,6 +38,7 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
                 .long("endianness")
                 .value_name("ENDIANNESS")
                 .help("Endianness to assume for the snapshot")
+                .next_line_help(true)
                 .takes_value(true)
                 .possible_values(&["little", "big"])
                 .default_value("little"),
