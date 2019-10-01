@@ -1,4 +1,4 @@
-//! Command line interface for the `bifrost` library.
+//! Command line interface.
 
 pub mod ebeam;
 pub mod snapshot;
