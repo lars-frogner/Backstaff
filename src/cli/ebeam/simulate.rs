@@ -1,6 +1,8 @@
 //! Command line interface for simulating electron beams.
 
+use crate::cli;
 use crate::ebeam::execution::ElectronBeamSimulator;
+use crate::tracing::stepping::rkf::RKFStepperType;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Builds a representation of the `ebeam-simulate` command line subcommand.
@@ -19,7 +21,7 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
                 .short("o")
                 .long("output-path")
                 .value_name("PATH")
-                .help("Path where the beam data should be saved")
+                .help("Path where the beam data should be saved (no output if absent)")
                 .next_line_help(true)
                 .takes_value(true),
         )
@@ -119,15 +121,19 @@ pub fn run_subcommand_simulate(arguments: &ArgMatches) {
 
 fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
     app.arg(
-        Arg::with_name("use-normalized-reconnection-factor")
-            .long("use-normalized-reconnection-factor")
-            .help("Use a normalized version of the reconnection factor when seeding"),
+        Arg::with_name("reconnection-factor-type")
+            .long("reconnection-factor-type")
+            .value_name("TYPE")
+            .help("Which version of the reconnection factor to use for seeding [default: from param file]")
+            .next_line_help(true)
+            .takes_value(true)
+            .possible_values(&["standard", "normalized"]),
     )
     .arg(
         Arg::with_name("reconnection-factor-threshold")
             .long("reconnection-factor-threshold")
             .value_name("VALUE")
-            .help("Beams will be generated where the reconnection factor value is larger than this")
+            .help("Beams will be generated where the reconnection factor value is larger than this [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -135,7 +141,7 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
         Arg::with_name("min-acceleration-depth")
             .long("min-acceleration-depth")
             .value_name("VALUE")
-            .help("Smallest depth at which electrons will be accelerated [Mm]")
+            .help("Smallest depth at which electrons will be accelerated [Mm] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -143,7 +149,7 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
         Arg::with_name("max-acceleration-depth")
             .long("max-acceleration-depth")
             .value_name("VALUE")
-            .help("Largest depth at which electrons will be accelerated [Mm]")
+            .help("Largest depth at which electrons will be accelerated [Mm] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -156,7 +162,7 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
         Arg::with_name("min-total-power-density")
             .long("min-total-power-density")
             .value_name("VALUE")
-            .help("Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)]")
+            .help("Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -164,7 +170,7 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
         Arg::with_name("min-estimated-depletion-distance")
             .long("min-estimated-depletion-distance")
             .value_name("VALUE")
-            .help("Distributions with an initial estimated depletion distance smaller than this value are discarded [cm]")
+            .help("Distributions with an initial estimated depletion distance smaller than this value are discarded [cm] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -174,13 +180,14 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
             .value_name("VALUE")
             .help("Distributions with acceleration directions angled more than this away from the magnetic field axis are discarded [deg]")
             .next_line_help(true)
-            .takes_value(true),
+            .takes_value(true)
+            .default_value("70.0"),
     )
     .arg(
         Arg::with_name("acceleration-duration")
             .long("acceleration-duration")
             .value_name("VALUE")
-            .help("Duration of the acceleration events [s]")
+            .help("Duration of the acceleration events [s] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -188,7 +195,7 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
         Arg::with_name("particle-energy-fraction")
             .long("particle-energy-fraction")
             .value_name("VALUE")
-            .help("Fraction of the released reconnection energy going into acceleration of electrons")
+            .help("Fraction of the released reconnection energy going into acceleration of electrons [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -196,7 +203,7 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
         Arg::with_name("power-law-delta")
             .long("power-law-delta")
             .value_name("VALUE")
-            .help("Exponent of the inverse power-law describing the non-thermal electron distribution")
+            .help("Exponent of the inverse power-law describing the non-thermal electron distribution [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -204,9 +211,161 @@ fn add_simulator_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b
         Arg::with_name("min-remaining-power-density")
             .long("min-remaining-power-density")
             .value_name("VALUE")
-            .help("Distributions with remaining power densities smaller than this value are discarded [erg/(cm^3 s)]")
+            .help("Distributions with remaining power densities smaller than this value are discarded [erg/(cm^3 s)] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
+    )
+    .arg(
+        Arg::with_name("initial-cutoff-energy-guess")
+            .long("initial-cutoff-energy-guess")
+            .value_name("VALUE")
+            .help("Initial guess to use when estimating lower cut-off energy [keV]")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("4.0"),
+    )
+    .arg(
+        Arg::with_name("acceptable-root-finding-error")
+            .long("acceptable-root-finding-error")
+            .value_name("VALUE")
+            .help("Target relative error when estimating lower cut-off energy")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("1e-3"),
+    )
+    .arg(
+        Arg::with_name("max-root-finding-iterations")
+            .long("max-root-finding-iterations")
+            .value_name("NUMBER")
+            .help("Maximum number of iterations when estimating lower cut-off energy")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("100"),
+    )
+    .arg(
+        Arg::with_name("interpolation-order")
+            .long("interpolation-order")
+            .value_name("ORDER")
+            .help("Order of the polynomials to fit when interpolating field values")
+            .next_line_help(true)
+            .takes_value(true)
+            .possible_values(&["1", "2", "3", "4", "5"])
+            .default_value("3"),
+    )
+    .arg(
+        Arg::with_name("variation-threshold-for-linear-interpolation")
+            .long("variation-threshold-for-linear-interpolation")
+            .value_name("VALUE")
+            .help("Linear interpolation is used when a normalized variance of the values surrounding the interpolation point exceeds this")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("0.3"),
+    )
+    .arg(
+        Arg::with_name("stepping-scheme")
+            .long("stepping-scheme")
+            .value_name("NAME")
+            .help("Which stepping scheme to use for tracing beam trajectories")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("rkf45"),
+    )
+    .arg(
+        Arg::with_name("dense-step-length")
+            .long("dense-step-length")
+            .value_name("VALUE")
+            .help("Step length to use for dense (uniform) output positions [Mm] [default: from param file]")
+            .next_line_help(true)
+            .takes_value(true),
+    )
+    .arg(
+        Arg::with_name("max-step-attempts")
+            .long("max-step-attempts")
+            .value_name("NUMBER")
+            .help("Maximum number of step attempts before terminating")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("16"),
+    )
+    .arg(
+        Arg::with_name("stepping-absolute-tolerance")
+            .long("stepping-absolute-tolerance")
+            .value_name("VALUE")
+            .help("Absolute error tolerance for stepping")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("1e-6"),
+    )
+    .arg(
+        Arg::with_name("stepping-relative-tolerance")
+            .long("stepping-relative-tolerance")
+            .value_name("VALUE")
+            .help("Relative error tolerance for stepping")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("1e-6"),
+    )
+    .arg(
+        Arg::with_name("stepping-safety-factor")
+            .long("stepping-safety-factor")
+            .value_name("VALUE")
+            .help("Scaling factor for the error to reduce step length oscillations")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("0.9"),
+    )
+    .arg(
+        Arg::with_name("min-step-scale")
+            .long("min-step-scale")
+            .value_name("VALUE")
+            .help("Smallest allowed scaling of the step size in one step")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("0.2"),
+    )
+    .arg(
+        Arg::with_name("max-step-scale")
+            .long("max-step-scale")
+            .value_name("VALUE")
+            .help("Largest allowed scaling of the step size in one step")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("10.0"),
+    )
+    .arg(
+        Arg::with_name("stepping-initial-error")
+            .long("stepping-initial-error")
+            .value_name("VALUE")
+            .help("Start value for stepping error")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("1e-4"),
+    )
+    .arg(
+        Arg::with_name("initial-step-length")
+            .long("stepping-initial-step-length")
+            .value_name("VALUE")
+            .help("Initial step size")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("1e-4"),
+    )
+    .arg(
+        Arg::with_name("sudden-reversals-for-sink")
+            .long("sudden-reversals-for-sink")
+            .value_name("NUMBER")
+            .help("Number of sudden direction reversals before the area is considered a sink")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("3"),
+    ).arg(
+        Arg::with_name("pi-control")
+            .long("pi-control")
+            .value_name("STATE")
+            .help("Whether to use Proportional Integral (PI) control for stabilizing the stepping [default: from param file]")
+            .next_line_help(true)
+            .takes_value(true)
+            .possible_values(&["off", "on"]),
     )
 }
 
@@ -214,89 +373,157 @@ fn configure_simulator_from_arguments(
     simulator: &mut ElectronBeamSimulator,
     arguments: &ArgMatches,
 ) {
-    simulator.use_normalized_reconnection_factor =
-        arguments.is_present("use-normalized-reconnection-factor");
-
-    if let Some(reconnection_factor_threshold) = arguments.value_of("reconnection-factor-threshold")
-    {
-        simulator.reconnection_factor_threshold =
-            reconnection_factor_threshold.parse().unwrap_or_else(|err| {
-                panic!(
-                    "Could not parse value of reconnection-factor-threshold: {}",
-                    err
-                )
-            });
-    }
-
-    if let Some(min_acceleration_depth) = arguments.value_of("min-acceleration-depth") {
-        simulator.min_acceleration_depth = min_acceleration_depth.parse().unwrap_or_else(|err| {
-            panic!("Could not parse value of min-acceleration-depth: {}", err)
-        });
-    }
-
-    if let Some(max_acceleration_depth) = arguments.value_of("max-acceleration-depth") {
-        simulator.max_acceleration_depth = max_acceleration_depth.parse().unwrap_or_else(|err| {
-            panic!("Could not parse value of max-acceleration-depth: {}", err)
-        });
-    }
-
-    simulator.accelerator_config.ignore_rejection = arguments.is_present("ignore-rejection");
-
-    if let Some(min_total_power_density) = arguments.value_of("min-total-power-density") {
-        simulator.accelerator_config.min_total_power_density =
-            min_total_power_density.parse().unwrap_or_else(|err| {
-                panic!("Could not parse value of min-total-power-density: {}", err)
-            });
-    }
-
-    if let Some(min_estimated_depletion_distance) =
-        arguments.value_of("min-estimated-depletion-distance")
-    {
-        simulator
+    cli::assign_value_from_selected_argument(
+        &mut simulator.use_normalized_reconnection_factor,
+        arguments,
+        "reconnection-factor-type",
+        &["standard", "normalized"],
+        &[false, true],
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.reconnection_factor_threshold,
+        arguments,
+        "reconnection-factor-threshold",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.min_acceleration_depth,
+        arguments,
+        "min-acceleration-depth",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.max_acceleration_depth,
+        arguments,
+        "max-acceleration-depth",
+    );
+    cli::assign_bool_value_from_flag_presence(
+        &mut simulator.accelerator_config.ignore_rejection,
+        arguments,
+        "ignore-rejection",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.accelerator_config.min_total_power_density,
+        arguments,
+        "min-total-power-density",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator
             .accelerator_config
-            .min_estimated_depletion_distance = min_estimated_depletion_distance
-            .parse()
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Could not parse value of min-estimated-depletion-distance: {}",
-                    err
-                )
-            });
-    }
-
-    if let Some(max_acceleration_angle) = arguments.value_of("max-acceleration-angle") {
-        simulator.accelerator_config.max_acceleration_angle =
-            max_acceleration_angle.parse().unwrap_or_else(|err| {
-                panic!("Could not parse value of max-acceleration-angle: {}", err)
-            });
-    }
-
-    if let Some(acceleration_duration) = arguments.value_of("acceleration-duration") {
-        simulator.acceleration_duration = acceleration_duration.parse().unwrap_or_else(|err| {
-            panic!("Could not parse value of acceleration-duration: {}", err)
-        });
-    }
-
-    if let Some(particle_energy_fraction) = arguments.value_of("particle-energy-fraction") {
-        simulator.particle_energy_fraction =
-            particle_energy_fraction.parse().unwrap_or_else(|err| {
-                panic!("Could not parse value of particle-energy-fraction: {}", err)
-            });
-    }
-
-    if let Some(power_law_delta) = arguments.value_of("power-law-delta") {
-        simulator.power_law_delta = power_law_delta
-            .parse()
-            .unwrap_or_else(|err| panic!("Could not parse value of power-law-delta: {}", err));
-    }
-
-    if let Some(min_remaining_power_density) = arguments.value_of("min-remaining-power-density") {
-        simulator.distribution_config.min_remaining_power_density =
-            min_remaining_power_density.parse().unwrap_or_else(|err| {
-                panic!(
-                    "Could not parse value of min-remaining-power-density: {}",
-                    err
-                )
-            });
-    }
+            .min_estimated_depletion_distance,
+        arguments,
+        "min-estimated-depletion-distance",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.accelerator_config.max_acceleration_angle,
+        arguments,
+        "max-acceleration-angle",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.acceleration_duration,
+        arguments,
+        "acceleration-duration",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.particle_energy_fraction,
+        arguments,
+        "particle-energy-fraction",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.power_law_delta,
+        arguments,
+        "power-law-delta",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.distribution_config.min_remaining_power_density,
+        arguments,
+        "min-remaining-power-density",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.accelerator_config.initial_cutoff_energy_guess,
+        arguments,
+        "initial-cutoff-energy-guess",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.accelerator_config.acceptable_root_finding_error,
+        arguments,
+        "acceptable-root-finding-error",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.accelerator_config.max_root_finding_iterations,
+        arguments,
+        "max-root-finding-iterations",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.interpolator_config.order,
+        arguments,
+        "interpolation-order",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.interpolator_config.variation_threshold_for_linear,
+        arguments,
+        "variation-threshold-for-linear-interpolation",
+    );
+    cli::assign_value_from_selected_argument(
+        &mut simulator.rkf_stepper_type,
+        arguments,
+        "stepping-scheme",
+        &["rkf23", "rkf45"],
+        &[RKFStepperType::RKF23, RKFStepperType::RKF45],
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.dense_step_length,
+        arguments,
+        "dense-step-length",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.max_step_attempts,
+        arguments,
+        "max-step-attempts",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.absolute_tolerance,
+        arguments,
+        "stepping-absolute-tolerance",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.relative_tolerance,
+        arguments,
+        "stepping-relative-tolerance",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.safety_factor,
+        arguments,
+        "stepping-safety-factor",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.min_step_scale,
+        arguments,
+        "min-step-scale",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.max_step_scale,
+        arguments,
+        "max-step-scale",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.initial_error,
+        arguments,
+        "stepping-initial-error",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.initial_step_length,
+        arguments,
+        "initial-step-length",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut simulator.rkf_stepper_config.sudden_reversals_for_sink,
+        arguments,
+        "sudden-reversals-for-sink",
+    );
+    cli::assign_value_from_selected_argument(
+        &mut simulator.rkf_stepper_config.use_pi_control,
+        arguments,
+        "pi-control",
+        &["off", "on"],
+        &[false, true],
+    );
 }
