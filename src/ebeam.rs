@@ -96,12 +96,12 @@ where
     where
         I: IntoParallelIterator<Item = UnpropagatedElectronBeam<D>>,
     {
-        let nested_tuples_iter = par_iter.into_par_iter().map(|data| {
+        let nested_tuples_iter = par_iter.into_par_iter().map(|beam| {
             (
-                data.acceleration_position[X],
+                beam.acceleration_position[X],
                 (
-                    data.acceleration_position[Y],
-                    (data.acceleration_position[Z], data.distribution_properties),
+                    beam.acceleration_position[Y],
+                    (beam.acceleration_position[Z], beam.distribution_properties),
                 ),
             )
         });
@@ -151,18 +151,18 @@ where
     where
         I: IntoParallelIterator<Item = PropagatedElectronBeam<D>>,
     {
-        let nested_tuples_iter = par_iter.into_par_iter().map(|data| {
+        let nested_tuples_iter = par_iter.into_par_iter().map(|beam| {
             (
-                data.trajectory.0,
+                beam.trajectory.0,
                 (
-                    data.trajectory.1,
+                    beam.trajectory.1,
                     (
-                        data.trajectory.2,
+                        beam.trajectory.2,
                         (
-                            data.distribution_properties,
+                            beam.distribution_properties,
                             (
-                                data.total_propagation_distance,
-                                data.deposited_power_densities,
+                                beam.total_propagation_distance,
+                                beam.deposited_power_densities,
                             ),
                         ),
                     ),
