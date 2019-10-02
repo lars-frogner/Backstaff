@@ -19,7 +19,7 @@ pub fn run() {
             Arg::with_name("timing")
                 .short("t")
                 .long("timing")
-                .help("Display elapsed time when done"),
+                .long_help("Display elapsed time when done"),
         )
         .subcommand(snapshot::build_subcommand_snapshot())
         .subcommand(ebeam::build_subcommand_ebeam());
@@ -62,6 +62,18 @@ fn assign_value_from_parseable_argument<T>(
             .parse()
             .unwrap_or_else(|err| panic!("Could not parse value of {}: {}", argument_name, err));
     }
+}
+
+fn get_value_from_required_parseable_argument<T>(arguments: &ArgMatches, argument_name: &str) -> T
+where
+    T: std::str::FromStr,
+    <T as std::str::FromStr>::Err: std::fmt::Display,
+{
+    arguments
+        .value_of(argument_name)
+        .expect("No value for required argument.")
+        .parse()
+        .unwrap_or_else(|err| panic!("Could not parse value of {}: {}", argument_name, err))
 }
 
 fn assign_value_from_selected_argument<T>(
