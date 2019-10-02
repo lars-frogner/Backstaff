@@ -5,19 +5,19 @@ use crate::ebeam::distribution::power_law::acceleration::simple::SimplePowerLawA
 use clap::{App, Arg, ArgMatches};
 
 /// Adds arguments for parameters used by the simple power-law distribution accelerator.
-pub fn add_simple_power_law_accelerator_arguments_to_subcommand<'a, 'b>(
+pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     app: App<'a, 'b>,
 ) -> App<'a, 'b> {
     app.arg(
         Arg::with_name("ignore-rejection")
             .long("ignore-rejection")
-            .help("Generate beams even when they meet a rejection condition"),
+            .long_help("Generate beams even when they meet a rejection condition"),
     )
     .arg(
         Arg::with_name("min-total-power-density")
             .long("min-total-power-density")
             .value_name("VALUE")
-            .help("Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)] [default: from param file]")
+            .long_help("Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -25,7 +25,7 @@ pub fn add_simple_power_law_accelerator_arguments_to_subcommand<'a, 'b>(
         Arg::with_name("min-estimated-depletion-distance")
             .long("min-estimated-depletion-distance")
             .value_name("VALUE")
-            .help("Distributions with an initial estimated depletion distance smaller than this value are discarded [cm] [default: from param file]")
+            .long_help("Distributions with an initial estimated depletion distance smaller than this value are discarded [cm] [default: from param file]")
             .next_line_help(true)
             .takes_value(true),
     )
@@ -33,7 +33,7 @@ pub fn add_simple_power_law_accelerator_arguments_to_subcommand<'a, 'b>(
         Arg::with_name("max-acceleration-angle")
             .long("max-acceleration-angle")
             .value_name("VALUE")
-            .help("Distributions with acceleration directions angled more than this away from the magnetic field axis are discarded [deg]")
+            .long_help("Distributions with acceleration directions angled more than this away from the magnetic field axis are discarded [deg]")
             .next_line_help(true)
             .takes_value(true)
             .default_value("70.0"),
@@ -41,7 +41,7 @@ pub fn add_simple_power_law_accelerator_arguments_to_subcommand<'a, 'b>(
         Arg::with_name("initial-cutoff-energy-guess")
             .long("initial-cutoff-energy-guess")
             .value_name("VALUE")
-            .help("Initial guess to use when estimating lower cut-off energy [keV]")
+            .long_help("Initial guess to use when estimating lower cut-off energy [keV]")
             .next_line_help(true)
             .takes_value(true)
             .default_value("4.0"),
@@ -50,7 +50,7 @@ pub fn add_simple_power_law_accelerator_arguments_to_subcommand<'a, 'b>(
         Arg::with_name("acceptable-root-finding-error")
             .long("acceptable-root-finding-error")
             .value_name("VALUE")
-            .help("Target relative error when estimating lower cut-off energy")
+            .long_help("Target relative error when estimating lower cut-off energy")
             .next_line_help(true)
             .takes_value(true)
             .default_value("1e-3"),
@@ -59,7 +59,7 @@ pub fn add_simple_power_law_accelerator_arguments_to_subcommand<'a, 'b>(
         Arg::with_name("max-root-finding-iterations")
             .long("max-root-finding-iterations")
             .value_name("NUMBER")
-            .help("Maximum number of iterations when estimating lower cut-off energy")
+            .long_help("Maximum number of iterations when estimating lower cut-off energy")
             .next_line_help(true)
             .takes_value(true)
             .default_value("100"),
@@ -67,7 +67,7 @@ pub fn add_simple_power_law_accelerator_arguments_to_subcommand<'a, 'b>(
 }
 
 /// Sets simple power-law distribution accelerator parameters based on present arguments.
-pub fn configure_simple_power_law_accelerator_from_arguments(
+pub fn configure_simple_power_law_accelerator_from_options(
     config: &mut SimplePowerLawAccelerationConfig,
     arguments: &ArgMatches,
 ) {
