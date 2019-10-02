@@ -46,9 +46,9 @@ pub struct ElectronBeamSimulator {
     /// Configuration parameters for the interpolator.
     pub interpolator_config: PolyFitInterpolatorConfig,
     /// Type of stepper to use.
-    pub rkf_stepper_type: RKFStepperType,
+    pub stepper_type: RKFStepperType,
     /// Configuration parameters for the stepper.
-    pub rkf_stepper_config: RKFStepperConfig,
+    pub stepper_config: RKFStepperConfig,
 }
 
 impl ElectronBeamSimulator {
@@ -90,8 +90,8 @@ impl ElectronBeamSimulator {
         let pitch_angle_distribution = Self::read_pitch_angle_distribution(&reader);
         let distribution_config = Self::read_distribution_config(&reader);
         let interpolator_config = Self::read_interpolator_config(&reader);
-        let rkf_stepper_type = Self::read_rkf_stepper_type(&reader);
-        let rkf_stepper_config = Self::read_rkf_stepper_config(&reader);
+        let stepper_type = Self::read_stepper_type(&reader);
+        let stepper_config = Self::read_stepper_config(&reader);
 
         ElectronBeamSimulator {
             param_file_path,
@@ -106,8 +106,8 @@ impl ElectronBeamSimulator {
             pitch_angle_distribution,
             distribution_config,
             interpolator_config,
-            rkf_stepper_type,
-            rkf_stepper_config,
+            stepper_type,
+            stepper_config,
         }
     }
 
@@ -132,7 +132,7 @@ impl ElectronBeamSimulator {
                 verbose,
             )
         } else {
-            match self.rkf_stepper_type {
+            match self.stepper_type {
                 RKFStepperType::RKF23 => {
                     let stepper_factory = self.create_rkf23_stepper_factory();
                     ElectronBeamSwarm::generate_propagated(
@@ -283,11 +283,11 @@ impl ElectronBeamSimulator {
         }
     }
 
-    fn read_rkf_stepper_type<G: Grid3<fdt>>(_reader: &SnapshotReader3<G>) -> RKFStepperType {
+    fn read_stepper_type<G: Grid3<fdt>>(_reader: &SnapshotReader3<G>) -> RKFStepperType {
         Self::DEFAULT_RKF_STEPPER_TYPE
     }
 
-    fn read_rkf_stepper_config<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> RKFStepperConfig {
+    fn read_stepper_config<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> RKFStepperConfig {
         let dense_step_length = reader
             .get_numerical_param("ds_out")
             .unwrap_or_else(|err| panic!("{}", err));
@@ -362,10 +362,10 @@ impl ElectronBeamSimulator {
     }
 
     fn create_rkf23_stepper_factory(&self) -> RKF23StepperFactory3 {
-        RKF23StepperFactory3::new(self.rkf_stepper_config.clone())
+        RKF23StepperFactory3::new(self.stepper_config.clone())
     }
 
     fn create_rkf45_stepper_factory(&self) -> RKF45StepperFactory3 {
-        RKF45StepperFactory3::new(self.rkf_stepper_config.clone())
+        RKF45StepperFactory3::new(self.stepper_config.clone())
     }
 }
