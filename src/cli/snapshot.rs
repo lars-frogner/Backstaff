@@ -1,6 +1,7 @@
 //! Command line interface for actions related to snapshots.
 
 pub mod inspect;
+pub mod slice;
 
 use crate::grid::hor_regular::HorRegularGrid3;
 use crate::grid::regular::RegularGrid3;
@@ -19,7 +20,7 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
                 .short("g")
                 .long("grid-type")
                 .value_name("TYPE")
-                .help("Type of grid to assume for the snapshot")
+                .long_help("Type of grid to assume for the snapshot")
                 .next_line_help(true)
                 .takes_value(true)
                 .possible_values(&["horizontally-regular", "regular"])
@@ -27,7 +28,7 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("PARAM_PATH")
-                .help("Path to the parameter (.idl) file for the snapshot")
+                .long_help("Path to the parameter (.idl) file for the snapshot")
                 .required(true)
                 .takes_value(true)
                 .index(1),
@@ -37,7 +38,7 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
                 .short("e")
                 .long("endianness")
                 .value_name("ENDIANNESS")
-                .help("Endianness to assume for the snapshot")
+                .long_help("Endianness to assume for the snapshot")
                 .next_line_help(true)
                 .takes_value(true)
                 .possible_values(&["little", "big"])
@@ -45,7 +46,7 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(inspect::build_subcommand_inspect());
 
-    add_snapshot_reader_arguments_to_subcommand(app)
+    add_snapshot_reader_options_to_subcommand(app)
 }
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
@@ -58,48 +59,56 @@ pub fn run_subcommand_snapshot(arguments: &ArgMatches) {
         .value_of("PARAM_PATH")
         .expect("Required argument not present.");
 
-    let endianness = arguments
+    let endianness = match arguments
         .value_of("endianness")
-        .expect("No value for argument with default.");
-    let endianness = if endianness == "little" {
-        Endianness::Little
-    } else if endianness == "big" {
-        Endianness::Big
-    } else {
-        panic!("Invalid endianness {}", endianness)
+        .expect("No value for argument with default.")
+    {
+        "little" => Endianness::Little,
+        "big" => Endianness::Big,
+        invalid => panic!("Invalid endianness {}", invalid),
     };
 
     if grid_type == "horizontally-regular" {
         let mut reader = SnapshotReader3::<HorRegularGrid3<_>>::new(param_file_path, endianness)
             .unwrap_or_else(|err| panic!("Could not read snapshot: {}", err));
-        configure_snapshot_reader_from_arguments(&mut reader, arguments);
+        configure_snapshot_reader_from_options(&mut reader, arguments);
+        let mut cacher = reader.into_cacher();
 
         if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-            inspect::run_subcommand_inspect(inspect_arguments, reader);
+            inspect::run_subcommand_inspect(inspect_arguments, &mut cacher);
+        }
+        if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
+            slice::run_subcommand_slice(slice_arguments, &mut cacher);
         }
     } else if grid_type == "regular" {
         let mut reader = SnapshotReader3::<RegularGrid3<_>>::new(param_file_path, endianness)
             .unwrap_or_else(|err| panic!("Could not read snapshot: {}", err));
-        configure_snapshot_reader_from_arguments(&mut reader, arguments);
+        configure_snapshot_reader_from_options(&mut reader, arguments);
+        let mut cacher = reader.into_cacher();
 
         if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-            inspect::run_subcommand_inspect(inspect_arguments, reader);
+            inspect::run_subcommand_inspect(inspect_arguments, &mut cacher);
+        }
+        if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
+            slice::run_subcommand_slice(slice_arguments, &mut cacher);
         }
     } else {
         panic!("Invalid grid type {}", grid_type)
     }
 }
 
-fn add_snapshot_reader_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+/// Adds arguments for parameters used by the snapshot reader.
+pub fn add_snapshot_reader_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
     app.arg(
         Arg::with_name("verbose")
             .short("v")
             .long("verbose")
-            .help("Print status messages"),
+            .long_help("Print status messages"),
     )
 }
 
-fn configure_snapshot_reader_from_arguments<G: Grid3<fdt>>(
+/// Sets snapshot reader parameters based on present arguments.
+pub fn configure_snapshot_reader_from_options<G: Grid3<fdt>>(
     reader: &mut SnapshotReader3<G>,
     arguments: &ArgMatches,
 ) {
