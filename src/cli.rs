@@ -1,7 +1,9 @@
 //! Command line interface.
 
 pub mod ebeam;
+pub mod interpolation;
 pub mod snapshot;
+pub mod tracing;
 
 use clap::{self, App, AppSettings, Arg, ArgMatches};
 use std::time::Instant;

@@ -1,5 +1,7 @@
 //! Command line interface for actions related to electron beams.
 
+pub mod accelerator;
+pub mod distribution;
 pub mod simulate;
 
 use clap::{App, ArgMatches, SubCommand};
