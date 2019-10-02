@@ -33,7 +33,7 @@ struct RKFStepperState3 {
     direction: Vec3<ftr>,
     /// Current distance of the stepper along the field line.
     distance: ftr,
-    /// Step size to use in the next step.
+    /// Step length to use in the next step.
     step_length: ftr,
     /// The estimated error of the step from the previous to the current position.
     error: ftr,
@@ -60,7 +60,7 @@ struct RKFStepperState3 {
 /// Configuration parameters for RKF steppers.
 #[derive(Clone, Debug)]
 pub struct RKFStepperConfig {
-    /// Step size to use for dense (uniform) output positions.
+    /// Step length to use for dense (uniform) output positions.
     pub dense_step_length: ftr,
     /// Maximum number of step attempts before terminating.
     pub max_step_attempts: u32,
