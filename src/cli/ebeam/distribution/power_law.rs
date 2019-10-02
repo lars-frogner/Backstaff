@@ -6,13 +6,14 @@ use clap::{App, Arg, ArgMatches};
 
 /// Adds arguments for parameters used by the power-law distribution.
 pub fn add_power_law_distribution_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-    app
-    .arg(
+    app.arg(
         Arg::with_name("min-remaining-power-density")
             .long("min-remaining-power-density")
             .value_name("VALUE")
-            .long_help("Distributions with remaining power densities smaller than this value are discarded [erg/(cm^3 s)] [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Distributions with remaining power densities smaller than this value are\n\
+                 discarded [erg/(cm^3 s)] [default: from param file]",
+            )
             .takes_value(true),
     )
 }

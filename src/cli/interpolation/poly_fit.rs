@@ -6,13 +6,11 @@ use clap::{App, Arg, ArgMatches};
 
 /// Adds arguments for parameters used by the polynomial fitting interpolator.
 pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-    app
-    .arg(
+    app.arg(
         Arg::with_name("interpolation-order")
             .long("interpolation-order")
             .value_name("ORDER")
-            .long_help("Order of the polynomials to fit when interpolating field values")
-            .next_line_help(true)
+            .long_help("Order of the polynomials to fit when interpolating field values\n")
             .takes_value(true)
             .possible_values(&["1", "2", "3", "4", "5"])
             .default_value("3"),
@@ -21,8 +19,10 @@ pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>)
         Arg::with_name("variation-threshold-for-linear-interpolation")
             .long("variation-threshold-for-linear-interpolation")
             .value_name("VALUE")
-            .long_help("Linear interpolation is used when a normalized variance of the values surrounding the interpolation point exceeds this")
-            .next_line_help(true)
+            .long_help(
+                "Linear interpolation is used when a normalized variance of the values\n\
+                 surrounding the interpolation point exceeds this",
+            )
             .takes_value(true)
             .default_value("0.3"),
     )

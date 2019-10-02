@@ -14,12 +14,14 @@ pub fn run() {
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
         .about(clap::crate_description!())
+        .global_setting(AppSettings::VersionlessSubcommands)
+        .global_setting(AppSettings::DeriveDisplayOrder)
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(
             Arg::with_name("timing")
                 .short("t")
                 .long("timing")
-                .long_help("Display elapsed time when done"),
+                .help("Display elapsed time when done"),
         )
         .subcommand(snapshot::build_subcommand_snapshot())
         .subcommand(ebeam::build_subcommand_ebeam());

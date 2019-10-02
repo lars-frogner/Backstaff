@@ -10,8 +10,10 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
         Arg::with_name("dense-step-length")
             .long("dense-step-length")
             .value_name("VALUE")
-            .long_help("Step length to use for dense (uniform) output positions [Mm] [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Step length to use for dense (uniform) output positions [Mm]\n\
+                 [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
@@ -19,7 +21,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("max-step-attempts")
             .value_name("NUMBER")
             .long_help("Maximum number of step attempts before terminating")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("16"),
     )
@@ -28,7 +29,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-absolute-tolerance")
             .value_name("VALUE")
             .long_help("Absolute error tolerance for stepping")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-6"),
     )
@@ -37,7 +37,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-relative-tolerance")
             .value_name("VALUE")
             .long_help("Relative error tolerance for stepping")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-6"),
     )
@@ -46,7 +45,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-safety-factor")
             .value_name("VALUE")
             .long_help("Scaling factor for the error to reduce step length oscillations")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("0.9"),
     )
@@ -55,7 +53,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("min-step-scale")
             .value_name("VALUE")
             .long_help("Smallest allowed scaling of the step size in one step")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("0.2"),
     )
@@ -64,7 +61,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("max-step-scale")
             .value_name("VALUE")
             .long_help("Largest allowed scaling of the step size in one step")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("10.0"),
     )
@@ -73,7 +69,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-initial-error")
             .value_name("VALUE")
             .long_help("Start value for stepping error")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-4"),
     )
@@ -82,7 +77,6 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-initial-step-length")
             .value_name("VALUE")
             .long_help("Initial step size")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-4"),
     )
@@ -91,15 +85,17 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("sudden-reversals-for-sink")
             .value_name("NUMBER")
             .long_help("Number of sudden direction reversals before the area is considered a sink")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("3"),
-    ).arg(
+    )
+    .arg(
         Arg::with_name("pi-control")
             .long("pi-control")
             .value_name("STATE")
-            .long_help("Whether to use Proportional Integral (PI) control for stabilizing the stepping [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Whether to use Proportional Integral (PI) control for stabilizing the stepping\n\
+                 [default: from param file]",
+            )
             .takes_value(true)
             .possible_values(&["off", "on"]),
     )

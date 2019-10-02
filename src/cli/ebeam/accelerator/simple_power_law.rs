@@ -11,38 +11,44 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     app.arg(
         Arg::with_name("ignore-rejection")
             .long("ignore-rejection")
-            .long_help("Generate beams even when they meet a rejection condition"),
+            .help("Generate beams even when they meet a rejection condition"),
     )
     .arg(
         Arg::with_name("min-total-power-density")
             .long("min-total-power-density")
             .value_name("VALUE")
-            .long_help("Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)] [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Distributions with total power densities smaller than this value are discarded\n\
+                 [erg/(cm^3 s)] [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
         Arg::with_name("min-estimated-depletion-distance")
             .long("min-estimated-depletion-distance")
             .value_name("VALUE")
-            .long_help("Distributions with an initial estimated depletion distance smaller than this value are discarded [cm] [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Distributions with an initial estimated depletion distance smaller than this\n\
+                 value are discarded [cm] [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
         Arg::with_name("max-acceleration-angle")
             .long("max-acceleration-angle")
             .value_name("VALUE")
-            .long_help("Distributions with acceleration directions angled more than this away from the magnetic field axis are discarded [deg]")
-            .next_line_help(true)
+            .long_help(
+                "Distributions with acceleration directions angled more than this away from the\n\
+                 magnetic field axis are discarded [deg]",
+            )
             .takes_value(true)
             .default_value("70.0"),
-    ).arg(
+    )
+    .arg(
         Arg::with_name("initial-cutoff-energy-guess")
             .long("initial-cutoff-energy-guess")
             .value_name("VALUE")
             .long_help("Initial guess to use when estimating lower cut-off energy [keV]")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("4.0"),
     )
@@ -51,7 +57,6 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
             .long("acceptable-root-finding-error")
             .value_name("VALUE")
             .long_help("Target relative error when estimating lower cut-off energy")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-3"),
     )
@@ -60,7 +65,6 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
             .long("max-root-finding-iterations")
             .value_name("NUMBER")
             .long_help("Maximum number of iterations when estimating lower cut-off energy")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("100"),
     )

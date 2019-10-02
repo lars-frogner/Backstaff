@@ -16,48 +16,47 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
         .about("Performs actions related to snapshots")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(
+            Arg::with_name("PARAM_PATH")
+                .help("Path to the parameter (.idl) file for the snapshot")
+                .required(true)
+                .takes_value(true)
+                .index(1),
+        )
+        .arg(
             Arg::with_name("grid-type")
                 .short("g")
                 .long("grid-type")
                 .value_name("TYPE")
-                .long_help("Type of grid to assume for the snapshot")
-                .next_line_help(true)
+                .long_help("Type of grid to assume for the snapshot\n")
                 .takes_value(true)
                 .possible_values(&["horizontally-regular", "regular"])
                 .default_value("horizontally-regular"),
-        )
-        .arg(
-            Arg::with_name("PARAM_PATH")
-                .long_help("Path to the parameter (.idl) file for the snapshot")
-                .required(true)
-                .takes_value(true)
-                .index(1),
         )
         .arg(
             Arg::with_name("endianness")
                 .short("e")
                 .long("endianness")
                 .value_name("ENDIANNESS")
-                .long_help("Endianness to assume for the snapshot")
-                .next_line_help(true)
+                .long_help("Endianness to assume for the snapshot\n")
                 .takes_value(true)
                 .possible_values(&["little", "big"])
                 .default_value("little"),
         )
-        .subcommand(inspect::build_subcommand_inspect());
+        .subcommand(inspect::build_subcommand_inspect())
+        .subcommand(slice::build_subcommand_slice());
 
     add_snapshot_reader_options_to_subcommand(app)
 }
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_subcommand_snapshot(arguments: &ArgMatches) {
-    let grid_type = arguments
-        .value_of("grid-type")
-        .expect("No value for argument with default.");
-
     let param_file_path = arguments
         .value_of("PARAM_PATH")
         .expect("Required argument not present.");
+
+    let grid_type = arguments
+        .value_of("grid-type")
+        .expect("No value for argument with default.");
 
     let endianness = match arguments
         .value_of("endianness")

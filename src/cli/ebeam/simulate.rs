@@ -11,15 +11,14 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
         .about("Simulates electron beams in a Bifrost snapshot")
         .arg(
             Arg::with_name("PARAM_PATH")
-                .long_help("Path to the parameter (.idl) file for the snapshot")
+                .help("Path to the parameter (.idl) file for the snapshot")
                 .required(true)
                 .takes_value(true)
                 .index(1),
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
-                .long_help("Path where the beam data should be saved")
-                .next_line_help(true)
+                .help("Path where the beam data should be saved")
                 .required(true)
                 .takes_value(true)
                 .index(2),
@@ -30,7 +29,6 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
                 .long("output-format")
                 .value_name("FORMAT")
                 .long_help("Format to use for saving beam data")
-                .next_line_help(true)
                 .takes_value(true)
                 .possible_values(&["pickle", "json"])
                 .default_value("pickle"),
@@ -39,14 +37,13 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("generate-only")
                 .short("g")
                 .long("generate-only")
-                .long_help("Do not propagate the generated beams"),
+                .help("Do not propagate the generated beams"),
         )
         .arg(
             Arg::with_name("extra-fixed-scalars")
                 .long("extra-fixed-scalars")
                 .value_name("NAMES")
                 .long_help("List of scalar fields to extract at acceleration sites")
-                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )
@@ -55,7 +52,6 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
                 .long("extra-varying-scalars")
                 .value_name("NAMES")
                 .long_help("List of scalar fields to extract along beam trajectories")
-                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )
@@ -63,7 +59,7 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("verbose")
                 .short("v")
                 .long("verbose")
-                .long_help("Print status messages"),
+                .help("Print status messages"),
         );
 
     let app = add_electron_beam_simulator_options_to_subcommand(app);
@@ -147,8 +143,10 @@ fn add_electron_beam_simulator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -
         Arg::with_name("reconnection-factor-type")
             .long("reconnection-factor-type")
             .value_name("TYPE")
-            .long_help("Which version of the reconnection factor to use for seeding [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Which version of the reconnection factor to use for seeding\n\
+                 [default: from param file]",
+            )
             .takes_value(true)
             .possible_values(&["standard", "normalized"]),
     )
@@ -156,24 +154,30 @@ fn add_electron_beam_simulator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -
         Arg::with_name("reconnection-factor-threshold")
             .long("reconnection-factor-threshold")
             .value_name("VALUE")
-            .long_help("Beams will be generated where the reconnection factor value is larger than this [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Beams will be generated where the reconnection factor value is larger than this\n\
+                 [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
         Arg::with_name("min-acceleration-depth")
             .long("min-acceleration-depth")
             .value_name("VALUE")
-            .long_help("Smallest depth at which electrons will be accelerated [Mm] [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Smallest depth at which electrons will be accelerated [Mm]\n\
+                 [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
         Arg::with_name("max-acceleration-depth")
             .long("max-acceleration-depth")
             .value_name("VALUE")
-            .long_help("Largest depth at which electrons will be accelerated [Mm] [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Largest depth at which electrons will be accelerated [Mm]\n\
+                 [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
@@ -181,23 +185,26 @@ fn add_electron_beam_simulator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -
             .long("acceleration-duration")
             .value_name("VALUE")
             .long_help("Duration of the acceleration events [s] [default: from param file]")
-            .next_line_help(true)
             .takes_value(true),
     )
     .arg(
         Arg::with_name("particle-energy-fraction")
             .long("particle-energy-fraction")
             .value_name("VALUE")
-            .long_help("Fraction of the released reconnection energy going into acceleration of electrons [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Fraction of the released reconnection energy going into acceleration of\n\
+                 electrons [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
         Arg::with_name("power-law-delta")
             .long("power-law-delta")
             .value_name("VALUE")
-            .long_help("Exponent of the inverse power-law describing the non-thermal electron distribution [default: from param file]")
-            .next_line_help(true)
+            .long_help(
+                "Exponent of the inverse power-law describing the non-thermal electron\n\
+                 distribution [default: from param file]",
+            )
             .takes_value(true),
     )
     .arg(
@@ -205,7 +212,6 @@ fn add_electron_beam_simulator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -
             .long("stepping-scheme")
             .value_name("NAME")
             .long_help("Which stepping scheme to use for tracing beam trajectories")
-            .next_line_help(true)
             .takes_value(true)
             .default_value("rkf45"),
     )

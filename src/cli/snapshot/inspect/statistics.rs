@@ -14,7 +14,7 @@ pub fn build_subcommand_statistics<'a, 'b>() -> App<'a, 'b> {
         .about("Prints statistics from quantities in a snapshot")
         .arg(
             Arg::with_name("QUANTITIES")
-                .long_help("List of quantities to print statistics for")
+                .help("List of quantities to print statistics for")
                 .required(true)
                 .takes_value(true)
                 .index(1)

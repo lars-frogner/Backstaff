@@ -14,14 +14,14 @@ pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
         .about("Extracts a 2D slice of a snapshot quantity field")
         .arg(
             Arg::with_name("QUANTITY")
-                .long_help("Quantity whose field to slice")
+                .help("Quantity whose field to slice")
                 .required(true)
                 .takes_value(true)
                 .index(1),
         )
         .arg(
             Arg::with_name("AXIS")
-                .long_help("Which axis to slice across")
+                .help("Which axis to slice across")
                 .required(true)
                 .takes_value(true)
                 .possible_values(&["x", "y", "z"])
@@ -29,14 +29,14 @@ pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("COORD")
-                .long_help("Coordinate along the axis to slice at")
+                .help("Coordinate along the axis to slice at")
                 .required(true)
                 .takes_value(true)
                 .index(3),
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
-                .long_help("Path where the slice field should be saved in pickle format")
+                .help("Path where the slice field should be saved in pickle format")
                 .required(true)
                 .takes_value(true)
                 .index(4),
@@ -46,7 +46,7 @@ pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
                 .short("l")
                 .long("sample-location")
                 .value_name("LOCATION")
-                .long_help("Location in the grid cell where slice values should be sampled")
+                .long_help("Location in the grid cell where slice values should be sampled\n")
                 .takes_value(true)
                 .possible_values(&["center", "lower", "original"])
                 .default_value("center"),
