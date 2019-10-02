@@ -11,6 +11,7 @@ use crate::grid::Grid3;
 use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
 use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
 use crate::io::{Endianness, Verbose};
+use crate::tracing::ftr;
 use crate::tracing::seeding::criterion::CriterionSeeder3;
 use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
@@ -51,6 +52,26 @@ pub struct ElectronBeamSimulator {
 }
 
 impl ElectronBeamSimulator {
+    pub const DEFAULT_IGNORE_REJECTION: bool = false;
+    pub const DEFAULT_MAX_ACCELERATION_ANGLE: feb = 70.0;
+    pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 4.0;
+    pub const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
+    pub const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
+    pub const DEFAULT_PITCH_ANGLE_DISTRIBUTION: PitchAngleDistribution =
+        PitchAngleDistribution::Peaked;
+    pub const DEFAULT_INTERPOLATION_ORDER: usize = 3;
+    pub const DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR_INTERPOLATION: f64 = 0.3;
+    pub const DEFAULT_RKF_STEPPER_TYPE: RKFStepperType = RKFStepperType::RKF45;
+    pub const DEFAULT_MAX_STEP_ATTEMPTS: u32 = 16;
+    pub const DEFAULT_ABSOLUTE_TOLERANCE: ftr = 1e-6;
+    pub const DEFAULT_RELATIVE_TOLERANCE: ftr = 1e-6;
+    pub const DEFAULT_SAFETY_FACTOR: ftr = 0.9;
+    pub const DEFAULT_MIN_STEP_SCALE: ftr = 0.2;
+    pub const DEFAULT_MAX_STEP_SCALE: ftr = 10.0;
+    pub const DEFAULT_INITIAL_ERROR: ftr = 1e-4;
+    pub const DEFAULT_INITIAL_STEP_LENGTH: ftr = 1e-4;
+    pub const DEFAULT_SUDDEN_REVERSALS_FOR_SINK: u32 = 3;
+
     /// Creates a new electron beam generator with parameters read from
     /// the given parameter (.idl) file.
     pub fn from_param_file<P: AsRef<path::Path>>(param_file_path: P) -> Self {
@@ -202,23 +223,14 @@ impl ElectronBeamSimulator {
             .unwrap_or_else(|err| panic!("{}", err))
             * U_L;
 
-        // Online version always uses 70 degrees
-        let max_acceleration_angle = 70.0;
-
-        // Online version always uses 4 keV
-        let initial_cutoff_energy_guess = 4.0;
-
-        let acceptable_root_finding_error = 1e-3;
-        let max_root_finding_iterations = 100;
-
         SimplePowerLawAccelerationConfig {
-            ignore_rejection: false,
+            ignore_rejection: Self::DEFAULT_IGNORE_REJECTION,
             min_total_power_density,
             min_estimated_depletion_distance,
-            max_acceleration_angle,
-            initial_cutoff_energy_guess,
-            acceptable_root_finding_error,
-            max_root_finding_iterations,
+            max_acceleration_angle: Self::DEFAULT_MAX_ACCELERATION_ANGLE,
+            initial_cutoff_energy_guess: Self::DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS,
+            acceptable_root_finding_error: Self::DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR,
+            max_root_finding_iterations: Self::DEFAULT_MAX_ROOT_FINDING_ITERATIONS,
         }
     }
 
@@ -244,8 +256,7 @@ impl ElectronBeamSimulator {
     fn read_pitch_angle_distribution<G: Grid3<fdt>>(
         _reader: &SnapshotReader3<G>,
     ) -> PitchAngleDistribution {
-        // Online version always uses a peaked distribution
-        PitchAngleDistribution::Peaked
+        Self::DEFAULT_PITCH_ANGLE_DISTRIBUTION
     }
 
     fn read_distribution_config<G: Grid3<fdt>>(
@@ -265,34 +276,21 @@ impl ElectronBeamSimulator {
     fn read_interpolator_config<G: Grid3<fdt>>(
         _reader: &SnapshotReader3<G>,
     ) -> PolyFitInterpolatorConfig {
-        // Online version always 3'rd order
-        let order = 3;
         PolyFitInterpolatorConfig {
-            order,
-            ..PolyFitInterpolatorConfig::default()
+            order: Self::DEFAULT_INTERPOLATION_ORDER,
+            variation_threshold_for_linear:
+                Self::DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR_INTERPOLATION,
         }
     }
 
     fn read_rkf_stepper_type<G: Grid3<fdt>>(_reader: &SnapshotReader3<G>) -> RKFStepperType {
-        // Online version typically uses 5th order stepper
-        RKFStepperType::RKF45
+        Self::DEFAULT_RKF_STEPPER_TYPE
     }
 
     fn read_rkf_stepper_config<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> RKFStepperConfig {
         let dense_step_length = reader
             .get_numerical_param("ds_out")
             .unwrap_or_else(|err| panic!("{}", err));
-
-        // The following values are always used in the online version
-        let max_step_attempts = 16;
-        let absolute_tolerance = 1e-6;
-        let relative_tolerance = 1e-6;
-        let safety_factor = 0.9;
-        let min_step_scale = 0.2;
-        let max_step_scale = 10.0;
-        let initial_step_length = 1e-4;
-        let initial_error = 1e-4;
-        let sudden_reversals_for_sink = 3;
 
         let use_pi_control: u8 = reader
             .get_numerical_param("use_pi_ctrl")
@@ -301,15 +299,15 @@ impl ElectronBeamSimulator {
 
         RKFStepperConfig {
             dense_step_length,
-            max_step_attempts,
-            absolute_tolerance,
-            relative_tolerance,
-            safety_factor,
-            min_step_scale,
-            max_step_scale,
-            initial_step_length,
-            initial_error,
-            sudden_reversals_for_sink,
+            max_step_attempts: Self::DEFAULT_MAX_STEP_ATTEMPTS,
+            absolute_tolerance: Self::DEFAULT_ABSOLUTE_TOLERANCE,
+            relative_tolerance: Self::DEFAULT_RELATIVE_TOLERANCE,
+            safety_factor: Self::DEFAULT_SAFETY_FACTOR,
+            min_step_scale: Self::DEFAULT_MIN_STEP_SCALE,
+            max_step_scale: Self::DEFAULT_MAX_STEP_SCALE,
+            initial_error: Self::DEFAULT_INITIAL_ERROR,
+            initial_step_length: Self::DEFAULT_INITIAL_STEP_LENGTH,
+            sudden_reversals_for_sink: Self::DEFAULT_SUDDEN_REVERSALS_FOR_SINK,
             use_pi_control,
         }
     }
