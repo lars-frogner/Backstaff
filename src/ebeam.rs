@@ -277,7 +277,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
         let properties: ElectronBeamSwarmProperties = distributions
             .into_par_iter()
-            .map(Self::generate_unpropagated_beam)
+            .map(UnpropagatedElectronBeam::<A::DistributionType>::generate)
             .collect();
 
         ElectronBeamSwarm {
@@ -336,7 +336,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let properties: ElectronBeamSwarmProperties = distributions
             .into_par_iter()
             .filter_map(|distribution| {
-                Self::generate_propagated_beam(
+                PropagatedElectronBeam::<A::DistributionType>::generate(
                     distribution,
                     snapshot,
                     interpolator,
@@ -569,23 +569,25 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         file.write_all(&[buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6].concat())?;
         Ok(())
     }
+}
 
-    fn generate_unpropagated_beam(
-        distribution: A::DistributionType,
-    ) -> UnpropagatedElectronBeam<A::DistributionType> {
+impl<D: Distribution> UnpropagatedElectronBeam<D> {
+    fn generate(distribution: D) -> Self {
         let acceleration_position = Point3::from(distribution.acceleration_position());
         UnpropagatedElectronBeam {
             acceleration_position,
             distribution_properties: distribution.properties(),
         }
     }
+}
 
-    fn generate_propagated_beam<G, I, S>(
-        mut distribution: A::DistributionType,
+impl<D: Distribution> PropagatedElectronBeam<D> {
+    fn generate<G, I, S>(
+        mut distribution: D,
         snapshot: &SnapshotCacher3<G>,
         interpolator: &I,
         stepper: S,
-    ) -> Option<PropagatedElectronBeam<A::DistributionType>>
+    ) -> Option<Self>
     where
         G: Grid3<fdt>,
         I: Interpolator3,
