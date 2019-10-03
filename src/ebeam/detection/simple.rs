@@ -3,7 +3,7 @@
 use super::ReconnectionSiteDetector;
 use crate::geometry::Dim3;
 use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
 use crate::io::Verbose;
 use crate::tracing::seeding::criterion::CriterionSeeder3;
 use crate::tracing::seeding::IndexSeeder3;
@@ -83,8 +83,37 @@ impl SimpleReconnectionSiteDetectorConfig {
     const DEFAULT_MIN_DETECTION_DEPTH: fdt = -13.0; // [Mm]
     const DEFAULT_MAX_DETECTION_DEPTH: fdt = 0.0; // [Mm]
 
+    /// Creates a set of power law distribution configuration parameters with
+    /// values read from the specified parameter file when available, otherwise
+    /// falling back to the hardcoded defaults.
+    pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
+        let use_normalized_reconnection_factor = reader
+            .get_numerical_param::<u8>("norm_krec")
+            .unwrap_or_else(|err| panic!("{}", err))
+            > 0;
+
+        let reconnection_factor_threshold = reader
+            .get_numerical_param("krec_lim")
+            .unwrap_or_else(|err| panic!("{}", err));
+
+        let min_detection_depth = reader
+            .get_numerical_param("z_rec_ulim")
+            .unwrap_or_else(|err| panic!("{}", err));
+
+        let max_detection_depth = reader
+            .get_numerical_param("z_rec_llim")
+            .unwrap_or_else(|err| panic!("{}", err));
+
+        SimpleReconnectionSiteDetectorConfig {
+            use_normalized_reconnection_factor,
+            reconnection_factor_threshold,
+            min_detection_depth,
+            max_detection_depth,
+        }
+    }
+
     /// Panics if any of the configuration parameter values are invalid.
-    pub fn validate(&self) {
+    fn validate(&self) {
         assert!(
             self.reconnection_factor_threshold >= 0.0,
             "Reconnection factor threshold must be larger than or equal to zero."

@@ -8,10 +8,10 @@ use crate::constants::{AMU, KEV_TO_ERG, MC2_ELECTRON};
 use crate::geometry::{Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
-use crate::units::solar::{U_L, U_R};
+use crate::units::solar::{U_E, U_L, U_R, U_T};
 use rayon::prelude::*;
 
 /// An electron pitch-angle distribution which is either peaked or isotropic.
@@ -376,8 +376,23 @@ impl Distribution for PowerLawDistribution {
 impl PowerLawDistributionConfig {
     const DEFAULT_MIN_REMAINING_POWER_DENSITY: feb = 1e-6; // [erg/(cm^3 s)]
 
+    /// Creates a set of power law distribution configuration parameters with
+    /// values read from the specified parameter file when available, otherwise
+    /// falling back to the hardcoded defaults.
+    pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
+        let min_remaining_power_density = reader
+            .get_numerical_param::<feb>("min_stop_en")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_E
+            / U_T;
+
+        PowerLawDistributionConfig {
+            min_remaining_power_density,
+        }
+    }
+
     /// Panics if any of the configuration parameter values are invalid.
-    pub fn validate(&self) {
+    fn validate(&self) {
         assert!(
             self.min_remaining_power_density >= 0.0,
             "Minimum remaining power density must be larger than or equal to zero."

@@ -11,10 +11,10 @@ use crate::constants::{KBOLTZMANN, KEV_TO_ERG, MC2_ELECTRON};
 use crate::geometry::{Dim3, Idx3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
 use crate::io::Verbose;
 use crate::tracing::stepping::SteppingSense;
-use crate::units::solar::{U_E, U_R, U_T};
+use crate::units::solar::{U_E, U_L, U_R, U_T};
 use nrfind;
 use rayon::prelude::*;
 use serde::ser::{SerializeTuple, Serializer};
@@ -747,8 +747,46 @@ impl SimplePowerLawAccelerationConfig {
     const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
     const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
 
+    /// Creates a set of simple power law accelerator configuration parameters with
+    /// values read from the specified parameter file when available, otherwise
+    /// falling back to the hardcoded defaults.
+    pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
+        let acceleration_duration = reader
+            .get_numerical_param::<feb>("dt")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_T;
+
+        let particle_energy_fraction = reader
+            .get_numerical_param("qjoule_acc_frac")
+            .unwrap_or_else(|err| panic!("{}", err));
+
+        let power_law_delta = reader
+            .get_numerical_param("power_law_index")
+            .unwrap_or_else(|err| panic!("{}", err));
+
+        let min_total_power_density = reader
+            .get_numerical_param::<feb>("min_beam_en")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_E
+            / U_T;
+
+        let min_estimated_depletion_distance = reader
+            .get_numerical_param::<feb>("min_stop_dist")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_L;
+
+        SimplePowerLawAccelerationConfig {
+            acceleration_duration,
+            particle_energy_fraction,
+            power_law_delta,
+            min_total_power_density,
+            min_estimated_depletion_distance,
+            ..Self::default()
+        }
+    }
+
     /// Panics if any of the configuration parameter values are invalid.
-    pub fn validate(&self) {
+    fn validate(&self) {
         assert!(
             self.acceleration_duration >= 0.0,
             "Duration must be larger than or equal to zero."
