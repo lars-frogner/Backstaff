@@ -63,7 +63,7 @@ pub trait FieldLineTracer3 {
 }
 
 /// Data required to represent a 3D field line.
-struct FieldLineData3 {
+pub struct FieldLineData3 {
     path: FieldLinePath3,
     total_length: ftr,
 }
