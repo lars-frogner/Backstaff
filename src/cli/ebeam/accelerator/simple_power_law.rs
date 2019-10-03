@@ -9,9 +9,31 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     app: App<'a, 'b>,
 ) -> App<'a, 'b> {
     app.arg(
-        Arg::with_name("ignore-rejection")
-            .long("ignore-rejection")
-            .help("Generate beams even when they meet a rejection condition"),
+        Arg::with_name("acceleration-duration")
+            .long("acceleration-duration")
+            .value_name("VALUE")
+            .long_help("Duration of the acceleration events [s] [default: from param file]")
+            .takes_value(true),
+    )
+    .arg(
+        Arg::with_name("particle-energy-fraction")
+            .long("particle-energy-fraction")
+            .value_name("VALUE")
+            .long_help(
+                "Fraction of the released reconnection energy going into acceleration of\n\
+                 electrons [default: from param file]",
+            )
+            .takes_value(true),
+    )
+    .arg(
+        Arg::with_name("power-law-delta")
+            .long("power-law-delta")
+            .value_name("VALUE")
+            .long_help(
+                "Exponent of the inverse power-law describing the non-thermal electron\n\
+                 distribution [default: from param file]",
+            )
+            .takes_value(true),
     )
     .arg(
         Arg::with_name("min-total-power-density")
@@ -68,6 +90,11 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
             .takes_value(true)
             .default_value("100"),
     )
+    .arg(
+        Arg::with_name("ignore-rejection")
+            .long("ignore-rejection")
+            .help("Generate beams even when they meet a rejection condition"),
+    )
 }
 
 /// Sets simple power-law distribution accelerator parameters based on present arguments.
@@ -75,10 +102,20 @@ pub fn configure_simple_power_law_accelerator_from_options(
     config: &mut SimplePowerLawAccelerationConfig,
     arguments: &ArgMatches,
 ) {
-    cli::assign_bool_value_from_flag_presence(
-        &mut config.ignore_rejection,
+    cli::assign_value_from_parseable_argument(
+        &mut config.acceleration_duration,
         arguments,
-        "ignore-rejection",
+        "acceleration-duration",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut config.particle_energy_fraction,
+        arguments,
+        "particle-energy-fraction",
+    );
+    cli::assign_value_from_parseable_argument(
+        &mut config.power_law_delta,
+        arguments,
+        "power-law-delta",
     );
     cli::assign_value_from_parseable_argument(
         &mut config.min_total_power_density,
@@ -109,5 +146,10 @@ pub fn configure_simple_power_law_accelerator_from_options(
         &mut config.max_root_finding_iterations,
         arguments,
         "max-root-finding-iterations",
+    );
+    cli::assign_bool_value_from_flag_presence(
+        &mut config.ignore_rejection,
+        arguments,
+        "ignore-rejection",
     );
 }

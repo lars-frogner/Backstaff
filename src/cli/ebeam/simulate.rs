@@ -181,33 +181,6 @@ fn add_electron_beam_simulator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -
             .takes_value(true),
     )
     .arg(
-        Arg::with_name("acceleration-duration")
-            .long("acceleration-duration")
-            .value_name("VALUE")
-            .long_help("Duration of the acceleration events [s] [default: from param file]")
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("particle-energy-fraction")
-            .long("particle-energy-fraction")
-            .value_name("VALUE")
-            .long_help(
-                "Fraction of the released reconnection energy going into acceleration of\n\
-                 electrons [default: from param file]",
-            )
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("power-law-delta")
-            .long("power-law-delta")
-            .value_name("VALUE")
-            .long_help(
-                "Exponent of the inverse power-law describing the non-thermal electron\n\
-                 distribution [default: from param file]",
-            )
-            .takes_value(true),
-    )
-    .arg(
         Arg::with_name("stepping-scheme")
             .long("stepping-scheme")
             .value_name("NAME")
@@ -243,21 +216,6 @@ fn configure_electron_beam_simulator_from_options(
         &mut simulator.max_acceleration_depth,
         arguments,
         "max-acceleration-depth",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut simulator.acceleration_duration,
-        arguments,
-        "acceleration-duration",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut simulator.particle_energy_fraction,
-        arguments,
-        "particle-energy-fraction",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut simulator.power_law_delta,
-        arguments,
-        "power-law-delta",
     );
     cli::assign_value_from_selected_argument(
         &mut simulator.stepper_type,
