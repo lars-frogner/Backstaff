@@ -2,6 +2,7 @@
 
 use crate::cli;
 use crate::ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig;
+use crate::ebeam::distribution::power_law::PitchAngleDistribution;
 use clap::{App, Arg, ArgMatches};
 
 /// Adds arguments for parameters used by the simple power-law distribution accelerator.
@@ -34,6 +35,15 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
                  distribution [default: from param file]",
             )
             .takes_value(true),
+    )
+    .arg(
+        Arg::with_name("pitch-angle-distribution")
+            .long("pitch-angle-distribution")
+            .value_name("TYPE")
+            .long_help("Type of pitch angle distribution of the non-thermal electrons\n")
+            .takes_value(true)
+            .possible_values(&["peaked", "isotropic"])
+            .default_value("peaked"),
     )
     .arg(
         Arg::with_name("min-total-power-density")
@@ -116,6 +126,16 @@ pub fn configure_simple_power_law_accelerator_from_options(
         &mut config.power_law_delta,
         arguments,
         "power-law-delta",
+    );
+    cli::assign_value_from_selected_argument(
+        &mut config.pitch_angle_distribution,
+        arguments,
+        "pitch-angle-distribution",
+        &["peaked", "isotropic"],
+        &[
+            PitchAngleDistribution::Peaked,
+            PitchAngleDistribution::Isotropic,
+        ],
     );
     cli::assign_value_from_parseable_argument(
         &mut config.min_total_power_density,
