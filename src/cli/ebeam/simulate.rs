@@ -140,47 +140,6 @@ pub fn run_subcommand_simulate(arguments: &ArgMatches) {
 /// Adds arguments for parameters used by the electron beam simulator.
 fn add_electron_beam_simulator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
     app.arg(
-        Arg::with_name("reconnection-factor-type")
-            .long("reconnection-factor-type")
-            .value_name("TYPE")
-            .long_help(
-                "Which version of the reconnection factor to use for seeding\n\
-                 [default: from param file]",
-            )
-            .takes_value(true)
-            .possible_values(&["standard", "normalized"]),
-    )
-    .arg(
-        Arg::with_name("reconnection-factor-threshold")
-            .long("reconnection-factor-threshold")
-            .value_name("VALUE")
-            .long_help(
-                "Beams will be generated where the reconnection factor value is larger than this\n\
-                 [default: from param file]",
-            )
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("min-acceleration-depth")
-            .long("min-acceleration-depth")
-            .value_name("VALUE")
-            .long_help(
-                "Smallest depth at which electrons will be accelerated [Mm]\n\
-                 [default: from param file]",
-            )
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("max-acceleration-depth")
-            .long("max-acceleration-depth")
-            .value_name("VALUE")
-            .long_help(
-                "Largest depth at which electrons will be accelerated [Mm]\n\
-                 [default: from param file]",
-            )
-            .takes_value(true),
-    )
-    .arg(
         Arg::with_name("stepping-scheme")
             .long("stepping-scheme")
             .value_name("NAME")
@@ -195,28 +154,6 @@ fn configure_electron_beam_simulator_from_options(
     simulator: &mut ElectronBeamSimulator,
     arguments: &ArgMatches,
 ) {
-    cli::assign_value_from_selected_argument(
-        &mut simulator.use_normalized_reconnection_factor,
-        arguments,
-        "reconnection-factor-type",
-        &["standard", "normalized"],
-        &[false, true],
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut simulator.reconnection_factor_threshold,
-        arguments,
-        "reconnection-factor-threshold",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut simulator.min_acceleration_depth,
-        arguments,
-        "min-acceleration-depth",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut simulator.max_acceleration_depth,
-        arguments,
-        "max-acceleration-depth",
-    );
     cli::assign_value_from_selected_argument(
         &mut simulator.stepper_type,
         arguments,
