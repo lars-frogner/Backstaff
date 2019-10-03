@@ -53,7 +53,7 @@ pub fn configure_basic_field_line_tracer_from_options(
         ],
     );
     cli::assign_value_from_selected_argument(
-        &mut config.tracing_sense,
+        &mut config.point_spacing,
         arguments,
         "field-line-point-spacing",
         &["regular", "natural"],
@@ -67,8 +67,8 @@ pub fn configure_basic_field_line_tracer_from_options(
         .expect("No value for argument with default")
     {
         "inf" => None,
-        length_str => Some(length_str.parse()).unwrap_or_else(|err| {
+        length_str => Some(length_str.parse().unwrap_or_else(|err| {
             panic!("Could not parse value of max-field-line-length: {}", err)
-        }),
+        })),
     };
 }
