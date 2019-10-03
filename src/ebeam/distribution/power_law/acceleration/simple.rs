@@ -44,8 +44,12 @@ pub struct RejectionCauseCodeCollection {
 /// Configuration parameters for the simple power-law acceleration model.
 #[derive(Clone, Debug)]
 pub struct SimplePowerLawAccelerationConfig {
-    /// Whether to generate a distribution even when it meets a rejection condition.
-    pub ignore_rejection: bool,
+    /// Duration of the acceleration events [s].
+    pub acceleration_duration: feb,
+    /// Fraction of the released reconnection energy going into acceleration of electrons.
+    pub particle_energy_fraction: feb,
+    /// Exponent of the inverse power-law describing the non-thermal electron distribution.
+    pub power_law_delta: feb,
     /// Distributions with total power densities smaller than this value
     /// are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
@@ -61,6 +65,8 @@ pub struct SimplePowerLawAccelerationConfig {
     pub acceptable_root_finding_error: feb,
     /// Maximum number of iterations when estimating lower cut-off energy.
     pub max_root_finding_iterations: i32,
+    /// Whether to generate a distribution even when it meets a rejection condition.
+    pub ignore_rejection: bool,
 }
 
 // Simple acceleration process producing power-law distributions of non-thermal electrons.
@@ -72,9 +78,6 @@ pub struct SimplePowerLawAccelerator {
     /// the normal of the magnetic field direction in order for the electrons to be propagated.
     acceleration_alignment_threshold: fdt,
     pitch_angle_factor: feb,
-    duration: feb,
-    particle_energy_fraction: feb,
-    delta: feb,
 }
 
 impl RejectionCauseCode {
@@ -128,11 +131,11 @@ impl SimplePowerLawAccelerator {
         let joule_heating = feb::from(joule_heating_field.value(indices));
         let joule_heating = feb::max(0.0, joule_heating * U_E / U_T); // [erg/(cm^3 s)]
 
-        self.particle_energy_fraction * joule_heating
+        self.config.particle_energy_fraction * joule_heating
     }
 
     fn compute_total_energy_density(&self, total_power_density: feb) -> feb {
-        total_power_density * self.duration
+        total_power_density * self.config.acceleration_duration
     }
 
     fn determine_temperature<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
@@ -172,7 +175,7 @@ impl SimplePowerLawAccelerator {
         }
         let beta = KEV_TO_ERG / (KBOLTZMANN * temperature); // [1/keV]
         let thermal_fraction = KEV_TO_ERG * (3.0 / 2.0) * electron_density * feb::sqrt(beta)
-            / (total_energy_density * (self.delta - 1.0)); // [1/keV^(3/2)]
+            / (total_energy_density * (self.config.power_law_delta - 1.0)); // [1/keV^(3/2)]
         let ln_thermal_fraction = feb::ln(thermal_fraction);
 
         let difference = |energy| ln_thermal_fraction + feb::ln(energy) - beta * energy;
@@ -209,7 +212,6 @@ impl SimplePowerLawAccelerator {
     }
 
     fn determine_acceleration_direction<G>(
-        &self,
         snapshot: &SnapshotCacher3<G>,
         indices: &Idx3<usize>,
     ) -> Option<Vec3<fdt>>
@@ -310,9 +312,6 @@ impl SimplePowerLawAccelerator {
     pub fn new(
         distribution_config: PowerLawDistributionConfig,
         config: SimplePowerLawAccelerationConfig,
-        duration: feb,
-        particle_energy_fraction: feb,
-        delta: feb,
         pitch_angle_distribution: PitchAngleDistribution,
     ) -> Self {
         distribution_config.validate();
@@ -323,24 +322,11 @@ impl SimplePowerLawAccelerator {
         let acceleration_alignment_threshold =
             feb::cos(config.max_acceleration_angle.to_radians()) as fdt;
 
-        assert!(
-            duration >= 0.0,
-            "Duration must be larger than or equal to zero."
-        );
-        assert!(
-            particle_energy_fraction >= 0.0,
-            "Particle energy fraction must be larger than or equal to zero."
-        );
-        assert!(delta > 2.0, "Power-law delta must be larger than two.");
-
         SimplePowerLawAccelerator {
             distribution_config,
             config,
             acceleration_alignment_threshold,
             pitch_angle_factor,
-            duration,
-            particle_energy_fraction,
-            delta,
         }
     }
 
@@ -399,13 +385,15 @@ impl SimplePowerLawAccelerator {
                     Some(energy) => energy,
                     None => return None,
                 };
-                let mean_energy =
-                    PowerLawDistribution::compute_mean_energy(self.delta, lower_cutoff_energy);
+                let mean_energy = PowerLawDistribution::compute_mean_energy(
+                    self.config.power_law_delta,
+                    lower_cutoff_energy,
+                );
 
                 let estimated_depletion_distance =
                     PowerLawDistribution::estimate_depletion_distance(
                         electron_density,
-                        self.delta,
+                        self.config.power_law_delta,
                         self.pitch_angle_factor,
                         total_power_density,
                         lower_cutoff_energy,
@@ -445,8 +433,8 @@ impl SimplePowerLawAccelerator {
                 )| {
                     let acceleration_position =
                         Self::determine_acceleration_position(snapshot, &indices);
-                    self.determine_acceleration_direction(snapshot, &indices)
-                        .map(|acceleration_direction| {
+                    Self::determine_acceleration_direction(snapshot, &indices).map(
+                        |acceleration_direction| {
                             (
                                 indices,
                                 total_power_density,
@@ -457,7 +445,8 @@ impl SimplePowerLawAccelerator {
                                 acceleration_position,
                                 acceleration_direction,
                             )
-                        })
+                        },
+                    )
                 },
             )
             .collect();
@@ -498,7 +487,7 @@ impl SimplePowerLawAccelerator {
                             Self::find_propagation_sense(acceleration_alignment_factor);
 
                         let distribution_data = PowerLawDistributionData {
-                            delta: self.delta,
+                            delta: self.config.power_law_delta,
                             pitch_angle_factor: self.pitch_angle_factor,
                             total_power_density,
                             lower_cutoff_energy,
@@ -574,13 +563,15 @@ impl SimplePowerLawAccelerator {
                     Some(energy) => energy,
                     None => return None,
                 };
-                let mean_energy =
-                    PowerLawDistribution::compute_mean_energy(self.delta, lower_cutoff_energy);
+                let mean_energy = PowerLawDistribution::compute_mean_energy(
+                    self.config.power_law_delta,
+                    lower_cutoff_energy,
+                );
 
                 let estimated_depletion_distance =
                     PowerLawDistribution::estimate_depletion_distance(
                         electron_density,
-                        self.delta,
+                        self.config.power_law_delta,
                         self.pitch_angle_factor,
                         total_power_density,
                         lower_cutoff_energy,
@@ -621,8 +612,8 @@ impl SimplePowerLawAccelerator {
                 )| {
                     let acceleration_position =
                         Self::determine_acceleration_position(snapshot, &indices);
-                    self.determine_acceleration_direction(snapshot, &indices)
-                        .map(|acceleration_direction| {
+                    Self::determine_acceleration_direction(snapshot, &indices).map(
+                        |acceleration_direction| {
                             (
                                 rejection_cause_code,
                                 indices,
@@ -634,7 +625,8 @@ impl SimplePowerLawAccelerator {
                                 acceleration_position,
                                 acceleration_direction,
                             )
-                        })
+                        },
+                    )
                 },
             )
             .collect();
@@ -679,7 +671,7 @@ impl SimplePowerLawAccelerator {
                             Self::find_propagation_sense(acceleration_alignment_factor);
 
                         let distribution_data = PowerLawDistributionData {
-                            delta: self.delta,
+                            delta: self.config.power_law_delta,
                             pitch_angle_factor: self.pitch_angle_factor,
                             total_power_density,
                             lower_cutoff_energy,
@@ -737,6 +729,9 @@ impl Accelerator for SimplePowerLawAccelerator {
 }
 
 impl SimplePowerLawAccelerationConfig {
+    const DEFAULT_ACCELERATION_DURATION: feb = 1.0; // [s]
+    const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.5;
+    const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
     const DEFAULT_IGNORE_REJECTION: bool = false;
     const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
     const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
@@ -747,6 +742,18 @@ impl SimplePowerLawAccelerationConfig {
 
     /// Panics if any of the configuration parameter values are invalid.
     pub fn validate(&self) {
+        assert!(
+            self.acceleration_duration >= 0.0,
+            "Duration must be larger than or equal to zero."
+        );
+        assert!(
+            self.particle_energy_fraction >= 0.0,
+            "Particle energy fraction must be larger than or equal to zero."
+        );
+        assert!(
+            self.power_law_delta > 2.0,
+            "Power-law delta must be larger than two."
+        );
         assert!(
             self.min_total_power_density >= 0.0,
             "Minimum total power density must be larger than or equal to zero."
@@ -777,6 +784,9 @@ impl SimplePowerLawAccelerationConfig {
 impl Default for SimplePowerLawAccelerationConfig {
     fn default() -> Self {
         SimplePowerLawAccelerationConfig {
+            acceleration_duration: Self::DEFAULT_ACCELERATION_DURATION,
+            particle_energy_fraction: Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
+            power_law_delta: Self::DEFAULT_POWER_LAW_DELTA,
             ignore_rejection: Self::DEFAULT_IGNORE_REJECTION,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             min_estimated_depletion_distance: Self::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
