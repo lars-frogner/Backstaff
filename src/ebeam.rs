@@ -1,10 +1,12 @@
 //! Non-thermal electron beam physics in Bifrost simulations.
 
 pub mod accelerator;
+pub mod detection;
 pub mod distribution;
 pub mod execution;
 
 use self::accelerator::Accelerator;
+use self::detection::ReconnectionSiteDetector;
 use self::distribution::{DepletionStatus, Distribution, PropagationResult};
 use crate::field::{ScalarField3, VectorField3};
 use crate::geometry::{Dim3, Point3, Vec3};
@@ -14,7 +16,6 @@ use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::io::utils;
 use crate::io::Verbose;
 use crate::num::BFloat;
-use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::{Stepper3, StepperFactory3, StepperInstruction};
 use crate::tracing::{self, ftr, TracerResult};
 use rayon::prelude::*;
@@ -244,8 +245,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Parameters
     ///
-    /// - `seeder`: Seeder to use for generating acceleration positions.
     /// - `snapshot`: Snapshot representing the atmosphere.
+    /// - `detector`: Reconnection site detector to use for obtaining acceleration positions.
     /// - `accelerator`: Accelerator to use for generating electron distributions.
     /// - `interpolator`: Interpolator to use.
     /// - `verbose`: Whether to print status messages.
@@ -256,23 +257,19 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Type parameters
     ///
-    /// - `Sd`: Type of index seeder.
     /// - `G`: Type of grid.
+    /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
-    pub fn generate_unpropagated<Sd, G, I>(seeder: Sd, snapshot: &mut SnapshotCacher3<G>, accelerator: A, interpolator: &I, verbose: Verbose) -> Self
-    where Sd: IndexSeeder3,
-          G: Grid3<fdt>,
+    pub fn generate_unpropagated<G, D, I>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, verbose: Verbose) -> Self
+    where G: Grid3<fdt>,
+          D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
           I: Interpolator3
     {
-        if verbose.is_yes() {
-            println!("Found {} acceleration sites", seeder.number_of_indices());
-        }
-
         let (distributions, metadata) = accelerator
-            .generate_distributions(seeder, snapshot, interpolator, verbose)
+            .generate_distributions(snapshot, detector, interpolator, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         let properties: ElectronBeamSwarmProperties = distributions
@@ -292,8 +289,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Parameters
     ///
-    /// - `seeder`: Seeder to use for generating start positions.
     /// - `snapshot`: Snapshot representing the atmosphere.
+    /// - `detector`: Reconnection site detector to use for obtaining acceleration positions.
     /// - `accelerator`: Accelerator to use for generating initial electron distributions.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper_factory`: Factory structure to use for producing steppers.
@@ -305,25 +302,21 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Type parameters
     ///
-    /// - `Sd`: Type of index seeder.
     /// - `G`: Type of grid.
+    /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<Sd, G, I, StF>(seeder: Sd, snapshot: &mut SnapshotCacher3<G>, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: Verbose) -> Self
-    where Sd: IndexSeeder3,
-          G: Grid3<fdt>,
+    pub fn generate_propagated<G, D, I, StF>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: Verbose) -> Self
+    where G: Grid3<fdt>,
+          D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
           I: Interpolator3,
           StF: StepperFactory3 + Sync
     {
-        if verbose.is_yes() {
-            println!("Found {} acceleration sites", seeder.number_of_indices());
-        }
-
         let (distributions, metadata) = accelerator
-            .generate_distributions(seeder, snapshot, interpolator, verbose)
+            .generate_distributions(snapshot, detector, interpolator, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         if verbose.is_yes() {

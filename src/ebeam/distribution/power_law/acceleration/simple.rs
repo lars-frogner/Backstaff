@@ -1,6 +1,7 @@
 //! Simple model for acceleration of non-thermal electron beams described by power-law distributions.
 
 use super::super::super::super::accelerator::Accelerator;
+use super::super::super::super::detection::ReconnectionSiteDetector;
 use super::super::super::super::{feb, BeamMetadataCollection};
 use super::super::{
     PitchAngleDistribution, PowerLawDistribution, PowerLawDistributionConfig,
@@ -12,7 +13,6 @@ use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::io::Verbose;
-use crate::tracing::seeding::IndexSeeder3;
 use crate::tracing::stepping::SteppingSense;
 use crate::units::solar::{U_E, U_R, U_T};
 use nrfind;
@@ -50,6 +50,8 @@ pub struct SimplePowerLawAccelerationConfig {
     pub particle_energy_fraction: feb,
     /// Exponent of the inverse power-law describing the non-thermal electron distribution.
     pub power_law_delta: feb,
+    /// Type of pitch angle distribution of the non-thermal electrons.
+    pub pitch_angle_distribution: PitchAngleDistribution,
     /// Distributions with total power densities smaller than this value
     /// are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
@@ -301,10 +303,6 @@ impl SimplePowerLawAccelerator {
     ///
     /// - `distribution_config`: Configuration parameters for the distribution.
     /// - `config`: Configuration parameters for the accelerator.
-    /// - `duration`: Duration of the acceleration events [s].
-    /// - `particle_energy_fraction`: Fraction of the total energy release going into acceleration of non-thermal particles.
-    /// - `delta`: Exponent of the inverse power-law.
-    /// - `pitch_angle_distribution`: Type of pitch angle distribution of the non-thermal electrons.
     ///
     /// # Returns
     ///
@@ -312,13 +310,12 @@ impl SimplePowerLawAccelerator {
     pub fn new(
         distribution_config: PowerLawDistributionConfig,
         config: SimplePowerLawAccelerationConfig,
-        pitch_angle_distribution: PitchAngleDistribution,
     ) -> Self {
         distribution_config.validate();
         config.validate();
 
         let pitch_angle_factor =
-            PowerLawDistribution::determine_pitch_angle_factor(pitch_angle_distribution);
+            PowerLawDistribution::determine_pitch_angle_factor(config.pitch_angle_distribution);
         let acceleration_alignment_threshold =
             feb::cos(config.max_acceleration_angle.to_radians()) as fdt;
 
@@ -330,18 +327,20 @@ impl SimplePowerLawAccelerator {
         }
     }
 
-    fn generate_distributions_with_rejection<Sd, G, I>(
+    fn generate_distributions_with_rejection<G, D, I>(
         &self,
-        seeder: Sd,
         snapshot: &mut SnapshotCacher3<G>,
+        detector: D,
         interpolator: &I,
         verbose: Verbose,
     ) -> io::Result<Vec<PowerLawDistribution>>
     where
-        Sd: IndexSeeder3,
         G: Grid3<fdt>,
+        D: ReconnectionSiteDetector,
         I: Interpolator3,
     {
+        let seeder = detector.detect_reconnection_sites(snapshot, verbose);
+
         if verbose.is_yes() {
             println!("Computing total power densities");
         }
@@ -508,18 +507,20 @@ impl SimplePowerLawAccelerator {
             .collect())
     }
 
-    fn generate_distributions_without_rejection<Sd, G, I>(
+    fn generate_distributions_without_rejection<G, D, I>(
         &self,
-        seeder: Sd,
         snapshot: &mut SnapshotCacher3<G>,
+        detector: D,
         interpolator: &I,
         verbose: Verbose,
     ) -> io::Result<(Vec<PowerLawDistribution>, RejectionCauseCodeCollection)>
     where
-        Sd: IndexSeeder3,
         G: Grid3<fdt>,
+        D: ReconnectionSiteDetector,
         I: Interpolator3,
     {
+        let seeder = detector.detect_reconnection_sites(snapshot, verbose);
+
         if verbose.is_yes() {
             println!("Computing total power densities");
         }
@@ -700,25 +701,30 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
     type MetadataCollectionType = RejectionCauseCodeCollection;
 
-    fn generate_distributions<Sd, G, I>(
+    fn generate_distributions<G, D, I>(
         &self,
-        seeder: Sd,
         snapshot: &mut SnapshotCacher3<G>,
+        detector: D,
         interpolator: &I,
         verbose: Verbose,
     ) -> io::Result<(Vec<Self::DistributionType>, Self::MetadataCollectionType)>
     where
-        Sd: IndexSeeder3,
         G: Grid3<fdt>,
+        D: ReconnectionSiteDetector,
         I: Interpolator3,
     {
         Ok(if self.config.ignore_rejection {
-            self.generate_distributions_without_rejection(seeder, snapshot, interpolator, verbose)?
+            self.generate_distributions_without_rejection(
+                snapshot,
+                detector,
+                interpolator,
+                verbose,
+            )?
         } else {
             (
                 self.generate_distributions_with_rejection(
-                    seeder,
                     snapshot,
+                    detector,
                     interpolator,
                     verbose,
                 )?,
@@ -732,6 +738,7 @@ impl SimplePowerLawAccelerationConfig {
     const DEFAULT_ACCELERATION_DURATION: feb = 1.0; // [s]
     const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.5;
     const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
+    const DEFAULT_PITCH_ANGLE_DISTRIBUTION: PitchAngleDistribution = PitchAngleDistribution::Peaked;
     const DEFAULT_IGNORE_REJECTION: bool = false;
     const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
     const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
@@ -787,6 +794,7 @@ impl Default for SimplePowerLawAccelerationConfig {
             acceleration_duration: Self::DEFAULT_ACCELERATION_DURATION,
             particle_energy_fraction: Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
             power_law_delta: Self::DEFAULT_POWER_LAW_DELTA,
+            pitch_angle_distribution: Self::DEFAULT_PITCH_ANGLE_DISTRIBUTION,
             ignore_rejection: Self::DEFAULT_IGNORE_REJECTION,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             min_estimated_depletion_distance: Self::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
