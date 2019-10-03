@@ -1,7 +1,9 @@
 //! Command line interface for basic field line tracing.
 
 use crate::cli;
-use crate::tracing::field_line::basic::{FieldLineTracingSense, FieldLinePointSpacing, BasicFieldLineTracerConfig};
+use crate::tracing::field_line::basic::{
+    BasicFieldLineTracerConfig, FieldLinePointSpacing, FieldLineTracingSense,
+};
 use clap::{App, Arg, ArgMatches};
 
 /// Adds arguments for parameters used by the basic field line tracer.
@@ -35,24 +37,38 @@ pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b
 }
 
 /// Sets basic field line tracer parameters based on present arguments.
-pub fn configure_basic_field_line_tracer_from_options(config: &mut BasicFieldLineTracerConfig, arguments: &ArgMatches) {
+pub fn configure_basic_field_line_tracer_from_options(
+    config: &mut BasicFieldLineTracerConfig,
+    arguments: &ArgMatches,
+) {
     cli::assign_value_from_selected_argument(
         &mut config.tracing_sense,
         arguments,
         "field-line-tracing-sense",
         &["both", "same", "opposite"],
-        &[FieldLineTracingSense::Both, FieldLineTracingSense::same(), FieldLineTracingSense::opposite()],
+        &[
+            FieldLineTracingSense::Both,
+            FieldLineTracingSense::same(),
+            FieldLineTracingSense::opposite(),
+        ],
     );
     cli::assign_value_from_selected_argument(
         &mut config.tracing_sense,
         arguments,
         "field-line-point-spacing",
-        &[["regular", "natural"],
-        &[FieldLinePointSpacing::Regular, FieldLinePointSpacing::Natural],
+        &["regular", "natural"],
+        &[
+            FieldLinePointSpacing::Regular,
+            FieldLinePointSpacing::Natural,
+        ],
     );
-    config.max_length = match arguments.value_of("max-field-line-length").expect("No value for argument with default") {
+    config.max_length = match arguments
+        .value_of("max-field-line-length")
+        .expect("No value for argument with default")
+    {
         "inf" => None,
-        length_str => Some(length_str.parse())
-        .unwrap_or_else(|err| panic!("Could not parse value of max-field-line-length: {}", err))
+        length_str => Some(length_str.parse()).unwrap_or_else(|err| {
+            panic!("Could not parse value of max-field-line-length: {}", err)
+        }),
     };
 }
