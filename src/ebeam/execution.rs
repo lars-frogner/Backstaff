@@ -33,12 +33,6 @@ pub struct ElectronBeamSimulator {
     pub max_acceleration_depth: fdt,
     /// Configuration parameters for the acceleration model.
     pub accelerator_config: SimplePowerLawAccelerationConfig,
-    /// Duration of the acceleration events [s].
-    pub acceleration_duration: feb,
-    /// Fraction of the released reconnection energy going into acceleration of electrons.
-    pub particle_energy_fraction: feb,
-    /// Exponent of the inverse power-law describing the non-thermal electron distribution.
-    pub power_law_delta: feb,
     /// Type of pitch angle distribution of the non-thermal electrons.
     pub pitch_angle_distribution: PitchAngleDistribution,
     /// Configuration parameters for the electron distribution model.
@@ -84,9 +78,6 @@ impl ElectronBeamSimulator {
         let min_acceleration_depth = Self::read_min_acceleration_depth(&reader);
         let max_acceleration_depth = Self::read_max_acceleration_depth(&reader);
         let accelerator_config = Self::read_accelerator_config(&reader);
-        let acceleration_duration = Self::read_acceleration_duration(&reader);
-        let particle_energy_fraction = Self::read_particle_energy_fraction(&reader);
-        let power_law_delta = Self::read_power_law_delta(&reader);
         let pitch_angle_distribution = Self::read_pitch_angle_distribution(&reader);
         let distribution_config = Self::read_distribution_config(&reader);
         let interpolator_config = Self::read_interpolator_config(&reader);
@@ -100,9 +91,6 @@ impl ElectronBeamSimulator {
             min_acceleration_depth,
             max_acceleration_depth,
             accelerator_config,
-            acceleration_duration,
-            particle_energy_fraction,
-            power_law_delta,
             pitch_angle_distribution,
             distribution_config,
             interpolator_config,
@@ -212,6 +200,19 @@ impl ElectronBeamSimulator {
     fn read_accelerator_config<G: Grid3<fdt>>(
         reader: &SnapshotReader3<G>,
     ) -> SimplePowerLawAccelerationConfig {
+        let acceleration_duration = reader
+            .get_numerical_param::<feb>("dt")
+            .unwrap_or_else(|err| panic!("{}", err))
+            * U_T;
+
+        let particle_energy_fraction = reader
+            .get_numerical_param("qjoule_acc_frac")
+            .unwrap_or_else(|err| panic!("{}", err));
+
+        let power_law_delta = reader
+            .get_numerical_param("power_law_index")
+            .unwrap_or_else(|err| panic!("{}", err));
+
         let min_total_power_density = reader
             .get_numerical_param::<feb>("min_beam_en")
             .unwrap_or_else(|err| panic!("{}", err))
@@ -224,33 +225,17 @@ impl ElectronBeamSimulator {
             * U_L;
 
         SimplePowerLawAccelerationConfig {
-            ignore_rejection: Self::DEFAULT_IGNORE_REJECTION,
+            acceleration_duration,
+            particle_energy_fraction,
+            power_law_delta,
             min_total_power_density,
             min_estimated_depletion_distance,
             max_acceleration_angle: Self::DEFAULT_MAX_ACCELERATION_ANGLE,
             initial_cutoff_energy_guess: Self::DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS,
             acceptable_root_finding_error: Self::DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR,
             max_root_finding_iterations: Self::DEFAULT_MAX_ROOT_FINDING_ITERATIONS,
+            ignore_rejection: Self::DEFAULT_IGNORE_REJECTION,
         }
-    }
-
-    fn read_acceleration_duration<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
-        reader
-            .get_numerical_param::<feb>("dt")
-            .unwrap_or_else(|err| panic!("{}", err))
-            * U_T
-    }
-
-    fn read_particle_energy_fraction<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
-        reader
-            .get_numerical_param("qjoule_acc_frac")
-            .unwrap_or_else(|err| panic!("{}", err))
-    }
-
-    fn read_power_law_delta<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> feb {
-        reader
-            .get_numerical_param("power_law_index")
-            .unwrap_or_else(|err| panic!("{}", err))
     }
 
     fn read_pitch_angle_distribution<G: Grid3<fdt>>(
@@ -350,9 +335,6 @@ impl ElectronBeamSimulator {
         SimplePowerLawAccelerator::new(
             self.distribution_config.clone(),
             self.accelerator_config.clone(),
-            self.acceleration_duration,
-            self.particle_energy_fraction,
-            self.power_law_delta,
             self.pitch_angle_distribution,
         )
     }
