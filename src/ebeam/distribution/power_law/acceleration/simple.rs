@@ -735,46 +735,58 @@ impl Accelerator for SimplePowerLawAccelerator {
 }
 
 impl SimplePowerLawAccelerationConfig {
-    const DEFAULT_ACCELERATION_DURATION: feb = 1.0; // [s]
-    const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.5;
-    const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
-    const DEFAULT_PITCH_ANGLE_DISTRIBUTION: PitchAngleDistribution = PitchAngleDistribution::Peaked;
-    const DEFAULT_IGNORE_REJECTION: bool = false;
-    const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
-    const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
-    const DEFAULT_MAX_ACCELERATION_ANGLE: feb = 70.0; // [deg]
-    const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 4.0; // [keV]
-    const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
-    const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
+    pub const DEFAULT_ACCELERATION_DURATION: feb = 1.0; // [s]
+    pub const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.5;
+    pub const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
+    pub const DEFAULT_PITCH_ANGLE_DISTRIBUTION: PitchAngleDistribution =
+        PitchAngleDistribution::Peaked;
+    pub const DEFAULT_IGNORE_REJECTION: bool = false;
+    pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
+    pub const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
+    pub const DEFAULT_MAX_ACCELERATION_ANGLE: feb = 70.0; // [deg]
+    pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 4.0; // [keV]
+    pub const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
+    pub const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
 
     /// Creates a set of simple power law accelerator configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
         let acceleration_duration = reader
-            .get_numerical_param::<feb>("dt")
-            .unwrap_or_else(|err| panic!("{}", err))
-            * U_T;
-
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "acceleration_duration",
+                "dt",
+                &|dt: feb| dt * U_T,
+                Self::DEFAULT_ACCELERATION_DURATION,
+            );
         let particle_energy_fraction = reader
-            .get_numerical_param("qjoule_acc_frac")
-            .unwrap_or_else(|err| panic!("{}", err));
-
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "particle_energy_fraction",
+                "qjoule_acc_frac",
+                &|dt: feb| dt * U_T,
+                Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
+            );
         let power_law_delta = reader
-            .get_numerical_param("power_law_index")
-            .unwrap_or_else(|err| panic!("{}", err));
-
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "power_law_delta",
+                "power_law_index",
+                &|power_law_index| power_law_index,
+                Self::DEFAULT_POWER_LAW_DELTA,
+            );
         let min_total_power_density = reader
-            .get_numerical_param::<feb>("min_beam_en")
-            .unwrap_or_else(|err| panic!("{}", err))
-            * U_E
-            / U_T;
-
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "min_total_power_density",
+                "min_beam_en",
+                &|min_beam_en: feb| min_beam_en * U_E / U_T,
+                Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
+            );
         let min_estimated_depletion_distance = reader
-            .get_numerical_param::<feb>("min_stop_dist")
-            .unwrap_or_else(|err| panic!("{}", err))
-            * U_L;
-
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "min_estimated_depletion_distance",
+                "min_stop_dist",
+                &|min_stop_dist: feb| min_stop_dist * U_L,
+                Self::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
+            );
         SimplePowerLawAccelerationConfig {
             acceleration_duration,
             particle_energy_fraction,
