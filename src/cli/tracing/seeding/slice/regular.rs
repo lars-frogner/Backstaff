@@ -32,6 +32,7 @@ pub fn add_regular_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) 
     .arg(
         Arg::with_name("SHAPE")
             .help("Shape of the regular 2D grid to seed in")
+            .value_names(&["WIDTH", "HEIGHT"])
             .required(true)
             .takes_value(true)
             .number_of_values(2),
