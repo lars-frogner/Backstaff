@@ -1,3 +1,3 @@
-//! Command line interface for field line tracing.
+//! Command line interface for field line tracers.
 
 pub mod basic;
