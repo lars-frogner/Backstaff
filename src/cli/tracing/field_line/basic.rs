@@ -1,4 +1,4 @@
-//! Command line interface for basic field line tracing.
+//! Command line interface for basic field line tracer.
 
 use crate::cli;
 use crate::tracing::field_line::basic::{
