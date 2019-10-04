@@ -374,18 +374,19 @@ impl Distribution for PowerLawDistribution {
 }
 
 impl PowerLawDistributionConfig {
-    const DEFAULT_MIN_REMAINING_POWER_DENSITY: feb = 1e-6; // [erg/(cm^3 s)]
+    pub const DEFAULT_MIN_REMAINING_POWER_DENSITY: feb = 1e-6; // [erg/(cm^3 s)]
 
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
         let min_remaining_power_density = reader
-            .get_numerical_param::<feb>("min_stop_en")
-            .unwrap_or_else(|err| panic!("{}", err))
-            * U_E
-            / U_T;
-
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "min_remaining_power_density",
+                "min_stop_en",
+                &|min_stop_en: feb| min_stop_en * U_E / U_T,
+                Self::DEFAULT_MIN_REMAINING_POWER_DENSITY,
+            );
         PowerLawDistributionConfig {
             min_remaining_power_density,
         }
