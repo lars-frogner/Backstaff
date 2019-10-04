@@ -3,7 +3,6 @@
 pub mod accelerator;
 pub mod detection;
 pub mod distribution;
-pub mod execution;
 
 use self::accelerator::Accelerator;
 use self::detection::ReconnectionSiteDetector;
