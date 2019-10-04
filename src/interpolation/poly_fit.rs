@@ -721,9 +721,10 @@ impl Interpolator3 for PolyFitInterpolator3 {
 }
 
 impl PolyFitInterpolatorConfig {
-    const DEFAULT_ORDER: usize = 3;
-    const DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR: f64 = 0.3;
+    pub const DEFAULT_ORDER: usize = 3;
+    pub const DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR: f64 = 0.3;
 
+    /// Panics if any of the configuration parameter values are invalid.
     fn validate(&self) {
         assert!(
             self.order >= 1 && self.order <= 5,
@@ -751,16 +752,17 @@ mod tests {
     use super::*;
     use crate::field::ResampledCoordLocations;
     use crate::grid::hor_regular::HorRegularGrid3;
-    use crate::io::snapshot::{fdt, SnapshotReader3};
-    use crate::io::Endianness;
+    use crate::io::snapshot::{fdt, SnapshotReader3, SnapshotReaderConfig};
+    use crate::io::{Endianness, Verbose};
     use ndarray_stats::QuantileExt;
 
     #[test]
     fn interpolation_at_original_data_points_works() {
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(SnapshotReaderConfig::new(
             "data/en024031_emer3.0sml_ebeam_631.idl",
             Endianness::Little,
-        )
+            Verbose::No,
+        ))
         .unwrap();
         let field = reader.read_scalar_field("r").unwrap();
 
