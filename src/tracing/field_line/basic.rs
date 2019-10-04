@@ -236,9 +236,9 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
 }
 
 impl BasicFieldLineTracerConfig {
-    const DEFAULT_TRACING_SENSE: FieldLineTracingSense = FieldLineTracingSense::Both;
-    const DEFAULT_POINT_SPACING: FieldLinePointSpacing = FieldLinePointSpacing::Regular;
-    const DEFAULT_MAX_LENGTH: Option<ftr> = None;
+    pub const DEFAULT_TRACING_SENSE: FieldLineTracingSense = FieldLineTracingSense::Both;
+    pub const DEFAULT_POINT_SPACING: FieldLinePointSpacing = FieldLinePointSpacing::Regular;
+    pub const DEFAULT_MAX_LENGTH: Option<ftr> = None;
 
     fn validate(&self) {
         if let Some(length) = self.max_length {
@@ -267,7 +267,7 @@ mod tests {
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
-    use crate::io::snapshot::SnapshotReader3;
+    use crate::io::snapshot::{SnapshotReader3, SnapshotReaderConfig};
     use crate::io::{Endianness, Verbose};
     use crate::tracing::field_line::FieldLineSet3;
     use crate::tracing::seeding::slice::SliceSeeder3;
@@ -276,10 +276,11 @@ mod tests {
 
     #[test]
     fn tracing_and_saving_basic_field_line_set_works() {
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(SnapshotReaderConfig::new(
             "data/en024031_emer3.0sml_ebeam_631.idl",
             Endianness::Little,
-        )
+            Verbose::No,
+        ))
         .unwrap();
         let magnetic_field = reader.read_vector_field("b").unwrap();
 
