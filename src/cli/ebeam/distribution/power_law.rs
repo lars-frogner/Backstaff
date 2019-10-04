@@ -2,7 +2,17 @@
 
 use crate::cli;
 use crate::ebeam::distribution::power_law::PowerLawDistributionConfig;
-use clap::{App, Arg, ArgMatches};
+use crate::grid::Grid3;
+use crate::io::snapshot::{fdt, SnapshotReader3};
+use crate::units::solar::{U_E, U_T};
+use clap::{App, Arg, ArgMatches, SubCommand};
+
+/// Creates a subcommand for using the power-law distribution.
+pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
+    let app =
+        SubCommand::with_name("power_law_distribution").about("Use the power-law distribution");
+    add_power_law_distribution_options_to_subcommand(app)
+}
 
 /// Adds arguments for parameters used by the power-law distribution.
 pub fn add_power_law_distribution_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
@@ -14,18 +24,26 @@ pub fn add_power_law_distribution_options_to_subcommand<'a, 'b>(app: App<'a, 'b>
                 "Distributions with remaining power densities smaller than this value are\n\
                  discarded [erg/(cm^3 s)] [default: from param file]",
             )
+            .next_line_help(true)
             .takes_value(true),
     )
 }
 
-/// Sets power-law distribution parameters based on present arguments.
-pub fn configure_power_law_distribution_from_options(
-    config: &mut PowerLawDistributionConfig,
+/// Determines power-law distribution parameters based on
+/// provided options and values in parameter file.
+pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
+    reader: &SnapshotReader3<G>,
     arguments: &ArgMatches,
-) {
-    cli::assign_value_from_parseable_argument(
-        &mut config.min_remaining_power_density,
+) -> PowerLawDistributionConfig {
+    let min_remaining_power_density = cli::get_value_from_param_file_argument_with_default(
+        reader,
         arguments,
         "min-remaining-power-density",
+        "min_stop_en",
+        &|min_stop_en| min_stop_en * U_E / U_T,
+        PowerLawDistributionConfig::DEFAULT_MIN_REMAINING_POWER_DENSITY,
     );
+    PowerLawDistributionConfig {
+        min_remaining_power_density,
+    }
 }

@@ -11,7 +11,7 @@ use Dim3::{X, Y, Z};
 /// Builds a representation of the `snapshot-inspect-statistics` command line subcommand.
 pub fn build_subcommand_statistics<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("statistics")
-        .about("Prints statistics from quantities in a snapshot")
+        .about("Print statistics for quantities in the snapshot")
         .arg(
             Arg::with_name("QUANTITIES")
                 .help("List of quantities to print statistics for")
@@ -26,13 +26,13 @@ pub fn build_subcommand_statistics<'a, 'b>() -> App<'a, 'b> {
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
 pub fn run_subcommand_statistics<G: Grid3<fdt>>(
     arguments: &ArgMatches,
-    cacher: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G>,
 ) {
     for quantity in arguments
         .values_of("QUANTITIES")
         .expect("No values for required argument")
     {
-        match cacher.obtain_scalar_field(quantity) {
+        match snapshot.obtain_scalar_field(quantity) {
             Ok(field) => print_statistics_report(&field),
             Err(err) => println!("Could not read {}: {}", quantity, err),
         }

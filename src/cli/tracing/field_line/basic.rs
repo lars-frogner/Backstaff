@@ -4,7 +4,13 @@ use crate::cli;
 use crate::tracing::field_line::basic::{
     BasicFieldLineTracerConfig, FieldLinePointSpacing, FieldLineTracingSense,
 };
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, SubCommand};
+
+/// Creates a subcommand for using the basic field line tracer.
+pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
+    let app = SubCommand::with_name("basic_tracer").about("Use the basic field line tracer");
+    add_basic_field_line_tracer_options_to_subcommand(app)
+}
 
 /// Adds arguments for parameters used by the basic field line tracer.
 pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
@@ -36,13 +42,12 @@ pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b
     )
 }
 
-/// Sets basic field line tracer parameters based on present arguments.
-pub fn configure_basic_field_line_tracer_from_options(
-    config: &mut BasicFieldLineTracerConfig,
+/// Determines basic field line tracer parameters based on
+/// provided options.
+pub fn construct_basic_field_line_tracer_config_from_options(
     arguments: &ArgMatches,
-) {
-    cli::assign_value_from_selected_argument(
-        &mut config.tracing_sense,
+) -> BasicFieldLineTracerConfig {
+    let tracing_sense = cli::get_value_from_required_constrained_argument(
         arguments,
         "field-line-tracing-sense",
         &["both", "same", "opposite"],
@@ -52,8 +57,7 @@ pub fn configure_basic_field_line_tracer_from_options(
             FieldLineTracingSense::opposite(),
         ],
     );
-    cli::assign_value_from_selected_argument(
-        &mut config.point_spacing,
+    let point_spacing = cli::get_value_from_required_constrained_argument(
         arguments,
         "field-line-point-spacing",
         &["regular", "natural"],
@@ -62,7 +66,7 @@ pub fn configure_basic_field_line_tracer_from_options(
             FieldLinePointSpacing::Natural,
         ],
     );
-    config.max_length = match arguments
+    let max_length = match arguments
         .value_of("max-field-line-length")
         .expect("No value for argument with default")
     {
@@ -71,4 +75,9 @@ pub fn configure_basic_field_line_tracer_from_options(
             panic!("Could not parse value of max-field-line-length: {}", err)
         })),
     };
+    BasicFieldLineTracerConfig {
+        tracing_sense,
+        point_spacing,
+        max_length,
+    }
 }

@@ -9,7 +9,7 @@ use clap::{App, AppSettings, ArgMatches, SubCommand};
 /// Builds a representation of the `snapshot-inspect` command line subcommand.
 pub fn build_subcommand_inspect<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("inspect")
-        .about("Inspects properties of a snapshot")
+        .about("Inspect properties of the snapshot")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(statistics::build_subcommand_statistics())
 }

@@ -1,8 +1,14 @@
 //! Command line interface for Runge-Kutta-Fehlberg steppers.
 
 use crate::cli;
-use crate::tracing::stepping::rkf::RKFStepperConfig;
-use clap::{App, Arg, ArgMatches};
+use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
+use clap::{App, Arg, ArgMatches, SubCommand};
+
+/// Creates a subcommand for using a Runge-Kutta-Fehlberg stepper.
+pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
+    let app = SubCommand::with_name("rkf_stepper").about("Use a Runge-Kutta-Fehlberg stepper");
+    add_rkf_stepper_options_to_subcommand(app)
+}
 
 /// Adds arguments for parameters used by Runge-Kutta-Fehlberg steppers.
 pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
@@ -10,17 +16,17 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
         Arg::with_name("dense-step-length")
             .long("dense-step-length")
             .value_name("VALUE")
-            .long_help(
-                "Step length to use for dense (uniform) output positions [Mm]\n\
-                 [default: from param file]",
-            )
-            .takes_value(true),
+            .long_help("Step length to use for dense (uniform) output positions [Mm]")
+            .next_line_help(true)
+            .takes_value(true)
+            .default_value("0.01"),
     )
     .arg(
         Arg::with_name("max-step-attempts")
             .long("max-step-attempts")
             .value_name("NUMBER")
             .long_help("Maximum number of step attempts before terminating")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("16"),
     )
@@ -29,6 +35,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-absolute-tolerance")
             .value_name("VALUE")
             .long_help("Absolute error tolerance for stepping")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-6"),
     )
@@ -37,6 +44,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-relative-tolerance")
             .value_name("VALUE")
             .long_help("Relative error tolerance for stepping")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-6"),
     )
@@ -45,6 +53,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-safety-factor")
             .value_name("VALUE")
             .long_help("Scaling factor for the error to reduce step length oscillations")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("0.9"),
     )
@@ -53,6 +62,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("min-step-scale")
             .value_name("VALUE")
             .long_help("Smallest allowed scaling of the step size in one step")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("0.2"),
     )
@@ -61,6 +71,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("max-step-scale")
             .value_name("VALUE")
             .long_help("Largest allowed scaling of the step size in one step")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("10.0"),
     )
@@ -69,6 +80,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-initial-error")
             .value_name("VALUE")
             .long_help("Start value for stepping error")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-4"),
     )
@@ -77,6 +89,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("stepping-initial-step-length")
             .value_name("VALUE")
             .long_help("Initial step size")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("1e-4"),
     )
@@ -85,79 +98,75 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .long("sudden-reversals-for-sink")
             .value_name("NUMBER")
             .long_help("Number of sudden direction reversals before the area is considered a sink")
+            .next_line_help(true)
             .takes_value(true)
             .default_value("3"),
     )
     .arg(
-        Arg::with_name("pi-control")
-            .long("pi-control")
-            .value_name("STATE")
-            .long_help(
-                "Whether to use Proportional Integral (PI) control for stabilizing the stepping\n\
-                 [default: from param file]",
-            )
+        Arg::with_name("disable-pi-control")
+            .long("disable-pi-control")
+            .help("Disable Proportional Integral (PI) control used for stabilizing the stepping"),
+    )
+    .arg(
+        Arg::with_name("stepping-scheme")
+            .long("stepping-scheme")
+            .value_name("NAME")
+            .long_help("Which Runge-Kutta-Fehlberg stepping scheme to use")
+            .next_line_help(true)
             .takes_value(true)
-            .possible_values(&["off", "on"]),
+            .possible_values(&["rkf23", "rkf45"])
+            .default_value("rkf45"),
     )
 }
 
-/// Sets Runge-Kutta-Fehlberg stepper parameters based on present arguments.
-pub fn configure_rkf_stepper_from_options(config: &mut RKFStepperConfig, arguments: &ArgMatches) {
-    cli::assign_value_from_parseable_argument(
-        &mut config.dense_step_length,
+/// Determines Runge-Kutta-Fehlberg stepper parameters based on
+/// provided options.
+pub fn construct_rkf_stepper_config_from_options(
+    arguments: &ArgMatches,
+) -> (RKFStepperType, RKFStepperConfig) {
+    let dense_step_length =
+        cli::get_value_from_required_parseable_argument(arguments, "dense-step-length");
+    let max_step_attempts =
+        cli::get_value_from_required_parseable_argument(arguments, "max-step-attempts");
+    let absolute_tolerance =
+        cli::get_value_from_required_parseable_argument(arguments, "stepping-absolute-tolerance");
+    let relative_tolerance =
+        cli::get_value_from_required_parseable_argument(arguments, "stepping-relative-tolerance");
+    let safety_factor =
+        cli::get_value_from_required_parseable_argument(arguments, "stepping-safety-factor");
+    let min_step_scale =
+        cli::get_value_from_required_parseable_argument(arguments, "min-step-scale");
+    let max_step_scale =
+        cli::get_value_from_required_parseable_argument(arguments, "max-step-scale");
+    let initial_error =
+        cli::get_value_from_required_parseable_argument(arguments, "stepping-initial-error");
+    let initial_step_length =
+        cli::get_value_from_required_parseable_argument(arguments, "initial-step-length");
+    let sudden_reversals_for_sink =
+        cli::get_value_from_required_parseable_argument(arguments, "sudden-reversals-for-sink");
+    let use_pi_control = !arguments.is_present("disable-pi-control");
+
+    let stepper_type = cli::get_value_from_required_constrained_argument(
         arguments,
-        "dense-step-length",
+        "stepping-scheme",
+        &["peaked", "isotropic"],
+        &[RKFStepperType::RKF23, RKFStepperType::RKF45],
     );
-    cli::assign_value_from_parseable_argument(
-        &mut config.max_step_attempts,
-        arguments,
-        "max-step-attempts",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.absolute_tolerance,
-        arguments,
-        "stepping-absolute-tolerance",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.relative_tolerance,
-        arguments,
-        "stepping-relative-tolerance",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.safety_factor,
-        arguments,
-        "stepping-safety-factor",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.min_step_scale,
-        arguments,
-        "min-step-scale",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.max_step_scale,
-        arguments,
-        "max-step-scale",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.initial_error,
-        arguments,
-        "stepping-initial-error",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.initial_step_length,
-        arguments,
-        "initial-step-length",
-    );
-    cli::assign_value_from_parseable_argument(
-        &mut config.sudden_reversals_for_sink,
-        arguments,
-        "sudden-reversals-for-sink",
-    );
-    cli::assign_value_from_selected_argument(
-        &mut config.use_pi_control,
-        arguments,
-        "pi-control",
-        &["off", "on"],
-        &[false, true],
-    );
+
+    (
+        stepper_type,
+        RKFStepperConfig {
+            dense_step_length,
+            max_step_attempts,
+            absolute_tolerance,
+            relative_tolerance,
+            safety_factor,
+            min_step_scale,
+            max_step_scale,
+            initial_error,
+            initial_step_length,
+            sudden_reversals_for_sink,
+            use_pi_control,
+        },
+    )
 }

@@ -2,7 +2,14 @@
 
 use crate::cli;
 use crate::interpolation::poly_fit::PolyFitInterpolatorConfig;
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches, SubCommand};
+
+/// Creates a subcommand for using the polynomial fitting interpolator.
+pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
+    let app = SubCommand::with_name("poly_fit_interpolator")
+        .about("Use the polynomial fitting interpolator");
+    add_poly_fit_interpolator_options_to_subcommand(app)
+}
 
 /// Adds arguments for parameters used by the polynomial fitting interpolator.
 pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
@@ -11,6 +18,7 @@ pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>)
             .long("interpolation-order")
             .value_name("ORDER")
             .long_help("Order of the polynomials to fit when interpolating field values\n")
+            .next_line_help(true)
             .takes_value(true)
             .possible_values(&["1", "2", "3", "4", "5"])
             .default_value("3"),
@@ -23,20 +31,24 @@ pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>)
                 "Linear interpolation is used when a normalized variance of the values\n\
                  surrounding the interpolation point exceeds this",
             )
+            .next_line_help(true)
             .takes_value(true)
             .default_value("0.3"),
     )
 }
 
-/// Sets polynomial fitting interpolator parameters based on present arguments.
-pub fn configure_poly_fit_interpolator_from_options(
-    config: &mut PolyFitInterpolatorConfig,
+/// Determines polynomial fitting interpolator parameters based on
+/// provided options.
+pub fn construct_poly_fit_interpolator_config_from_options(
     arguments: &ArgMatches,
-) {
-    cli::assign_value_from_parseable_argument(&mut config.order, arguments, "interpolation-order");
-    cli::assign_value_from_parseable_argument(
-        &mut config.variation_threshold_for_linear,
+) -> PolyFitInterpolatorConfig {
+    let order = cli::get_value_from_required_parseable_argument(arguments, "interpolation-order");
+    let variation_threshold_for_linear = cli::get_value_from_required_parseable_argument(
         arguments,
         "variation-threshold-for-linear-interpolation",
     );
+    PolyFitInterpolatorConfig {
+        order,
+        variation_threshold_for_linear,
+    }
 }

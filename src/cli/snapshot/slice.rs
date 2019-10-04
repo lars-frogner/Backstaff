@@ -10,36 +10,36 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Builds a representation of the `snapshot-slice` command line subcommand.
 pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("slice")
-        .about("Extracts a 2D slice of a snapshot quantity field")
+    SubCommand::with_name("slice")
+        .about("Extract a 2D slice of a quantity field in the snapshot")
+        .after_help(
+            "You can use a subcommand to configure the interpolator. If left unspecified,\n\
+             the default interpolator implementation and parameters are used.",
+        )
         .arg(
             Arg::with_name("QUANTITY")
                 .help("Quantity whose field to slice")
                 .required(true)
-                .takes_value(true)
-                .index(1),
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("AXIS")
                 .help("Which axis to slice across")
                 .required(true)
                 .takes_value(true)
-                .possible_values(&["x", "y", "z"])
-                .index(2),
+                .possible_values(&["x", "y", "z"]),
         )
         .arg(
             Arg::with_name("COORD")
                 .help("Coordinate along the axis to slice at")
                 .required(true)
-                .takes_value(true)
-                .index(3),
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
                 .help("Path where the slice field should be saved in pickle format")
                 .required(true)
-                .takes_value(true)
-                .index(4),
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("sample-location")
@@ -58,15 +58,14 @@ pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
                 .long_help(
                     "Make sampled slice values follow the potentially non-uniform underlying grid",
                 ),
-        );
-
-    cli::interpolation::poly_fit::add_poly_fit_interpolator_options_to_subcommand(app)
+        )
+        .subcommand(cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand())
 }
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
 pub fn run_subcommand_slice<G: Grid3<fdt>>(
     arguments: &ArgMatches,
-    cacher: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G>,
 ) {
     let quantity = arguments
         .value_of("QUANTITY")
@@ -86,14 +85,18 @@ pub fn run_subcommand_slice<G: Grid3<fdt>>(
         .value_of("sample-location")
         .expect("No value for argument with default");
 
-    let mut interpolator_config = PolyFitInterpolatorConfig::default();
-    cli::interpolation::poly_fit::configure_poly_fit_interpolator_from_options(
-        &mut interpolator_config,
-        arguments,
-    );
+    let interpolator_config = if let Some(interpolator_arguments) =
+        arguments.subcommand_matches("poly_fit_interpolator")
+    {
+        cli::interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options(
+            interpolator_arguments,
+        )
+    } else {
+        PolyFitInterpolatorConfig::default()
+    };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
-    let field = cacher
+    let field = snapshot
         .obtain_scalar_field(quantity)
         .unwrap_or_else(|err| panic!("Could not read {}: {}", quantity, err));
 
