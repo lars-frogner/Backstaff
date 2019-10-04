@@ -10,7 +10,6 @@ use crate::field::VectorField3;
 use crate::geometry::{Dim3, Point3, Vec3};
 use crate::grid::{Grid3, GridPointQuery3};
 use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotReader3};
 use crate::num::BFloat;
 use crate::tracing::ftr;
 use Dim3::{X, Y, Z};
@@ -497,36 +496,17 @@ trait RKFStepper3 {
 }
 
 impl RKFStepperConfig {
-    const DEFAULT_DENSE_STEP_LENGTH: ftr = 1e-2;
-    const DEFAULT_MAX_STEP_ATTEMPTS: u32 = 16;
-    const DEFAULT_ABSOLUTE_TOLERANCE: ftr = 1e-6;
-    const DEFAULT_RELATIVE_TOLERANCE: ftr = 1e-6;
-    const DEFAULT_SAFETY_FACTOR: ftr = 0.9;
-    const DEFAULT_MIN_STEP_SCALE: ftr = 0.2;
-    const DEFAULT_MAX_STEP_SCALE: ftr = 10.0;
-    const DEFAULT_INITIAL_ERROR: ftr = 1e-4;
-    const DEFAULT_INITIAL_STEP_LENGTH: ftr = 1e-4;
-    const DEFAULT_SUDDEN_REVERSALS_FOR_SINK: u32 = 3;
-
-    /// Creates a set of RKF stepper configuration parameters with values
-    /// read from the specified parameter file when available, otherwise
-    /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
-        let dense_step_length = reader
-            .get_numerical_param("ds_out")
-            .unwrap_or_else(|err| panic!("{}", err));
-
-        let use_pi_control: u8 = reader
-            .get_numerical_param("use_pi_ctrl")
-            .unwrap_or_else(|err| panic!("{}", err));
-        let use_pi_control = use_pi_control > 0;
-
-        RKFStepperConfig {
-            dense_step_length,
-            use_pi_control,
-            ..Self::default()
-        }
-    }
+    pub const DEFAULT_DENSE_STEP_LENGTH: ftr = 1e-2;
+    pub const DEFAULT_MAX_STEP_ATTEMPTS: u32 = 16;
+    pub const DEFAULT_ABSOLUTE_TOLERANCE: ftr = 1e-6;
+    pub const DEFAULT_RELATIVE_TOLERANCE: ftr = 1e-6;
+    pub const DEFAULT_SAFETY_FACTOR: ftr = 0.9;
+    pub const DEFAULT_MIN_STEP_SCALE: ftr = 0.2;
+    pub const DEFAULT_MAX_STEP_SCALE: ftr = 10.0;
+    pub const DEFAULT_INITIAL_ERROR: ftr = 1e-4;
+    pub const DEFAULT_INITIAL_STEP_LENGTH: ftr = 1e-4;
+    pub const DEFAULT_SUDDEN_REVERSALS_FOR_SINK: u32 = 3;
+    pub const DEFAULT_USE_PI_CONTROL: bool = true;
 
     fn validate(&self) {
         assert!(
@@ -585,7 +565,7 @@ impl Default for RKFStepperConfig {
             initial_step_length: Self::DEFAULT_INITIAL_STEP_LENGTH,
             initial_error: Self::DEFAULT_INITIAL_ERROR,
             sudden_reversals_for_sink: Self::DEFAULT_SUDDEN_REVERSALS_FOR_SINK,
-            use_pi_control: true,
+            use_pi_control: Self::DEFAULT_USE_PI_CONTROL,
         }
     }
 }
