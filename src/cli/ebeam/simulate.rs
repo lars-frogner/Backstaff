@@ -28,11 +28,11 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("simulate")
         .about("Simulate electron beams in the snapshot")
         .after_help(
-            "You can use subcommands to configure each stage. The subcommands must be specified\n\
+            "You can use subcommands to configure each action. The subcommands must be specified\n\
              in the order detector -> distribution -> accelerator -> interpolator -> stepper,\n\
-             with options for each stage directly following the subcommand. Any stage(s) can be\n\
+             with options for each action directly following the subcommand. Any action(s) can be\n\
              left unspecified, in which case the default implementation and parameters are used\n\
-             for that stage.",
+             for that action.",
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
@@ -127,13 +127,11 @@ where
     let (detector_config, detector_arguments) = if let Some(detector_arguments) =
         arguments.subcommand_matches("simple_detector")
     {
-        println!("Using specified simple_detector");
         (super::detection::simple::construct_simple_reconnection_site_detector_config_from_options(
             snapshot.reader(),
             detector_arguments,
         ), detector_arguments)
     } else {
-        println!("Using default simple_detector");
         (
             SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(snapshot.reader()),
             arguments,
@@ -156,7 +154,6 @@ fn run_with_selected_accelerator<G, D>(
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
         arguments.subcommand_matches("power_law_distribution")
     {
-        println!("Using specified power_law_distribution");
         (
             super::distribution::power_law::construct_power_law_distribution_config_from_options(
                 snapshot.reader(),
@@ -165,7 +162,6 @@ fn run_with_selected_accelerator<G, D>(
             distribution_arguments,
         )
     } else {
-        println!("Using default power_law_distribution");
         (
             PowerLawDistributionConfig::with_defaults_from_param_file(snapshot.reader()),
             arguments,
@@ -175,10 +171,8 @@ fn run_with_selected_accelerator<G, D>(
     let (accelerator_config, accelerator_arguments) = if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("simple_power_law_accelerator")
     {
-        println!("Using specified simple_power_law_accelerator");
         (super::accelerator::simple_power_law::construct_simple_power_law_accelerator_config_from_options(snapshot.reader(), accelerator_arguments), accelerator_arguments)
     } else {
-        println!("Using default simple_power_law_accelerator");
         (
             SimplePowerLawAccelerationConfig::with_defaults_from_param_file(snapshot.reader()),
             distribution_arguments,
@@ -211,7 +205,6 @@ where G: Grid3<fdt>,
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
     {
-        println!("Using specified poly_fit_interpolator");
         (
             cli::interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options(
                 interpolator_arguments,
@@ -219,7 +212,6 @@ where G: Grid3<fdt>,
             interpolator_arguments,
         )
     } else {
-        println!("Using default poly_fit_interpolator");
         (PolyFitInterpolatorConfig::default(), arguments)
     };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
@@ -261,10 +253,8 @@ where G: Grid3<fdt>,
     let (stepper_type, stepper_config) = if let Some(stepper_arguments) =
         arguments.subcommand_matches("rkf_stepper")
     {
-        println!("Using specified rkf_stepper");
         cli::tracing::stepping::rkf::construct_rkf_stepper_config_from_options(stepper_arguments)
     } else {
-        println!("Using default rkf_stepper");
         (RKFStepperType::RKF45, RKFStepperConfig::default())
     };
 
@@ -343,7 +333,7 @@ fn perform_post_simulation_actions<G, A, I>(
     I: Interpolator3,
 {
     let output_path = root_arguments
-        .value_of("output-path")
+        .value_of("OUTPUT_PATH")
         .expect("No value for required argument.");
 
     if let Some(extra_fixed_scalars) = root_arguments
