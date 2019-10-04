@@ -19,16 +19,26 @@ use Dim3::{X, Y, Z};
 #[allow(non_camel_case_types)]
 pub type fdt = f32;
 
+/// Configuration parameters for snapshot reader.
+#[derive(Clone, Debug)]
+pub struct SnapshotReaderConfig {
+    /// Path to the parameter (.idl) file.
+    params_path: path::PathBuf,
+    /// Order of bytes in the binary data files.
+    endianness: Endianness,
+    /// Whether to print status messages while reading fields.
+    verbose: Verbose,
+}
+
 /// Reader for the output files assoicated with a single Bifrost 3D simulation snapshot.
 #[derive(Clone, Debug)]
 pub struct SnapshotReader3<G: Grid3<fdt>> {
+    config: SnapshotReaderConfig,
     snap_path: path::PathBuf,
     aux_path: path::PathBuf,
     params: Params,
-    endianness: Endianness,
     grid: Arc<G>,
     variable_descriptors: HashMap<String, VariableDescriptor>,
-    verbose: Verbose,
 }
 
 /// Wrapper for `SnapshotReader3` that reads snapshot variables only on first request and
@@ -42,29 +52,13 @@ pub struct SnapshotCacher3<G: Grid3<fdt>> {
 
 impl<G: Grid3<fdt>> SnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
-    ///
-    /// # Parameters
-    ///
-    /// - `params_path`: Path to the parameter (.idl) file.
-    /// - `endianness`: Order of bytes in the binary data files.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` which is either:
-    ///
-    /// - `Ok`: Contains a new `SnapshotReader3`.
-    /// - `Err`: Contains an error encountered during opening, reading or parsing the relevant files.
-    ///
-    /// # Type parameters
-    ///
-    /// - `P`: A type that can be treated as a reference to a `Path`.
-    pub fn new<P: AsRef<path::Path>>(params_path: P, endianness: Endianness) -> io::Result<Self> {
-        let params = Params::new(&params_path)?;
-
-        let params_path = params_path.as_ref().to_path_buf();
+    pub fn new(config: SnapshotReaderConfig) -> io::Result<Self> {
+        let params = Params::new(&config.params_path)?;
         let snap_num: u32 = params.get_numerical_param("isnap")?;
-        let mesh_path = params_path.with_file_name(params.get_str_param("meshfile")?);
-        let snap_path = params_path.with_file_name(format!(
+        let mesh_path = config
+            .params_path
+            .with_file_name(params.get_str_param("meshfile")?);
+        let snap_path = config.params_path.with_file_name(format!(
             "{}_{}.snap",
             params.get_str_param("snapname")?,
             snap_num
@@ -78,19 +72,13 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         Self::insert_aux_variable_descriptors(&params, &mut variable_descriptors)?;
 
         Ok(SnapshotReader3 {
+            config,
             snap_path,
             aux_path,
             params,
-            endianness,
             grid,
             variable_descriptors,
-            verbose: Verbose::No,
         })
-    }
-
-    /// Specifies whether progress messages should be printed.
-    pub fn set_verbose(&mut self, verbose: Verbose) {
-        self.verbose = verbose;
     }
 
     /// Wraps the reader in a snapshot cacher structure.
@@ -109,17 +97,6 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     }
 
     /// Reads the specified primary or auxiliary 3D variable from the output files.
-    ///
-    /// # Parameters
-    ///
-    /// - `variable_name`: Name of the variable to read.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` which is either:
-    ///
-    /// - `Ok`: Contains a `ScalarField3<fdt>` holding the field coordinates and values.
-    /// - `Err`: Contains an error encountered while locating the variable or reading the data.
     pub fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable_descriptor = self.get_variable_descriptor(variable_name)?;
         let file_path = if variable_descriptor.is_primary {
@@ -127,7 +104,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         } else {
             &self.aux_path
         };
-        if self.verbose.is_yes() {
+        if self.config.verbose.is_yes() {
             println!(
                 "Reading {} from {}",
                 variable_name,
@@ -137,8 +114,12 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         let shape = self.grid.shape();
         let length = shape[X] * shape[Y] * shape[Z];
         let offset = length * variable_descriptor.index;
-        let buffer =
-            super::utils::read_f32_from_binary_file(file_path, length, offset, self.endianness)?;
+        let buffer = super::utils::read_f32_from_binary_file(
+            file_path,
+            length,
+            offset,
+            self.config.endianness,
+        )?;
         let values = Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap();
         Ok(ScalarField3::new(
             variable_name.to_string(),
@@ -149,17 +130,6 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     }
 
     /// Reads the component variables of the specified 3D vector quantity from the output files.
-    ///
-    /// # Parameters
-    ///
-    /// - `variable_name`: Root name of the variable to read (without trailing x, y or z).
-    ///
-    /// # Returns
-    ///
-    /// A `Result` which is either:
-    ///
-    /// - `Ok`: Contains a `VectorField3<fdt>` holding the coordinates and values of the vector field components.
-    /// - `Err`: Contains an error encountered while locating the variable or reading the data.
     pub fn read_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
         Ok(VectorField3::new(
             variable_name.to_string(),
@@ -173,48 +143,44 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     }
 
     /// Provides the string value of a parameter from the parameter file.
-    ///
-    /// # Parameters
-    ///
-    /// - `name`: Name of the parameter.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` which is either:
-    ///
-    /// - `Ok`: Contains a reference to the string value of the parameter.
-    /// - `Err`: Contains an error encountered while locating the parameter.
-    ///
-    /// # Lifetimes
-    ///
-    /// - `a`: The life time of `self` and the returned reference.
-    /// - `b`: The life time of the `name` argument.
     pub fn get_str_param<'a, 'b>(&'a self, name: &'b str) -> io::Result<&'a str> {
         self.params.get_str_param(name)
     }
 
     /// Provides the numerical value of a parameter from the parameter file.
-    ///
-    /// # Parameters
-    ///
-    /// - `name`: Name of the parameter.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` which is either:
-    ///
-    /// - `Ok`: Contains a reference to the numerical value of the parameter.
-    /// - `Err`: Contains an error encountered while locating or parsing the parameter.
-    ///
-    /// # Type parameters
-    ///
-    /// - `T`: A numerical type that can be parsed from a string.
     pub fn get_numerical_param<T>(&self, name: &str) -> io::Result<T>
     where
         T: num::Num + str::FromStr,
         T::Err: string::ToString,
     {
         self.params.get_numerical_param(name)
+    }
+
+    /// Tries to read the given parameter from the parameter file.
+    /// If successful, the value is converted with the given closure and
+    /// returned, otherwise a warning is printed and the given default is returned.
+    pub fn get_converted_numerical_param_or_fallback_to_default_with_warning<T, U, C>(
+        &self,
+        display_name: &str,
+        name_in_param_file: &str,
+        conversion_mapping: &C,
+        default_value: U,
+    ) -> U
+    where
+        T: num::Num + str::FromStr,
+        T::Err: string::ToString,
+        U: std::fmt::Display,
+        C: Fn(T) -> U,
+    {
+        self.get_numerical_param(name_in_param_file)
+            .map(conversion_mapping)
+            .unwrap_or_else(|_| {
+                println!(
+                    "Could not find {} in param file, falling back to default for {}: {}",
+                    name_in_param_file, display_name, default_value
+                );
+                default_value
+            })
     }
 
     fn read_grid_from_mesh_file<P: AsRef<path::Path>>(
@@ -510,6 +476,21 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     }
 }
 
+impl SnapshotReaderConfig {
+    /// Creates a new set of snapshot reader configuration parameters.
+    pub fn new<P: AsRef<path::Path>>(
+        params_path: P,
+        endianness: Endianness,
+        verbose: Verbose,
+    ) -> Self {
+        SnapshotReaderConfig {
+            params_path: params_path.as_ref().to_path_buf(),
+            endianness,
+            verbose,
+        }
+    }
+}
+
 impl<G: Grid3<fdt>> SnapshotCacher3<G> {
     /// Creates a new snapshot cacher from the given reader.
     pub fn new(reader: SnapshotReader3<G>) -> Self {
@@ -776,10 +757,11 @@ mod tests {
 
     #[test]
     fn reading_works() {
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(
+        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(SnapshotReaderConfig::new(
             "data/en024031_emer3.0sml_ebeam_631.idl",
             Endianness::Little,
-        )
+            Verbose::No,
+        ))
         .unwrap();
         let _field = reader.read_scalar_field("r").unwrap();
     }
