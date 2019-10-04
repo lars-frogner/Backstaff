@@ -90,6 +90,7 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(inspect::build_subcommand_inspect())
         .subcommand(slice::build_subcommand_slice())
+        .subcommand(cli::tracing::build_subcommand_trace())
         .subcommand(cli::ebeam::build_subcommand_ebeam());
 
     add_snapshot_reader_arguments_to_subcommand(app)
@@ -106,6 +107,9 @@ macro_rules! run_subcommand_snapshot_for_grid_type {
         }
         if let Some(slice_arguments) = $arguments.subcommand_matches("slice") {
             slice::run_subcommand_slice(slice_arguments, &mut snapshot);
+        }
+        if let Some(trace_arguments) = $arguments.subcommand_matches("trace") {
+            cli::tracing::run_subcommand_trace(trace_arguments, &mut snapshot);
         }
         if let Some(ebeam_arguments) = $arguments.subcommand_matches("ebeam") {
             cli::ebeam::run_subcommand_ebeam(ebeam_arguments, &mut snapshot);
