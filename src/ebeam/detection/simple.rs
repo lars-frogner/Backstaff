@@ -64,18 +64,16 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
                     err
                 )
             });
-        let mut seeder = CriterionSeeder3::on_scalar_field_values(
+        let seeder = CriterionSeeder3::on_scalar_field_values(
             reconnection_factor_field,
             &|reconnection_factor| reconnection_factor >= self.config.reconnection_factor_threshold,
+            &|point| {
+                point[Dim3::Z] >= self.config.min_detection_depth
+                    && point[Dim3::Z] <= self.config.max_detection_depth
+            },
         );
 
         snapshot.drop_scalar_field(reconnection_factor_variable);
-
-        let z_coordinates = &snapshot.reader().grid().centers()[Dim3::Z];
-        seeder.retain_indices(|indices| {
-            z_coordinates[indices[Dim3::Z]] >= self.config.min_detection_depth
-                && z_coordinates[indices[Dim3::Z]] <= self.config.max_detection_depth
-        });
 
         if verbose.is_yes() {
             println!("Found {} acceleration sites", seeder.number_of_indices());
