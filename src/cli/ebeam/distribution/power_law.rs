@@ -9,8 +9,14 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the power-law distribution.
 pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app =
-        SubCommand::with_name("power_law_distribution").about("Use the power-law distribution");
+    let app = SubCommand::with_name("power_law_distribution")
+        .about("Use the power-law distribution")
+        .long_about(
+            "Use the power-law distribution.\n\
+             The distribution of non-thermal electrons is assumed to follow a power-law\n\
+             described by a total power density, lower cut-off energy and a power-law\n\
+             index.",
+        );
     add_power_law_distribution_options_to_subcommand(app)
 }
 
@@ -32,8 +38,8 @@ pub fn add_power_law_distribution_options_to_subcommand<'a, 'b>(app: App<'a, 'b>
 /// Determines power-law distribution parameters based on
 /// provided options and values in parameter file.
 pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
-    reader: &SnapshotReader3<G>,
     arguments: &ArgMatches,
+    reader: &SnapshotReader3<G>,
 ) -> PowerLawDistributionConfig {
     let min_remaining_power_density = cli::get_value_from_param_file_argument_with_default(
         reader,

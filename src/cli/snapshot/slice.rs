@@ -12,6 +12,11 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("slice")
         .about("Extract a 2D slice of a quantity field in the snapshot")
+        .long_about(
+            "Extract a 2D slice of a quantity field in the snapshot.\n\
+             Any quantity field in the snapshot can be sliced across any axis at a given\n\
+             coordinate.",
+        )
         .after_help(
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",

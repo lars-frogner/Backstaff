@@ -6,7 +6,15 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using a Runge-Kutta-Fehlberg stepper.
 pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("rkf_stepper").about("Use a Runge-Kutta-Fehlberg stepper");
+    let app = SubCommand::with_name("rkf_stepper")
+        .about("Use a Runge-Kutta-Fehlberg stepper")
+        .long_about(
+            "Use a Runge-Kutta-Fehlberg stepper.\n\
+             The next position is computed with a Runge-Kutta scheme, and tbe resulting error\n\
+             is estimated using an embedded lower-order step. The errors are used to adjust\n\
+             the step length, and steps are re-attempted until the error is below a certain\n\
+             tolerance.",
+        );
     add_rkf_stepper_options_to_subcommand(app)
 }
 

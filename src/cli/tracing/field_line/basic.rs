@@ -8,7 +8,15 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the basic field line tracer.
 pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("basic_tracer").about("Use the basic field line tracer");
+    let app = SubCommand::with_name("basic_tracer")
+        .about("Use the basic field line tracer")
+        .long_about(
+            "Use the basic field line tracer.\n\
+             A field line can be traced in both or one direction relative to the vector field\n\
+             direction, and output points can be produced at regular intervals or at the\n\
+             natural positions provided by the stepper. The field line can have a maximum\n\
+             length.",
+        );
     add_basic_field_line_tracer_options_to_subcommand(app)
 }
 

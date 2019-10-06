@@ -7,7 +7,13 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 /// Creates a subcommand for using the polynomial fitting interpolator.
 pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("poly_fit_interpolator")
-        .about("Use the polynomial fitting interpolator");
+        .about("Use the polynomial fitting interpolator")
+        .long_about(
+            "Use the polynomial fitting interpolator.\n\
+             An interpolated value is found by evaluating a polynomial of a certain order\n\
+             fitted to the surrounding points. To reduce overshoot, linear interpolation\n\
+             can be engaged automatically in regions with high variance.",
+        );
     add_poly_fit_interpolator_options_to_subcommand(app)
 }
 

@@ -11,7 +11,13 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 /// Creates a subcommand for using the simple power-law distribution accelerator.
 pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("simple_power_law_accelerator")
-        .about("Use the simple power-law distribution accelerator model");
+        .about("Use the simple power-law distribution accelerator model")
+        .long_about(
+            "Use the simple power-law distribution accelerator model.\n\
+             The total distribution energy is assumed to be a fixed fraction of the\n\
+             reconnection energy, and the lower cut-off energy is found from the intersection\n\
+             of the non-thermal distribution with the thermal distribution.",
+        );
     add_simple_power_law_accelerator_options_to_subcommand(app)
 }
 
@@ -130,8 +136,8 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
 /// Determines simple power-law distribution accelerator parameters
 /// based on provided options and values in parameter file.
 pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
-    reader: &SnapshotReader3<G>,
     arguments: &ArgMatches,
+    reader: &SnapshotReader3<G>,
 ) -> SimplePowerLawAccelerationConfig {
     let acceleration_duration = cli::get_value_from_param_file_argument_with_default(
         reader,

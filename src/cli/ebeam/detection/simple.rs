@@ -11,7 +11,13 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 /// Creates a subcommand for using the simple reconnection site detector.
 pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("simple_detector")
-        .about("Use the simple reconnection site detection method");
+        .about("Use the simple reconnection site detection method")
+        .long_about(
+            "Use the simple reconnection site detection method.\n\
+             Evaluates a reconnection factor in each grid cell and considers a reconnection\n\
+             site to be where the factor exceeds a given threshold. The reconnection factor\n\
+             indicates changes in the magnetic topology and is described by Biskamp (2005)",
+        );
     add_simple_reconnection_site_detector_options_to_subcommand(app)
 }
 
@@ -43,21 +49,11 @@ pub fn add_simple_reconnection_site_detector_options_to_subcommand<'a, 'b>(
             .takes_value(true),
     )
     .arg(
-        Arg::with_name("min-reconnection-detection-depth")
-            .long("min-reconnection-detection-depth")
-            .value_name("VALUE")
+        Arg::with_name("detection-depth-limits")
+            .long("detection-depth-limits")
+            .value_names(&["MIN, MAX"])
             .long_help(
-                "Smallest depth at which reconnection sites will be detected [Mm] [default: from param file]",
-            )
-            .next_line_help(true)
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("max-reconnection-detection-depth")
-            .long("max-reconnection-detection-depth")
-            .value_name("VALUE")
-            .long_help(
-                "Largest depth at which reconnection sites will be detected [Mm] [default: from param file]",
+                "Smallest and largest depth at which reconnection sites will be detected [Mm] [default: from param file]",
             )
             .next_line_help(true)
             .takes_value(true),
@@ -67,8 +63,8 @@ pub fn add_simple_reconnection_site_detector_options_to_subcommand<'a, 'b>(
 /// Determines simple reconnection site detector parameters
 /// based on provided options and values in parameter file.
 pub fn construct_simple_reconnection_site_detector_config_from_options<G: Grid3<fdt>>(
-    reader: &SnapshotReader3<G>,
     arguments: &ArgMatches,
+    reader: &SnapshotReader3<G>,
 ) -> SimpleReconnectionSiteDetectorConfig {
     let reconnection_factor_type = match arguments.value_of("reconnection-factor-type") {
         Some("normalized") => ReconnectionFactorType::Normalized,
@@ -95,26 +91,21 @@ pub fn construct_simple_reconnection_site_detector_config_from_options<G: Grid3<
         &|krec_lim| krec_lim,
         SimpleReconnectionSiteDetectorConfig::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
     );
-    let min_detection_depth = cli::get_value_from_param_file_argument_with_default(
+    let detection_depth_limits = cli::get_values_from_param_file_argument_with_defaults(
         reader,
         arguments,
-        "min-reconnection-detection-depth",
-        "z_rec_ulim",
-        &|z_rec_ulim| z_rec_ulim,
-        SimpleReconnectionSiteDetectorConfig::DEFAULT_MIN_DETECTION_DEPTH,
-    );
-    let max_detection_depth = cli::get_value_from_param_file_argument_with_default(
-        reader,
-        arguments,
-        "max-reconnection-detection-depth",
-        "z_rec_llim",
-        &|z_rec_llim| z_rec_llim,
-        SimpleReconnectionSiteDetectorConfig::DEFAULT_MAX_DETECTION_DEPTH,
+        "detection-depth-limits",
+        &["z_rec_ulim", "z_rec_llim"],
+        &|lim| lim,
+        &[
+            SimpleReconnectionSiteDetectorConfig::DEFAULT_MIN_DETECTION_DEPTH,
+            SimpleReconnectionSiteDetectorConfig::DEFAULT_MAX_DETECTION_DEPTH,
+        ],
     );
     SimpleReconnectionSiteDetectorConfig {
         reconnection_factor_type,
         reconnection_factor_threshold,
-        min_detection_depth,
-        max_detection_depth,
+        min_detection_depth: detection_depth_limits[0],
+        max_detection_depth: detection_depth_limits[1],
     }
 }
