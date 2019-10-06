@@ -763,7 +763,7 @@ impl SimplePowerLawAccelerationConfig {
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "particle_energy_fraction",
                 "qjoule_acc_frac",
-                &|dt: feb| dt * U_T,
+                &|qjoule_acc_frac: feb| qjoule_acc_frac,
                 Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
             );
         let power_law_delta = reader
@@ -804,8 +804,8 @@ impl SimplePowerLawAccelerationConfig {
             "Duration must be larger than or equal to zero."
         );
         assert!(
-            self.particle_energy_fraction >= 0.0,
-            "Particle energy fraction must be larger than or equal to zero."
+            self.particle_energy_fraction >= 0.0 && self.particle_energy_fraction <= 1.0,
+            "Particle energy fraction must be in the range [0, 1]."
         );
         assert!(
             self.power_law_delta > 2.0,
