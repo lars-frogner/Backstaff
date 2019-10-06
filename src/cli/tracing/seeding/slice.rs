@@ -24,7 +24,7 @@ pub struct CommonSliceSeederParameters {
 pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("slice_seeder")
         .about("Use a slice seeder")
-        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .setting(AppSettings::SubcommandRequired)
         .subcommand(regular::create_regular_slice_seeder_subcommand())
         .subcommand(random::create_random_slice_seeder_subcommand())
         .subcommand(stratified::create_stratified_slice_seeder_subcommand())
