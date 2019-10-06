@@ -286,8 +286,15 @@ mod tests {
 
         let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig::default());
-        let seeder =
-            SliceSeeder3::stratified(magnetic_field.grid(), Dim3::Z, 0.0, In2D::same(3), 1, 0.6);
+        let seeder = SliceSeeder3::stratified(
+            magnetic_field.grid(),
+            Dim3::Z,
+            0.0,
+            In2D::same(3),
+            1,
+            0.6,
+            &|_| true,
+        );
 
         let tracer = BasicFieldLineTracer3::new(BasicFieldLineTracerConfig::default());
 
