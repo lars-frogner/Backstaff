@@ -77,6 +77,12 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
                 .short("v")
                 .long("verbose")
                 .help("Print status messages while tracing field lines"),
+        )
+        .arg(
+            Arg::with_name("print-parameter-values")
+                .short("p")
+                .long("print-parameter-values")
+                .help("Prints the values of all the parameters that will be used"),
         );
 
     let basic_field_line_tracer_subcommand =
@@ -128,6 +134,11 @@ where
         } else {
             (BasicFieldLineTracerConfig::default(), arguments)
         };
+
+    if arguments.is_present("print-parameter-values") {
+        println!("{:#?}", tracer_config);
+    }
+
     let tracer = BasicFieldLineTracer3::new(tracer_config);
 
     run_with_selected_stepper_factory(arguments, tracer_arguments, snapshot, tracer);
@@ -156,6 +167,10 @@ fn run_with_selected_stepper_factory<G, Tr>(
                 arguments,
             )
         };
+
+    if root_arguments.is_present("print-parameter-values") {
+        println!("{:#?}\nstepper_type: {:?}", stepper_config, stepper_type);
+    }
 
     match stepper_type {
         RKFStepperType::RKF23 => run_with_selected_interpolator(
@@ -198,6 +213,11 @@ fn run_with_selected_interpolator<G, Tr, StF>(
     } else {
         (PolyFitInterpolatorConfig::default(), arguments)
     };
+
+    if root_arguments.is_present("print-parameter-values") {
+        println!("{:#?}", interpolator_config);
+    }
+
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
     run_with_selected_seeder(

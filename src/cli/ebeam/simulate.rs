@@ -85,6 +85,12 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
                 .short("v")
                 .long("verbose")
                 .help("Print status messages while simulating electron beams"),
+        )
+        .arg(
+            Arg::with_name("print-parameter-values")
+                .short("p")
+                .long("print-parameter-values")
+                .help("Prints the values of all the parameters that will be used"),
         );
 
     let simple_reconnection_site_detector_subcommand =
@@ -144,6 +150,11 @@ where
             arguments,
         )
     };
+
+    if arguments.is_present("print-parameter-values") {
+        println!("{:#?}", detector_config);
+    }
+
     let detector = SimpleReconnectionSiteDetector::new(detector_config);
 
     run_with_selected_accelerator(arguments, detector_arguments, snapshot, detector);
@@ -175,6 +186,10 @@ fn run_with_selected_accelerator<G, D>(
         )
     };
 
+    if root_arguments.is_present("print-parameter-values") {
+        println!("{:#?}", distribution_config);
+    }
+
     let (accelerator_config, accelerator_arguments) = if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("simple_power_law_accelerator")
     {
@@ -185,6 +200,10 @@ fn run_with_selected_accelerator<G, D>(
             distribution_arguments,
         )
     };
+
+    if root_arguments.is_present("print-parameter-values") {
+        println!("{:#?}", accelerator_config);
+    }
 
     let accelerator = SimplePowerLawAccelerator::new(distribution_config, accelerator_config);
 
@@ -221,6 +240,11 @@ where G: Grid3<fdt>,
     } else {
         (PolyFitInterpolatorConfig::default(), arguments)
     };
+
+    if root_arguments.is_present("print-parameter-values") {
+        println!("{:#?}", interpolator_config);
+    }
+
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
     if root_arguments.is_present("generate-only") {
@@ -264,6 +288,10 @@ where G: Grid3<fdt>,
     } else {
         (RKFStepperType::RKF45, RKFStepperConfig::default())
     };
+
+    if root_arguments.is_present("print-parameter-values") {
+        println!("{:#?}\nstepper_type: {:?}", stepper_config, stepper_type);
+    }
 
     match stepper_type {
         RKFStepperType::RKF23 => {
