@@ -23,11 +23,11 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("trace")
         .about("Trace field lines of a vector field in the snapshot")
         .after_help(
-            "You can use subcommands to configure each action. The subcommands must be specified\n\
-             in the order tracer -> stepper -> interpolator -> seeder, with options for each\n\
-             action directly following the subcommand. Any action(s) except the seeder can be\n\
-             left unspecified, in which case the default implementation and parameters are used\n\
-             for that action.",
+            "You can use subcommands to configure each action. The subcommands must be\n\
+             specified in the order tracer -> stepper -> interpolator -> seeder, with options\n\
+             for each action directly following the subcommand. Any action(s) except seeding\n\
+             can be left unspecified, in which case the default implementation and parameters\n\
+             are used for that action.",
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
