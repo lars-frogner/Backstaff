@@ -25,9 +25,9 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
         .after_help(
             "You can use subcommands to configure each action. The subcommands must be specified\n\
              in the order tracer -> stepper -> interpolator -> seeder, with options for each\n\
-             action directly following the subcommand. Any action(s) except a seeder can be left\n\
-             unspecified, in which case the default implementation and parameters are used for\n\
-             that action.",
+             action directly following the subcommand. Any action(s) except the seeder can be\n\
+             left unspecified, in which case the default implementation and parameters are used\n\
+             for that action.",
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
@@ -84,41 +84,28 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
     let rkf_stepper_subcommand = cli::tracing::stepping::rkf::create_rkf_stepper_subcommand();
     let poly_fit_interpolator_subcommand =
         cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand();
-    let regular_slice_seeder_subcommand =
-        cli::tracing::seeding::slice::regular::create_regular_slice_seeder_subcommand();
-    let random_slice_seeder_subcommand =
-        cli::tracing::seeding::slice::random::create_random_slice_seeder_subcommand();
-    let stratified_slice_seeder_subcommand =
-        cli::tracing::seeding::slice::stratified::create_stratified_slice_seeder_subcommand();
+    let slice_seeder_subcommand = cli::tracing::seeding::slice::create_slice_seeder_subcommand();
 
     let poly_fit_interpolator_subcommand = poly_fit_interpolator_subcommand
         .setting(AppSettings::SubcommandRequired)
-        .subcommand(regular_slice_seeder_subcommand.clone())
-        .subcommand(random_slice_seeder_subcommand.clone())
-        .subcommand(stratified_slice_seeder_subcommand.clone());
+        .subcommand(slice_seeder_subcommand.clone());
 
     let rkf_stepper_subcommand = rkf_stepper_subcommand
         .setting(AppSettings::SubcommandRequired)
         .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(regular_slice_seeder_subcommand.clone())
-        .subcommand(random_slice_seeder_subcommand.clone())
-        .subcommand(stratified_slice_seeder_subcommand.clone());
+        .subcommand(slice_seeder_subcommand.clone());
 
     let basic_field_line_tracer_subcommand = basic_field_line_tracer_subcommand
         .setting(AppSettings::SubcommandRequired)
         .subcommand(rkf_stepper_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(regular_slice_seeder_subcommand.clone())
-        .subcommand(random_slice_seeder_subcommand.clone())
-        .subcommand(stratified_slice_seeder_subcommand.clone());
+        .subcommand(slice_seeder_subcommand.clone());
 
     app.setting(AppSettings::SubcommandRequired)
         .subcommand(basic_field_line_tracer_subcommand)
         .subcommand(rkf_stepper_subcommand)
         .subcommand(poly_fit_interpolator_subcommand)
-        .subcommand(regular_slice_seeder_subcommand)
-        .subcommand(random_slice_seeder_subcommand)
-        .subcommand(stratified_slice_seeder_subcommand)
+        .subcommand(slice_seeder_subcommand)
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
@@ -236,22 +223,11 @@ fn run_with_selected_seeder<G, Tr, StF, I>(
     StF: StepperFactory3 + Sync,
     I: Interpolator3,
 {
-    let seeder = if let Some(seeder_arguments) =
-        arguments.subcommand_matches("regular_slice_seeder")
-    {
-        cli::tracing::seeding::slice::regular::create_regular_slice_seeder_from_arguments(
+    let seeder = if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
+        cli::tracing::seeding::slice::create_slice_seeder_from_arguments(
             seeder_arguments,
-            snapshot.reader().grid(),
-        )
-    } else if let Some(seeder_arguments) = arguments.subcommand_matches("random_slice_seeder") {
-        cli::tracing::seeding::slice::random::create_random_slice_seeder_from_arguments(
-            seeder_arguments,
-            snapshot.reader().grid(),
-        )
-    } else if let Some(seeder_arguments) = arguments.subcommand_matches("stratified_slice_seeder") {
-        cli::tracing::seeding::slice::stratified::create_stratified_slice_seeder_from_arguments(
-            seeder_arguments,
-            snapshot.reader().grid(),
+            snapshot,
+            &interpolator,
         )
     } else {
         panic!("No seeder specified.")
