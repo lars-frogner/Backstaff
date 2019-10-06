@@ -1,7 +1,8 @@
 //! Command line interface for producing stratified seed points in a 2D slice of a 3D grid.
 
+use super::CommonSliceSeederParameters;
 use crate::cli;
-use crate::geometry::{Dim3, In2D};
+use crate::geometry::{In2D, Point2};
 use crate::grid::Grid3;
 use crate::io::snapshot::fdt;
 use crate::tracing::ftr;
@@ -10,27 +11,19 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the stratified slice seeder.
 pub fn create_stratified_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app =
-        SubCommand::with_name("stratified_slice_seeder").about("Use the stratified slice seeder");
+    let app = SubCommand::with_name("stratified")
+        .about("Use the stratified slice seeder")
+        .long_about(
+            "Use the stratified slice seeder.\n\
+             Seed points are produced at random positions within the cells of a regular 2D\n\
+             grid spanning a slice of the 3D grid.",
+        );
     add_stratified_slice_seeder_options_to_subcommand(app)
 }
 
 /// Adds arguments for parameters used by the stratified slice seeder.
 pub fn add_stratified_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
     app.arg(
-        Arg::with_name("AXIS")
-            .help("Which axis to slice across")
-            .required(true)
-            .takes_value(true)
-            .possible_values(&["x", "y", "z"]),
-    )
-    .arg(
-        Arg::with_name("COORD")
-            .help("Coordinate along the axis to slice at")
-            .required(true)
-            .takes_value(true),
-    )
-    .arg(
         Arg::with_name("SHAPE")
             .help("Shape of the regular 2D grid to seed in")
             .value_names(&["WIDTH", "HEIGHT"])
@@ -60,17 +53,16 @@ pub fn add_stratified_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b
 }
 
 /// Creates a stratified slice seeder based on the provided arguments.
-pub fn create_stratified_slice_seeder_from_arguments<G: Grid3<fdt>>(
+pub fn create_stratified_slice_seeder_from_arguments<G, S>(
     arguments: &ArgMatches,
+    parameters: &CommonSliceSeederParameters,
     grid: &G,
-) -> SliceSeeder3 {
-    let axis = cli::get_value_from_required_constrained_argument(
-        arguments,
-        "AXIS",
-        &["x", "y", "z"],
-        &Dim3::slice(),
-    );
-    let coord = cli::get_value_from_required_parseable_argument::<ftr>(arguments, "COORD");
+    satisfies_constraints: &S,
+) -> SliceSeeder3
+where
+    G: Grid3<fdt>,
+    S: Fn(&Point2<fdt>) -> bool + Sync,
+{
     let shape = cli::get_values_from_required_parseable_argument::<usize>(arguments, "SHAPE");
     let n_seeds_per_cell =
         cli::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
@@ -79,10 +71,11 @@ pub fn create_stratified_slice_seeder_from_arguments<G: Grid3<fdt>>(
 
     SliceSeeder3::stratified(
         grid,
-        axis,
-        coord,
+        parameters.axis,
+        parameters.coord,
         In2D::new(shape[0], shape[1]),
         n_seeds_per_cell,
         randomness,
+        satisfies_constraints,
     )
 }
