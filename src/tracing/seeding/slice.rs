@@ -32,6 +32,7 @@ impl SliceSeeder3 {
     /// - `axis`: Axis to slice across.
     /// - `coord`: Coordinate of the slice along `axis`.
     /// - `shape`: Number of seed points to generate in each direction.
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -41,15 +42,28 @@ impl SliceSeeder3 {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    pub fn regular<F, G>(grid: &G, axis: Dim3, coord: ftr, shape: In2D<usize>) -> Self
+    /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
+    pub fn regular<F, G, S>(
+        grid: &G,
+        axis: Dim3,
+        coord: ftr,
+        shape: In2D<usize>,
+        satisfies_constraints: &S,
+    ) -> Self
     where
         F: BFloat,
         G: Grid3<F>,
+        S: Fn(&Point2<F>) -> bool + Sync,
     {
         let slice_grid = grid.regular_slice_across_axis(axis).reshaped(shape);
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
         SliceSeeder3 {
-            seed_points: Self::construct_seed_points_from_slice_points(slice_centers, axis, coord),
+            seed_points: Self::construct_seed_points_from_slice_points(
+                slice_centers,
+                axis,
+                coord,
+                satisfies_constraints,
+            ),
         }
     }
 
@@ -61,6 +75,7 @@ impl SliceSeeder3 {
     /// - `axis`: Axis to slice across.
     /// - `coord`: Coordinate of the slice along `axis`.
     /// - `n_seeds`: Number of seed points to generate.
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -70,12 +85,28 @@ impl SliceSeeder3 {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    pub fn random<F, G>(grid: &G, axis: Dim3, coord: ftr, n_seeds: usize) -> Self
+    /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
+    pub fn random<F, G, S>(
+        grid: &G,
+        axis: Dim3,
+        coord: ftr,
+        n_seeds: usize,
+        satisfies_constraints: &S,
+    ) -> Self
     where
         F: BFloat + SampleUniform,
         G: Grid3<F>,
+        S: Fn(&Point2<F>) -> bool + Sync,
     {
-        Self::stratified(grid, axis, coord, In2D::same(1), n_seeds, 1.0)
+        Self::stratified(
+            grid,
+            axis,
+            coord,
+            In2D::same(1),
+            n_seeds,
+            1.0,
+            satisfies_constraints,
+        )
     }
 
     /// Creates a new seeder producing stratified seed points in a 2D slice of a 3D grid.
@@ -88,6 +119,7 @@ impl SliceSeeder3 {
     /// - `shape`: Shape of the stratification grid.
     /// - `n_seeds_per_cell`: Number of seed points to generate in each cell of the stratification grid.
     /// - `randomness`: How far from the cell centers the seed points can be generated, going from 0 (cell center) to 1 (cell edge).
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -97,17 +129,20 @@ impl SliceSeeder3 {
     ///
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    pub fn stratified<F, G>(
+    /// - `C`: Function type taking a reference to a 2D point and returning a boolean value.
+    pub fn stratified<F, G, S>(
         grid: &G,
         axis: Dim3,
         coord: ftr,
         shape: In2D<usize>,
         n_seeds_per_cell: usize,
         randomness: ftr,
+        satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat + SampleUniform,
         G: Grid3<F>,
+        S: Fn(&Point2<F>) -> bool + Sync,
     {
         assert_ne!(
             n_seeds_per_cell, 0,
@@ -119,7 +154,7 @@ impl SliceSeeder3 {
         );
 
         if randomness == 0.0 {
-            return Self::regular(grid, axis, coord, shape);
+            return Self::regular(grid, axis, coord, shape, satisfies_constraints);
         }
 
         let slice_grid = grid.regular_slice_across_axis(axis).reshaped(shape);
@@ -146,6 +181,7 @@ impl SliceSeeder3 {
                 stratified_points,
                 axis,
                 coord,
+                satisfies_constraints,
             ),
         }
     }
@@ -162,6 +198,7 @@ impl SliceSeeder3 {
     /// - `coord`: Coordinate of the slice along `axis`.
     /// - `compute_pdf_value`: Closure computing a positive, un-normalized probability density from a field value.
     /// - `n_seeds`: Number of seed points to generate (note that duplicate seed points will be discarded).
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -173,19 +210,22 @@ impl SliceSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
-    pub fn scalar_field_pdf<F, G, I, C>(
+    /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
+    pub fn scalar_field_pdf<F, G, I, C, S>(
         field: &ScalarField3<F, G>,
         interpolator: &I,
         axis: Dim3,
         coord: ftr,
         compute_pdf_value: &C,
         n_seeds: usize,
+        satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat + SampleUniform,
         G: Grid3<F>,
         I: Interpolator3,
         C: Fn(F) -> F,
+        S: Fn(&Point2<F>) -> bool + Sync,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
@@ -218,6 +258,7 @@ impl SliceSeeder3 {
                 slice_seed_points,
                 axis,
                 coord,
+                satisfies_constraints,
             ),
         }
     }
@@ -234,6 +275,7 @@ impl SliceSeeder3 {
     /// - `coord`: Coordinate of the slice along `axis`.
     /// - `compute_pdf_value`: Closure computing a positive, un-normalized probability density from a field vector.
     /// - `n_seeds`: Number of seed points to generate (note that duplicate seed points will be discarded).
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -245,19 +287,22 @@ impl SliceSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
-    pub fn vector_field_pdf<F, G, I, C>(
+    /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
+    pub fn vector_field_pdf<F, G, I, C, S>(
         field: &VectorField3<F, G>,
         interpolator: &I,
         axis: Dim3,
         coord: ftr,
         compute_pdf_value: &C,
         n_seeds: usize,
+        satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat + SampleUniform,
         G: Grid3<F>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> F,
+        S: Fn(&Point2<F>) -> bool + Sync,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
@@ -294,30 +339,63 @@ impl SliceSeeder3 {
                 slice_seed_points,
                 axis,
                 coord,
+                satisfies_constraints,
             ),
         }
     }
 
-    fn construct_seed_points_from_slice_points<F>(
+    fn construct_seed_points_from_slice_points<F, S>(
         slice_points: Vec<Point2<F>>,
         axis: Dim3,
         coord: ftr,
+        satisfies_constraints: &S,
     ) -> Vec<Point3<ftr>>
     where
         F: BFloat,
+        S: Fn(&Point2<F>) -> bool + Sync,
     {
         match axis {
             X => slice_points
-                .into_iter()
-                .map(|point| Point3::from_components(coord, point[Dim2::X], point[Dim2::Y]))
+                .into_par_iter()
+                .filter_map(|point| {
+                    if satisfies_constraints(&point) {
+                        Some(Point3::from_components(
+                            coord,
+                            point[Dim2::X],
+                            point[Dim2::Y],
+                        ))
+                    } else {
+                        None
+                    }
+                })
                 .collect(),
             Y => slice_points
-                .into_iter()
-                .map(|point| Point3::from_components(point[Dim2::X], coord, point[Dim2::Y]))
+                .into_par_iter()
+                .filter_map(|point| {
+                    if satisfies_constraints(&point) {
+                        Some(Point3::from_components(
+                            point[Dim2::X],
+                            coord,
+                            point[Dim2::Y],
+                        ))
+                    } else {
+                        None
+                    }
+                })
                 .collect(),
             Z => slice_points
-                .into_iter()
-                .map(|point| Point3::from_components(point[Dim2::X], point[Dim2::Y], coord))
+                .into_par_iter()
+                .filter_map(|point| {
+                    if satisfies_constraints(&point) {
+                        Some(Point3::from_components(
+                            point[Dim2::X],
+                            point[Dim2::Y],
+                            coord,
+                        ))
+                    } else {
+                        None
+                    }
+                })
                 .collect(),
         }
     }

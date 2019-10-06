@@ -27,6 +27,7 @@ impl CriterionSeeder3 {
     ///
     /// - `field`: Scalar field whose values to evaluate.
     /// - `evaluate_criterion`: Closure returning true for a field value whose indices should be a seed.
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -37,14 +38,17 @@ impl CriterionSeeder3 {
     /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     /// - `C`: Function type taking a floating point value and returning a boolean value.
-    pub fn on_scalar_field_values<F, G, C>(
+    /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
+    pub fn on_scalar_field_values<F, G, C, S>(
         field: &ScalarField3<F, G>,
         evaluate_criterion: &C,
+        satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
         G: Grid3<F>,
         C: Fn(F) -> bool + Sync,
+        S: Fn(&Point3<F>) -> bool + Sync,
     {
         let shape = field.shape();
         let values_slice = field
@@ -56,8 +60,10 @@ impl CriterionSeeder3 {
             .par_iter()
             .enumerate()
             .filter_map(|(idx, &value)| {
-                if evaluate_criterion(value) {
-                    Some(field::compute_3d_array_indices_from_flat_idx(&shape, idx))
+                let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
+                let point = field.coords().point(&indices);
+                if evaluate_criterion(value) && satisfies_constraints(&point) {
+                    Some(indices)
                 } else {
                     None
                 }
@@ -77,6 +83,7 @@ impl CriterionSeeder3 {
     /// - `field`: Scalar field whose values to evaluate.
     /// - `interpolator`: Interpolator to use.
     /// - `evaluate_criterion`: Closure returning true for a field value whose indices should be a seed.
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -88,16 +95,19 @@ impl CriterionSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a floating point value and returning a boolean value.
-    pub fn on_centered_scalar_field_values<F, G, I, C>(
+    /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
+    pub fn on_centered_scalar_field_values<F, G, I, C, S>(
         field: &ScalarField3<F, G>,
         interpolator: &I,
         evaluate_criterion: &C,
+        satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
         G: Grid3<F>,
         I: Interpolator3,
         C: Fn(F) -> bool + Sync,
+        S: Fn(&Point3<F>) -> bool + Sync,
     {
         let shape = field.shape();
         let center_coords = field.grid().centers();
@@ -107,6 +117,9 @@ impl CriterionSeeder3 {
             .filter_map(|idx| {
                 let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
                 let point = center_coords.point(&indices);
+                if !satisfies_constraints(&point) {
+                    return None;
+                }
                 let value = interpolator
                     .interp_scalar_field(field, &point)
                     .expect_inside();
@@ -131,6 +144,7 @@ impl CriterionSeeder3 {
     /// - `field`: Vector field whose values to evaluate.
     /// - `interpolator`: Interpolator to use.
     /// - `evaluate_criterion`: Closure returning true for a field vector whose indices should be a seed.
+    /// - `satisfies_constraints`: Closure taking a potential seed point and returning whether the point is accepted.
     ///
     /// # Returns
     ///
@@ -142,16 +156,19 @@ impl CriterionSeeder3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a boolean value.
-    pub fn on_centered_vector_field_values<F, G, I, C>(
+    /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
+    pub fn on_centered_vector_field_values<F, G, I, C, S>(
         field: &VectorField3<F, G>,
         interpolator: &I,
         evaluate_criterion: &C,
+        satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
         G: Grid3<F>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> bool + Sync,
+        S: Fn(&Point3<F>) -> bool + Sync,
     {
         let shape = field.shape();
         let center_coords = field.grid().centers();
@@ -161,6 +178,9 @@ impl CriterionSeeder3 {
             .filter_map(|idx| {
                 let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
                 let point = center_coords.point(&indices);
+                if !satisfies_constraints(&point) {
+                    return None;
+                }
                 let vector = interpolator
                     .interp_vector_field(field, &point)
                     .expect_inside();
