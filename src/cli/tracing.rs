@@ -39,6 +39,7 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("vector-quantity")
                 .short("q")
                 .long("vector-quantity")
+                .require_equals(true)
                 .value_name("NAME")
                 .long_help("Which vector field from the snapshot to trace")
                 .next_line_help(true)
@@ -49,6 +50,7 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("output-format")
                 .short("f")
                 .long("output-format")
+                .require_equals(true)
                 .value_name("FORMAT")
                 .long_help("Format to use for saving field line data")
                 .next_line_help(true)
@@ -59,16 +61,24 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("extra-fixed-scalars")
                 .long("extra-fixed-scalars")
+                .require_equals(true)
+                .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help("List of scalar fields to extract at seed positions")
+                .long_help("List of scalar fields to extract at seed positions (comma-separated)")
+                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )
         .arg(
             Arg::with_name("extra-varying-scalars")
                 .long("extra-varying-scalars")
+                .require_equals(true)
+                .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help("List of scalar fields to extract along field line paths")
+                .long_help(
+                    "List of scalar fields to extract along field line paths (comma-separated)",
+                )
+                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )

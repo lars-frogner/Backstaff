@@ -45,6 +45,7 @@ pub fn add_slice_pdf_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> A
     .arg(
         Arg::with_name("power")
             .long("power")
+            .require_equals(true)
             .value_name("VALUE")
             .help("Power of the quantity value to use for computing the probability density")
             .takes_value(true)

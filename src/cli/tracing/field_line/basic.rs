@@ -25,6 +25,7 @@ pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b
     app.arg(
         Arg::with_name("field-line-tracing-sense")
             .long("field-line-tracing-sense")
+            .require_equals(true)
             .value_name("SENSE")
             .long_help("Direction(s) to trace the field line relative to the field direction\n")
             .takes_value(true)
@@ -34,6 +35,7 @@ pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b
     .arg(
         Arg::with_name("field-line-point-spacing")
             .long("field-line-point-spacing")
+            .require_equals(true)
             .value_name("SPACING")
             .long_help("Form of spacing between field line points\n")
             .takes_value(true)
@@ -43,6 +45,7 @@ pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b
     .arg(
         Arg::with_name("max-field-line-length")
             .long("max-field-line-length")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Field lines reaching lengths larger than this will be terminated\n")
             .takes_value(true)

@@ -28,6 +28,7 @@ pub fn add_simple_reconnection_site_detector_options_to_subcommand<'a, 'b>(
     app.arg(
         Arg::with_name("reconnection-factor-type")
             .long("reconnection-factor-type")
+            .require_equals(true)
             .value_name("TYPE")
             .long_help(
                 "Which version of the reconnection factor to use for seeding\n\
@@ -40,6 +41,7 @@ pub fn add_simple_reconnection_site_detector_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("reconnection-factor-threshold")
             .long("reconnection-factor-threshold")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Reconnection sites will be detected where the reconnection factor value is larger than this\n\
@@ -51,6 +53,8 @@ pub fn add_simple_reconnection_site_detector_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("detection-depth-limits")
             .long("detection-depth-limits")
+            .require_equals(true)
+            .require_delimiter(true)
             .value_names(&["MIN, MAX"])
             .long_help(
                 "Smallest and largest depth at which reconnection sites will be detected [Mm] [default: from param file]",

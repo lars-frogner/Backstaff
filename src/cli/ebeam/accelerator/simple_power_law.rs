@@ -28,6 +28,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     app.arg(
         Arg::with_name("acceleration-duration")
             .long("acceleration-duration")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Duration of the acceleration events [s] [default: from param file]")
             .next_line_help(true)
@@ -36,6 +37,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("particle-energy-fraction")
             .long("particle-energy-fraction")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Fraction of the released reconnection energy going into acceleration of\n\
@@ -47,6 +49,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("power-law-delta")
             .long("power-law-delta")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Exponent of the inverse power-law describing the non-thermal electron\n\
@@ -58,6 +61,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("pitch-angle-distribution")
             .long("pitch-angle-distribution")
+            .require_equals(true)
             .value_name("TYPE")
             .long_help("Type of pitch angle distribution of the non-thermal electrons\n")
             .next_line_help(true)
@@ -68,6 +72,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("min-total-power-density")
             .long("min-total-power-density")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Distributions with total power densities smaller than this value are discarded\n\
@@ -79,6 +84,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("min-estimated-depletion-distance")
             .long("min-estimated-depletion-distance")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Distributions with an initial estimated depletion distance smaller than this\n\
@@ -90,6 +96,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("max-acceleration-angle")
             .long("max-acceleration-angle")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Distributions with acceleration directions angled more than this away from the\n\
@@ -102,6 +109,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("initial-cutoff-energy-guess")
             .long("initial-cutoff-energy-guess")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Initial guess to use when estimating lower cut-off energy [keV]")
             .next_line_help(true)
@@ -111,6 +119,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("acceptable-root-finding-error")
             .long("acceptable-root-finding-error")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Target relative error when estimating lower cut-off energy")
             .next_line_help(true)
@@ -120,6 +129,7 @@ pub fn add_simple_power_law_accelerator_options_to_subcommand<'a, 'b>(
     .arg(
         Arg::with_name("max-root-finding-iterations")
             .long("max-root-finding-iterations")
+            .require_equals(true)
             .value_name("NUMBER")
             .long_help("Maximum number of iterations when estimating lower cut-off energy")
             .next_line_help(true)

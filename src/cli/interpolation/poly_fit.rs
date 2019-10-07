@@ -22,6 +22,7 @@ pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>)
     app.arg(
         Arg::with_name("interpolation-order")
             .long("interpolation-order")
+            .require_equals(true)
             .value_name("ORDER")
             .long_help("Order of the polynomials to fit when interpolating field values\n")
             .next_line_help(true)
@@ -32,6 +33,7 @@ pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>)
     .arg(
         Arg::with_name("variation-threshold-for-linear-interpolation")
             .long("variation-threshold-for-linear-interpolation")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Linear interpolation is used when a normalized variance of the values\n\

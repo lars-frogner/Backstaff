@@ -50,6 +50,7 @@ pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("sample-location")
                 .short("l")
                 .long("sample-location")
+                .require_equals(true)
                 .value_name("LOCATION")
                 .long_help("Location in the grid cell where slice values should be sampled\n")
                 .takes_value(true)

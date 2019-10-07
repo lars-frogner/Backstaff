@@ -51,6 +51,7 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("output-format")
                 .short("f")
                 .long("output-format")
+                .require_equals(true)
                 .value_name("FORMAT")
                 .long_help("Format to use for saving beam data")
                 .next_line_help(true)
@@ -67,16 +68,26 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("extra-fixed-scalars")
                 .long("extra-fixed-scalars")
+                .require_equals(true)
+                .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help("List of scalar fields to extract at acceleration sites")
+                .long_help(
+                    "List of scalar fields to extract at acceleration sites (comma-separated)",
+                )
+                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )
         .arg(
             Arg::with_name("extra-varying-scalars")
                 .long("extra-varying-scalars")
+                .require_equals(true)
+                .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help("List of scalar fields to extract along beam trajectories")
+                .long_help(
+                    "List of scalar fields to extract along beam trajectories (comma-separated)",
+                )
+                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )

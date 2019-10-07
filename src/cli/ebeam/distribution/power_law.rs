@@ -25,6 +25,7 @@ pub fn add_power_law_distribution_options_to_subcommand<'a, 'b>(app: App<'a, 'b>
     app.arg(
         Arg::with_name("min-remaining-power-density")
             .long("min-remaining-power-density")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "Distributions with remaining power densities smaller than this value are\n\

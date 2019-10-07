@@ -23,6 +23,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     app.arg(
         Arg::with_name("dense-step-length")
             .long("dense-step-length")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Step length to use for dense (uniform) output positions [Mm]")
             .next_line_help(true)
@@ -32,6 +33,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("max-step-attempts")
             .long("max-step-attempts")
+            .require_equals(true)
             .value_name("NUMBER")
             .long_help("Maximum number of step attempts before terminating")
             .next_line_help(true)
@@ -41,6 +43,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("stepping-absolute-tolerance")
             .long("stepping-absolute-tolerance")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Absolute error tolerance for stepping")
             .next_line_help(true)
@@ -50,6 +53,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("stepping-relative-tolerance")
             .long("stepping-relative-tolerance")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Relative error tolerance for stepping")
             .next_line_help(true)
@@ -59,6 +63,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("stepping-safety-factor")
             .long("stepping-safety-factor")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Scaling factor for the error to reduce step length oscillations")
             .next_line_help(true)
@@ -68,6 +73,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("min-step-scale")
             .long("min-step-scale")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Smallest allowed scaling of the step size in one step")
             .next_line_help(true)
@@ -77,6 +83,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("max-step-scale")
             .long("max-step-scale")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Largest allowed scaling of the step size in one step")
             .next_line_help(true)
@@ -86,6 +93,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("stepping-initial-error")
             .long("stepping-initial-error")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Start value for stepping error")
             .next_line_help(true)
@@ -95,6 +103,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("initial-step-length")
             .long("stepping-initial-step-length")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help("Initial step size")
             .next_line_help(true)
@@ -104,6 +113,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("sudden-reversals-for-sink")
             .long("sudden-reversals-for-sink")
+            .require_equals(true)
             .value_name("NUMBER")
             .long_help("Number of sudden direction reversals before the area is considered a sink")
             .next_line_help(true)
@@ -118,6 +128,7 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
     .arg(
         Arg::with_name("stepping-scheme")
             .long("stepping-scheme")
+            .require_equals(true)
             .value_name("NAME")
             .long_help("Which Runge-Kutta-Fehlberg stepping scheme to use")
             .next_line_help(true)

@@ -51,6 +51,8 @@ pub fn add_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'
     .arg(
         Arg::with_name("horizontal-limits")
             .long("horizontal-limits")
+            .require_equals(true)
+            .require_delimiter(true)
             .value_names(&["MIN, MAX"])
             .long_help(
                 "Smallest and largest value of the first slice coordinate for which generated\n\
@@ -62,6 +64,8 @@ pub fn add_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'
     .arg(
         Arg::with_name("vertical-limits")
             .long("vertical-limits")
+            .require_equals(true)
+            .require_delimiter(true)
             .value_names(&["MIN, MAX"])
             .long_help(
                 "Smallest and largest value of the second slice coordinate for which generated\n\

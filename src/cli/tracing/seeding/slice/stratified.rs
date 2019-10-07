@@ -34,6 +34,7 @@ pub fn add_stratified_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b
     .arg(
         Arg::with_name("points-per-cell")
             .long("points-per-cell")
+            .require_equals(true)
             .value_name("NUMBER")
             .help("Number of seed points to generate in each grid cell")
             .takes_value(true)
@@ -42,6 +43,7 @@ pub fn add_stratified_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b
     .arg(
         Arg::with_name("randomness")
             .long("randomness")
+            .require_equals(true)
             .value_name("VALUE")
             .long_help(
                 "How far from the cell centers the seed points can be generated,\n\
