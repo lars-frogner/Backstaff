@@ -8,73 +8,69 @@ use crate::num::BFloat;
 use Dim3::{X, Y, Z};
 
 macro_rules! compute_start_offset {
-    {$center_coords:expr, $locations:expr, $interp_coord:expr, $interp_indices:expr, $order:expr} => {
-        {
-            const N_POINTS: usize = $order + 1;
-            const DEFAULT_START_OFFSET: isize = 1 - ((N_POINTS + 1) as isize) / 2;
+    ($center_coords:expr, $locations:expr, $interp_coord:expr, $interp_indices:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
+        const DEFAULT_START_OFFSET: isize = 1 - ((N_POINTS + 1) as isize) / 2;
 
-            match $locations {
-                CoordLocation::Center => {
-                    if $order % 2 != 0 && $interp_coord < $center_coords[$interp_indices] {
-                        // If coordinates are located at cell centers, interpolation order is odd
-                        // and interpolation coordinate is in lower half of the cell:
-                        // Shift start offset one cell down.
-                        DEFAULT_START_OFFSET - 1
-                    } else {
-                        DEFAULT_START_OFFSET
-                    }
+        match $locations {
+            CoordLocation::Center => {
+                if $order % 2 != 0 && $interp_coord < $center_coords[$interp_indices] {
+                    // If coordinates are located at cell centers, interpolation order is odd
+                    // and interpolation coordinate is in lower half of the cell:
+                    // Shift start offset one cell down.
+                    DEFAULT_START_OFFSET - 1
+                } else {
+                    DEFAULT_START_OFFSET
                 }
-                CoordLocation::LowerEdge => {
-                    if $order % 2 == 0 && $interp_coord > $center_coords[$interp_indices] {
-                        // If coordinates are located at lower cell edges, interpolation order is even
-                        // and interpolation coordinate is in upper half of the cell:
-                        // Shift start offset one cell up.
-                        DEFAULT_START_OFFSET + 1
-                    } else {
-                        DEFAULT_START_OFFSET
-                    }
+            }
+            CoordLocation::LowerEdge => {
+                if $order % 2 == 0 && $interp_coord > $center_coords[$interp_indices] {
+                    // If coordinates are located at lower cell edges, interpolation order is even
+                    // and interpolation coordinate is in upper half of the cell:
+                    // Shift start offset one cell up.
+                    DEFAULT_START_OFFSET + 1
+                } else {
+                    DEFAULT_START_OFFSET
                 }
             }
         }
-    };
+    }};
 }
 
 macro_rules! compute_start_indices {
-    {$grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr} => {
-        {
-            let center_coords = $grid.centers();
-            let start_offset_x = compute_start_offset!(
-                &center_coords[X],
-                $locations[X],
-                $interp_point[X],
-                $interp_indices[X],
-                $order
-            );
-            let start_offset_y = compute_start_offset!(
-                &center_coords[Y],
-                $locations[Y],
-                $interp_point[Y],
-                $interp_indices[Y],
-                $order
-            );
-            let start_offset_z = compute_start_offset!(
-                &center_coords[Z],
-                $locations[Z],
-                $interp_point[Z],
-                $interp_indices[Z],
-                $order
-            );
-            Idx3::new(
-                ($interp_indices[X] as isize) + start_offset_x,
-                ($interp_indices[Y] as isize) + start_offset_y,
-                ($interp_indices[Z] as isize) + start_offset_z,
-            )
-        }
-    };
+    ($grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr) => {{
+        let center_coords = $grid.centers();
+        let start_offset_x = compute_start_offset!(
+            &center_coords[X],
+            $locations[X],
+            $interp_point[X],
+            $interp_indices[X],
+            $order
+        );
+        let start_offset_y = compute_start_offset!(
+            &center_coords[Y],
+            $locations[Y],
+            $interp_point[Y],
+            $interp_indices[Y],
+            $order
+        );
+        let start_offset_z = compute_start_offset!(
+            &center_coords[Z],
+            $locations[Z],
+            $interp_point[Z],
+            $interp_indices[Z],
+            $order
+        );
+        Idx3::new(
+            ($interp_indices[X] as isize) + start_offset_x,
+            ($interp_indices[Y] as isize) + start_offset_y,
+            ($interp_indices[Z] as isize) + start_offset_z,
+        )
+    }};
 }
 
 macro_rules! find_start_indices_and_crossings {
-    {$grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr} => {
+    ($grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr) => {
         {
             const N_POINTS: usize = $order + 1;
 
@@ -118,78 +114,74 @@ macro_rules! find_start_indices_and_crossings {
 }
 
 macro_rules! create_value_subarray_for_interior {
-    {$values:expr, $start_indices:expr, $order:expr} => {
-        {
-            const N_POINTS: usize = $order + 1;
+    ($values:expr, $start_indices:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
 
-            let mut subarray = [F::zero(); N_POINTS*N_POINTS*N_POINTS];
-            let offsets = Idx3::from(&$start_indices);
-            let mut idx = 0;
+        let mut subarray = [F::zero(); N_POINTS * N_POINTS * N_POINTS];
+        let offsets = Idx3::from(&$start_indices);
+        let mut idx = 0;
 
-            let mut sum = F::zero();
-            let mut sum_of_squares = F::zero();
+        let mut sum = F::zero();
+        let mut sum_of_squares = F::zero();
 
-            for k in offsets[Z]..(offsets[Z] + N_POINTS) {
-                for j in offsets[Y]..(offsets[Y] + N_POINTS) {
-                    for i in offsets[X]..(offsets[X] + N_POINTS) {
-                        let value = $values[[i, j, k]];
-                        subarray[idx] = value;
-                        idx += 1;
+        for k in offsets[Z]..(offsets[Z] + N_POINTS) {
+            for j in offsets[Y]..(offsets[Y] + N_POINTS) {
+                for i in offsets[X]..(offsets[X] + N_POINTS) {
+                    let value = $values[[i, j, k]];
+                    subarray[idx] = value;
+                    idx += 1;
 
-                        sum = sum + value;
-                        sum_of_squares = sum_of_squares + value * value;
-                    }
+                    sum = sum + value;
+                    sum_of_squares = sum_of_squares + value * value;
                 }
             }
-
-            let variation =
-                F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS*N_POINTS*N_POINTS).unwrap());
-
-            (subarray, variation)
         }
-    };
+
+        let variation = F::one()
+            - (sum * sum) / (sum_of_squares * F::from(N_POINTS * N_POINTS * N_POINTS).unwrap());
+
+        (subarray, variation)
+    }};
 }
 
 macro_rules! create_value_subarray_for_periodic {
-    {$values:expr, $start_indices:expr, $order:expr} => {
-        {
-            const N_POINTS: usize = $order + 1;
+    ($values:expr, $start_indices:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
 
-            let grid_shape = $values.shape();
-            let offsets = In3D::new(
-                ($start_indices[X] + (grid_shape[0] as isize)) as usize,
-                ($start_indices[Y] + (grid_shape[1] as isize)) as usize,
-                ($start_indices[Z] + (grid_shape[2] as isize)) as usize,
-            );
-            let mut subarray = [F::zero(); N_POINTS*N_POINTS*N_POINTS];
-            let mut idx = 0;
+        let grid_shape = $values.shape();
+        let offsets = In3D::new(
+            ($start_indices[X] + (grid_shape[0] as isize)) as usize,
+            ($start_indices[Y] + (grid_shape[1] as isize)) as usize,
+            ($start_indices[Z] + (grid_shape[2] as isize)) as usize,
+        );
+        let mut subarray = [F::zero(); N_POINTS * N_POINTS * N_POINTS];
+        let mut idx = 0;
 
-            let mut sum = F::zero();
-            let mut sum_of_squares = F::zero();
+        let mut sum = F::zero();
+        let mut sum_of_squares = F::zero();
 
-            for k in 0..N_POINTS {
-                for j in 0..N_POINTS {
-                    for i in 0..N_POINTS {
-                        let value = $values[[
-                            (offsets[X] + i) % grid_shape[0],
-                            (offsets[Y] + j) % grid_shape[1],
-                            (offsets[Z] + k) % grid_shape[2],
-                        ]];
-                        subarray[idx] = value;
-                        idx += 1;
+        for k in 0..N_POINTS {
+            for j in 0..N_POINTS {
+                for i in 0..N_POINTS {
+                    let value = $values[[
+                        (offsets[X] + i) % grid_shape[0],
+                        (offsets[Y] + j) % grid_shape[1],
+                        (offsets[Z] + k) % grid_shape[2],
+                    ]];
+                    subarray[idx] = value;
+                    idx += 1;
 
-                        sum = sum + value;
-                        sum_of_squares = sum_of_squares + value * value;
-                    }
+                    sum = sum + value;
+                    sum_of_squares = sum_of_squares + value * value;
                 }
             }
-
-            let variation =
-                F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS*N_POINTS*N_POINTS).unwrap());
-
-            (subarray, variation)
         }
-    };
+
+        let variation = F::one()
+            - (sum * sum) / (sum_of_squares * F::from(N_POINTS * N_POINTS * N_POINTS).unwrap());
+
+        (subarray, variation)
+    }};
 }
 
 macro_rules! create_value_subarray {
@@ -203,32 +195,28 @@ macro_rules! create_value_subarray {
 }
 
 macro_rules! create_coordinate_subarray_for_interior {
-    {$coords:expr, $start_indices:expr, $order:expr} => {
-        {
-            const N_POINTS: usize = $order + 1;
+    ($coords:expr, $start_indices:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
 
-            let mut subarray = [F::zero(); N_POINTS];
-            let offset = $start_indices as usize;
-            subarray[..N_POINTS].clone_from_slice(&$coords[offset..(N_POINTS + offset)]);
-            subarray
-        }
-    };
+        let mut subarray = [F::zero(); N_POINTS];
+        let offset = $start_indices as usize;
+        subarray[..N_POINTS].clone_from_slice(&$coords[offset..(N_POINTS + offset)]);
+        subarray
+    }};
 }
 
 macro_rules! create_coordinate_subarray_for_periodic {
-    {$coords:expr, $start_indices:expr, $order:expr} => {
-        {
-            const N_POINTS: usize = $order + 1;
+    ($coords:expr, $start_indices:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
 
-            let len = $coords.len();
-            let offset = ($start_indices + (len as isize)) as usize;
-            let mut subarray = [F::zero(); N_POINTS];
-            for idx in 0..N_POINTS {
-                subarray[idx] = $coords[(offset + idx) % len];
-            }
-            subarray
+        let len = $coords.len();
+        let offset = ($start_indices + (len as isize)) as usize;
+        let mut subarray = [F::zero(); N_POINTS];
+        for idx in 0..N_POINTS {
+            subarray[idx] = $coords[(offset + idx) % len];
         }
-    };
+        subarray
+    }};
 }
 
 macro_rules! create_coordinate_subarrays {
@@ -253,87 +241,84 @@ macro_rules! create_coordinate_subarrays {
 }
 
 macro_rules! interp_subarrays {
-    {$coords:expr, $values:expr, $interp_point:expr, $order:expr} => {
-        {
-            const N_POINTS: usize = $order + 1;
+    ($coords:expr, $values:expr, $interp_point:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
 
-            let x_coords = $coords[X];
-            let y_coords = $coords[Y];
-            let z_coords = $coords[Z];
+        let x_coords = $coords[X];
+        let y_coords = $coords[Y];
+        let z_coords = $coords[Z];
 
-            let mut vals_c = [F::zero(); N_POINTS];
-            let mut vals_d = [F::zero(); N_POINTS];
-            let mut poly_x = [F::zero(); N_POINTS*N_POINTS];
-            let mut poly_xy = [F::zero(); N_POINTS];
-            let mut poly_xyz;
-            let mut accum;
-            let mut correction;
+        let mut vals_c = [F::zero(); N_POINTS];
+        let mut vals_d = [F::zero(); N_POINTS];
+        let mut poly_x = [F::zero(); N_POINTS * N_POINTS];
+        let mut poly_xy = [F::zero(); N_POINTS];
+        let mut poly_xyz;
+        let mut accum;
+        let mut correction;
 
-            for k in 0..N_POINTS {
-                for j in 0..N_POINTS {
-                    vals_c.copy_from_slice(
-                        &$values[(k * N_POINTS + j) * N_POINTS
-                            ..(k * N_POINTS + j + 1) * N_POINTS],
-                    );
-                    vals_d.copy_from_slice(&vals_c);
-
-                    accum = vals_c[0];
-
-                    for n in 1..N_POINTS {
-                        for i in 0..(N_POINTS - n) {
-                            correction = (vals_c[i + 1] - vals_d[i]) / (x_coords[i + n] - x_coords[i]);
-                            vals_c[i] = ($interp_point[X] - x_coords[i]) * correction;
-                            vals_d[i] = ($interp_point[X] - x_coords[i + n]) * correction;
-                        }
-
-                        accum = accum + vals_c[0];
-                    }
-
-                    poly_x[k * N_POINTS + j] = accum;
-                }
-            }
-
-            for k in 0..N_POINTS {
-                vals_c.copy_from_slice(&poly_x[k * N_POINTS..(k + 1) * N_POINTS]);
+        for k in 0..N_POINTS {
+            for j in 0..N_POINTS {
+                vals_c.copy_from_slice(
+                    &$values[(k * N_POINTS + j) * N_POINTS..(k * N_POINTS + j + 1) * N_POINTS],
+                );
                 vals_d.copy_from_slice(&vals_c);
 
                 accum = vals_c[0];
 
                 for n in 1..N_POINTS {
-                    for j in 0..(N_POINTS - n) {
-                        correction = (vals_c[j + 1] - vals_d[j]) / (y_coords[j + n] - y_coords[j]);
-                        vals_c[j] = ($interp_point[Y] - y_coords[j]) * correction;
-                        vals_d[j] = ($interp_point[Y] - y_coords[j + n]) * correction;
+                    for i in 0..(N_POINTS - n) {
+                        correction = (vals_c[i + 1] - vals_d[i]) / (x_coords[i + n] - x_coords[i]);
+                        vals_c[i] = ($interp_point[X] - x_coords[i]) * correction;
+                        vals_d[i] = ($interp_point[X] - x_coords[i + n]) * correction;
                     }
 
                     accum = accum + vals_c[0];
                 }
 
-                poly_xy[k] = accum;
+                poly_x[k * N_POINTS + j] = accum;
             }
+        }
 
-            vals_c.copy_from_slice(&poly_xy);
+        for k in 0..N_POINTS {
+            vals_c.copy_from_slice(&poly_x[k * N_POINTS..(k + 1) * N_POINTS]);
             vals_d.copy_from_slice(&vals_c);
 
-            poly_xyz = vals_c[0];
+            accum = vals_c[0];
 
             for n in 1..N_POINTS {
-                for k in 0..(N_POINTS - n) {
-                    correction = (vals_c[k + 1] - vals_d[k]) / (z_coords[k + n] - z_coords[k]);
-                    vals_c[k] = ($interp_point[Z] - z_coords[k]) * correction;
-                    vals_d[k] = ($interp_point[Z] - z_coords[k + n]) * correction;
+                for j in 0..(N_POINTS - n) {
+                    correction = (vals_c[j + 1] - vals_d[j]) / (y_coords[j + n] - y_coords[j]);
+                    vals_c[j] = ($interp_point[Y] - y_coords[j]) * correction;
+                    vals_d[j] = ($interp_point[Y] - y_coords[j + n]) * correction;
                 }
 
-                poly_xyz = poly_xyz + vals_c[0];
+                accum = accum + vals_c[0];
             }
 
-            poly_xyz
+            poly_xy[k] = accum;
         }
-    };
+
+        vals_c.copy_from_slice(&poly_xy);
+        vals_d.copy_from_slice(&vals_c);
+
+        poly_xyz = vals_c[0];
+
+        for n in 1..N_POINTS {
+            for k in 0..(N_POINTS - n) {
+                correction = (vals_c[k + 1] - vals_d[k]) / (z_coords[k + n] - z_coords[k]);
+                vals_c[k] = ($interp_point[Z] - z_coords[k]) * correction;
+                vals_d[k] = ($interp_point[Z] - z_coords[k + n]) * correction;
+            }
+
+            poly_xyz = poly_xyz + vals_c[0];
+        }
+
+        poly_xyz
+    }};
 }
 
 macro_rules! interp {
-    {
+    (
         $grid:expr,
         $coords:expr,
         $locations:expr,
@@ -342,7 +327,7 @@ macro_rules! interp {
         $interp_indices:expr,
         $variation_threshold_for_linear:expr,
         $order:expr
-    } => {
+     ) => {
         {
             let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
                 find_start_indices_and_crossings!(
