@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 from fields import Coords3, Coords2, ScalarField2
-from field_lines import FieldLine3, FieldLineSet3
+from field_lines import FieldLineSet3
 from electron_beams import ElectronBeamSwarm
 
 SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -11,45 +11,52 @@ DATA_PATH = os.path.join(PROJECT_PATH, 'data')
 
 
 def read_2d_scalar_field(file_path):
-    with file_path.open(mode='rb') as f:
+    with open(file_path, mode='rb') as f:
         data = pickle.load(f)
     return __parse_scalarfield2(data)
 
 
-def read_3d_field_line(file_path):
-    with file_path.open(mode='rb') as f:
+def read_3d_field_line_set_from_single_pickle(file_path, **kwargs):
+    with open(file_path, mode='rb') as f:
         data = pickle.load(f)
-    return __parse_fieldline3(data)
+    return __parse_electronbeamswarm(data, **kwargs)
 
 
-def read_3d_field_line_set_from_single_pickle(file_path):
-    with file_path.open(mode='rb') as f:
-        data = pickle.load(f)
-    return __parse_fieldlineset3(data)
+def read_3d_field_line_set_from_combined_pickles(file_path, **kwargs):
+    data = {}
+    with open(file_path, mode='rb') as f:
+        data['number_of_field_lines'] = pickle.load(f)
+        data['fixed_scalar_values'] = pickle.load(f)
+        data['fixed_vector_values'] = pickle.load(f)
+        data['varying_scalar_values'] = pickle.load(f)
+        data['varying_vector_values'] = pickle.load(f)
+    return __parse_fieldlineset3(data, **kwargs)
 
 
-def read_3d_field_line_set_from_combined_pickles(file_path):
-    field_line_set = FieldLineSet3([])
-    with file_path.open(mode='rb') as f:
-        while True:
-            try:
-                data = pickle.load(f)
-            except EOFError:
-                break
-            field_line = __parse_fieldline3(data)
-            field_line_set.insert(field_line)
-    return field_line_set
+def __parse_fieldlineset3(data, **kwargs):
+    number_of_field_lines = data.pop('number_of_field_lines')
+    fixed_scalar_values = __parse_map_of_vec_of_float(
+        data['fixed_scalar_values'])
+    fixed_vector_values = __parse_map_of_vec_of_vec3(
+        data.pop('fixed_vector_values'))
+    varying_scalar_values = __parse_map_of_vec_of_vec_of_float(
+        data.pop('varying_scalar_values'))
+    varying_vector_values = __parse_map_of_vec_of_vec_of_vec3(
+        data.pop('varying_vector_values'))
+    return FieldLineSet3(number_of_field_lines, fixed_scalar_values,
+                         fixed_vector_values, varying_scalar_values,
+                         varying_vector_values, **kwargs)
 
 
 def read_electron_beam_swarm_from_single_pickle(file_path, **kwargs):
-    with file_path.open(mode='rb') as f:
+    with open(file_path, mode='rb') as f:
         data = pickle.load(f)
     return __parse_electronbeamswarm(data, **kwargs)
 
 
 def read_electron_beam_swarm_from_combined_pickles(file_path, **kwargs):
     data = {}
-    with file_path.open(mode='rb') as f:
+    with open(file_path, mode='rb') as f:
         data['number_of_beams'] = pickle.load(f)
         data['fixed_scalar_values'] = pickle.load(f)
         data['fixed_vector_values'] = pickle.load(f)
@@ -83,18 +90,6 @@ def __parse_electronbeamswarm_metadata(metadata):
     else:
         raise NotImplementedError('Invalid metadata label {}'.format(label))
     return metadata
-
-
-def __parse_fieldlineset3(data):
-    return FieldLineSet3([__parse_fieldline3(d) for d in data['field_lines']])
-
-
-def __parse_fieldline3(data):
-    positions = __parse_vec_of_vec_of_vec3_into_vec_of_coords3(
-        data['positions'])
-    scalar_values = __parse_map_of_vec_of_float(data['scalar_values'])
-    vector_values = __parse_map_of_vec_of_float(data['vector_values'])
-    return FieldLine3(positions, scalar_values, vector_values)
 
 
 def __parse_scalarfield2(data):
