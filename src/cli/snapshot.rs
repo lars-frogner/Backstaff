@@ -1,6 +1,7 @@
 //! Command line interface for actions related to snapshots.
 
 pub mod inspect;
+pub mod resample;
 pub mod slice;
 
 use crate::cli;
@@ -92,42 +93,43 @@ pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(inspect::build_subcommand_inspect())
         .subcommand(slice::build_subcommand_slice())
+        .subcommand(resample::build_subcommand_resample())
         .subcommand(cli::tracing::build_subcommand_trace())
         .subcommand(cli::ebeam::build_subcommand_ebeam());
 
     add_snapshot_reader_arguments_to_subcommand(app)
 }
 
-macro_rules! run_subcommand_snapshot_for_grid_type {
-    ($grid_type:ty, $arguments:expr, $reader_config:expr) => {{
-        let reader = SnapshotReader3::<$grid_type>::new($reader_config)
-            .unwrap_or_else(|err| panic!("Could not read snapshot: {}", err));
-        let mut snapshot = reader.into_cacher();
-
-        if let Some(inspect_arguments) = $arguments.subcommand_matches("inspect") {
-            inspect::run_subcommand_inspect(inspect_arguments, &mut snapshot);
-        }
-        if let Some(slice_arguments) = $arguments.subcommand_matches("slice") {
-            slice::run_subcommand_slice(slice_arguments, &mut snapshot);
-        }
-        if let Some(trace_arguments) = $arguments.subcommand_matches("trace") {
-            cli::tracing::run_subcommand_trace(trace_arguments, &mut snapshot);
-        }
-        if let Some(ebeam_arguments) = $arguments.subcommand_matches("ebeam") {
-            cli::ebeam::run_subcommand_ebeam(ebeam_arguments, &mut snapshot);
-        }
-    }};
-}
-
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_subcommand_snapshot(arguments: &ArgMatches) {
     let (grid_type, reader_config) = construct_snapshot_reader_config_from_arguments(arguments);
+
+    macro_rules! run_subcommands_for_grid_type {
+        ($grid_type:ty) => {{
+            let reader = SnapshotReader3::<$grid_type>::new(reader_config)
+                .unwrap_or_else(|err| panic!("Could not read snapshot: {}", err));
+            let mut snapshot = reader.into_cacher();
+
+            if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
+                inspect::run_subcommand_inspect(inspect_arguments, &mut snapshot);
+            }
+            if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
+                slice::run_subcommand_slice(slice_arguments, &mut snapshot);
+            }
+            if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
+                resample::run_subcommand_resample(resample_arguments, snapshot.reader());
+            }
+            if let Some(trace_arguments) = arguments.subcommand_matches("trace") {
+                cli::tracing::run_subcommand_trace(trace_arguments, &mut snapshot);
+            }
+            if let Some(ebeam_arguments) = arguments.subcommand_matches("ebeam") {
+                cli::ebeam::run_subcommand_ebeam(ebeam_arguments, &mut snapshot);
+            }
+        }};
+    }
+
     match grid_type {
-        GridType::HorRegular => {
-            run_subcommand_snapshot_for_grid_type!(HorRegularGrid3<_>, arguments, reader_config)
-        }
-        GridType::Regular => {
-            run_subcommand_snapshot_for_grid_type!(RegularGrid3<_>, arguments, reader_config)
-        }
+        GridType::HorRegular => run_subcommands_for_grid_type!(HorRegularGrid3<_>),
+        GridType::Regular => run_subcommands_for_grid_type!(RegularGrid3<_>),
     }
 }
