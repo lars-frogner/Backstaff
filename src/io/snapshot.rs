@@ -38,6 +38,7 @@ pub struct SnapshotReader3<G: Grid3<fdt>> {
     aux_path: path::PathBuf,
     params: Params,
     grid: Arc<G>,
+    is_mhd: bool,
     variable_descriptors: HashMap<String, VariableDescriptor>,
 }
 
@@ -65,10 +66,16 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         ));
         let aux_path = snap_path.with_extension("aux");
 
-        let grid = Arc::new(Self::read_grid_from_mesh_file(&params, &mesh_path)?);
+        let is_periodic = In3D::new(
+            params.get_numerical_param::<u8>("periodic_x")? == 1,
+            params.get_numerical_param::<u8>("periodic_y")? == 1,
+            params.get_numerical_param::<u8>("periodic_z")? == 1,
+        );
+        let grid = Arc::new(create_grid_from_mesh_file(&mesh_path, is_periodic)?);
 
+        let is_mhd = params.get_numerical_param::<u8>("do_mhd")? > 0;
         let mut variable_descriptors = HashMap::new();
-        Self::insert_primary_variable_descriptors(&mut variable_descriptors);
+        Self::insert_primary_variable_descriptors(is_mhd, &mut variable_descriptors);
         Self::insert_aux_variable_descriptors(&params, &mut variable_descriptors)?;
 
         Ok(SnapshotReader3 {
@@ -77,6 +84,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             aux_path,
             params,
             grid,
+            is_mhd,
             variable_descriptors,
         })
     }
@@ -94,6 +102,17 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     /// Returns a new atomic reference counted pointer to the grid.
     pub fn arc_with_grid(&self) -> Arc<G> {
         Arc::clone(&self.grid)
+    }
+
+    /// Whether the simulation is a magnetohydrodynamics simulation
+    /// (includes the magnetic field).
+    pub fn is_mhd(&self) -> bool {
+        self.is_mhd
+    }
+
+    /// Returns the assumed endianness of the snapshot.
+    pub fn endianness(&self) -> Endianness {
+        self.config.endianness
     }
 
     /// Reads the specified primary or auxiliary 3D variable from the output files.
@@ -183,179 +202,8 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             })
     }
 
-    fn read_grid_from_mesh_file<P: AsRef<path::Path>>(
-        params: &Params,
-        mesh_path: P,
-    ) -> io::Result<G> {
-        let file = utils::open_file_and_map_err(mesh_path)?;
-        let mut lines = io::BufReader::new(file).lines();
-        let coord_names = ["x", "y", "z"];
-        let mut center_coord_vecs = VecDeque::new();
-        let mut lower_coord_vecs = VecDeque::new();
-        let mut is_uniform = [true; 3];
-
-        for dim in 0..3 {
-            let mut center_coords = Vec::new();
-            let mut lower_coords = Vec::new();
-            let mut up_derivatives = Vec::new();
-            let mut down_derivatives = Vec::new();
-
-            let length = match lines.next() {
-                Some(string) => match string {
-                    Ok(s) => match s.trim().parse::<usize>() {
-                        Ok(length) => length,
-                        Err(err) => {
-                            return Err(io::Error::new(
-                                io::ErrorKind::InvalidData,
-                                format!(
-                                    "Failed parsing string `{}` in mesh file: {}",
-                                    s,
-                                    err.to_string()
-                                ),
-                            ))
-                        }
-                    },
-                    Err(err) => {
-                        return Err(io::Error::new(io::ErrorKind::InvalidData, err.to_string()))
-                    }
-                },
-                None => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!(
-                            "Number of {}-coordinates not found in mesh file",
-                            coord_names[dim]
-                        ),
-                    ))
-                }
-            };
-
-            for coords in [
-                &mut center_coords,
-                &mut lower_coords,
-                &mut up_derivatives,
-                &mut down_derivatives,
-            ]
-            .iter_mut()
-            {
-                match lines.next() {
-                    Some(string) => {
-                        for s in string?.split_whitespace() {
-                            match s.parse::<fdt>() {
-                                Ok(val) => coords.push(val),
-                                Err(err) => {
-                                    return Err(io::Error::new(
-                                        io::ErrorKind::InvalidData,
-                                        format!(
-                                            "Failed parsing string `{}` in mesh file: {}",
-                                            s,
-                                            err.to_string()
-                                        ),
-                                    ))
-                                }
-                            };
-                        }
-                    }
-                    None => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!("{}-coordinates not found in mesh file", coord_names[dim]),
-                        ))
-                    }
-                };
-            }
-
-            if center_coords.len() != length
-                || lower_coords.len() != length
-                || up_derivatives.len() != length
-                || down_derivatives.len() != length
-            {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!(
-                        "Inconsistent number of {}-coordinates in mesh file",
-                        coord_names[dim]
-                    ),
-                ));
-            }
-
-            if length < 2 {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!(
-                        "Insufficient number of {}-coordinates in mesh file (must be at least 2)",
-                        coord_names[dim]
-                    ),
-                ));
-            }
-
-            let uniform_up = up_derivatives
-                .iter()
-                .all(|&element| fdt::abs(element - up_derivatives[0]) < 1e-3);
-            let uniform_down = down_derivatives
-                .iter()
-                .all(|&element| fdt::abs(element - down_derivatives[0]) < 1e-3);
-
-            if uniform_up != uniform_down {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!(
-                        "Inconsistent uniformity of {}-coordinates in mesh file",
-                        coord_names[dim]
-                    ),
-                ));
-            }
-
-            is_uniform[dim] = uniform_up;
-
-            center_coord_vecs.push_back(center_coords);
-            lower_coord_vecs.push_back(lower_coords);
-        }
-
-        let detected_grid_type = match is_uniform {
-            [true, true, true] => GridType::Regular,
-            [true, true, false] => GridType::HorRegular,
-            _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Non-uniform x- or y-coordinates not supported",
-                ))
-            }
-        };
-
-        if detected_grid_type != G::TYPE {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Wrong reader type for the specified mesh file",
-            ));
-        }
-
-        let center_coords = Coords3::new(
-            center_coord_vecs.pop_front().unwrap(),
-            center_coord_vecs.pop_front().unwrap(),
-            center_coord_vecs.pop_front().unwrap(),
-        );
-
-        let lower_edge_coords = Coords3::new(
-            lower_coord_vecs.pop_front().unwrap(),
-            lower_coord_vecs.pop_front().unwrap(),
-            lower_coord_vecs.pop_front().unwrap(),
-        );
-
-        let is_periodic = In3D::new(
-            params.get_numerical_param::<u8>("periodic_x")? == 1,
-            params.get_numerical_param::<u8>("periodic_y")? == 1,
-            params.get_numerical_param::<u8>("periodic_z")? == 1,
-        );
-
-        Ok(G::from_coords(
-            center_coords,
-            lower_edge_coords,
-            is_periodic,
-        ))
-    }
-
     fn insert_primary_variable_descriptors(
+        is_mhd: bool,
         variable_descriptors: &mut HashMap<String, VariableDescriptor>,
     ) {
         let is_primary = true;
@@ -399,30 +247,32 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
                 index: 4,
             },
         );
-        variable_descriptors.insert(
-            "bx".to_string(),
-            VariableDescriptor {
-                is_primary,
-                locations: In3D::new(LowerEdge, Center, Center),
-                index: 5,
-            },
-        );
-        variable_descriptors.insert(
-            "by".to_string(),
-            VariableDescriptor {
-                is_primary,
-                locations: In3D::new(Center, LowerEdge, Center),
-                index: 6,
-            },
-        );
-        variable_descriptors.insert(
-            "bz".to_string(),
-            VariableDescriptor {
-                is_primary,
-                locations: In3D::new(Center, Center, LowerEdge),
-                index: 7,
-            },
-        );
+        if is_mhd {
+            variable_descriptors.insert(
+                "bx".to_string(),
+                VariableDescriptor {
+                    is_primary,
+                    locations: In3D::new(LowerEdge, Center, Center),
+                    index: 5,
+                },
+            );
+            variable_descriptors.insert(
+                "by".to_string(),
+                VariableDescriptor {
+                    is_primary,
+                    locations: In3D::new(Center, LowerEdge, Center),
+                    index: 6,
+                },
+            );
+            variable_descriptors.insert(
+                "bz".to_string(),
+                VariableDescriptor {
+                    is_primary,
+                    locations: In3D::new(Center, Center, LowerEdge),
+                    index: 7,
+                },
+            );
+        }
     }
 
     fn insert_aux_variable_descriptors(
@@ -590,6 +440,190 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
     }
 }
 
+/// Constructs a grid from a Bifrost mesh file.
+///
+/// # Parameters
+///
+/// - `mesh_path`: Path of the mesh file.
+/// - `is_periodic`: Specifies for each dimension whether the grid is periodic.
+///
+/// # Returns
+///
+/// A `Result` which is either:
+///
+/// - `Ok`: Contains the constructed grid.
+/// - `Err`: Contains an error encountered while trying to read or interpret the mesh file.
+///
+/// # Type parameters
+///
+/// - `P`: A type that can be treated as a reference to a `Path`.
+/// - `H`: Type of the grid.
+pub fn create_grid_from_mesh_file<P: AsRef<path::Path>, H: Grid3<fdt>>(
+    mesh_path: P,
+    is_periodic: In3D<bool>,
+) -> io::Result<H> {
+    let file = utils::open_file_and_map_err(mesh_path)?;
+    let mut lines = io::BufReader::new(file).lines();
+    let coord_names = ["x", "y", "z"];
+    let mut center_coord_vecs = VecDeque::new();
+    let mut lower_coord_vecs = VecDeque::new();
+    let mut is_uniform = [true; 3];
+
+    for dim in 0..3 {
+        let mut center_coords = Vec::new();
+        let mut lower_coords = Vec::new();
+        let mut up_derivatives = Vec::new();
+        let mut down_derivatives = Vec::new();
+
+        let length = match lines.next() {
+            Some(string) => match string {
+                Ok(s) => match s.trim().parse::<usize>() {
+                    Ok(length) => length,
+                    Err(err) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "Failed parsing string `{}` in mesh file: {}",
+                                s,
+                                err.to_string()
+                            ),
+                        ))
+                    }
+                },
+                Err(err) => {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, err.to_string()))
+                }
+            },
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Number of {}-coordinates not found in mesh file",
+                        coord_names[dim]
+                    ),
+                ))
+            }
+        };
+
+        for coords in [
+            &mut center_coords,
+            &mut lower_coords,
+            &mut up_derivatives,
+            &mut down_derivatives,
+        ]
+        .iter_mut()
+        {
+            match lines.next() {
+                Some(string) => {
+                    for s in string?.split_whitespace() {
+                        match s.parse::<fdt>() {
+                            Ok(val) => coords.push(val),
+                            Err(err) => {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    format!(
+                                        "Failed parsing string `{}` in mesh file: {}",
+                                        s,
+                                        err.to_string()
+                                    ),
+                                ))
+                            }
+                        };
+                    }
+                }
+                None => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{}-coordinates not found in mesh file", coord_names[dim]),
+                    ))
+                }
+            };
+        }
+
+        if center_coords.len() != length
+            || lower_coords.len() != length
+            || up_derivatives.len() != length
+            || down_derivatives.len() != length
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Inconsistent number of {}-coordinates in mesh file",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        if length < 2 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Insufficient number of {}-coordinates in mesh file (must be at least 2)",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        let uniform_up = up_derivatives
+            .iter()
+            .all(|&element| fdt::abs(element - up_derivatives[0]) < 1e-3);
+        let uniform_down = down_derivatives
+            .iter()
+            .all(|&element| fdt::abs(element - down_derivatives[0]) < 1e-3);
+
+        if uniform_up != uniform_down {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Inconsistent uniformity of {}-coordinates in mesh file",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        is_uniform[dim] = uniform_up;
+
+        center_coord_vecs.push_back(center_coords);
+        lower_coord_vecs.push_back(lower_coords);
+    }
+
+    let detected_grid_type = match is_uniform {
+        [true, true, true] => GridType::Regular,
+        [true, true, false] => GridType::HorRegular,
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Non-uniform x- or y-coordinates not supported",
+            ))
+        }
+    };
+
+    if detected_grid_type != H::TYPE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Wrong reader type for the specified mesh file",
+        ));
+    }
+
+    let center_coords = Coords3::new(
+        center_coord_vecs.pop_front().unwrap(),
+        center_coord_vecs.pop_front().unwrap(),
+        center_coord_vecs.pop_front().unwrap(),
+    );
+
+    let lower_edge_coords = Coords3::new(
+        lower_coord_vecs.pop_front().unwrap(),
+        lower_coord_vecs.pop_front().unwrap(),
+        lower_coord_vecs.pop_front().unwrap(),
+    );
+
+    Ok(H::from_coords(
+        center_coords,
+        lower_edge_coords,
+        is_periodic,
+    ))
+}
+
 /// Writes arrays of variable values sequentially into a binary file.
 ///
 /// # Parameters
@@ -604,7 +638,7 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
 /// A `Result` which is either:
 ///
 /// - `Ok`: Writing was completed successfully.
-/// - `Err`: Contains an error encountered trying to create or write to the file.
+/// - `Err`: Contains an error encountered while trying to create or write to the file.
 ///
 /// # Type parameters
 ///
@@ -622,8 +656,8 @@ where
 {
     let number_of_variables = variable_names.len();
     assert!(
-        number_of_variables == 5 || number_of_variables == 8,
-        "Number of variables must be 5 or 8."
+        number_of_variables > 0,
+        "Number of variables must larger than zero."
     );
 
     let variable_values = variable_value_producer(variable_names[0]);
