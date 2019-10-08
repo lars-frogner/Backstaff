@@ -23,8 +23,8 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
 /// Adds arguments for parameters used by the basic field line tracer.
 pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
     app.arg(
-        Arg::with_name("field-line-tracing-sense")
-            .long("field-line-tracing-sense")
+        Arg::with_name("tracing-sense")
+            .long("tracing-sense")
             .require_equals(true)
             .value_name("SENSE")
             .long_help("Direction(s) to trace the field line relative to the field direction\n")
@@ -33,8 +33,8 @@ pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b
             .default_value("both"),
     )
     .arg(
-        Arg::with_name("field-line-point-spacing")
-            .long("field-line-point-spacing")
+        Arg::with_name("point-spacing")
+            .long("point-spacing")
             .require_equals(true)
             .value_name("SPACING")
             .long_help("Form of spacing between field line points\n")
@@ -43,8 +43,8 @@ pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b
             .default_value("regular"),
     )
     .arg(
-        Arg::with_name("max-field-line-length")
-            .long("max-field-line-length")
+        Arg::with_name("max-length")
+            .long("max-length")
             .require_equals(true)
             .value_name("VALUE")
             .long_help("Field lines reaching lengths larger than this will be terminated\n")
@@ -60,7 +60,7 @@ pub fn construct_basic_field_line_tracer_config_from_options(
 ) -> BasicFieldLineTracerConfig {
     let tracing_sense = cli::get_value_from_required_constrained_argument(
         arguments,
-        "field-line-tracing-sense",
+        "tracing-sense",
         &["both", "same", "opposite"],
         &[
             FieldLineTracingSense::Both,
@@ -70,7 +70,7 @@ pub fn construct_basic_field_line_tracer_config_from_options(
     );
     let point_spacing = cli::get_value_from_required_constrained_argument(
         arguments,
-        "field-line-point-spacing",
+        "point-spacing",
         &["regular", "natural"],
         &[
             FieldLinePointSpacing::Regular,
@@ -78,13 +78,15 @@ pub fn construct_basic_field_line_tracer_config_from_options(
         ],
     );
     let max_length = match arguments
-        .value_of("max-field-line-length")
+        .value_of("max-length")
         .expect("No value for argument with default")
     {
         "inf" => None,
-        length_str => Some(length_str.parse().unwrap_or_else(|err| {
-            panic!("Could not parse value of max-field-line-length: {}", err)
-        })),
+        length_str => Some(
+            length_str
+                .parse()
+                .unwrap_or_else(|err| panic!("Could not parse value of max-length: {}", err)),
+        ),
     };
     BasicFieldLineTracerConfig {
         tracing_sense,

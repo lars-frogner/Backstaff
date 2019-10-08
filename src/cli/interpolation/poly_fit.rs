@@ -20,10 +20,10 @@ pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
 /// Adds arguments for parameters used by the polynomial fitting interpolator.
 pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
     app.arg(
-        Arg::with_name("interpolation-order")
-            .long("interpolation-order")
+        Arg::with_name("order")
+            .long("order")
             .require_equals(true)
-            .value_name("ORDER")
+            .value_name("NUMBER")
             .long_help("Order of the polynomials to fit when interpolating field values\n")
             .next_line_help(true)
             .takes_value(true)
@@ -31,8 +31,8 @@ pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>)
             .default_value("3"),
     )
     .arg(
-        Arg::with_name("variation-threshold-for-linear-interpolation")
-            .long("variation-threshold-for-linear-interpolation")
+        Arg::with_name("variation-threshold")
+            .long("variation-threshold")
             .require_equals(true)
             .value_name("VALUE")
             .long_help(
@@ -50,11 +50,9 @@ pub fn add_poly_fit_interpolator_options_to_subcommand<'a, 'b>(app: App<'a, 'b>)
 pub fn construct_poly_fit_interpolator_config_from_options(
     arguments: &ArgMatches,
 ) -> PolyFitInterpolatorConfig {
-    let order = cli::get_value_from_required_parseable_argument(arguments, "interpolation-order");
-    let variation_threshold_for_linear = cli::get_value_from_required_parseable_argument(
-        arguments,
-        "variation-threshold-for-linear-interpolation",
-    );
+    let order = cli::get_value_from_required_parseable_argument(arguments, "order");
+    let variation_threshold_for_linear =
+        cli::get_value_from_required_parseable_argument(arguments, "variation-threshold");
     PolyFitInterpolatorConfig {
         order,
         variation_threshold_for_linear,

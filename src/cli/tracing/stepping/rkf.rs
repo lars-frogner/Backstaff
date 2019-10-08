@@ -41,8 +41,8 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .default_value("16"),
     )
     .arg(
-        Arg::with_name("stepping-absolute-tolerance")
-            .long("stepping-absolute-tolerance")
+        Arg::with_name("absolute-tolerance")
+            .long("absolute-tolerance")
             .require_equals(true)
             .value_name("VALUE")
             .long_help("Absolute error tolerance for stepping")
@@ -51,8 +51,8 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .default_value("1e-6"),
     )
     .arg(
-        Arg::with_name("stepping-relative-tolerance")
-            .long("stepping-relative-tolerance")
+        Arg::with_name("relative-tolerance")
+            .long("relative-tolerance")
             .require_equals(true)
             .value_name("VALUE")
             .long_help("Relative error tolerance for stepping")
@@ -61,8 +61,8 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .default_value("1e-6"),
     )
     .arg(
-        Arg::with_name("stepping-safety-factor")
-            .long("stepping-safety-factor")
+        Arg::with_name("safety-factor")
+            .long("safety-factor")
             .require_equals(true)
             .value_name("VALUE")
             .long_help("Scaling factor for the error to reduce step length oscillations")
@@ -91,8 +91,8 @@ pub fn add_rkf_stepper_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a
             .default_value("10.0"),
     )
     .arg(
-        Arg::with_name("stepping-initial-error")
-            .long("stepping-initial-error")
+        Arg::with_name("initial-error")
+            .long("initial-error")
             .require_equals(true)
             .value_name("VALUE")
             .long_help("Start value for stepping error")
@@ -148,17 +148,15 @@ pub fn construct_rkf_stepper_config_from_options(
     let max_step_attempts =
         cli::get_value_from_required_parseable_argument(arguments, "max-step-attempts");
     let absolute_tolerance =
-        cli::get_value_from_required_parseable_argument(arguments, "stepping-absolute-tolerance");
+        cli::get_value_from_required_parseable_argument(arguments, "absolute-tolerance");
     let relative_tolerance =
-        cli::get_value_from_required_parseable_argument(arguments, "stepping-relative-tolerance");
-    let safety_factor =
-        cli::get_value_from_required_parseable_argument(arguments, "stepping-safety-factor");
+        cli::get_value_from_required_parseable_argument(arguments, "relative-tolerance");
+    let safety_factor = cli::get_value_from_required_parseable_argument(arguments, "safety-factor");
     let min_step_scale =
         cli::get_value_from_required_parseable_argument(arguments, "min-step-scale");
     let max_step_scale =
         cli::get_value_from_required_parseable_argument(arguments, "max-step-scale");
-    let initial_error =
-        cli::get_value_from_required_parseable_argument(arguments, "stepping-initial-error");
+    let initial_error = cli::get_value_from_required_parseable_argument(arguments, "initial-error");
     let initial_step_length =
         cli::get_value_from_required_parseable_argument(arguments, "initial-step-length");
     let sudden_reversals_for_sink =
