@@ -86,7 +86,7 @@ macro_rules! find_start_indices_and_crossings {
             let mut crosses_periodic_bound = In3D::new(false, false, false);
             let mut any_crosses_periodic_bound = false;
 
-            for &dim in Dim3::slice().iter() {
+            for &dim in &Dim3::slice() {
                 // Check if start index is outside lower bound
                 if start_indices[dim] < 0 {
                     if $grid.is_periodic(dim) {
