@@ -3,9 +3,9 @@
 use crate::cli;
 use clap::{App, SubCommand};
 
-/// Builds a representation of the `snapshot-resample-resampling` command line subcommand.
-pub fn create_resampling_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("resampling")
+/// Builds a representation of the `snapshot-resample-general` command line subcommand.
+pub fn create_general_subcommand<'a, 'b>() -> App<'a, 'b> {
+    SubCommand::with_name("general")
         .about("Use a general resampling method")
         .long_about(
             "Use a general resampling method.\n\

@@ -1,7 +1,7 @@
 //! Command line interface for resampling a snapshot.
 
 mod downsampling;
-mod resampling;
+mod general;
 mod upsampling;
 
 use crate::cli;
@@ -27,12 +27,11 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
         .long_about(
             "Creates a resampled version of the snapshot.\n\
              The snapshot quantity fields are resampled to the grid described by a given mesh\n\
-             file. You can optionally specify whether you are down- or upsampling in order to\n\
-             employ a faster specialized method.",
+             file.",
         )
         .arg(
             Arg::with_name("MESH_PATH")
-                .help("Path to the Bifrost mesh file representing the grid to resample to.")
+                .help("Path to the Bifrost mesh file representing the grid to resample to")
                 .required(true)
                 .takes_value(true),
         )
@@ -54,6 +53,7 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("include-aux")
+                .short("a")
                 .long("include-aux")
                 .help("Also resample the auxiliary quantity fields associated with the snapshot"),
         )
@@ -63,7 +63,7 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("verbose")
                 .help("Print status messages while resampling the snapshot"),
         )
-        .subcommand(resampling::create_resampling_subcommand())
+        .subcommand(general::create_general_subcommand())
         .subcommand(downsampling::create_downsampling_subcommand())
         .subcommand(upsampling::create_upsampling_subcommand())
 }
@@ -71,12 +71,12 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
 pub fn run_resample_subcommand<G: Grid3<fdt>>(arguments: &ArgMatches, reader: &SnapshotReader3<G>) {
     let (resampling_mode, resampling_arguments) =
-        if let Some(resampling_arguments) = arguments.subcommand_matches("resampling") {
-            ("resampling", resampling_arguments)
-        } else if let Some(resampling_arguments) = arguments.subcommand_matches("downsampling") {
-            ("downsampling", resampling_arguments)
-        } else if let Some(resampling_arguments) = arguments.subcommand_matches("upsampling") {
-            ("upsampling", resampling_arguments)
+        if let Some(general_arguments) = arguments.subcommand_matches("general") {
+            ("general", general_arguments)
+        } else if let Some(downsampling_arguments) = arguments.subcommand_matches("downsampling") {
+            ("downsampling", downsampling_arguments)
+        } else if let Some(upsampling_arguments) = arguments.subcommand_matches("upsampling") {
+            ("upsampling", upsampling_arguments)
         } else {
             panic!("No resampling mode specified.")
         };
