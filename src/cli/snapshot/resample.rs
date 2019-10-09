@@ -183,6 +183,7 @@ fn run_resampling<G, I>(
                 reader.primary_variable_names(),
                 &variable_value_producer,
                 reader.endianness(),
+                is_verbose.into(),
             )
             .unwrap_or_else(|err| {
                 panic!("Could not write snap file for resampled snapshot: {}", err)
@@ -194,6 +195,7 @@ fn run_resampling<G, I>(
                     reader.auxiliary_variable_names(),
                     &variable_value_producer,
                     reader.endianness(),
+                    is_verbose.into(),
                 )
                 .unwrap_or_else(|err| {
                     panic!("Could not write aux file for resampled snapshot: {}", err)
