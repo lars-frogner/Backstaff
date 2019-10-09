@@ -61,10 +61,15 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 
     /// Creates a new grid given the coordinates of the cell centers and lower edges,
     /// as well as which dimensions are periodic.
+    ///
+    /// Optionally, the upward and downward derivatives of the coordinates can be
+    /// passed in to be stored with the grid. They are not used for computations.
     fn from_coords(
         center_coords: Coords3<F>,
         lower_edge_coords: Coords3<F>,
         is_periodic: In3D<bool>,
+        up_derivatives: Option<Coords3<F>>,
+        down_derivatives: Option<Coords3<F>>,
     ) -> Self;
 
     /// Returns the 3D shape of the grid.
@@ -86,6 +91,14 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         self.coords_by_type(CoordLocation::LowerEdge)
     }
 
+    /// Returns a reference to the upward derivatives of the grid coordinates,
+    /// if they are available.
+    fn up_derivatives(&self) -> Option<&Coords3<F>>;
+
+    /// Returns a reference to the downward derivatives of the grid coordinates,
+    /// if they are available.
+    fn down_derivatives(&self) -> Option<&Coords3<F>>;
+
     /// Returns a reference to the central coordinates in a regular version of the grid.
     fn regular_centers(&self) -> CoordRefs3<F>;
 
@@ -100,6 +113,20 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 
     /// Returns a reference to the full coordinate extent of each dimension.
     fn extents(&self) -> &Vec3<F>;
+
+    /// Returns the lower and upper corner of the grid cell of the given 3D index.
+    fn grid_cell_extremal_corners(&self, indices: &Idx3<usize>) -> (Point3<F>, Point3<F>) {
+        let lower_corner = self.lower_edges().point(indices);
+        let center = self.centers().point(indices);
+        let upper_corner = &center + (&center - &lower_corner);
+        (lower_corner, upper_corner)
+    }
+
+    /// Returns the coordinate extents of the grid cell at the given 3D index.
+    fn grid_cell_extents(&self, indices: &Idx3<usize>) -> Vec3<F> {
+        let (lower_corner, upper_corner) = self.grid_cell_extremal_corners(indices);
+        upper_corner - lower_corner
+    }
 
     /// Creates a vector of points corresponding to grid cell centers or lower edges,
     /// collapsed with the inner dimension varying the fastest.
@@ -129,7 +156,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
             .all(|&dim| point[dim] >= lower_bounds[dim] && point[dim] < upper_bounds[dim])
     }
 
-    /// Whether the given 3D indices are inside the bounds of the grid.
+    /// Whether the given 3D index is inside the bounds of the grid.
     fn indices_are_inside(&self, indices: &Idx3<usize>) -> bool {
         let shape = self.shape();
         Dim3::slice().iter().all(|&dim| indices[dim] < shape[dim])
@@ -155,7 +182,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         let mut indices = Idx3::origin();
         let mut wrapped = false;
 
-        for &dim in Dim3::slice().iter() {
+        for &dim in &Dim3::slice() {
             if point[dim] < lower_bounds[dim] {
                 if self.is_periodic(dim) {
                     point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
@@ -199,7 +226,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 
         let mut point = point.clone();
         let mut indices = Idx3::origin();
-        for &dim in Dim3::slice().iter() {
+        for &dim in &Dim3::slice() {
             if self.is_periodic(dim) {
                 if point[dim] < lower_bounds[dim] {
                     point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
@@ -234,7 +261,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         let upper_bounds = self.upper_bounds();
         let extents = self.extents();
         let mut wrapped_point = point.clone();
-        for &dim in Dim3::slice().iter() {
+        for &dim in &Dim3::slice() {
             if self.is_periodic(dim) {
                 if wrapped_point[dim] < lower_bounds[dim] {
                     wrapped_point[dim] =
@@ -283,24 +310,46 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// (inclusive) to upper (exclusive) index, wrapping around periodic
     /// boundaries and truncating the range if crossing non-periodic
     /// boundaries.
+    ///
+    /// The given indices are allowed to lie outside the grid, but the lower
+    /// index must be smaller than the upper index.
     fn create_idx_range_list<I>(&self, dim: Dim3, lower_idx: I, upper_idx: I) -> Vec<usize>
     where
         I: num::Integer + num::cast::ToPrimitive,
     {
         debug_assert!(upper_idx >= lower_idx);
 
-        let lower_idx = I::to_isize(&lower_idx).expect("Conversion failed");
-        let upper_idx = I::to_isize(&upper_idx).expect("Conversion failed");
+        let lower_idx = I::to_isize(&lower_idx).expect("Conversion failed.");
+        let upper_idx = I::to_isize(&upper_idx).expect("Conversion failed.");
 
         let wrapped_lower_idx = self.wrap_idx_to_closest(dim, lower_idx);
-        let wrapped_upper_idx = self.wrap_idx_to_closest(dim, upper_idx - 1) + 1;
+        let wrapped_upper_idx = self.wrap_idx_to_closest(dim, upper_idx - 1);
 
+        self.create_idx_range_list_wrapped(dim, wrapped_lower_idx, wrapped_upper_idx)
+    }
+
+    /// Creates a vector containing 1D indices running from the given lower
+    /// (inclusive) to upper (inclusive) index, wrapping around periodic
+    /// boundaries and truncating the range if crossing non-periodic
+    /// boundaries.
+    ///
+    /// The given indices must lie inside the grid, but the lower index is
+    /// allowed to be larger than the upper index.
+    fn create_idx_range_list_wrapped(
+        &self,
+        dim: Dim3,
+        wrapped_lower_idx: usize,
+        wrapped_upper_idx: usize,
+    ) -> Vec<usize> {
+        debug_assert!(
+            wrapped_lower_idx < self.shape()[dim] && wrapped_upper_idx < self.shape()[dim]
+        );
         if wrapped_upper_idx >= wrapped_lower_idx {
-            (wrapped_lower_idx..wrapped_upper_idx).collect()
+            (wrapped_lower_idx..=wrapped_upper_idx).collect()
         } else {
             let length = self.shape()[dim];
             let mut index_list: Vec<_> = (wrapped_lower_idx..length).collect();
-            index_list.append(&mut (0..wrapped_upper_idx).collect());
+            index_list.append(&mut (0..=wrapped_upper_idx).collect());
             index_list
         }
     }
