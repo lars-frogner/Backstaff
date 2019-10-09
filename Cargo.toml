@@ -10,6 +10,7 @@ default-run = "bifrost"
 byteorder = "1.3.2"
 clap = "2.33.0"
 ieee754 = "0.2.6"
+itertools = "0.8.0"
 lazy_static = "1.4.0"
 ndarray = { version = "0.13.0", features = ["serde-1", "rayon"] }
 nrfind = "1.0.3"
