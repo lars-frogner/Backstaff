@@ -491,6 +491,7 @@ pub fn write_3d_snapfile<P, N, V>(
     variable_names: &[N],
     variable_value_producer: &V,
     endianness: Endianness,
+    verbose: Verbose,
 ) -> io::Result<()>
 where
     P: AsRef<path::Path>,
@@ -503,7 +504,8 @@ where
         "Number of variables must larger than zero."
     );
 
-    let variable_values = variable_value_producer(variable_names[0].as_ref());
+    let name = variable_names[0].as_ref();
+    let variable_values = variable_value_producer(name);
     let array_length = variable_values.len();
     let float_size = mem::size_of::<fdt>();
     let byte_buffer_size = array_length * float_size;
@@ -512,6 +514,9 @@ where
     let mut file = fs::File::create(output_path)?;
     file.set_len(byte_buffer_size as u64)?;
 
+    if verbose.is_yes() {
+        println!("Writing {}", name);
+    }
     super::utils::write_f32_into_byte_buffer(
         variable_values
             .as_slice_memory_order()
@@ -523,12 +528,16 @@ where
     file.write_all(&byte_buffer)?;
 
     for name in variable_names.iter().skip(1) {
-        let variable_values = variable_value_producer(name.as_ref());
+        let name = name.as_ref();
+        let variable_values = variable_value_producer(name);
         assert_eq!(
             variable_values.len(),
             array_length,
             "All variable arrays must have the same length."
         );
+        if verbose.is_yes() {
+            println!("Writing {}", name);
+        }
         super::utils::write_f32_into_byte_buffer(
             variable_values
                 .as_slice_memory_order()
