@@ -8,11 +8,12 @@ use crate::grid::{CoordLocation, Grid2, Grid3};
 use crate::interpolation::Interpolator3;
 use crate::io::utils::save_data_as_pickle;
 use crate::num::{BFloat, OrderableIndexValuePair};
+use itertools::Itertools;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use serde::Serialize;
 use std::sync::Arc;
-use std::{io, path};
+use std::{io, iter, path};
 use Dim3::{X, Y, Z};
 
 /// Locations in the grid cell for resampled field values.
@@ -179,13 +180,193 @@ where
     }
 
     /// Resamples the scalar field onto the given grid and returns the resampled field.
+    ///
+    /// This is a general resampling method that gives robust results for arbitrary
+    /// resampling grids, but is slower than the dedicated down- and upsamling methods.
+    ///
+    /// For each new grid cell, values are interpolated from all overlapped original grid
+    /// cells and averaged with weights according to the intersected volumes. If the new
+    /// grid cell is contained within an original grid cell, this reduces to a single
+    /// interpolation.
     pub fn resampled_to_grid<H, I>(&self, grid: Arc<H>, interpolator: &I) -> ScalarField3<F, H>
     where
         H: Grid3<F>,
         I: Interpolator3,
     {
-        // TODO: Support downsampling by averaging samples of original values within larger grid cell
+        let overlying_grid = grid;
+        let mut overlying_values =
+            unsafe { Array3::uninitialized(overlying_grid.shape().to_tuple().f()) };
+        let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
+        let underlying_lower_edges = self.grid().lower_edges();
+
+        overlying_values_buffer.par_iter_mut().enumerate().for_each(
+            |(overlying_idx, overlying_value)| {
+                let (lower_overlying_corner, upper_overlying_corner) = self
+                    .compute_overlying_grid_cell_corners_for_resampling(
+                        overlying_grid.as_ref(),
+                        overlying_idx,
+                    );
+
+                let idx_range_lists = self.compute_underlying_grid_cell_idx_ranges_for_resampling(
+                    &lower_overlying_corner,
+                    &upper_overlying_corner,
+                );
+
+                let compute_overlap_centers_and_lengths_along_dim = |dim| {
+                    iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
+                        .chain(
+                            // Next are the lower edges of the underlying cells completely inside the overlying cell
+                            idx_range_lists[dim]
+                                .iter()
+                                .skip(1) // Skip first underlying lower edge since it is outside lower edge of overlying cell
+                                .map(|&idx| &underlying_lower_edges[dim][idx]),
+                        )
+                        .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
+                        .tuple_windows() // Create sliding window iterator over edge pairs
+                        .map(|(&lower_coord, &upper_coord)| {
+                            let overlap_length = upper_coord - lower_coord;
+                            let overlap_center =
+                                lower_coord + overlap_length * F::from_f32(0.5).unwrap();
+                            (overlap_center, overlap_length)
+                        })
+                        .collect::<Vec<_>>()
+                };
+
+                // Compute the center points and extents of the "sub grid cells" found
+                // by intersecting the underlying grid with the overlying grid.
+                let overlap_centers_and_lengths = In3D::new(
+                    compute_overlap_centers_and_lengths_along_dim(X),
+                    compute_overlap_centers_and_lengths_along_dim(Y),
+                    compute_overlap_centers_and_lengths_along_dim(Z),
+                );
+
+                let mut accum_value = F::zero();
+                let mut accum_weight = F::zero();
+
+                // Accumulate the interpolated value from each sub grid cell center,
+                // weighted with the relative volume of the sub grid cell.
+                for &(overlap_center_z, overlap_length_z) in &overlap_centers_and_lengths[Z] {
+                    for &(overlap_center_y, overlap_length_y) in &overlap_centers_and_lengths[Y] {
+                        for &(overlap_center_x, overlap_length_x) in &overlap_centers_and_lengths[X]
+                        {
+                            let weight = overlap_length_x * overlap_length_y * overlap_length_z;
+
+                            accum_value = accum_value
+                                + interpolator.interp_extrap_scalar_field(
+                                    self,
+                                    &Point3::new(
+                                        overlap_center_x,
+                                        overlap_center_y,
+                                        overlap_center_z,
+                                    ),
+                                ) * weight;
+
+                            accum_weight = accum_weight + weight;
+                        }
+                    }
+                }
+                *overlying_value = accum_value / accum_weight;
+            },
+        );
+        ScalarField3::new(
+            self.name.clone(),
+            overlying_grid,
+            self.locations.clone(),
+            overlying_values,
+        )
+    }
+
+    /// Downsamples the scalar field onto the given coarser grid and returns the downsampled field.
+    ///
+    /// For each new grid cell, the values in all overlapped original grid cells are averaged
+    /// with weights according to the intersected volumes.
+    pub fn downsampled_to_coarser_grid<H: Grid3<F>>(&self, grid: Arc<H>) -> ScalarField3<F, H> {
+        let overlying_grid = grid;
+        let mut overlying_values =
+            unsafe { Array3::uninitialized(overlying_grid.shape().to_tuple().f()) };
+        let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
+
+        let underlying_lower_edges = self.grid().lower_edges();
+
+        overlying_values_buffer.par_iter_mut().enumerate().for_each(
+            |(overlying_idx, overlying_value)| {
+                let (lower_overlying_corner, upper_overlying_corner) = self
+                    .compute_overlying_grid_cell_corners_for_resampling(
+                        overlying_grid.as_ref(),
+                        overlying_idx,
+                    );
+
+                let idx_range_lists = self.compute_underlying_grid_cell_idx_ranges_for_resampling(
+                    &lower_overlying_corner,
+                    &upper_overlying_corner,
+                );
+
+                let compute_overlap_lengths_and_indices_along_dim = |dim| {
+                    iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
+                        .chain(
+                            // Next are the lower edges of the underlying cells completely inside the overlying cell
+                            idx_range_lists[dim]
+                                .iter()
+                                .skip(1) // Skip first underlying lower edge since it is outside lower edge of overlying cell
+                                .map(|&idx| &underlying_lower_edges[dim][idx]),
+                        )
+                        .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
+                        .tuple_windows() // Create sliding window iterator over edge pairs
+                        .map(|(&lower_coord, &upper_coord)| upper_coord - lower_coord)
+                        .zip(idx_range_lists[dim].iter())
+                        .collect::<Vec<_>>()
+                };
+
+                // Compute the extents of the "sub grid cells" found by intersecting
+                // the underlying grid with the overlying grid, as well as the indices
+                // of the underlying grid cells.
+                let overlap_lengths_and_indices = In3D::new(
+                    compute_overlap_lengths_and_indices_along_dim(X),
+                    compute_overlap_lengths_and_indices_along_dim(Y),
+                    compute_overlap_lengths_and_indices_along_dim(Z),
+                );
+
+                let mut accum_value = F::zero();
+                let mut accum_weight = F::zero();
+
+                // Accumulate the value from each sub grid cell, weighted with the
+                // relative volume of the sub grid cell.
+                for &(overlap_length_z, &k) in &overlap_lengths_and_indices[Z] {
+                    for &(overlap_length_y, &i) in &overlap_lengths_and_indices[Y] {
+                        for &(overlap_length_x, &j) in &overlap_lengths_and_indices[X] {
+                            let weight = overlap_length_x * overlap_length_y * overlap_length_z;
+                            accum_value = accum_value + self.value(&Idx3::new(i, j, k)) * weight;
+                            accum_weight = accum_weight + weight;
+                        }
+                    }
+                }
+                *overlying_value = accum_value / accum_weight;
+            },
+        );
+        ScalarField3::new(
+            self.name.clone(),
+            overlying_grid,
+            self.locations.clone(),
+            overlying_values,
+        )
+    }
+
+    /// Upsamples the scalar field onto the given finer grid and returns the upsampled field.
+    ///
+    /// Each value on the new grid is found by interpolation of the values on the old grid
+    /// at the new coordinate location. While the given grid does not have to be finer than
+    /// the original grid, this form of resampling can lead to artifacts if the values are
+    /// resampled onto a coarser grid.
+    pub fn upsampled_to_finer_grid<H, I>(
+        &self,
+        grid: Arc<H>,
+        interpolator: &I,
+    ) -> ScalarField3<F, H>
+    where
+        H: Grid3<F>,
+        I: Interpolator3,
+    {
         let new_coords = self.coords_from_grid(grid.as_ref());
 
         let grid_shape = grid.shape();
@@ -283,6 +464,57 @@ where
             axis,
             coord,
             location,
+        )
+    }
+
+    fn compute_overlying_grid_cell_corners_for_resampling<H: Grid3<F>>(
+        &self,
+        overlying_grid: &H,
+        overlying_grid_cell_idx: usize,
+    ) -> (Point3<F>, Point3<F>) {
+        let overlying_indices =
+            compute_3d_array_indices_from_flat_idx(overlying_grid.shape(), overlying_grid_cell_idx);
+        let (mut lower_overlying_corner, mut upper_overlying_corner) =
+            overlying_grid.grid_cell_extremal_corners(&overlying_indices);
+
+        // Shift the overlying grid cell to be centered around the location of the value
+        // to estimate.
+        for &dim in &Dim3::slice() {
+            if let CoordLocation::LowerEdge = self.locations[dim] {
+                let half_cell_shift = (upper_overlying_corner[dim] - lower_overlying_corner[dim])
+                    * F::from_f32(0.5).unwrap();
+                lower_overlying_corner[dim] = lower_overlying_corner[dim] - half_cell_shift;
+                upper_overlying_corner[dim] = upper_overlying_corner[dim] - half_cell_shift;
+            }
+        }
+
+        (lower_overlying_corner, upper_overlying_corner)
+    }
+
+    fn compute_underlying_grid_cell_idx_ranges_for_resampling(
+        &self,
+        lower_overlying_corner: &Point3<F>,
+        upper_overlying_corner: &Point3<F>,
+    ) -> In3D<Vec<usize>> {
+        let lower_underlying_indices = self.grid.find_closest_grid_cell(lower_overlying_corner);
+        let upper_underlying_indices = self.grid.find_closest_grid_cell(upper_overlying_corner);
+
+        In3D::new(
+            self.grid.create_idx_range_list_wrapped(
+                X,
+                lower_underlying_indices[X],
+                upper_underlying_indices[X],
+            ),
+            self.grid.create_idx_range_list_wrapped(
+                Y,
+                lower_underlying_indices[Y],
+                upper_underlying_indices[Y],
+            ),
+            self.grid.create_idx_range_list_wrapped(
+                Z,
+                lower_underlying_indices[Z],
+                upper_underlying_indices[Z],
+            ),
         )
     }
 
