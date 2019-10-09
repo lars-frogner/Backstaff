@@ -19,7 +19,7 @@ use crate::tracing::stepping::StepperFactory3;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 /// Builds a representation of the `trace` command line subcommand.
-pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
+pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("trace")
         .about("Trace field lines of a vector field in the snapshot")
         .after_help(
@@ -125,7 +125,7 @@ pub fn build_subcommand_trace<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_subcommand_trace<G: Grid3<fdt>>(
+pub fn run_trace_subcommand<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G>,
 ) {
