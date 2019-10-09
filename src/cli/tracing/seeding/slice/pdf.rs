@@ -12,45 +12,40 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the slice PDF seeder.
 pub fn create_slice_pdf_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("value_pdf")
+    SubCommand::with_name("value_pdf")
         .about("Use the slice value PDF seeder")
         .long_about(
             "Use the slice value PDF seeder.\n\
              Seed points are drawn from a probability density function computed from the\n\
              values within a 2D slice of a quantity field. If the quantity is a vector,\n\
              the PDF is based on the norm of the vectors.",
-        );
-    add_slice_pdf_seeder_options_to_subcommand(app)
-}
-
-/// Adds arguments for parameters used by the slice PDF seeder.
-pub fn add_slice_pdf_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-    app.arg(
-        Arg::with_name("QUANTITY")
-            .help("Quantity to compute the probability density from")
-            .required(true)
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("POINTS")
-            .help("Number of seed points to generate")
-            .required(true)
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("vector-quantity")
-            .long("vector-quantity")
-            .help("Treat the specified quantity as a vector quantity"),
-    )
-    .arg(
-        Arg::with_name("power")
-            .long("power")
-            .require_equals(true)
-            .value_name("VALUE")
-            .help("Power of the quantity value to use for computing the probability density")
-            .takes_value(true)
-            .default_value("1.0"),
-    )
+        )
+        .arg(
+            Arg::with_name("QUANTITY")
+                .help("Quantity to compute the probability density from")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("POINTS")
+                .help("Number of seed points to generate")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("vector-quantity")
+                .long("vector-quantity")
+                .help("Treat the specified quantity as a vector quantity"),
+        )
+        .arg(
+            Arg::with_name("power")
+                .long("power")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help("Power of the quantity value to use for computing the probability density")
+                .takes_value(true)
+                .default_value("1.0"),
+        )
 }
 
 /// Creates a slice PDF seeder based on the provided arguments.
