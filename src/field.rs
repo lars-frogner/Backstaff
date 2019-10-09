@@ -333,8 +333,8 @@ where
                 // Accumulate the value from each sub grid cell, weighted with the
                 // relative volume of the sub grid cell.
                 for &(overlap_length_z, &k) in &overlap_lengths_and_indices[Z] {
-                    for &(overlap_length_y, &i) in &overlap_lengths_and_indices[Y] {
-                        for &(overlap_length_x, &j) in &overlap_lengths_and_indices[X] {
+                    for &(overlap_length_y, &j) in &overlap_lengths_and_indices[Y] {
+                        for &(overlap_length_x, &i) in &overlap_lengths_and_indices[X] {
                             let weight = overlap_length_x * overlap_length_y * overlap_length_z;
                             accum_value = accum_value + self.value(&Idx3::new(i, j, k)) * weight;
                             accum_weight = accum_weight + weight;
