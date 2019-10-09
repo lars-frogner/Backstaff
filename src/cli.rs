@@ -2,6 +2,7 @@
 
 pub mod ebeam;
 pub mod interpolation;
+pub mod mesh;
 pub mod snapshot;
 pub mod tracing;
 
@@ -27,14 +28,17 @@ pub fn run() {
                 .long("timing")
                 .help("Display elapsed time when done"),
         )
-        .subcommand(snapshot::build_subcommand_snapshot());
+        .subcommand(snapshot::create_snapshot_subcommand());
 
     let arguments = app.get_matches();
 
     let start_instant = Instant::now();
 
     if let Some(snapshot_arguments) = arguments.subcommand_matches("snapshot") {
-        snapshot::run_subcommand_snapshot(snapshot_arguments);
+        snapshot::run_snapshot_subcommand(snapshot_arguments);
+    }
+    if let Some(create_mesh_arguments) = arguments.subcommand_matches("create_mesh") {
+        mesh::run_create_mesh_subcommand(create_mesh_arguments);
     }
 
     if arguments.is_present("timing") {
