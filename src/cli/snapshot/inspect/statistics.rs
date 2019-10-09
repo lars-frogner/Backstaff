@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use Dim3::{X, Y, Z};
 
 /// Builds a representation of the `snapshot-inspect-statistics` command line subcommand.
-pub fn build_subcommand_statistics<'a, 'b>() -> App<'a, 'b> {
+pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("statistics")
         .about("Print statistics for quantities in the snapshot")
         .arg(
@@ -24,13 +24,13 @@ pub fn build_subcommand_statistics<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
-pub fn run_subcommand_statistics<G: Grid3<fdt>>(
+pub fn run_statistics_subcommand<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G>,
 ) {
     for quantity in arguments
         .values_of("QUANTITIES")
-        .expect("No values for required argument")
+        .expect("No values for required argument.")
     {
         match snapshot.obtain_scalar_field(quantity) {
             Ok(field) => print_statistics_report(&field),

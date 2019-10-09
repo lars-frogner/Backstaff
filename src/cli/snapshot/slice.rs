@@ -9,7 +9,7 @@ use crate::io::snapshot::{fdt, SnapshotCacher3};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Builds a representation of the `snapshot-slice` command line subcommand.
-pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
+pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("slice")
         .about("Extract a 2D slice of a quantity field in the snapshot")
         .long_about(
@@ -69,27 +69,27 @@ pub fn build_subcommand_slice<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
-pub fn run_subcommand_slice<G: Grid3<fdt>>(
+pub fn run_slice_subcommand<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G>,
 ) {
     let quantity = arguments
         .value_of("QUANTITY")
-        .expect("No value for required argument");
+        .expect("No value for required argument.");
 
     let axis = arguments
         .value_of("AXIS")
-        .expect("No value for required argument");
+        .expect("No value for required argument.");
 
     let coord = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "COORD");
 
     let output_file_path = arguments
         .value_of("OUTPUT_PATH")
-        .expect("No value for required argument");
+        .expect("No value for required argument.");
 
     let sample_location = arguments
         .value_of("sample-location")
-        .expect("No value for argument with default");
+        .expect("No value for argument with default.");
 
     let interpolator_config = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
