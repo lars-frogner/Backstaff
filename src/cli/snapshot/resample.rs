@@ -30,10 +30,6 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
              file. You can optionally specify whether you are down- or upsampling in order to\n\
              employ a faster specialized method.",
         )
-        .after_help(
-            "You can use a subcommand to configure the interpolator. If left unspecified,\n\
-             the default interpolator implementation and parameters are used.",
-        )
         .arg(
             Arg::with_name("MESH_PATH")
                 .help("Path to the Bifrost mesh file representing the grid to resample to.")
