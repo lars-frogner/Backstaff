@@ -28,7 +28,8 @@ pub fn run() {
                 .long("timing")
                 .help("Display elapsed time when done"),
         )
-        .subcommand(snapshot::create_snapshot_subcommand());
+        .subcommand(snapshot::create_snapshot_subcommand())
+        .subcommand(mesh::create_create_mesh_subcommand());
 
     let arguments = app.get_matches();
 
