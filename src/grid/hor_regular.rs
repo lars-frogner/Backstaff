@@ -18,6 +18,7 @@ pub struct HorRegularGrid3<F: BFloat> {
     lower_bounds: Vec3<F>,
     upper_bounds: Vec3<F>,
     extents: Vec3<F>,
+    coord_derivatives: [Option<Coords3<F>>; 2],
 }
 
 impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
@@ -27,7 +28,13 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
 
     const TYPE: GridType = GridType::HorRegular;
 
-    fn from_coords(centers: Coords3<F>, lower_edges: Coords3<F>, is_periodic: In3D<bool>) -> Self {
+    fn from_coords(
+        centers: Coords3<F>,
+        lower_edges: Coords3<F>,
+        is_periodic: In3D<bool>,
+        up_derivatives: Option<Coords3<F>>,
+        down_derivatives: Option<Coords3<F>>,
+    ) -> Self {
         assert!(
             !is_periodic[Z],
             "This grid type cannot be periodic in the z-direction."
@@ -59,6 +66,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
             lower_bounds: Vec3::new(lower_bound_x, lower_bound_y, lower_bound_z),
             upper_bounds: Vec3::new(upper_bound_x, upper_bound_y, upper_bound_z),
             extents: Vec3::new(extent_x, extent_y, extent_z),
+            coord_derivatives: [up_derivatives, down_derivatives],
         }
     }
 
@@ -70,6 +78,14 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     }
     fn coords_by_type(&self, location: CoordLocation) -> &Coords3<F> {
         &self.coords[location as usize]
+    }
+
+    fn up_derivatives(&self) -> Option<&Coords3<F>> {
+        self.coord_derivatives[0].as_ref()
+    }
+
+    fn down_derivatives(&self) -> Option<&Coords3<F>> {
+        self.coord_derivatives[1].as_ref()
     }
 
     fn regular_centers(&self) -> CoordRefs3<F> {
@@ -202,8 +218,13 @@ mod tests {
         let centers = Coords3::new(xc.to_vec(), yc.to_vec(), zc.to_vec());
         let lower_edges = Coords3::new(xdn.to_vec(), ydn.to_vec(), zdn.to_vec());
 
-        let grid =
-            HorRegularGrid3::from_coords(centers, lower_edges, In3D::new(false, false, false));
+        let grid = HorRegularGrid3::from_coords(
+            centers,
+            lower_edges,
+            In3D::new(false, false, false),
+            None,
+            None,
+        );
         assert_eq!(
             grid.find_grid_cell(&Point3::new(
                 xdn[mx - 1] + dx + 1e-12,
