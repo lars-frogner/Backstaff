@@ -8,7 +8,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the basic field line tracer.
 pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("basic_tracer")
+    SubCommand::with_name("basic_tracer")
         .about("Use the basic field line tracer")
         .long_about(
             "Use the basic field line tracer.\n\
@@ -16,41 +16,36 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
              direction, and output points can be produced at regular intervals or at the\n\
              natural positions provided by the stepper. The field line can have a maximum\n\
              length.",
-        );
-    add_basic_field_line_tracer_options_to_subcommand(app)
-}
-
-/// Adds arguments for parameters used by the basic field line tracer.
-pub fn add_basic_field_line_tracer_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-    app.arg(
-        Arg::with_name("tracing-sense")
-            .long("tracing-sense")
-            .require_equals(true)
-            .value_name("SENSE")
-            .long_help("Direction(s) to trace the field line relative to the field direction\n")
-            .takes_value(true)
-            .possible_values(&["both", "same", "opposite"])
-            .default_value("both"),
-    )
-    .arg(
-        Arg::with_name("point-spacing")
-            .long("point-spacing")
-            .require_equals(true)
-            .value_name("SPACING")
-            .long_help("Form of spacing between field line points\n")
-            .takes_value(true)
-            .possible_values(&["regular", "natural"])
-            .default_value("regular"),
-    )
-    .arg(
-        Arg::with_name("max-length")
-            .long("max-length")
-            .require_equals(true)
-            .value_name("VALUE")
-            .long_help("Field lines reaching lengths larger than this will be terminated\n")
-            .takes_value(true)
-            .default_value("inf"),
-    )
+        )
+        .arg(
+            Arg::with_name("tracing-sense")
+                .long("tracing-sense")
+                .require_equals(true)
+                .value_name("SENSE")
+                .long_help("Direction(s) to trace the field line relative to the field direction\n")
+                .takes_value(true)
+                .possible_values(&["both", "same", "opposite"])
+                .default_value("both"),
+        )
+        .arg(
+            Arg::with_name("point-spacing")
+                .long("point-spacing")
+                .require_equals(true)
+                .value_name("SPACING")
+                .long_help("Form of spacing between field line points\n")
+                .takes_value(true)
+                .possible_values(&["regular", "natural"])
+                .default_value("regular"),
+        )
+        .arg(
+            Arg::with_name("max-length")
+                .long("max-length")
+                .require_equals(true)
+                .value_name("VALUE")
+                .long_help("Field lines reaching lengths larger than this will be terminated\n")
+                .takes_value(true)
+                .default_value("inf"),
+        )
 }
 
 /// Determines basic field line tracer parameters based on
@@ -79,7 +74,7 @@ pub fn construct_basic_field_line_tracer_config_from_options(
     );
     let max_length = match arguments
         .value_of("max-length")
-        .expect("No value for argument with default")
+        .expect("No value for argument with default.")
     {
         "inf" => None,
         length_str => Some(
