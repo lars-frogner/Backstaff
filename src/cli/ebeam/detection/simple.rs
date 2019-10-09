@@ -10,58 +10,51 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the simple reconnection site detector.
 pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("simple_detector")
+    SubCommand::with_name("simple_detector")
         .about("Use the simple reconnection site detection method")
         .long_about(
             "Use the simple reconnection site detection method.\n\
              Evaluates a reconnection factor in each grid cell and considers a reconnection\n\
              site to be where the factor exceeds a given threshold. The reconnection factor\n\
              indicates changes in the magnetic topology and is described by Biskamp (2005)",
-        );
-    add_simple_reconnection_site_detector_options_to_subcommand(app)
-}
-
-/// Adds arguments for parameters used by the simple reconnection site detector.
-pub fn add_simple_reconnection_site_detector_options_to_subcommand<'a, 'b>(
-    app: App<'a, 'b>,
-) -> App<'a, 'b> {
-    app.arg(
-        Arg::with_name("reconnection-factor-type")
-            .long("reconnection-factor-type")
-            .require_equals(true)
-            .value_name("TYPE")
-            .long_help(
-                "Which version of the reconnection factor to use for seeding\n\
-                 [default: from param file]",
-            )
-            .next_line_help(true)
-            .takes_value(true)
-            .possible_values(&["standard", "normalized"]),
-    )
-    .arg(
-        Arg::with_name("reconnection-factor-threshold")
-            .long("reconnection-factor-threshold")
-            .require_equals(true)
-            .value_name("VALUE")
-            .long_help(
-                "Reconnection sites will be detected where the reconnection factor value is larger than this\n\
-                 [default: from param file]",
-            )
-            .next_line_help(true)
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("detection-depth-limits")
-            .long("detection-depth-limits")
-            .require_equals(true)
-            .require_delimiter(true)
-            .value_names(&["MIN, MAX"])
-            .long_help(
-                "Smallest and largest depth at which reconnection sites will be detected [Mm] [default: from param file]",
-            )
-            .next_line_help(true)
-            .takes_value(true),
-    )
+        )
+        .arg(
+            Arg::with_name("reconnection-factor-type")
+                .long("reconnection-factor-type")
+                .require_equals(true)
+                .value_name("TYPE")
+                .long_help(
+                    "Which version of the reconnection factor to use for seeding\n\
+                    [default: from param file]",
+                )
+                .next_line_help(true)
+                .takes_value(true)
+                .possible_values(&["standard", "normalized"]),
+        )
+        .arg(
+            Arg::with_name("reconnection-factor-threshold")
+                .long("reconnection-factor-threshold")
+                .require_equals(true)
+                .value_name("VALUE")
+                .long_help(
+                    "Reconnection sites will be detected where the reconnection factor value is larger than this\n\
+                    [default: from param file]",
+                )
+                .next_line_help(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("detection-depth-limits")
+                .long("detection-depth-limits")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_names(&["MIN", "MAX"])
+                .long_help(
+                    "Smallest and largest depth at which reconnection sites will be detected [Mm] [default: from param file]",
+                )
+                .next_line_help(true)
+                .takes_value(true),
+        )
 }
 
 /// Determines simple reconnection site detector parameters

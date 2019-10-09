@@ -9,31 +9,26 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the power-law distribution.
 pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("power_law_distribution")
+    SubCommand::with_name("power_law_distribution")
         .about("Use the power-law distribution")
         .long_about(
             "Use the power-law distribution.\n\
              The distribution of non-thermal electrons is assumed to follow a power-law\n\
              described by a total power density, lower cut-off energy and a power-law\n\
              index.",
-        );
-    add_power_law_distribution_options_to_subcommand(app)
-}
-
-/// Adds arguments for parameters used by the power-law distribution.
-pub fn add_power_law_distribution_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-    app.arg(
-        Arg::with_name("min-remaining-power-density")
-            .long("min-remaining-power-density")
-            .require_equals(true)
-            .value_name("VALUE")
-            .long_help(
-                "Distributions with remaining power densities smaller than this value are\n\
-                 discarded [erg/(cm^3 s)] [default: from param file]",
-            )
-            .next_line_help(true)
-            .takes_value(true),
-    )
+        )
+        .arg(
+            Arg::with_name("min-remaining-power-density")
+                .long("min-remaining-power-density")
+                .require_equals(true)
+                .value_name("VALUE")
+                .long_help(
+                    "Distributions with remaining power densities smaller than this value are\n\
+                     discarded [erg/(cm^3 s)] [default: from param file]",
+                )
+                .next_line_help(true)
+                .takes_value(true),
+        )
 }
 
 /// Determines power-law distribution parameters based on
