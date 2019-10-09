@@ -1,5 +1,6 @@
 //! File input/output.
 
+pub mod mesh;
 pub mod snapshot;
 pub mod utils;
 
