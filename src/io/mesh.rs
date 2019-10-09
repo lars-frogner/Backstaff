@@ -248,7 +248,7 @@ where
     let format_slice = |slice: &[fdt]| {
         slice
             .iter()
-            .map(|&coord| format!("{:width$.precision$E}", coord, width = 15, precision = 6))
+            .map(|&coord| format!("{:width$.precision$E}", coord, width = 15, precision = 8))
             .collect::<Vec<_>>()
             .join("")
     };
