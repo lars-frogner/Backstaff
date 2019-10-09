@@ -1,24 +1,34 @@
 //! Command line interface for resampling a snapshot.
 
+mod downsampling;
+mod resampling;
+mod upsampling;
+
 use crate::cli;
 use crate::geometry::{Dim3, In3D};
 use crate::grid::hor_regular::HorRegularGrid3;
 use crate::grid::regular::RegularGrid3;
 use crate::grid::{Grid3, GridType};
 use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
+use crate::interpolation::Interpolator3;
+use crate::io::mesh;
 use crate::io::snapshot::{self, fdt, SnapshotReader3};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use std::path;
+use std::str::FromStr;
 use std::sync::Arc;
 use Dim3::{X, Y, Z};
 
 /// Builds a representation of the `snapshot-resample` command line subcommand.
-pub fn build_subcommand_resample<'a, 'b>() -> App<'a, 'b> {
+pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("resample")
         .about("Creates a resampled version of the snapshot")
+        .setting(AppSettings::SubcommandRequired)
         .long_about(
             "Creates a resampled version of the snapshot.\n\
              The snapshot quantity fields are resampled to the grid described by a given mesh\n\
-             file. ",
+             file. You can optionally specify whether you are down- or upsampling in order to\n\
+             employ a faster specialized method.",
         )
         .after_help(
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
@@ -32,41 +42,58 @@ pub fn build_subcommand_resample<'a, 'b>() -> App<'a, 'b> {
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
-                .help("Path where the resample field should be saved in pickle format")
+                .help("Path where the resampled snapshot should be saved")
                 .required(true)
                 .takes_value(true),
+            )
+        .arg(
+            Arg::with_name("resampled-grid-type")
+                .long("resampled-grid-type")
+                .require_equals(true)
+                .value_name("TYPE")
+                .long_help("Type of grid to assume for the resampled snapshot\n[default: same as original]")
+                .next_line_help(true)
+                .takes_value(true)
+                .possible_values(&["horizontally-regular", "regular"]),
         )
-    .arg(
-        Arg::with_name("resampled-grid-type")
-            .long("resampled-grid-type")
-            .require_equals(true)
-            .value_name("TYPE")
-            .long_help("Type of grid to assume for the resampled snapshot\n[default: same as original]")
-            .next_line_help(true)
-            .takes_value(true)
-            .possible_values(&["horizontally-regular", "regular"]),
-    )
+        .arg(
+            Arg::with_name("include-aux")
+                .long("include-aux")
+                .help("Also resample the auxiliary quantity fields associated with the snapshot"),
+        )
         .arg(
             Arg::with_name("verbose")
                 .short("v")
                 .long("verbose")
                 .help("Print status messages while resampling the snapshot"),
         )
-        .subcommand(cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand())
+        .subcommand(resampling::create_resampling_subcommand())
+        .subcommand(downsampling::create_downsampling_subcommand())
+        .subcommand(upsampling::create_upsampling_subcommand())
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
-pub fn run_subcommand_resample<G: Grid3<fdt>>(arguments: &ArgMatches, reader: &SnapshotReader3<G>) {
-    let mesh_file_path = arguments
-        .value_of("MESH_PATH")
-        .expect("No value for required argument");
+pub fn run_resample_subcommand<G: Grid3<fdt>>(arguments: &ArgMatches, reader: &SnapshotReader3<G>) {
+    let (resampling_mode, resampling_arguments) =
+        if let Some(resampling_arguments) = arguments.subcommand_matches("resampling") {
+            ("resampling", resampling_arguments)
+        } else if let Some(resampling_arguments) = arguments.subcommand_matches("downsampling") {
+            ("downsampling", resampling_arguments)
+        } else if let Some(resampling_arguments) = arguments.subcommand_matches("upsampling") {
+            ("upsampling", resampling_arguments)
+        } else {
+            panic!("No resampling mode specified.")
+        };
 
-    let output_file_path = arguments
-        .value_of("OUTPUT_PATH")
-        .expect("No value for required argument");
+    run_with_selected_interpolator(arguments, resampling_arguments, reader, resampling_mode)
+}
 
-    let is_verbose = arguments.is_present("verbose");
-
+fn run_with_selected_interpolator<G: Grid3<fdt>>(
+    root_arguments: &ArgMatches,
+    arguments: &ArgMatches,
+    reader: &SnapshotReader3<G>,
+    resampling_mode: &str,
+) {
     let interpolator_config = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
     {
@@ -78,12 +105,39 @@ pub fn run_subcommand_resample<G: Grid3<fdt>>(arguments: &ArgMatches, reader: &S
     };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
-    let grid_type = match arguments.value_of("resampled-grid-type") {
+    run_resampling(root_arguments, reader, resampling_mode, interpolator);
+}
+
+fn run_resampling<G, I>(
+    root_arguments: &ArgMatches,
+    reader: &SnapshotReader3<G>,
+    resampling_mode: &str,
+    interpolator: I,
+) where
+    G: Grid3<fdt>,
+    I: Interpolator3,
+{
+    let mesh_file_path = root_arguments
+        .value_of("MESH_PATH")
+        .expect("No value for required argument.");
+
+    let output_file_path = path::PathBuf::from_str(
+        root_arguments
+            .value_of("OUTPUT_PATH")
+            .expect("No value for required argument."),
+    )
+    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+
+    let grid_type = match root_arguments.value_of("resampled-grid-type") {
         None => G::TYPE,
         Some("horizontally-regular") => GridType::HorRegular,
         Some("regular") => GridType::Regular,
         Some(invalid) => panic!("Invalid grid type {}", invalid),
     };
+
+    let include_aux = root_arguments.is_present("include-aux");
+
+    let is_verbose = root_arguments.is_present("verbose");
 
     let old_grid = reader.grid();
     let is_periodic = In3D::new(
@@ -98,32 +152,57 @@ pub fn run_subcommand_resample<G: Grid3<fdt>>(arguments: &ArgMatches, reader: &S
                 println!("Constructing new grid");
             }
             let new_grid = Arc::new(
-                snapshot::create_grid_from_mesh_file::<_, $grid_type>(mesh_file_path, is_periodic)
+                mesh::create_grid_from_mesh_file::<_, $grid_type>(mesh_file_path, is_periodic)
                     .unwrap_or_else(|err| panic!("Could not create resampling grid: {}", err)),
             );
             let variable_value_producer = |name: &str| {
                 let field = reader.read_scalar_field(name).unwrap_or_else(|err| {
                     panic!("Could not read quantity field {}: {}", name, err)
                 });
-                if is_verbose {
-                    println!("Resampling {}", name);
-                }
-                field
-                    .resampled_to_grid(Arc::clone(&new_grid), &interpolator)
-                    .into_values()
-            };
-            let variable_names = if reader.is_mhd() {
-                vec!["r", "px", "py", "pz", "e", "bx", "by", "bz"]
-            } else {
-                vec!["r", "px", "py", "pz", "e"]
+                let resampled_field = match resampling_mode {
+                    "general" => {
+                        if is_verbose {
+                            println!("Resampling {}", name);
+                        }
+                        field.resampled_to_grid(Arc::clone(&new_grid), &interpolator)
+                    }
+                    "downsampling" => {
+                        if is_verbose {
+                            println!("Downsampling {}", name);
+                        }
+                        field.downsampled_to_coarser_grid(Arc::clone(&new_grid))
+                    }
+                    "upsampling" => {
+                        if is_verbose {
+                            println!("Upsampling {}", name);
+                        }
+                        field.upsampled_to_finer_grid(Arc::clone(&new_grid), &interpolator)
+                    }
+                    invalid => panic!("Invalid mode {}", invalid),
+                };
+                resampled_field.into_values()
             };
             snapshot::write_3d_snapfile(
-                output_file_path,
-                &variable_names,
+                output_file_path.as_path(),
+                reader.primary_variable_names(),
                 &variable_value_producer,
                 reader.endianness(),
             )
-            .unwrap_or_else(|err| panic!("Could not write resampled snapshot: {}", err));
+            .unwrap_or_else(|err| {
+                panic!("Could not write snap file for resampled snapshot: {}", err)
+            });
+
+            if include_aux {
+                snapshot::write_3d_snapfile(
+                    output_file_path.with_extension("aux"),
+                    reader.auxiliary_variable_names(),
+                    &variable_value_producer,
+                    reader.endianness(),
+                )
+                .unwrap_or_else(|err| {
+                    panic!("Could not write aux file for resampled snapshot: {}", err)
+                });
+            }
         }};
     }
 
