@@ -1,8 +1,8 @@
 //! Command line interface for actions related to snapshots.
 
-pub mod inspect;
-pub mod resample;
-pub mod slice;
+mod inspect;
+mod resample;
+mod slice;
 
 use crate::cli;
 use crate::grid::hor_regular::HorRegularGrid3;
@@ -12,44 +12,52 @@ use crate::io::snapshot::{SnapshotReader3, SnapshotReaderConfig};
 use crate::io::Endianness;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
-/// Adds arguments for parameters used by the snapshot reader.
-pub fn add_snapshot_reader_arguments_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-    app.arg(
-        Arg::with_name("PARAM_PATH")
-            .help("Path to the parameter (.idl) file for the snapshot")
-            .required(true)
-            .takes_value(true),
-    )
-    .arg(
-        Arg::with_name("grid-type")
-            .short("g")
-            .long("grid-type")
-            .require_equals(true)
-            .value_name("TYPE")
-            .long_help("Type of grid to assume for the snapshot\n")
-            .next_line_help(true)
-            .takes_value(true)
-            .possible_values(&["horizontally-regular", "regular"])
-            .default_value("horizontally-regular"),
-    )
-    .arg(
-        Arg::with_name("endianness")
-            .short("e")
-            .long("endianness")
-            .require_equals(true)
-            .value_name("ENDIANNESS")
-            .long_help("Endianness to assume for the snapshot\n")
-            .next_line_help(true)
-            .takes_value(true)
-            .possible_values(&["little", "big"])
-            .default_value("little"),
-    )
-    .arg(
-        Arg::with_name("verbose")
-            .short("v")
-            .long("verbose")
-            .help("Print status messages while reading fields"),
-    )
+/// Builds a representation of the `snapshot` command line subcommand.
+pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
+    SubCommand::with_name("snapshot")
+        .about("Specify input snapshot to perform further actions on")
+        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .arg(
+            Arg::with_name("PARAM_PATH")
+                .help("Path to the parameter (.idl) file for the snapshot")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("grid-type")
+                .short("g")
+                .long("grid-type")
+                .require_equals(true)
+                .value_name("TYPE")
+                .long_help("Type of grid to assume for the snapshot\n")
+                .next_line_help(true)
+                .takes_value(true)
+                .possible_values(&["horizontally-regular", "regular"])
+                .default_value("horizontally-regular"),
+        )
+        .arg(
+            Arg::with_name("endianness")
+                .short("e")
+                .long("endianness")
+                .require_equals(true)
+                .value_name("ENDIANNESS")
+                .long_help("Endianness to assume for the snapshot\n")
+                .next_line_help(true)
+                .takes_value(true)
+                .possible_values(&["little", "big"])
+                .default_value("little"),
+        )
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .long("verbose")
+                .help("Print status messages while reading fields"),
+        )
+        .subcommand(inspect::create_inspect_subcommand())
+        .subcommand(slice::create_slice_subcommand())
+        .subcommand(resample::create_resample_subcommand())
+        .subcommand(cli::tracing::create_trace_subcommand())
+        .subcommand(cli::ebeam::create_ebeam_subcommand())
 }
 
 /// Determines snapshot reader parameters based on provided options.
@@ -86,22 +94,8 @@ pub fn construct_snapshot_reader_config_from_arguments(
     )
 }
 
-/// Builds a representation of the `snapshot` command line subcommand.
-pub fn build_subcommand_snapshot<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("snapshot")
-        .about("Specify input snapshot to perform further actions on")
-        .setting(AppSettings::SubcommandRequiredElseHelp)
-        .subcommand(inspect::build_subcommand_inspect())
-        .subcommand(slice::build_subcommand_slice())
-        .subcommand(resample::build_subcommand_resample())
-        .subcommand(cli::tracing::build_subcommand_trace())
-        .subcommand(cli::ebeam::build_subcommand_ebeam());
-
-    add_snapshot_reader_arguments_to_subcommand(app)
-}
-
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
-pub fn run_subcommand_snapshot(arguments: &ArgMatches) {
+pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
     let (grid_type, reader_config) = construct_snapshot_reader_config_from_arguments(arguments);
 
     macro_rules! run_subcommands_for_grid_type {
@@ -111,19 +105,19 @@ pub fn run_subcommand_snapshot(arguments: &ArgMatches) {
             let mut snapshot = reader.into_cacher();
 
             if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-                inspect::run_subcommand_inspect(inspect_arguments, &mut snapshot);
+                inspect::run_inspect_subcommand(inspect_arguments, &mut snapshot);
             }
             if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
-                slice::run_subcommand_slice(slice_arguments, &mut snapshot);
+                slice::run_slice_subcommand(slice_arguments, &mut snapshot);
             }
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-                resample::run_subcommand_resample(resample_arguments, snapshot.reader());
+                resample::run_resample_subcommand(resample_arguments, snapshot.reader());
             }
             if let Some(trace_arguments) = arguments.subcommand_matches("trace") {
-                cli::tracing::run_subcommand_trace(trace_arguments, &mut snapshot);
+                cli::tracing::run_trace_subcommand(trace_arguments, &mut snapshot);
             }
             if let Some(ebeam_arguments) = arguments.subcommand_matches("ebeam") {
-                cli::ebeam::run_subcommand_ebeam(ebeam_arguments, &mut snapshot);
+                cli::ebeam::run_ebeam_subcommand(ebeam_arguments, &mut snapshot);
             }
         }};
     }
