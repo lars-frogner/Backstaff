@@ -36,13 +36,15 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("COORD")
                 .help("Coordinate along the axis to slice at")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .allow_hyphen_values(true),
         )
         .arg(
             Arg::with_name("horizontal-limits")
                 .long("horizontal-limits")
                 .require_equals(true)
                 .require_delimiter(true)
+                .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .long_help(
                     "Smallest and largest value of the first slice coordinate for which generated\n\
@@ -56,6 +58,7 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("vertical-limits")
                 .require_equals(true)
                 .require_delimiter(true)
+                .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .long_help(
                     "Smallest and largest value of the second slice coordinate for which generated\n\

@@ -48,6 +48,7 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
                 .long("detection-depth-limits")
                 .require_equals(true)
                 .require_delimiter(true)
+                .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .long_help(
                     "Smallest and largest depth at which reconnection sites will be detected [Mm] [default: from param file]",

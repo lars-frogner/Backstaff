@@ -38,7 +38,8 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("COORD")
                 .help("Coordinate along the axis to slice at")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .allow_hyphen_values(true),
         )
         .arg(
             Arg::with_name("OUTPUT_PATH")
