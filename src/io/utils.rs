@@ -6,7 +6,7 @@ use byteorder::{ByteOrder, ReadBytesExt};
 use serde::Serialize;
 use serde_json;
 use serde_pickle;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::{fs, io, mem, path};
 
 /// Opens file with the given path and returns it, or returns an error with the
@@ -27,6 +27,12 @@ pub fn read_text_file<P: AsRef<path::Path>>(file_path: P) -> io::Result<String> 
     let mut text = String::new();
     let _ = io::BufReader::new(file).read_to_string(&mut text)?;
     Ok(text)
+}
+
+/// Writes the given string as a text file with the specified path.
+pub fn write_text_file<P: AsRef<path::Path>>(text: &str, file_path: P) -> io::Result<()> {
+    let mut file = fs::File::create(file_path)?;
+    write!(&mut file, "{}", text)
 }
 
 /// Reads and returns a buffer of f32 values from the specified binary file.
