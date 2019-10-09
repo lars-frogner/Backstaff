@@ -24,7 +24,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
 
 /// Builds a representation of the `ebeam-simulate` command line subcommand.
-pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
+pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("simulate")
         .about("Simulate electron beams in the snapshot")
         .long_about(
@@ -137,7 +137,7 @@ pub fn build_subcommand_simulate<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
-pub fn run_subcommand_simulate<G: Grid3<fdt>>(
+pub fn run_simulate_subcommand<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G>,
 ) {
