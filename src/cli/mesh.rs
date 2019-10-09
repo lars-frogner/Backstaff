@@ -14,7 +14,7 @@ pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
         .setting(AppSettings::SubcommandRequired)
         .arg(
             Arg::with_name("OUTPUT_PATH")
-                .help("Path where the resample field should be saved in pickle format")
+                .help("Path where the mesh file should be created")
                 .required(true)
                 .takes_value(true),
         )
