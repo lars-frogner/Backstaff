@@ -181,14 +181,18 @@ where
 
     /// Resamples the scalar field onto the given grid and returns the resampled field.
     ///
-    /// This is a general resampling method that gives robust results for arbitrary
-    /// resampling grids, but is slower than the dedicated down- and upsamling methods.
+    /// For each new grid cell, values are interpolated from all overlapped original
+    /// grid cells and averaged with weights according to the intersected volumes.
+    /// If the new grid cell is contained within an original grid cell, this reduces
+    /// to a single interpolation.
     ///
-    /// For each new grid cell, values are interpolated from all overlapped original grid
-    /// cells and averaged with weights according to the intersected volumes. If the new
-    /// grid cell is contained within an original grid cell, this reduces to a single
-    /// interpolation.
-    pub fn resampled_to_grid<H, I>(&self, grid: Arc<H>, interpolator: &I) -> ScalarField3<F, H>
+    /// This method preserves contrast better than weighted cell averaging and gives
+    /// robust results for arbitrary resampling grids.
+    pub fn resampled_to_grid_with_weighted_sample_averaging<H, I>(
+        &self,
+        grid: Arc<H>,
+        interpolator: &I,
+    ) -> ScalarField3<F, H>
     where
         H: Grid3<F>,
         I: Interpolator3,
@@ -277,11 +281,17 @@ where
         )
     }
 
-    /// Downsamples the scalar field onto the given coarser grid and returns the downsampled field.
+    /// Resamples the scalar field onto the given grid and returns the resampled field.
     ///
-    /// For each new grid cell, the values in all overlapped original grid cells are averaged
-    /// with weights according to the intersected volumes.
-    pub fn downsampled_to_coarser_grid<H: Grid3<F>>(&self, grid: Arc<H>) -> ScalarField3<F, H> {
+    /// For each new grid cell, the values of all overlapped original grid cells are
+    /// averaged with weights according to the intersected volumes.
+    ///
+    /// This method is faster than weighted sample averaging, but does not preserve
+    /// contrast as well.
+    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<F>>(
+        &self,
+        grid: Arc<H>,
+    ) -> ScalarField3<F, H> {
         let overlying_grid = grid;
         let mut overlying_values =
             unsafe { Array3::uninitialized(overlying_grid.shape().to_tuple().f()) };
@@ -352,13 +362,14 @@ where
         )
     }
 
-    /// Upsamples the scalar field onto the given finer grid and returns the upsampled field.
+    /// Resamples the scalar field onto the given grid and returns the resampled field.
     ///
     /// Each value on the new grid is found by interpolation of the values on the old grid
-    /// at the new coordinate location. While the given grid does not have to be finer than
-    /// the original grid, this form of resampling can lead to artifacts if the values are
-    /// resampled onto a coarser grid.
-    pub fn upsampled_to_finer_grid<H, I>(
+    /// at the new coordinate location.
+    ///
+    /// This is the preferred method for upsampling. For heavy downsampling it yields a
+    /// more noisy result than weighted averaging, but it does preserve contrast.
+    pub fn resampled_to_grid_with_sampling<H, I>(
         &self,
         grid: Arc<H>,
         interpolator: &I,
@@ -843,15 +854,73 @@ where
     }
 
     /// Resamples the vector field onto the given grid and returns the resampled field.
-    pub fn resampled_to_grid<H, I>(&self, grid: Arc<H>, interpolator: &I) -> VectorField3<F, H>
+    ///
+    /// For each new grid cell, values are interpolated from all overlapped original
+    /// grid cells and averaged with weights according to the intersected volumes.
+    /// If the new grid cell is contained within an original grid cell, this reduces
+    /// to a single interpolation.
+    ///
+    /// This method preserves contrast better than weighted cell averaging and gives
+    /// robust results for arbitrary resampling grids.
+    pub fn resampled_to_grid_with_weighted_sample_averaging<H, I>(
+        &self,
+        grid: Arc<H>,
+        interpolator: &I,
+    ) -> VectorField3<F, H>
     where
         H: Grid3<F>,
         I: Interpolator3,
     {
         let components = In3D::new(
-            self.components[X].resampled_to_grid(Arc::clone(&grid), interpolator),
-            self.components[Y].resampled_to_grid(Arc::clone(&grid), interpolator),
-            self.components[Z].resampled_to_grid(Arc::clone(&grid), interpolator),
+            self.components[X]
+                .resampled_to_grid_with_weighted_sample_averaging(Arc::clone(&grid), interpolator),
+            self.components[Y]
+                .resampled_to_grid_with_weighted_sample_averaging(Arc::clone(&grid), interpolator),
+            self.components[Z]
+                .resampled_to_grid_with_weighted_sample_averaging(Arc::clone(&grid), interpolator),
+        );
+        VectorField3::new(self.name.clone(), grid, components)
+    }
+
+    /// Resamples the vector field onto the given grid and returns the resampled field.
+    ///
+    /// For each new grid cell, the values of all overlapped original grid cells are
+    /// averaged with weights according to the intersected volumes.
+    ///
+    /// This method is faster than weighted sample averaging, but does not preserve
+    /// contrast as well.
+    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<F>>(
+        &self,
+        grid: Arc<H>,
+    ) -> VectorField3<F, H> {
+        let components = In3D::new(
+            self.components[X].resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&grid)),
+            self.components[Y].resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&grid)),
+            self.components[Z].resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&grid)),
+        );
+        VectorField3::new(self.name.clone(), grid, components)
+    }
+
+    /// Resamples the vector field onto the given grid and returns the resampled field.
+    ///
+    /// Each value on the new grid is found by interpolation of the values on the old grid
+    /// at the new coordinate location.
+    ///
+    /// This is the preferred method for upsampling. For heavy downsampling it yields a
+    /// more noisy result than weighted averaging, but it does preserve contrast.
+    pub fn resampled_to_grid_with_sampling<H, I>(
+        &self,
+        grid: Arc<H>,
+        interpolator: &I,
+    ) -> VectorField3<F, H>
+    where
+        H: Grid3<F>,
+        I: Interpolator3,
+    {
+        let components = In3D::new(
+            self.components[X].resampled_to_grid_with_sampling(Arc::clone(&grid), interpolator),
+            self.components[Y].resampled_to_grid_with_sampling(Arc::clone(&grid), interpolator),
+            self.components[Z].resampled_to_grid_with_sampling(Arc::clone(&grid), interpolator),
         );
         VectorField3::new(self.name.clone(), grid, components)
     }
