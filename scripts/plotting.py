@@ -47,9 +47,13 @@ def set_3d_axes_equal(ax):
     set_axes_radius(ax, origin, radius)
 
 
-def set_3d_spatial_axis_labels(ax, unit='Mm'):
+def set_2d_spatial_axis_labels(ax, unit='Mm'):
     ax.set_xlabel('x [{}]'.format(unit))
     ax.set_ylabel('y [{}]'.format(unit))
+
+
+def set_3d_spatial_axis_labels(ax, unit='Mm'):
+    set_2d_spatial_axis_labels(ax, unit=unit)
     ax.set_zlabel('z [{}]'.format(unit))
 
 
