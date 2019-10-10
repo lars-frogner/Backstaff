@@ -186,8 +186,8 @@ where
     /// If the new grid cell is contained within an original grid cell, this reduces
     /// to a single interpolation.
     ///
-    /// This method preserves contrast better than weighted cell averaging and gives
-    /// robust results for arbitrary resampling grids.
+    /// This method gives robust results for arbitrary resampling grids, but is slower
+    /// than direct sampling or weighted cell averaging.
     pub fn resampled_to_grid_with_weighted_sample_averaging<H, I>(
         &self,
         grid: Arc<H>,
@@ -203,6 +203,7 @@ where
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
         let underlying_lower_edges = self.grid().lower_edges();
+        let underlying_extents = self.grid().extents();
 
         overlying_values_buffer.par_iter_mut().enumerate().for_each(
             |(overlying_idx, overlying_value)| {
@@ -229,7 +230,9 @@ where
                         .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
                         .tuple_windows() // Create sliding window iterator over edge pairs
                         .map(|(&lower_coord, &upper_coord)| {
-                            let overlap_length = upper_coord - lower_coord;
+                            let overlap_length = ((upper_coord - lower_coord)
+                                + underlying_extents[dim])
+                                % underlying_extents[dim]; // Make sure coordinate difference is correct also for wrapped coordinates
                             let overlap_center =
                                 lower_coord + overlap_length * F::from_f32(0.5).unwrap();
                             (overlap_center, overlap_length)
@@ -286,8 +289,8 @@ where
     /// For each new grid cell, the values of all overlapped original grid cells are
     /// averaged with weights according to the intersected volumes.
     ///
-    /// This method is faster than weighted sample averaging, but does not preserve
-    /// contrast as well.
+    /// This method is suited for downsampling. It is faster than weighted sample
+    /// averaging, but slightly less accurate.
     pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<F>>(
         &self,
         grid: Arc<H>,
@@ -298,6 +301,7 @@ where
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
         let underlying_lower_edges = self.grid().lower_edges();
+        let underlying_extents = self.grid().extents();
 
         overlying_values_buffer.par_iter_mut().enumerate().for_each(
             |(overlying_idx, overlying_value)| {
@@ -323,7 +327,10 @@ where
                         )
                         .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
                         .tuple_windows() // Create sliding window iterator over edge pairs
-                        .map(|(&lower_coord, &upper_coord)| upper_coord - lower_coord)
+                        .map(|(&lower_coord, &upper_coord)| {
+                            ((upper_coord - lower_coord) + underlying_extents[dim])
+                                % underlying_extents[dim] // Make sure coordinate difference is correct also for wrapped coordinates
+                        })
                         .zip(idx_range_lists[dim].iter())
                         .collect::<Vec<_>>()
                 };
@@ -368,8 +375,8 @@ where
     /// at the new coordinate location.
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
-    /// more noisy result than weighted averaging, but it does preserve contrast.
-    pub fn resampled_to_grid_with_sampling<H, I>(
+    /// more noisy result than weighted averaging.
+    pub fn resampled_to_grid_with_direct_sampling<H, I>(
         &self,
         grid: Arc<H>,
         interpolator: &I,
@@ -860,8 +867,8 @@ where
     /// If the new grid cell is contained within an original grid cell, this reduces
     /// to a single interpolation.
     ///
-    /// This method preserves contrast better than weighted cell averaging and gives
-    /// robust results for arbitrary resampling grids.
+    /// This method gives robust results for arbitrary resampling grids, but is slower
+    /// than direct sampling or weighted cell averaging.
     pub fn resampled_to_grid_with_weighted_sample_averaging<H, I>(
         &self,
         grid: Arc<H>,
@@ -887,8 +894,8 @@ where
     /// For each new grid cell, the values of all overlapped original grid cells are
     /// averaged with weights according to the intersected volumes.
     ///
-    /// This method is faster than weighted sample averaging, but does not preserve
-    /// contrast as well.
+    /// This method is suited for downsampling. It is faster than weighted sample
+    /// averaging, but slightly less accurate.
     pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<F>>(
         &self,
         grid: Arc<H>,
@@ -907,8 +914,8 @@ where
     /// at the new coordinate location.
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
-    /// more noisy result than weighted averaging, but it does preserve contrast.
-    pub fn resampled_to_grid_with_sampling<H, I>(
+    /// more noisy result than weighted averaging.
+    pub fn resampled_to_grid_with_direct_sampling<H, I>(
         &self,
         grid: Arc<H>,
         interpolator: &I,
@@ -918,9 +925,12 @@ where
         I: Interpolator3,
     {
         let components = In3D::new(
-            self.components[X].resampled_to_grid_with_sampling(Arc::clone(&grid), interpolator),
-            self.components[Y].resampled_to_grid_with_sampling(Arc::clone(&grid), interpolator),
-            self.components[Z].resampled_to_grid_with_sampling(Arc::clone(&grid), interpolator),
+            self.components[X]
+                .resampled_to_grid_with_direct_sampling(Arc::clone(&grid), interpolator),
+            self.components[Y]
+                .resampled_to_grid_with_direct_sampling(Arc::clone(&grid), interpolator),
+            self.components[Z]
+                .resampled_to_grid_with_direct_sampling(Arc::clone(&grid), interpolator),
         );
         VectorField3::new(self.name.clone(), grid, components)
     }
