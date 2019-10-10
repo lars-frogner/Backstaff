@@ -10,13 +10,30 @@ The purpose of this project is to provide a fast, reliable and flexible framewor
 
 Rust is highly suited for this project, for a number of reasons. It is a low-level systems language with performance on par with C++. It has a strong focus on memory safety, with a unique ownership system that can guarantee the absence of undefined behaviour (i.e. no segfaults). This also makes it easy to parallelize in a reliable manner, as issues like data races can be detected at compile time. Despite the focus on performance it is easy to write modular and elegant code thanks to the presence of zero-cost abstractions and elements from functional programming. The included `cargo` package manager makes it strightforward to download dependencies, compile and run the code and generate documentation. These advantages, helped by the excellent free introductory book [The Rust Programming Language](https://doc.rust-lang.org/book/), mean that the language rapidly is gaining popularity.
 
+## Prerequesites
+
+You need to have the Rust toolchain installed in order to build the binaries. Installation instructions can be found at https://www.rust-lang.org/tools/install.
+
 ## Installation
 
-Installation instructions for Rust can be found at https://www.rust-lang.org/tools/install. With Rust installed, clone this repository and use `cargo run` to compile and run the code.
+Simply clone this repository.
 
-## How to use it
+## Compilation
 
-The library exposes a command line interface for performing available actions. Actions are specified and configured through a hierachy of subcommands, which can be inspected by looking at their help texts. For example, the help text for the `snapshot` subcommand can be view as follows:
+You can compile the code using the `cargo build` command. Make sure to add the `--release` flag so that optimizations are turned on. The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features to include with the `--features` flag. The `--no-default-features` flag can be used to disable the default features.
+
+## Features
+
+Currently the available features are:
+* `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default.
+* `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
+* `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI. Requires `tracing`.
+
+## Using the command line program
+
+The simplest way to run the command line executable is with `cargo run` command. This will also perform any necessary compilation prior to running the program. All arguments following a double dash (`--`) will be passed along to the command line program.
+
+Actions are specified and configured through a hierachy of subcommands, which can be inspected by looking at their help texts. For example, the help text for the `snapshot` subcommand can be viewed as follows:
 ```console
 $ cargo run --release -- snapshot help
 bifrost-snapshot
@@ -41,11 +58,10 @@ ARGS:
     <PARAM_PATH>    Path to the parameter (.idl) file for the snapshot
 
 SUBCOMMANDS:
-    inspect    Inspect properties of the snapshot
-    slice      Extract a 2D slice of a quantity field in the snapshot
-    trace      Trace field lines of a vector field in the snapshot
-    ebeam      Perform actions related to electron beams in the snapshot
-    help       Prints this message or the help of the given subcommand(s)
+    inspect     Inspect properties of the snapshot
+    slice       Extract a 2D slice of a quantity field in the snapshot
+    resample    Creates a resampled version of the snapshot
+    help        Prints this message or the help of the given subcommand(s)
 ```
 
 Printing some statistics for density and temperature in a snapshot could look like this:
@@ -67,7 +83,7 @@ Average value:    30039.16
 
 Tracing a set of 1000 field lines from random locations in the photosphere could look like this:
 ```console
-$ cargo run --release -- snapshot en024031_emer3.0str_ebeam_351.idl trace -v field_lines.pickle slice_seeder x 0.0 random 1000
+$ cargo run --release --features tracing -- snapshot en024031_emer3.0str_ebeam_351.idl trace -v field_lines.pickle slice_seeder x 0.0 random 1000
 Found 1000 start positions
 Successfully traced 1000 field lines
 Saving field lines in field_lines.pickle
@@ -75,4 +91,4 @@ Saving field lines in field_lines.pickle
 
 ## Documentation
 
-The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository.
+The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` flag in order for them to be included in the documentation.

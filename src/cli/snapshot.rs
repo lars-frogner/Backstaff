@@ -4,7 +4,6 @@ mod inspect;
 mod resample;
 mod slice;
 
-use crate::cli;
 use crate::grid::hor_regular::HorRegularGrid3;
 use crate::grid::regular::RegularGrid3;
 use crate::grid::GridType;
@@ -13,8 +12,9 @@ use crate::io::Endianness;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 /// Builds a representation of the `snapshot` command line subcommand.
+#[allow(clippy::let_and_return)]
 pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("snapshot")
+    let app = SubCommand::with_name("snapshot")
         .about("Specify input snapshot to perform further actions on")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(
@@ -55,9 +55,15 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(inspect::create_inspect_subcommand())
         .subcommand(slice::create_slice_subcommand())
-        .subcommand(resample::create_resample_subcommand())
-        .subcommand(cli::tracing::create_trace_subcommand())
-        .subcommand(cli::ebeam::create_ebeam_subcommand())
+        .subcommand(resample::create_resample_subcommand());
+
+    #[cfg(feature = "tracing")]
+    let app = app.subcommand(crate::cli::tracing::create_trace_subcommand());
+
+    #[cfg(feature = "ebeam")]
+    let app = app.subcommand(crate::cli::ebeam::create_ebeam_subcommand());
+
+    app
 }
 
 /// Determines snapshot reader parameters based on provided options.
@@ -113,11 +119,17 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
                 resample::run_resample_subcommand(resample_arguments, snapshot.reader());
             }
-            if let Some(trace_arguments) = arguments.subcommand_matches("trace") {
-                cli::tracing::run_trace_subcommand(trace_arguments, &mut snapshot);
+            #[cfg(feature = "tracing")]
+            {
+                if let Some(trace_arguments) = arguments.subcommand_matches("trace") {
+                    crate::cli::tracing::run_trace_subcommand(trace_arguments, &mut snapshot);
+                }
             }
-            if let Some(ebeam_arguments) = arguments.subcommand_matches("ebeam") {
-                cli::ebeam::run_ebeam_subcommand(ebeam_arguments, &mut snapshot);
+            #[cfg(feature = "ebeam")]
+            {
+                if let Some(ebeam_arguments) = arguments.subcommand_matches("ebeam") {
+                    crate::cli::ebeam::run_ebeam_subcommand(ebeam_arguments, &mut snapshot);
+                }
             }
         }};
     }

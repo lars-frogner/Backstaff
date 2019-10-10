@@ -1,10 +1,14 @@
 //! Command line interface.
 
-pub mod ebeam;
 pub mod interpolation;
 pub mod mesh;
 pub mod snapshot;
+
+#[cfg(feature = "tracing")]
 pub mod tracing;
+
+#[cfg(feature = "ebeam")]
+pub mod ebeam;
 
 use crate::grid::Grid3;
 use crate::io::snapshot::{fdt, SnapshotReader3};
@@ -161,6 +165,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 fn get_value_from_required_constrained_argument<T>(
     arguments: &ArgMatches,
     argument_name: &str,
@@ -200,6 +205,7 @@ where
     })
 }
 
+#[allow(dead_code)]
 fn get_value_from_param_file_argument_with_default<G, T, C>(
     reader: &SnapshotReader3<G>,
     arguments: &ArgMatches,
@@ -225,6 +231,7 @@ where
     })
 }
 
+#[allow(dead_code)]
 fn get_values_from_param_file_argument_with_defaults<G, T, C>(
     reader: &SnapshotReader3<G>,
     arguments: &ArgMatches,
