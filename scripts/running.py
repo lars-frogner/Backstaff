@@ -1,8 +1,11 @@
 import subprocess
 
 
-def run_bifrost_rust(*args):
-    args = ['cargo', 'run', '--release', '--'] + list(args)
+def run_bifrost_rust(*args, features=['cli']):
+    args = [
+        'cargo', 'run', '--release', '--no-default-features', '--features',
+        ' '.join(features), '--'
+    ] + list(args)
     print(' '.join(args))
     process = subprocess.Popen(args,
                                stdout=subprocess.PIPE,
