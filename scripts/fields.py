@@ -22,6 +22,11 @@ class Coords2:
 
 
 class ScalarField2:
+    @staticmethod
+    def from_pickle_file(file_path):
+        import reading
+        return reading.read_2d_scalar_field(file_path)
+
     def __init__(self, coords, values):
         assert isinstance(coords, Coords2)
         self.coords = coords
@@ -34,6 +39,12 @@ class ScalarField2:
     def get_values(self):
         return self.values
 
+    def get_horizontal_bounds(self):
+        return (self.coords.x[0], self.coords.x[-1])
+
+    def get_vertical_bounds(self):
+        return (self.coords.y[0], self.coords.y[-1])
+
     def add_to_plot(self,
                     ax,
                     log=False,
@@ -42,27 +53,61 @@ class ScalarField2:
                     cmap_name='viridis'):
 
         values = self.get_values()
-        if log:
-            values = np.log10(values)
-
         return ax.imshow(values.T,
                          norm=plotting.get_normalizer(vmin, vmax, log=log),
                          vmin=vmin,
                          vmax=vmax,
-                         cmap=plotting.get_cmap(cmap_name))
+                         cmap=plotting.get_cmap(cmap_name),
+                         interpolation='none',
+                         extent=[
+                             *self.get_horizontal_bounds(),
+                             *self.get_vertical_bounds()
+                         ],
+                         aspect='auto')
+
+
+def plot_2d_scalar_field(field,
+                         fig=None,
+                         ax=None,
+                         xlabel=None,
+                         ylabel=None,
+                         value_description=None,
+                         title=None,
+                         render=True,
+                         output_path=None,
+                         **kwargs):
+
+    if fig is None or ax is None:
+        fig, ax = plotting.create_2d_subplots()
+
+    im = field.add_to_plot(ax, **kwargs)
+
+    ax.set_xlim(*field.get_horizontal_bounds())
+    ax.set_ylim(*field.get_vertical_bounds())
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plotting.add_2d_colorbar(
+        fig,
+        ax,
+        im,
+        label='' if value_description is None else value_description)
+
+    ax.set_title(title)
+
+    if render:
+        plotting.render(fig, output_path=output_path)
 
 
 if __name__ == "__main__":
     import reading
     from pathlib import Path
 
-    fig, axes = plotting.create_2d_subplots(ncols=2)
+    fig, axes = plotting.create_2d_subplots(ncols=1)
     reading.read_2d_scalar_field(
-        Path(reading.DATA_PATH, 'phd_run',
-             'en024031_emer3.0str_ebeam_tg_351.pickle')).add_to_plot(axes[0],
-                                                                     log=True)
-    reading.read_2d_scalar_field(
-        Path(reading.DATA_PATH, 'phd_run',
-             'en024031_emer3.0str_ebeam_351.pickle')).add_to_plot(axes[1],
-                                                                  log=False)
+        Path(reading.DATA_PATH, 'test_data',
+             'slice1.pickle')).add_to_plot(axes, log=True)
+    # reading.read_2d_scalar_field(
+    #     Path(reading.DATA_PATH, 'phd_run',
+    #          'en024031_emer3.0str_ebeam_351.pickle')).add_to_plot(axes[1],
+    #                                                               log=False)
     plotting.render(fig)
