@@ -1,8 +1,8 @@
 //! Command line interface for resampling a snapshot.
 
-mod downsampling;
-mod general;
-mod upsampling;
+mod sampling;
+mod weighted_cell_averaging;
+mod weighted_sample_averaging;
 
 use crate::cli;
 use crate::geometry::{Dim3, In3D};
@@ -63,32 +63,33 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("verbose")
                 .help("Print status messages while resampling the snapshot"),
         )
-        .subcommand(general::create_general_subcommand())
-        .subcommand(downsampling::create_downsampling_subcommand())
-        .subcommand(upsampling::create_upsampling_subcommand())
+        .subcommand(weighted_sample_averaging::create_weighted_sample_averaging_subcommand())
+        .subcommand(weighted_cell_averaging::create_weighted_cell_averaging_subcommand())
+        .subcommand(sampling::create_sampling_subcommand())
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
 pub fn run_resample_subcommand<G: Grid3<fdt>>(arguments: &ArgMatches, reader: &SnapshotReader3<G>) {
-    let (resampling_mode, resampling_arguments) =
-        if let Some(general_arguments) = arguments.subcommand_matches("general") {
-            ("general", general_arguments)
-        } else if let Some(downsampling_arguments) = arguments.subcommand_matches("downsampling") {
-            ("downsampling", downsampling_arguments)
-        } else if let Some(upsampling_arguments) = arguments.subcommand_matches("upsampling") {
-            ("upsampling", upsampling_arguments)
-        } else {
-            panic!("No resampling mode specified.")
-        };
+    let (resampling_method, method_arguments) = if let Some(method_arguments) =
+        arguments.subcommand_matches("weighted_sample_averaging")
+    {
+        ("weighted_sample_averaging", method_arguments)
+    } else if let Some(method_arguments) = arguments.subcommand_matches("weighted_cell_averaging") {
+        ("weighted_cell_averaging", method_arguments)
+    } else if let Some(method_arguments) = arguments.subcommand_matches("sampling") {
+        ("sampling", method_arguments)
+    } else {
+        panic!("No resampling method specified.")
+    };
 
-    run_with_selected_interpolator(arguments, resampling_arguments, reader, resampling_mode)
+    run_with_selected_interpolator(arguments, method_arguments, reader, resampling_method)
 }
 
 fn run_with_selected_interpolator<G: Grid3<fdt>>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     reader: &SnapshotReader3<G>,
-    resampling_mode: &str,
+    resampling_method: &str,
 ) {
     let interpolator_config = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
@@ -101,13 +102,13 @@ fn run_with_selected_interpolator<G: Grid3<fdt>>(
     };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
-    run_resampling(root_arguments, reader, resampling_mode, interpolator);
+    run_resampling(root_arguments, reader, resampling_method, interpolator);
 }
 
 fn run_resampling<G, I>(
     root_arguments: &ArgMatches,
     reader: &SnapshotReader3<G>,
-    resampling_mode: &str,
+    resampling_method: &str,
     interpolator: I,
 ) where
     G: Grid3<fdt>,
@@ -155,27 +156,22 @@ fn run_resampling<G, I>(
                 let field = reader.read_scalar_field(name).unwrap_or_else(|err| {
                     panic!("Could not read quantity field {}: {}", name, err)
                 });
-                let resampled_field = match resampling_mode {
-                    "general" => {
-                        if is_verbose {
-                            println!("Resampling {}", name);
-                        }
-                        field.resampled_to_grid(Arc::clone(&new_grid), &interpolator)
-                    }
-                    "downsampling" => {
-                        if is_verbose {
-                            println!("Downsampling {}", name);
-                        }
-                        field.downsampled_to_coarser_grid(Arc::clone(&new_grid))
-                    }
-                    "upsampling" => {
-                        if is_verbose {
-                            println!("Upsampling {}", name);
-                        }
-                        field.upsampled_to_finer_grid(Arc::clone(&new_grid), &interpolator)
-                    }
-                    invalid => panic!("Invalid mode {}", invalid),
-                };
+                if is_verbose {
+                    println!("Resampling {}", name);
+                }
+                let resampled_field =
+                    match resampling_method {
+                        "weighted_sample_averaging" => field
+                            .resampled_to_grid_with_weighted_sample_averaging(
+                                Arc::clone(&new_grid),
+                                &interpolator,
+                            ),
+                        "weighted_cell_averaging" => field
+                            .resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&new_grid)),
+                        "sampling" => field
+                            .resampled_to_grid_with_sampling(Arc::clone(&new_grid), &interpolator),
+                        invalid => panic!("Invalid mode {}", invalid),
+                    };
                 resampled_field.into_values()
             };
             snapshot::write_3d_snapfile(
