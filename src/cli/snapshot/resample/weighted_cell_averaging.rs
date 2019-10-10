@@ -10,7 +10,7 @@ pub fn create_weighted_cell_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
             "Use the weighted cell averaging method.\n\
              For each new grid cell, the values of all overlapped original grid cells are\n\
              averaged with weights according to the intersected volumes.\n\
-             This method is faster than weighted sample averaging, but does not preserve\n\
-             contrast as well.",
+             This method is suited for downsampling. It is faster than weighted sample\n\
+             averaging, but slightly less accurate.",
         )
 }

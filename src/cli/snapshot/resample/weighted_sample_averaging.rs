@@ -13,8 +13,8 @@ pub fn create_weighted_sample_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
              grid cells and averaged with weights according to the intersected volumes.\n\
              If the new grid cell is contained within an original grid cell, this reduces\n\
              to a single interpolation.\n\
-             This method preserves contrast better than weighted cell averaging and gives\n\
-             robust results for arbitrary resampling grids.",
+             This method gives robust results for arbitrary resampling grids, but is slower\n\
+             than direct sampling or weighted cell averaging.",
         )
         .after_help(
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\

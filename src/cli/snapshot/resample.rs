@@ -1,6 +1,6 @@
 //! Command line interface for resampling a snapshot.
 
-mod sampling;
+mod direct_sampling;
 mod weighted_cell_averaging;
 mod weighted_sample_averaging;
 
@@ -65,7 +65,7 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(weighted_sample_averaging::create_weighted_sample_averaging_subcommand())
         .subcommand(weighted_cell_averaging::create_weighted_cell_averaging_subcommand())
-        .subcommand(sampling::create_sampling_subcommand())
+        .subcommand(direct_sampling::create_direct_sampling_subcommand())
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
@@ -76,8 +76,8 @@ pub fn run_resample_subcommand<G: Grid3<fdt>>(arguments: &ArgMatches, reader: &S
         ("weighted_sample_averaging", method_arguments)
     } else if let Some(method_arguments) = arguments.subcommand_matches("weighted_cell_averaging") {
         ("weighted_cell_averaging", method_arguments)
-    } else if let Some(method_arguments) = arguments.subcommand_matches("sampling") {
-        ("sampling", method_arguments)
+    } else if let Some(method_arguments) = arguments.subcommand_matches("direct_sampling") {
+        ("direct_sampling", method_arguments)
     } else {
         panic!("No resampling method specified.")
     };
@@ -159,19 +159,21 @@ fn run_resampling<G, I>(
                 if is_verbose {
                     println!("Resampling {}", name);
                 }
-                let resampled_field =
-                    match resampling_method {
-                        "weighted_sample_averaging" => field
-                            .resampled_to_grid_with_weighted_sample_averaging(
-                                Arc::clone(&new_grid),
-                                &interpolator,
-                            ),
-                        "weighted_cell_averaging" => field
-                            .resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&new_grid)),
-                        "sampling" => field
-                            .resampled_to_grid_with_sampling(Arc::clone(&new_grid), &interpolator),
-                        invalid => panic!("Invalid mode {}", invalid),
-                    };
+                let resampled_field = match resampling_method {
+                    "weighted_sample_averaging" => field
+                        .resampled_to_grid_with_weighted_sample_averaging(
+                            Arc::clone(&new_grid),
+                            &interpolator,
+                        ),
+                    "weighted_cell_averaging" => {
+                        field.resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&new_grid))
+                    }
+                    "direct_sampling" => field.resampled_to_grid_with_direct_sampling(
+                        Arc::clone(&new_grid),
+                        &interpolator,
+                    ),
+                    invalid => panic!("Invalid mode {}", invalid),
+                };
                 resampled_field.into_values()
             };
             snapshot::write_3d_snapfile(
