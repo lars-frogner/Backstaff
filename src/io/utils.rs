@@ -9,6 +9,25 @@ use serde_pickle;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::{fs, io, mem, path};
 
+/// Describes the properties of a type that can be translated to and from bytes
+/// by the `byteorder` crate.
+pub trait ByteorderData
+where
+    Self: std::marker::Sized + Copy + Default,
+{
+    /// Writes the given slice of data elements as bytes with the given endianness
+    /// into the given byte buffer.
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness);
+
+    /// Reads bytes with the given endianness from the given file and stores
+    /// in the given data buffer.
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        endianness: Endianness,
+    ) -> io::Result<()>;
+}
+
 /// Opens file with the given path and returns it, or returns an error with the
 /// file path included in the error message.
 pub fn open_file_and_map_err<P: AsRef<path::Path>>(file_path: P) -> io::Result<fs::File> {
@@ -35,74 +54,33 @@ pub fn write_text_file<P: AsRef<path::Path>>(text: &str, file_path: P) -> io::Re
     write!(&mut file, "{}", text)
 }
 
-/// Reads and returns a buffer of f32 values from the specified binary file.
-pub fn read_f32_from_binary_file<P: AsRef<path::Path>>(
+/// Reads and returns a buffer of values from the specified binary file.
+pub fn read_from_binary_file<P: AsRef<path::Path>, T: ByteorderData>(
     file_path: P,
     length: usize,
     offset: usize,
     endianness: Endianness,
-) -> io::Result<Vec<f32>> {
+) -> io::Result<Vec<T>> {
     let mut file = open_file_and_map_err(file_path)?;
-    file.seek(SeekFrom::Start((offset * mem::size_of::<f32>()) as u64))?;
-    let mut buffer = vec![0.0; length];
-    match endianness {
-        Endianness::Little => file.read_f32_into::<byteorder::LittleEndian>(&mut buffer)?,
-        Endianness::Big => file.read_f32_into::<byteorder::BigEndian>(&mut buffer)?,
-    };
+    file.seek(SeekFrom::Start((offset * mem::size_of::<T>()) as u64))?;
+    let mut buffer = vec![T::default(); length];
+    T::read_from_binary_file(&mut file, &mut buffer, endianness)?;
     Ok(buffer)
 }
 
-/// Reads and returns a buffer of f64 values from the specified binary file.
-pub fn read_f64_from_binary_file<P: AsRef<path::Path>>(
-    file_path: P,
-    length: usize,
+/// Writes the given source buffer of values into the given byte buffer,
+/// starting at the specified offset.
+pub fn write_into_byte_buffer<T: ByteorderData>(
+    source: &[T],
+    dest: &mut [u8],
     offset: usize,
     endianness: Endianness,
-) -> io::Result<Vec<f64>> {
-    let mut file = open_file_and_map_err(file_path)?;
-    file.seek(SeekFrom::Start((offset * mem::size_of::<f64>()) as u64))?;
-    let mut buffer = vec![0.0; length];
-    match endianness {
-        Endianness::Little => file.read_f64_into::<byteorder::LittleEndian>(&mut buffer)?,
-        Endianness::Big => file.read_f64_into::<byteorder::BigEndian>(&mut buffer)?,
-    };
-    Ok(buffer)
-}
-
-/// Writes the given source buffer of f32 values into the given byte buffer,
-/// starting at the specified offset.
-pub fn write_f32_into_byte_buffer(
-    source: &[f32],
-    dest: &mut [u8],
-    float_offset: usize,
-    endianness: Endianness,
 ) {
-    let float_size = mem::size_of::<f32>();
-    let byte_offset = float_offset * float_size;
-    let number_of_bytes = source.len() * float_size;
+    let type_size = mem::size_of::<T>();
+    let byte_offset = offset * type_size;
+    let number_of_bytes = source.len() * type_size;
     let dest_slice = &mut dest[byte_offset..byte_offset + number_of_bytes];
-    match endianness {
-        Endianness::Little => byteorder::LittleEndian::write_f32_into(source, dest_slice),
-        Endianness::Big => byteorder::BigEndian::write_f32_into(source, dest_slice),
-    };
-}
-
-/// Writes the given source buffer of f64 values into the given byte buffer,
-/// starting at the specified offset.
-pub fn write_f64_into_byte_buffer(
-    source: &[f64],
-    dest: &mut [u8],
-    float_offset: usize,
-    endianness: Endianness,
-) {
-    let float_size: usize = mem::size_of::<f64>();
-    let byte_offset = float_offset * float_size;
-    let number_of_bytes = source.len() * float_size;
-    let dest_slice = &mut dest[byte_offset..byte_offset + number_of_bytes];
-    match endianness {
-        Endianness::Little => byteorder::LittleEndian::write_f64_into(source, dest_slice),
-        Endianness::Big => byteorder::BigEndian::write_f64_into(source, dest_slice),
-    };
+    T::write_into_byte_buffer(source, dest_slice, endianness);
 }
 
 /// Serializes the given data into JSON format and saves at the given path.
@@ -142,5 +120,139 @@ pub fn write_data_as_pickle<T: Serialize, W: io::Write>(
             io::ErrorKind::Other,
             "Unexpected error while serializing data to pickle format",
         )),
+    }
+}
+
+impl ByteorderData for f32 {
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
+        match endianness {
+            Endianness::Little => byteorder::LittleEndian::write_f32_into(source, dest),
+            Endianness::Big => byteorder::BigEndian::write_f32_into(source, dest),
+        };
+    }
+
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        endianness: Endianness,
+    ) -> io::Result<()> {
+        match endianness {
+            Endianness::Little => file.read_f32_into::<byteorder::LittleEndian>(buffer),
+            Endianness::Big => file.read_f32_into::<byteorder::BigEndian>(buffer),
+        }
+    }
+}
+
+impl ByteorderData for f64 {
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
+        match endianness {
+            Endianness::Little => byteorder::LittleEndian::write_f64_into(source, dest),
+            Endianness::Big => byteorder::BigEndian::write_f64_into(source, dest),
+        };
+    }
+
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        endianness: Endianness,
+    ) -> io::Result<()> {
+        match endianness {
+            Endianness::Little => file.read_f64_into::<byteorder::LittleEndian>(buffer),
+            Endianness::Big => file.read_f64_into::<byteorder::BigEndian>(buffer),
+        }
+    }
+}
+
+impl ByteorderData for i32 {
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
+        match endianness {
+            Endianness::Little => byteorder::LittleEndian::write_i32_into(source, dest),
+            Endianness::Big => byteorder::BigEndian::write_i32_into(source, dest),
+        };
+    }
+
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        endianness: Endianness,
+    ) -> io::Result<()> {
+        match endianness {
+            Endianness::Little => file.read_i32_into::<byteorder::LittleEndian>(buffer),
+            Endianness::Big => file.read_i32_into::<byteorder::BigEndian>(buffer),
+        }
+    }
+}
+
+impl ByteorderData for i64 {
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
+        match endianness {
+            Endianness::Little => byteorder::LittleEndian::write_i64_into(source, dest),
+            Endianness::Big => byteorder::BigEndian::write_i64_into(source, dest),
+        };
+    }
+
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        endianness: Endianness,
+    ) -> io::Result<()> {
+        match endianness {
+            Endianness::Little => file.read_i64_into::<byteorder::LittleEndian>(buffer),
+            Endianness::Big => file.read_i64_into::<byteorder::BigEndian>(buffer),
+        }
+    }
+}
+
+impl ByteorderData for u8 {
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], _endianness: Endianness) {
+        dest.copy_from_slice(source);
+    }
+
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        _endianness: Endianness,
+    ) -> io::Result<()> {
+        file.read_to_end(buffer).map(|_| ())
+    }
+}
+
+impl ByteorderData for u32 {
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
+        match endianness {
+            Endianness::Little => byteorder::LittleEndian::write_u32_into(source, dest),
+            Endianness::Big => byteorder::BigEndian::write_u32_into(source, dest),
+        };
+    }
+
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        endianness: Endianness,
+    ) -> io::Result<()> {
+        match endianness {
+            Endianness::Little => file.read_u32_into::<byteorder::LittleEndian>(buffer),
+            Endianness::Big => file.read_u32_into::<byteorder::BigEndian>(buffer),
+        }
+    }
+}
+
+impl ByteorderData for u64 {
+    fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
+        match endianness {
+            Endianness::Little => byteorder::LittleEndian::write_u64_into(source, dest),
+            Endianness::Big => byteorder::BigEndian::write_u64_into(source, dest),
+        };
+    }
+
+    fn read_from_binary_file(
+        file: &mut fs::File,
+        buffer: &mut Vec<Self>,
+        endianness: Endianness,
+    ) -> io::Result<()> {
+        match endianness {
+            Endianness::Little => file.read_u64_into::<byteorder::LittleEndian>(buffer),
+            Endianness::Big => file.read_u64_into::<byteorder::BigEndian>(buffer),
+        }
     }
 }

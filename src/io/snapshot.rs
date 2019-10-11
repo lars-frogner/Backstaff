@@ -150,12 +150,8 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         let shape = self.grid.shape();
         let length = shape[X] * shape[Y] * shape[Z];
         let offset = length * variable_descriptor.index;
-        let buffer = super::utils::read_f32_from_binary_file(
-            file_path,
-            length,
-            offset,
-            self.config.endianness,
-        )?;
+        let buffer =
+            super::utils::read_from_binary_file(file_path, length, offset, self.config.endianness)?;
         let values = Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap();
         Ok(ScalarField3::new(
             variable_name.to_string(),
@@ -517,7 +513,7 @@ where
     if verbose.is_yes() {
         println!("Writing {}", name);
     }
-    super::utils::write_f32_into_byte_buffer(
+    super::utils::write_into_byte_buffer(
         variable_values
             .as_slice_memory_order()
             .expect("Values array not contiguous."),
@@ -538,7 +534,7 @@ where
         if verbose.is_yes() {
             println!("Writing {}", name);
         }
-        super::utils::write_f32_into_byte_buffer(
+        super::utils::write_into_byte_buffer(
             variable_values
                 .as_slice_memory_order()
                 .expect("Values array not contiguous."),
