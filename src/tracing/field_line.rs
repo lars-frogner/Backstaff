@@ -16,7 +16,8 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
-use std::{fs, io, mem, path};
+use std::path::Path;
+use std::{fs, io, mem};
 
 type FieldLinePath3 = (Vec<ftr>, Vec<ftr>, Vec<ftr>);
 type FixedScalarValues = HashMap<String, Vec<ftr>>;
@@ -359,35 +360,35 @@ impl FieldLineSet3 {
     }
 
     /// Serializes the field line data into JSON format and saves at the given path.
-    pub fn save_as_json<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+    pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         if self.verbose.is_yes() {
             println!(
                 "Saving field line data in JSON format in {}",
-                file_path.as_ref().display()
+                output_file_path.as_ref().display()
             );
         }
-        utils::save_data_as_json(file_path, &self)
+        utils::save_data_as_json(output_file_path, &self)
     }
 
     /// Serializes the field line data into pickle format and saves at the given path.
     ///
     /// All the field line data is saved as a single pickled structure.
-    pub fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+    pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         if self.verbose.is_yes() {
             println!(
                 "Saving field lines as single pickle object in {}",
-                file_path.as_ref().display()
+                output_file_path.as_ref().display()
             );
         }
-        utils::save_data_as_pickle(file_path, &self)
+        utils::save_data_as_pickle(output_file_path, &self)
     }
 
     /// Serializes the field line data fields in parallel into pickle format and saves at the given path.
     ///
     /// The data fields are saved as separate pickle objects in the same file.
-    pub fn save_as_combined_pickles<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+    pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         if self.verbose.is_yes() {
-            println!("Saving field lines in {}", file_path.as_ref().display());
+            println!("Saving field lines in {}", output_file_path.as_ref().display());
         }
         let mut buffer_1 = Vec::new();
         utils::write_data_as_pickle(&mut buffer_1, &self.number_of_field_lines())?;
@@ -423,21 +424,21 @@ impl FieldLineSet3 {
         result_4?;
         result_5?;
 
-        let mut file = fs::File::create(file_path)?;
+        let mut file = fs::File::create(output_file_path)?;
         file.write_all(&[buffer_1, buffer_2, buffer_3, buffer_4, buffer_5].concat())?;
         Ok(())
     }
 
     /// Serializes the field line data into a custom binary format and saves at the given path.
-    pub fn save_as_custom_binary_file<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
-        write_field_line_data_in_custom_binary_format(file_path, self.properties.clone())
+    pub fn save_as_custom_binary_file<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+        write_field_line_data_in_custom_binary_format(output_file_path, self.properties.clone())
             .map(|_| ())
     }
 
     /// Serializes the field line data into a custom binary format and saves at the given path,
     /// consuming the field line set in the process.
-    pub fn into_custom_binary_file<P: AsRef<path::Path>>(self, file_path: P) -> io::Result<()> {
-        write_field_line_data_in_custom_binary_format(file_path, self.properties).map(|_| ())
+    pub fn into_custom_binary_file<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
+        write_field_line_data_in_custom_binary_format(output_file_path, self.properties).map(|_| ())
     }
 }
 
@@ -461,8 +462,8 @@ impl Serialize for FieldLineSet3 {
 
 /// Writes the given field line data in a custom binary format at the
 /// given path.
-pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
-    output_path: P,
+pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
+    output_file_path: P,
     properties: FieldLineSetProperties3,
 ) -> io::Result<fs::File> {
     // Field line file format:
@@ -662,7 +663,7 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
     let mut byte_buffer = vec![0_u8; byte_buffer_size];
 
     let file_size: usize = section_sizes.iter().sum();
-    let mut file = fs::File::create(output_path)?;
+    let mut file = fs::File::create(output_file_path)?;
     file.set_len(file_size as u64)?;
 
     let byte_offset = utils::write_into_byte_buffer(
