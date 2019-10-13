@@ -12,8 +12,9 @@ use itertools::Itertools;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use serde::Serialize;
+use std::path::Path;
 use std::sync::Arc;
-use std::{io, iter, path};
+use std::{io, iter};
 use Dim3::{X, Y, Z};
 
 /// Locations in the grid cell for resampled field values.
@@ -1231,7 +1232,7 @@ where
     }
 
     /// Serializes the field data into pickle format and save at the given path.
-    pub fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()>
+    pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()>
     where
         F: Serialize,
     {
@@ -1239,7 +1240,7 @@ where
             coords: self.coords().into_owned(),
             values: self.values().clone(),
         };
-        save_data_as_pickle(file_path, &data)
+        save_data_as_pickle(output_file_path, &data)
     }
 
     fn set_grid(&mut self, new_grid: Arc<G>) {
