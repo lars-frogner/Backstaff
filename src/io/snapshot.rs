@@ -10,8 +10,9 @@ use num;
 use regex;
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::{fs, io, mem, path, str, string};
+use std::{fs, io, mem, str, string};
 use CoordLocation::{Center, LowerEdge};
 use Dim3::{X, Y, Z};
 
@@ -23,7 +24,7 @@ pub type fdt = f32;
 #[derive(Clone, Debug)]
 pub struct SnapshotReaderConfig {
     /// Path to the parameter (.idl) file.
-    params_path: path::PathBuf,
+    params_path: PathBuf,
     /// Order of bytes in the binary data files.
     endianness: Endianness,
     /// Whether to print status messages while reading fields.
@@ -34,8 +35,8 @@ pub struct SnapshotReaderConfig {
 #[derive(Clone, Debug)]
 pub struct SnapshotReader3<G: Grid3<fdt>> {
     config: SnapshotReaderConfig,
-    snap_path: path::PathBuf,
-    aux_path: path::PathBuf,
+    snap_path: PathBuf,
+    aux_path: PathBuf,
     params: Params,
     grid: Arc<G>,
     primary_variable_names: Vec<&'static str>,
@@ -353,11 +354,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
 
 impl SnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new<P: AsRef<path::Path>>(
-        params_path: P,
-        endianness: Endianness,
-        verbose: Verbose,
-    ) -> Self {
+    pub fn new<P: AsRef<Path>>(params_path: P, endianness: Endianness, verbose: Verbose) -> Self {
         SnapshotReaderConfig {
             params_path: params_path.as_ref().to_path_buf(),
             endianness,
@@ -469,7 +466,7 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
 ///
 /// # Parameters
 ///
-/// - `output_path`: Path where the output file should be written.
+/// - `output_file_path`: Path where the output file should be written.
 /// - `variable_names`: Names of the variables to write.
 /// - `variable_value_producer`: Closure producing an array of values given the variable name.
 /// - `endianness`: Endianness of the output data.
@@ -487,14 +484,14 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
 /// - `N`: A type that can be treated as a reference to a `str`.
 /// - `V`: A function type taking a reference to a string slice and returning a reference to a 3D array.
 pub fn write_3d_snapfile<P, N, V>(
-    output_path: P,
+    output_file_path: P,
     variable_names: &[N],
     variable_value_producer: &V,
     endianness: Endianness,
     verbose: Verbose,
 ) -> io::Result<()>
 where
-    P: AsRef<path::Path>,
+    P: AsRef<Path>,
     N: AsRef<str>,
     V: Fn(&str) -> Array3<fdt>,
 {
@@ -511,7 +508,7 @@ where
     let byte_buffer_size = array_length * float_size;
     let mut byte_buffer = vec![0_u8; byte_buffer_size];
 
-    let mut file = fs::File::create(output_path)?;
+    let mut file = fs::File::create(output_file_path)?;
     file.set_len(byte_buffer_size as u64)?;
 
     if verbose.is_yes() {
@@ -564,7 +561,7 @@ struct Params {
 }
 
 impl Params {
-    fn new<P: AsRef<path::Path>>(params_path: P) -> io::Result<Self> {
+    fn new<P: AsRef<Path>>(params_path: P) -> io::Result<Self> {
         let params_text = utils::read_text_file(params_path)?;
         let params_map = Self::parse_params_text(&params_text);
         Ok(Params { params_map })

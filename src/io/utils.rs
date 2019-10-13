@@ -7,7 +7,8 @@ use serde::Serialize;
 use serde_json;
 use serde_pickle;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::{fs, io, mem, path};
+use std::path::Path;
+use std::{fs, io, mem};
 
 /// Describes the properties of a type that can be translated to and from bytes
 /// by the `byteorder` crate.
@@ -30,7 +31,7 @@ where
 
 /// Opens file with the given path and returns it, or returns an error with the
 /// file path included in the error message.
-pub fn open_file_and_map_err<P: AsRef<path::Path>>(file_path: P) -> io::Result<fs::File> {
+pub fn open_file_and_map_err<P: AsRef<Path>>(file_path: P) -> io::Result<fs::File> {
     let file_path = file_path.as_ref();
     fs::File::open(file_path).map_err(|err| {
         io::Error::new(
@@ -41,7 +42,7 @@ pub fn open_file_and_map_err<P: AsRef<path::Path>>(file_path: P) -> io::Result<f
 }
 
 /// Reads and returns the content of the specified text file.
-pub fn read_text_file<P: AsRef<path::Path>>(file_path: P) -> io::Result<String> {
+pub fn read_text_file<P: AsRef<Path>>(file_path: P) -> io::Result<String> {
     let file = open_file_and_map_err(file_path)?;
     let mut text = String::new();
     let _ = io::BufReader::new(file).read_to_string(&mut text)?;
@@ -49,13 +50,13 @@ pub fn read_text_file<P: AsRef<path::Path>>(file_path: P) -> io::Result<String> 
 }
 
 /// Writes the given string as a text file with the specified path.
-pub fn write_text_file<P: AsRef<path::Path>>(text: &str, file_path: P) -> io::Result<()> {
-    let mut file = fs::File::create(file_path)?;
+pub fn write_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
+    let mut file = fs::File::create(output_file_path)?;
     write!(&mut file, "{}", text)
 }
 
 /// Reads and returns a buffer of values from the specified binary file.
-pub fn read_from_binary_file<P: AsRef<path::Path>, T: ByteorderData>(
+pub fn read_from_binary_file<P: AsRef<Path>, T: ByteorderData>(
     file_path: P,
     number_of_values: usize,
     byte_offset: usize,
@@ -84,31 +85,31 @@ pub fn write_into_byte_buffer<T: ByteorderData>(
 }
 
 /// Saves the given byte buffer directly as a binary file at the given path.
-pub fn save_data_as_binary<P>(file_path: P, byte_buffer: &[u8]) -> io::Result<()>
+pub fn save_data_as_binary<P>(output_file_path: P, byte_buffer: &[u8]) -> io::Result<()>
 where
-    P: AsRef<path::Path>,
+    P: AsRef<Path>,
 {
-    let mut file = fs::File::create(file_path)?;
+    let mut file = fs::File::create(output_file_path)?;
     file.write_all(&byte_buffer)
 }
 
 /// Serializes the given data into JSON format and saves at the given path.
-pub fn save_data_as_json<P, T>(file_path: P, data: &T) -> io::Result<()>
+pub fn save_data_as_json<P, T>(output_file_path: P, data: &T) -> io::Result<()>
 where
-    P: AsRef<path::Path>,
+    P: AsRef<Path>,
     T: Serialize,
 {
-    let mut file = fs::File::create(file_path)?;
+    let mut file = fs::File::create(output_file_path)?;
     write_data_as_json(&mut file, data)
 }
 
 /// Serializes the given data into protocol 3 pickle format and saves at the given path.
-pub fn save_data_as_pickle<P, T>(file_path: P, data: &T) -> io::Result<()>
+pub fn save_data_as_pickle<P, T>(output_file_path: P, data: &T) -> io::Result<()>
 where
-    P: AsRef<path::Path>,
+    P: AsRef<Path>,
     T: Serialize,
 {
-    let mut file = fs::File::create(file_path)?;
+    let mut file = fs::File::create(output_file_path)?;
     write_data_as_pickle(&mut file, data)
 }
 

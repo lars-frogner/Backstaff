@@ -5,8 +5,9 @@ use super::utils;
 use crate::geometry::{Coords3, Dim3, In3D};
 use crate::grid::{Grid3, GridType};
 use std::collections::VecDeque;
+use std::io;
 use std::io::BufRead;
-use std::{io, path};
+use std::path::Path;
 use Dim3::{X, Y, Z};
 
 /// Constructs a grid from a Bifrost mesh file.
@@ -29,7 +30,7 @@ use Dim3::{X, Y, Z};
 /// - `G`: Type of the grid.
 pub fn create_grid_from_mesh_file<P, G>(mesh_path: P, is_periodic: In3D<bool>) -> io::Result<G>
 where
-    P: AsRef<path::Path>,
+    P: AsRef<Path>,
     G: Grid3<fdt>,
 {
     let file = utils::open_file_and_map_err(mesh_path)?;
@@ -232,7 +233,7 @@ where
 /// - `G`: Type of the grid.
 pub fn write_mesh_file_from_grid<P, G>(grid: &G, mesh_path: P) -> io::Result<()>
 where
-    P: AsRef<path::Path>,
+    P: AsRef<Path>,
     G: Grid3<fdt>,
 {
     let shape = grid.shape();
