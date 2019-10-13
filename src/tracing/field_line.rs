@@ -431,12 +431,13 @@ impl FieldLineSet3 {
     /// Serializes the field line data into a custom binary format and saves at the given path.
     pub fn save_as_custom_binary_file<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
         write_field_line_data_in_custom_binary_format(file_path, self.properties.clone())
+            .map(|_| ())
     }
 
     /// Serializes the field line data into a custom binary format and saves at the given path,
     /// consuming the field line set in the process.
     pub fn into_custom_binary_file<P: AsRef<path::Path>>(self, file_path: P) -> io::Result<()> {
-        write_field_line_data_in_custom_binary_format(file_path, self.properties)
+        write_field_line_data_in_custom_binary_format(file_path, self.properties).map(|_| ())
     }
 }
 
@@ -463,7 +464,7 @@ impl Serialize for FieldLineSet3 {
 pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
     output_path: P,
     properties: FieldLineSetProperties3,
-) -> io::Result<()> {
+) -> io::Result<fs::File> {
     // Field line file format:
     // [HEADER]
     // float_size: u64
@@ -727,5 +728,7 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
     let byte_offset =
         utils::write_into_byte_buffer(&flat_varying_vector_values, &mut byte_buffer, 0, ENDIANNESS);
     mem::drop(flat_varying_vector_values);
-    file.write_all(&byte_buffer[..byte_offset])
+    file.write_all(&byte_buffer[..byte_offset])?;
+
+    Ok(file)
 }
