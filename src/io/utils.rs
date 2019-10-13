@@ -57,30 +57,39 @@ pub fn write_text_file<P: AsRef<path::Path>>(text: &str, file_path: P) -> io::Re
 /// Reads and returns a buffer of values from the specified binary file.
 pub fn read_from_binary_file<P: AsRef<path::Path>, T: ByteorderData>(
     file_path: P,
-    length: usize,
-    offset: usize,
+    number_of_values: usize,
+    byte_offset: usize,
     endianness: Endianness,
 ) -> io::Result<Vec<T>> {
     let mut file = open_file_and_map_err(file_path)?;
-    file.seek(SeekFrom::Start((offset * mem::size_of::<T>()) as u64))?;
-    let mut buffer = vec![T::default(); length];
+    file.seek(SeekFrom::Start(byte_offset as u64))?;
+    let mut buffer = vec![T::default(); number_of_values];
     T::read_from_binary_file(&mut file, &mut buffer, endianness)?;
     Ok(buffer)
 }
 
 /// Writes the given source buffer of values into the given byte buffer,
-/// starting at the specified offset.
+/// starting at the specified offset. Returns the number of bytes written.
 pub fn write_into_byte_buffer<T: ByteorderData>(
     source: &[T],
     dest: &mut [u8],
-    offset: usize,
+    byte_offset: usize,
     endianness: Endianness,
-) {
+) -> usize {
     let type_size = mem::size_of::<T>();
-    let byte_offset = offset * type_size;
     let number_of_bytes = source.len() * type_size;
     let dest_slice = &mut dest[byte_offset..byte_offset + number_of_bytes];
     T::write_into_byte_buffer(source, dest_slice, endianness);
+    number_of_bytes
+}
+
+/// Saves the given byte buffer directly as a binary file at the given path.
+pub fn save_data_as_binary<P>(file_path: P, byte_buffer: &[u8]) -> io::Result<()>
+where
+    P: AsRef<path::Path>,
+{
+    let mut file = fs::File::create(file_path)?;
+    file.write_all(&byte_buffer)
 }
 
 /// Serializes the given data into JSON format and saves at the given path.
