@@ -23,7 +23,8 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
-use std::{fs, io, path};
+use std::path::Path;
+use std::{fs, io};
 use Dim3::{X, Y, Z};
 
 /// Floating-point precision to use for electron beam physics.
@@ -511,35 +512,35 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Serializes the electron beam data into JSON format and saves at the given path.
-    pub fn save_as_json<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+    pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         if self.verbose.is_yes() {
             println!(
                 "Saving beam data in JSON format in {}",
-                file_path.as_ref().display()
+                output_file_path.as_ref().display()
             );
         }
-        utils::save_data_as_json(file_path, &self)
+        utils::save_data_as_json(output_file_path, &self)
     }
 
     /// Serializes the electron beam data into pickle format and saves at the given path.
     ///
     /// All the electron beam data is saved as a single pickled structure.
-    pub fn save_as_pickle<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+    pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         if self.verbose.is_yes() {
             println!(
                 "Saving beams as single pickle object in {}",
-                file_path.as_ref().display()
+                output_file_path.as_ref().display()
             );
         }
-        utils::save_data_as_pickle(file_path, &self)
+        utils::save_data_as_pickle(output_file_path, &self)
     }
 
     /// Serializes the electron beam data fields in parallel into pickle format and saves at the given path.
     ///
     /// The data fields are saved as separate pickle objects in the same file.
-    pub fn save_as_combined_pickles<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+    pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         if self.verbose.is_yes() {
-            println!("Saving beams in {}", file_path.as_ref().display());
+            println!("Saving beams in {}", output_file_path.as_ref().display());
         }
         let mut buffer_1 = Vec::new();
         utils::write_data_as_pickle(&mut buffer_1, &self.number_of_beams())?;
@@ -577,7 +578,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         result_5?;
         result_6?;
 
-        let mut file = fs::File::create(file_path)?;
+        let mut file = fs::File::create(output_file_path)?;
         file.write_all(&[buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6].concat())?;
         Ok(())
     }
@@ -585,9 +586,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// Serializes the electron beam data into a custom binary format and saves at the given path.
     ///
     /// The metadata is serialized to pickle format and appended at the end.
-    pub fn save_as_custom_binary_file<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+    pub fn save_as_custom_binary_file<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         let mut file = field_line::write_field_line_data_in_custom_binary_format(
-            file_path,
+            output_file_path,
             self.properties.clone().into_field_line_set_properties(),
         )?;
         utils::write_data_as_pickle(&mut file, &self.metadata)
@@ -597,9 +598,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// consuming the electron beam swarm in the process.
     ///
     /// The metadata is serialized to pickle format and appended at the end.
-    pub fn into_custom_binary_file<P: AsRef<path::Path>>(self, file_path: P) -> io::Result<()> {
+    pub fn into_custom_binary_file<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
         let mut file = field_line::write_field_line_data_in_custom_binary_format(
-            file_path,
+            output_file_path,
             self.properties.into_field_line_set_properties(),
         )?;
         utils::write_data_as_pickle(&mut file, &self.metadata)
