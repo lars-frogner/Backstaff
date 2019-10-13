@@ -14,7 +14,7 @@ use crate::interpolation::Interpolator3;
 use crate::io::mesh;
 use crate::io::snapshot::{self, fdt, SnapshotReader3};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::path;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use Dim3::{X, Y, Z};
@@ -118,7 +118,7 @@ fn run_resampling<G, I>(
         .value_of("MESH_PATH")
         .expect("No value for required argument.");
 
-    let output_file_path = path::PathBuf::from_str(
+    let output_file_path = PathBuf::from_str(
         root_arguments
             .value_of("OUTPUT_PATH")
             .expect("No value for required argument."),
@@ -177,7 +177,7 @@ fn run_resampling<G, I>(
                 resampled_field.into_values()
             };
             snapshot::write_3d_snapfile(
-                output_file_path.as_path(),
+                output_file_path.with_extension("snap"),
                 reader.primary_variable_names(),
                 &variable_value_producer,
                 reader.endianness(),

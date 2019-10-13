@@ -22,6 +22,8 @@ use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
 use crate::tracing::stepping::StepperFactory3;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
+use std::path::PathBuf;
+use std::str::FromStr;
 
 /// Builds a representation of the `ebeam-simulate` command line subcommand.
 pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -378,9 +380,20 @@ fn perform_post_simulation_actions<G, A, I>(
     A: Accelerator,
     I: Interpolator3,
 {
-    let output_path = root_arguments
-        .value_of("OUTPUT_PATH")
-        .expect("No value for required argument.");
+    let mut output_file_path = PathBuf::from_str(
+        root_arguments
+            .value_of("OUTPUT_PATH")
+            .expect("No value for required argument."),
+    )
+    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+
+    let output_format = root_arguments
+        .value_of("output-format")
+        .expect("No value for argument with default.");
+
+    if output_file_path.extension().is_none() {
+        output_file_path.set_extension(output_format);
+    }
 
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extra-fixed-scalars")
@@ -411,13 +424,10 @@ fn perform_post_simulation_actions<G, A, I>(
         }
     }
 
-    let result = match root_arguments
-        .value_of("output-format")
-        .expect("No value for argument with default.")
-    {
-        "pickle" => beams.save_as_combined_pickles(output_path),
-        "json" => beams.save_as_json(output_path),
-        "fl" => beams.into_custom_binary_file(output_path),
+    let result = match output_format {
+        "pickle" => beams.save_as_combined_pickles(output_file_path),
+        "json" => beams.save_as_json(output_file_path),
+        "fl" => beams.into_custom_binary_file(output_file_path),
         invalid => panic!("Invalid output format {}.", invalid),
     };
     result.unwrap_or_else(|err| panic!("Could not save output data: {}", err));

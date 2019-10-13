@@ -7,6 +7,8 @@ use crate::grid::{CoordLocation, Grid3};
 use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use clap::{App, Arg, ArgMatches, SubCommand};
+use std::path::PathBuf;
+use std::str::FromStr;
 
 /// Builds a representation of the `snapshot-slice` command line subcommand.
 pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -84,9 +86,16 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
 
     let coord = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "COORD");
 
-    let output_file_path = arguments
-        .value_of("OUTPUT_PATH")
-        .expect("No value for required argument.");
+    let mut output_file_path = PathBuf::from_str(
+        arguments
+            .value_of("OUTPUT_PATH")
+            .expect("No value for required argument."),
+    )
+    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+
+    if output_file_path.extension().is_none() {
+        output_file_path.set_extension("pickle");
+    }
 
     let sample_location = arguments
         .value_of("sample-location")

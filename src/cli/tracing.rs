@@ -17,6 +17,8 @@ use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
 use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
 use crate::tracing::stepping::StepperFactory3;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use std::path::PathBuf;
+use std::str::FromStr;
 
 /// Builds a representation of the `trace` command line subcommand.
 pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -315,9 +317,20 @@ fn perform_post_tracing_actions<G, I>(
     G: Grid3<fdt>,
     I: Interpolator3,
 {
-    let output_path = root_arguments
-        .value_of("OUTPUT_PATH")
-        .expect("No value for required argument.");
+    let mut output_file_path = PathBuf::from_str(
+        root_arguments
+            .value_of("OUTPUT_PATH")
+            .expect("No value for required argument."),
+    )
+    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+
+    let output_format = root_arguments
+        .value_of("output-format")
+        .expect("No value for argument with default.");
+
+    if output_file_path.extension().is_none() {
+        output_file_path.set_extension(output_format);
+    }
 
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extra-fixed-scalars")
@@ -348,13 +361,10 @@ fn perform_post_tracing_actions<G, I>(
         }
     }
 
-    let result = match root_arguments
-        .value_of("output-format")
-        .expect("No value for argument with default.")
-    {
-        "pickle" => field_lines.save_as_combined_pickles(output_path),
-        "json" => field_lines.save_as_json(output_path),
-        "fl" => field_lines.into_custom_binary_file(output_path),
+    let result = match output_format {
+        "pickle" => field_lines.save_as_combined_pickles(output_file_path),
+        "json" => field_lines.save_as_json(output_file_path),
+        "fl" => field_lines.into_custom_binary_file(output_file_path),
         invalid => panic!("Invalid output format {}.", invalid),
     };
     result.unwrap_or_else(|err| panic!("Could not save output data: {}", err));
