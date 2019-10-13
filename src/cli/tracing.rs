@@ -354,7 +354,7 @@ fn perform_post_tracing_actions<G, I>(
     {
         "pickle" => field_lines.save_as_combined_pickles(output_path),
         "json" => field_lines.save_as_json(output_path),
-        "fl" => field_lines.save_as_custom_binary_file(output_path),
+        "fl" => field_lines.into_custom_binary_file(output_path),
         invalid => panic!("Invalid output format {}.", invalid),
     };
     result.unwrap_or_else(|err| panic!("Could not save output data: {}", err));

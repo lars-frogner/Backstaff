@@ -430,7 +430,13 @@ impl FieldLineSet3 {
 
     /// Serializes the field line data into a custom binary format and saves at the given path.
     pub fn save_as_custom_binary_file<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
-        write_field_line_data_in_custom_binary_format(file_path, &self.properties)
+        write_field_line_data_in_custom_binary_format(file_path, self.properties.clone())
+    }
+
+    /// Serializes the field line data into a custom binary format and saves at the given path,
+    /// consuming the field line set in the process.
+    pub fn into_custom_binary_file<P: AsRef<path::Path>>(self, file_path: P) -> io::Result<()> {
+        write_field_line_data_in_custom_binary_format(file_path, self.properties)
     }
 }
 
@@ -453,10 +459,10 @@ impl Serialize for FieldLineSet3 {
 }
 
 /// Writes the given field line data in a custom binary format at the
-/// give path.
+/// given path.
 pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
     output_path: P,
-    properties: &FieldLineSetProperties3,
+    properties: FieldLineSetProperties3,
 ) -> io::Result<()> {
     // Field line file format:
     // [HEADER]
@@ -477,50 +483,57 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
     // varying_scalar_name_bytes: [u8; number_of_varying_scalar_name_bytes]
     // varying_vector_name_bytes: [u8; number_of_varying_vector_name_bytes]
     // [BODY]
-    // fixed_scalar_values:   [ftr: number_of_fixed_scalar_quantities*number_of_field_lines  ]
-    // fixed_vector_values:   [ftr: number_of_fixed_vector_quantities*number_of_field_lines*3]
-    // varying_scalar_values: [ftr: number_of_varying_scalar_quantities*number_of_field_line_elements  ]
-    // varying_vector_values: [ftr: number_of_varying_vector_quantities*number_of_field_line_elements*3]
+    // flat_fixed_scalar_values:   [ftr: number_of_fixed_scalar_quantities*number_of_field_lines  ]
+    // flat_fixed_vector_values:   [ftr: number_of_fixed_vector_quantities*number_of_field_lines*3]
+    // flat_varying_scalar_values: [ftr: number_of_varying_scalar_quantities*number_of_field_line_elements  ]
+    // flat_varying_vector_values: [ftr: number_of_varying_vector_quantities*number_of_field_line_elements*3]
 
     const ENDIANNESS: Endianness = Endianness::Little;
 
-    let number_of_field_lines = properties.number_of_field_lines;
-    let number_of_fixed_scalar_quantities = properties.fixed_scalar_values.len();
-    let number_of_fixed_vector_quantities = properties.fixed_vector_values.len();
-    let number_of_varying_scalar_quantities = properties.varying_scalar_values.len();
-    let number_of_varying_vector_quantities = properties.varying_vector_values.len();
+    let FieldLineSetProperties3 {
+        number_of_field_lines,
+        fixed_scalar_values,
+        fixed_vector_values,
+        varying_scalar_values,
+        varying_vector_values,
+    } = properties;
 
-    let varying_scalars = &properties.varying_scalar_values["x"];
+    let number_of_field_lines = number_of_field_lines;
+    let number_of_fixed_scalar_quantities = fixed_scalar_values.len();
+    let number_of_fixed_vector_quantities = fixed_vector_values.len();
+    let number_of_varying_scalar_quantities = varying_scalar_values.len();
+    let number_of_varying_vector_quantities = varying_vector_values.len();
+
+    let (_, varying_scalars) = varying_scalar_values
+        .iter()
+        .next()
+        .expect("No varying scalar values for field line set.");
 
     let number_of_field_line_elements: usize = varying_scalars.iter().map(|vec| vec.len()).sum();
 
-    let mut start_indices_of_field_line_elements = Vec::new();
-    let set_start_indices_of_field_line_elements =
-        |start_indices_of_field_line_elements: &mut Vec<_>| {
-            start_indices_of_field_line_elements.extend(varying_scalars.iter().scan(
-                0,
-                |count, vec| {
-                    let idx = *count;
-                    *count += vec.len();
-                    Some(idx as u64)
-                },
-            ));
-        };
+    let start_indices_of_field_line_elements: Vec<_> = varying_scalars
+        .iter()
+        .scan(0, |count, vec| {
+            let idx = *count;
+            *count += vec.len();
+            Some(idx as u64)
+        })
+        .collect();
 
     let mut number_of_fixed_scalar_name_bytes = 0;
     let mut fixed_scalar_name_bytes = Vec::new();
-    let mut fixed_scalar_values = Vec::new();
+    let mut flat_fixed_scalar_values = Vec::new();
 
     let set_fixed_scalar_variables =
         |number_of_fixed_scalar_name_bytes: &mut usize,
          fixed_scalar_name_bytes: &mut Vec<_>,
-         fixed_scalar_values: &mut Vec<_>| {
-            fixed_scalar_values
+         flat_fixed_scalar_values: &mut Vec<_>| {
+            flat_fixed_scalar_values
                 .reserve_exact(number_of_fixed_scalar_quantities * number_of_field_lines);
             let mut fixed_scalar_names = Vec::new();
-            for (name, values) in &properties.fixed_scalar_values {
-                fixed_scalar_names.push(name.to_string());
-                fixed_scalar_values.extend_from_slice(values);
+            for (name, values) in fixed_scalar_values {
+                fixed_scalar_names.push(name);
+                flat_fixed_scalar_values.extend(values.into_iter());
             }
             let fixed_scalar_names = fixed_scalar_names.join("\n");
             fixed_scalar_name_bytes.extend_from_slice(fixed_scalar_names.as_bytes());
@@ -529,19 +542,19 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
 
     let mut number_of_fixed_vector_name_bytes = 0;
     let mut fixed_vector_name_bytes = Vec::new();
-    let mut fixed_vector_values = Vec::new();
+    let mut flat_fixed_vector_values = Vec::new();
 
     let set_fixed_vector_variables =
         |number_of_fixed_vector_name_bytes: &mut usize,
          fixed_vector_name_bytes: &mut Vec<_>,
-         fixed_vector_values: &mut Vec<_>| {
-            fixed_vector_values
+         flat_fixed_vector_values: &mut Vec<ftr>| {
+            flat_fixed_vector_values
                 .reserve_exact(number_of_fixed_vector_quantities * number_of_field_lines * 3);
             let mut fixed_vector_names = Vec::new();
-            for (name, values) in &properties.fixed_vector_values {
-                fixed_vector_names.push(name.to_string());
+            for (name, values) in fixed_vector_values {
+                fixed_vector_names.push(name);
                 for vec3 in values {
-                    fixed_vector_values.extend(vec3.into_iter().copied());
+                    flat_fixed_vector_values.extend(vec3.into_iter());
                 }
             }
             let fixed_vector_names = fixed_vector_names.join("\n");
@@ -551,19 +564,19 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
 
     let mut number_of_varying_scalar_name_bytes = 0;
     let mut varying_scalar_name_bytes = Vec::new();
-    let mut varying_scalar_values = Vec::new();
+    let mut flat_varying_scalar_values = Vec::new();
 
     let set_varying_scalar_variables =
         |number_of_varying_scalar_name_bytes: &mut usize,
          varying_scalar_name_bytes: &mut Vec<_>,
-         varying_scalar_values: &mut Vec<_>| {
-            varying_scalar_values
+         flat_varying_scalar_values: &mut Vec<_>| {
+            flat_varying_scalar_values
                 .reserve_exact(number_of_varying_scalar_quantities * number_of_field_line_elements);
             let mut varying_scalar_names = Vec::new();
-            for (name, values) in &properties.varying_scalar_values {
-                varying_scalar_names.push(name.to_string());
+            for (name, values) in varying_scalar_values {
+                varying_scalar_names.push(name);
                 for vec in values {
-                    varying_scalar_values.extend(vec.iter().copied());
+                    flat_varying_scalar_values.extend(vec.into_iter());
                 }
             }
             let varying_scalar_names = varying_scalar_names.join("\n");
@@ -573,21 +586,21 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
 
     let mut number_of_varying_vector_name_bytes = 0;
     let mut varying_vector_name_bytes = Vec::new();
-    let mut varying_vector_values = Vec::new();
+    let mut flat_varying_vector_values = Vec::new();
 
     let set_varying_vector_variables =
         |number_of_varying_vector_name_bytes: &mut usize,
          varying_vector_name_bytes: &mut Vec<_>,
-         varying_vector_values: &mut Vec<_>| {
-            varying_vector_values.reserve_exact(
+         flat_varying_vector_values: &mut Vec<ftr>| {
+            flat_varying_vector_values.reserve_exact(
                 number_of_varying_vector_quantities * number_of_field_line_elements * 3,
             );
             let mut varying_vector_names = Vec::new();
-            for (name, values) in &properties.varying_vector_values {
-                varying_vector_names.push(name.to_string());
+            for (name, values) in varying_vector_values {
+                varying_vector_names.push(name);
                 for vec in values {
                     for vec3 in vec {
-                        varying_vector_values.extend(vec3.into_iter().copied());
+                        flat_varying_vector_values.extend(vec3.into_iter());
                     }
                 }
             }
@@ -598,34 +611,31 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
 
     rayon::scope(|s| {
         s.spawn(|_| {
-            set_start_indices_of_field_line_elements(&mut start_indices_of_field_line_elements);
-        });
-        s.spawn(|_| {
             set_fixed_scalar_variables(
                 &mut number_of_fixed_scalar_name_bytes,
                 &mut fixed_scalar_name_bytes,
-                &mut fixed_scalar_values,
+                &mut flat_fixed_scalar_values,
             );
         });
         s.spawn(|_| {
             set_fixed_vector_variables(
                 &mut number_of_fixed_vector_name_bytes,
                 &mut fixed_vector_name_bytes,
-                &mut fixed_vector_values,
+                &mut flat_fixed_vector_values,
             );
         });
         s.spawn(|_| {
             set_varying_scalar_variables(
                 &mut number_of_varying_scalar_name_bytes,
                 &mut varying_scalar_name_bytes,
-                &mut varying_scalar_values,
+                &mut flat_varying_scalar_values,
             );
         });
         s.spawn(|_| {
             set_varying_vector_variables(
                 &mut number_of_varying_vector_name_bytes,
                 &mut varying_vector_name_bytes,
-                &mut varying_vector_values,
+                &mut flat_varying_vector_values,
             );
         });
     });
@@ -680,6 +690,7 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
         0,
         ENDIANNESS,
     );
+    mem::drop(start_indices_of_field_line_elements);
     file.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
@@ -699,18 +710,22 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<path::Path>>(
     file.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
-        utils::write_into_byte_buffer(&fixed_scalar_values, &mut byte_buffer, 0, ENDIANNESS);
+        utils::write_into_byte_buffer(&flat_fixed_scalar_values, &mut byte_buffer, 0, ENDIANNESS);
+    mem::drop(flat_fixed_scalar_values);
     file.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
-        utils::write_into_byte_buffer(&fixed_vector_values, &mut byte_buffer, 0, ENDIANNESS);
+        utils::write_into_byte_buffer(&flat_fixed_vector_values, &mut byte_buffer, 0, ENDIANNESS);
+    mem::drop(flat_fixed_vector_values);
     file.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
-        utils::write_into_byte_buffer(&varying_scalar_values, &mut byte_buffer, 0, ENDIANNESS);
+        utils::write_into_byte_buffer(&flat_varying_scalar_values, &mut byte_buffer, 0, ENDIANNESS);
+    mem::drop(flat_varying_scalar_values);
     file.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
-        utils::write_into_byte_buffer(&varying_vector_values, &mut byte_buffer, 0, ENDIANNESS);
+        utils::write_into_byte_buffer(&flat_varying_vector_values, &mut byte_buffer, 0, ENDIANNESS);
+    mem::drop(flat_varying_vector_values);
     file.write_all(&byte_buffer[..byte_offset])
 }
