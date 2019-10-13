@@ -98,6 +98,15 @@ impl<T> IndexMut<Dim3> for In3D<T> {
     }
 }
 
+impl<'a, T> IntoIterator for &'a In3D<T> {
+    type Item = &'a T;
+    type IntoIter = ::std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 /// Represents any quantity with two dimensional components.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct In2D<T>([T; 2]);
@@ -143,6 +152,15 @@ impl<T> Index<Dim2> for In2D<T> {
 impl<T> IndexMut<Dim2> for In2D<T> {
     fn index_mut(&mut self, dim: Dim2) -> &mut Self::Output {
         &mut self.0[dim as usize]
+    }
+}
+
+impl<'a, T> IntoIterator for &'a In2D<T> {
+    type Item = &'a T;
+    type IntoIter = ::std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
@@ -332,6 +350,15 @@ impl<F: BFloat> Div<F> for Vec3<F> {
     type Output = Self;
     fn div(self, divisor: F) -> Self::Output {
         &self / divisor
+    }
+}
+
+impl<'a, F: BFloat> IntoIterator for &'a Vec3<F> {
+    type Item = <&'a In3D<F> as IntoIterator>::Item;
+    type IntoIter = <&'a In3D<F> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -525,6 +552,15 @@ impl<F: BFloat> Div<F> for Vec2<F> {
     }
 }
 
+impl<'a, F: BFloat> IntoIterator for &'a Vec2<F> {
+    type Item = <&'a In2D<F> as IntoIterator>::Item;
+    type IntoIter = <&'a In2D<F> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// A 3D spatial coordinate.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Point3<F: BFloat>(In3D<F>);
@@ -668,6 +704,15 @@ impl<F: BFloat> Sub<&Vec3<F>> for Point3<F> {
     type Output = Self;
     fn sub(self, vector: &Vec3<F>) -> Self::Output {
         &self - vector
+    }
+}
+
+impl<'a, F: BFloat> IntoIterator for &'a Point3<F> {
+    type Item = <&'a In3D<F> as IntoIterator>::Item;
+    type IntoIter = <&'a In3D<F> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -817,6 +862,15 @@ impl<F: BFloat> Sub<&Vec2<F>> for Point2<F> {
     }
 }
 
+impl<'a, F: BFloat> IntoIterator for &'a Point2<F> {
+    type Item = <&'a In2D<F> as IntoIterator>::Item;
+    type IntoIter = <&'a In2D<F> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// A 3D index.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Idx3<I: num::Integer>(In3D<I>);
@@ -859,6 +913,15 @@ impl<I: num::Integer> IndexMut<Dim3> for Idx3<I> {
     }
 }
 
+impl<'a, I: num::Integer> IntoIterator for &'a Idx3<I> {
+    type Item = <&'a In3D<I> as IntoIterator>::Item;
+    type IntoIter = <&'a In3D<I> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// A 2D index.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Idx2<I: num::Integer>(In2D<I>);
@@ -897,6 +960,15 @@ impl<I: num::Integer> Index<Dim2> for Idx2<I> {
 impl<I: num::Integer> IndexMut<Dim2> for Idx2<I> {
     fn index_mut(&mut self, dim: Dim2) -> &mut Self::Output {
         &mut self.0[dim]
+    }
+}
+
+impl<'a, I: num::Integer> IntoIterator for &'a Idx2<I> {
+    type Item = <&'a In2D<I> as IntoIterator>::Item;
+    type IntoIter = <&'a In2D<I> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
