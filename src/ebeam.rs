@@ -15,6 +15,7 @@ use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::io::utils;
 use crate::io::Verbose;
 use crate::num::BFloat;
+use crate::tracing::field_line::{self, FieldLineSetProperties3};
 use crate::tracing::stepping::{Stepper3, StepperFactory3, StepperInstruction};
 use crate::tracing::{self, ftr, TracerResult};
 use rayon::prelude::*;
@@ -84,6 +85,25 @@ struct PropagatedElectronBeam<D: Distribution> {
     distribution_properties: <D::PropertiesCollectionType as BeamPropertiesCollection>::Item,
     total_propagation_distance: feb,
     deposited_power_densities: Vec<feb>,
+}
+
+impl ElectronBeamSwarmProperties {
+    fn into_field_line_set_properties(self) -> FieldLineSetProperties3 {
+        let ElectronBeamSwarmProperties {
+            number_of_beams,
+            fixed_scalar_values,
+            fixed_vector_values,
+            varying_scalar_values,
+            varying_vector_values,
+        } = self;
+        FieldLineSetProperties3 {
+            number_of_field_lines: number_of_beams,
+            fixed_scalar_values,
+            fixed_vector_values,
+            varying_scalar_values,
+            varying_vector_values,
+        }
+    }
 }
 
 impl<D> FromParallelIterator<UnpropagatedElectronBeam<D>> for ElectronBeamSwarmProperties
@@ -560,6 +580,29 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let mut file = fs::File::create(file_path)?;
         file.write_all(&[buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6].concat())?;
         Ok(())
+    }
+
+    /// Serializes the electron beam data into a custom binary format and saves at the given path.
+    ///
+    /// The metadata is serialized to pickle format and appended at the end.
+    pub fn save_as_custom_binary_file<P: AsRef<path::Path>>(&self, file_path: P) -> io::Result<()> {
+        let mut file = field_line::write_field_line_data_in_custom_binary_format(
+            file_path,
+            self.properties.clone().into_field_line_set_properties(),
+        )?;
+        utils::write_data_as_pickle(&mut file, &self.metadata)
+    }
+
+    /// Serializes the electron beam data into a custom binary format and saves at the given path,
+    /// consuming the electron beam swarm in the process.
+    ///
+    /// The metadata is serialized to pickle format and appended at the end.
+    pub fn into_custom_binary_file<P: AsRef<path::Path>>(self, file_path: P) -> io::Result<()> {
+        let mut file = field_line::write_field_line_data_in_custom_binary_format(
+            file_path,
+            self.properties.into_field_line_set_properties(),
+        )?;
+        utils::write_data_as_pickle(&mut file, &self.metadata)
     }
 }
 

@@ -56,7 +56,7 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long_help("Format to use for saving beam data")
                 .next_line_help(true)
                 .takes_value(true)
-                .possible_values(&["pickle", "json"])
+                .possible_values(&["pickle", "json", "fl"])
                 .default_value("pickle"),
         )
         .arg(
@@ -411,20 +411,14 @@ fn perform_post_simulation_actions<G, A, I>(
         }
     }
 
-    match root_arguments
+    let result = match root_arguments
         .value_of("output-format")
         .expect("No value for argument with default.")
     {
-        "pickle" => {
-            beams
-                .save_as_combined_pickles(output_path)
-                .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
-        }
-        "json" => {
-            beams
-                .save_as_json(output_path)
-                .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
-        }
+        "pickle" => beams.save_as_combined_pickles(output_path),
+        "json" => beams.save_as_json(output_path),
+        "fl" => beams.into_custom_binary_file(output_path),
         invalid => panic!("Invalid output format {}.", invalid),
-    }
+    };
+    result.unwrap_or_else(|err| panic!("Could not save output data: {}", err));
 }
