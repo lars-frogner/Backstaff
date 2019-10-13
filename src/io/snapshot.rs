@@ -148,10 +148,14 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             );
         }
         let shape = self.grid.shape();
-        let length = shape[X] * shape[Y] * shape[Z];
-        let offset = length * variable_descriptor.index;
-        let buffer =
-            super::utils::read_from_binary_file(file_path, length, offset, self.config.endianness)?;
+        let number_of_values = shape[X] * shape[Y] * shape[Z];
+        let byte_offset = number_of_values * variable_descriptor.index * mem::size_of::<fdt>();
+        let buffer = super::utils::read_from_binary_file(
+            file_path,
+            number_of_values,
+            byte_offset,
+            self.config.endianness,
+        )?;
         let values = Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap();
         Ok(ScalarField3::new(
             variable_name.to_string(),
