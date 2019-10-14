@@ -38,7 +38,7 @@ The API documentation can be generated and viewed in your browser by running `ca
 The simplest way to run the command line executable is with `cargo run` command. This will also perform any necessary compilation prior to running the program. All arguments following a double dash (`--`) will be passed along to the command line program.
 
 Actions are specified and configured through a hierachy of subcommands, which can be inspected by looking at their help texts. For example, the help text for the `snapshot` subcommand can be viewed as follows:
-```console
+```
 $ cargo run --release -- snapshot -h
 bifrost-snapshot
 Specify input snapshot to perform further actions on
@@ -64,7 +64,7 @@ SUBCOMMANDS:
 ```
 
 Printing some statistics for density and temperature in a snapshot could look like this:
-```console
+```
 $ cargo run --release -- \
     snapshot --param-path=en024031_emer3.0str_ebeam_351.idl \
     inspect \
@@ -84,7 +84,7 @@ Average value:    576887.3
 ```
 
 Here is a more complicated example where we trace a set of magnetic field lines from 100x100 regularly spaced locations in the upper chromosphere:
-```console
+```
 $ cargo run --release --features tracing -- \
     --timing \
     snapshot --param-path=en024031_emer3.0str_ebeam_351.idl \
