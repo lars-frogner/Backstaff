@@ -6,7 +6,7 @@ use super::ftr;
 use super::seeding::Seeder3;
 use super::stepping::{Stepper3, StepperFactory3};
 use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Point3, Vec3};
+use crate::geometry::{Dim3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::io::{utils, Endianness, Verbose};
@@ -72,6 +72,8 @@ pub struct FieldLineData3 {
 /// Collection of 3D field lines.
 #[derive(Clone, Debug)]
 pub struct FieldLineSet3 {
+    lower_bounds: Vec3<ftr>,
+    upper_bounds: Vec3<ftr>,
     properties: FieldLineSetProperties3,
     verbose: Verbose,
 }
@@ -206,7 +208,12 @@ impl FieldLineSet3 {
             );
         }
 
+        let lower_bounds = Vec3::from(field.grid().lower_bounds());
+        let upper_bounds = Vec3::from(field.grid().upper_bounds());
+
         FieldLineSet3 {
+            lower_bounds,
+            upper_bounds,
             properties,
             verbose,
         }
@@ -394,41 +401,50 @@ impl FieldLineSet3 {
             );
         }
         let mut buffer_1 = Vec::new();
-        utils::write_data_as_pickle(&mut buffer_1, &self.number_of_field_lines())?;
+        utils::write_data_as_pickle(&mut buffer_1, &self.lower_bounds)?;
+        let mut buffer_2 = Vec::new();
+        utils::write_data_as_pickle(&mut buffer_2, &self.upper_bounds)?;
+        let mut buffer_3 = Vec::new();
+        utils::write_data_as_pickle(&mut buffer_3, &self.number_of_field_lines())?;
 
-        let (mut result_2, mut result_3, mut result_4, mut result_5) =
+        let (mut result_4, mut result_5, mut result_6, mut result_7) =
             (Ok(()), Ok(()), Ok(()), Ok(()));
-        let (mut buffer_2, mut buffer_3, mut buffer_4, mut buffer_5) =
+        let (mut buffer_4, mut buffer_5, mut buffer_6, mut buffer_7) =
             (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         rayon::scope(|s| {
             s.spawn(|_| {
-                result_2 =
-                    utils::write_data_as_pickle(&mut buffer_2, &self.properties.fixed_scalar_values)
+                result_4 =
+                    utils::write_data_as_pickle(&mut buffer_4, &self.properties.fixed_scalar_values)
             });
             s.spawn(|_| {
-                result_3 =
-                    utils::write_data_as_pickle(&mut buffer_3, &self.properties.fixed_vector_values)
+                result_5 =
+                    utils::write_data_as_pickle(&mut buffer_5, &self.properties.fixed_vector_values)
             });
             s.spawn(|_| {
-                result_4 = utils::write_data_as_pickle(
-                    &mut buffer_4,
+                result_6 = utils::write_data_as_pickle(
+                    &mut buffer_6,
                     &self.properties.varying_scalar_values,
                 )
             });
             s.spawn(|_| {
-                result_5 = utils::write_data_as_pickle(
-                    &mut buffer_5,
+                result_7 = utils::write_data_as_pickle(
+                    &mut buffer_7,
                     &self.properties.varying_vector_values,
                 )
             });
         });
-        result_2?;
-        result_3?;
         result_4?;
         result_5?;
+        result_6?;
+        result_7?;
 
         let mut file = fs::File::create(output_file_path)?;
-        file.write_all(&[buffer_1, buffer_2, buffer_3, buffer_4, buffer_5].concat())?;
+        file.write_all(
+            &[
+                buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6, buffer_7,
+            ]
+            .concat(),
+        )?;
         Ok(())
     }
 
@@ -443,8 +459,13 @@ impl FieldLineSet3 {
                 output_file_path.as_ref().display()
             );
         }
-        write_field_line_data_in_custom_binary_format(output_file_path, self.properties.clone())
-            .map(|_| ())
+        write_field_line_data_in_custom_binary_format(
+            output_file_path,
+            &self.lower_bounds,
+            &self.upper_bounds,
+            self.properties.clone(),
+        )
+        .map(|_| ())
     }
 
     /// Serializes the field line data into a custom binary format and saves at the given path,
@@ -456,13 +477,21 @@ impl FieldLineSet3 {
                 output_file_path.as_ref().display()
             );
         }
-        write_field_line_data_in_custom_binary_format(output_file_path, self.properties).map(|_| ())
+        write_field_line_data_in_custom_binary_format(
+            output_file_path,
+            &self.lower_bounds,
+            &self.upper_bounds,
+            self.properties,
+        )
+        .map(|_| ())
     }
 }
 
 impl Serialize for FieldLineSet3 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("FieldLineSet3", 5)?;
+        let mut s = serializer.serialize_struct("FieldLineSet3", 7)?;
+        s.serialize_field("lower_bounds", &self.lower_bounds)?;
+        s.serialize_field("upper_bounds", &self.upper_bounds)?;
         s.serialize_field("number_of_field_lines", &self.number_of_field_lines())?;
         s.serialize_field("fixed_scalar_values", &self.properties.fixed_scalar_values)?;
         s.serialize_field("fixed_vector_values", &self.properties.fixed_vector_values)?;
@@ -482,6 +511,8 @@ impl Serialize for FieldLineSet3 {
 /// given path.
 pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
     output_file_path: P,
+    lower_bounds: &Vec3<ftr>,
+    upper_bounds: &Vec3<ftr>,
     properties: FieldLineSetProperties3,
 ) -> io::Result<fs::File> {
     // Field line file format:
@@ -493,6 +524,7 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
     // number_of_fixed_vector_quantities: u64
     // number_of_varying_scalar_quantities: u64
     // number_of_varying_vector_quantities: u64
+    // bounds: [ftr; 6]
     // names: string with each name followed by a newline
     // start_indices_of_field_line_elements: [u64; number_of_field_lines]
     // [BODY]
@@ -637,6 +669,7 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
 
     let section_sizes = [
         7 * u64_size,
+        6 * float_size,
         names.len() * u8_size,
         number_of_field_lines * u64_size,
         number_of_fixed_scalar_quantities * number_of_field_lines * float_size,
@@ -661,6 +694,21 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
             number_of_fixed_vector_quantities as u64,
             number_of_varying_scalar_quantities as u64,
             number_of_varying_vector_quantities as u64,
+        ],
+        &mut byte_buffer,
+        0,
+        ENDIANNESS,
+    );
+    file.write_all(&byte_buffer[..byte_offset])?;
+
+    let byte_offset = utils::write_into_byte_buffer(
+        &[
+            lower_bounds[Dim3::X],
+            upper_bounds[Dim3::X],
+            lower_bounds[Dim3::Y],
+            upper_bounds[Dim3::Y],
+            lower_bounds[Dim3::Z],
+            upper_bounds[Dim3::Z],
         ],
         &mut byte_buffer,
         0,

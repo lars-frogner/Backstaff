@@ -62,6 +62,8 @@ pub trait BeamMetadataCollection:
 /// A set of non-thermal electron beams.
 #[derive(Clone, Debug)]
 pub struct ElectronBeamSwarm<A: Accelerator> {
+    lower_bounds: Vec3<ftr>,
+    upper_bounds: Vec3<ftr>,
     properties: ElectronBeamSwarmProperties,
     metadata: A::MetadataCollectionType,
     verbose: Verbose,
@@ -297,7 +299,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .map(UnpropagatedElectronBeam::<A::DistributionType>::generate)
             .collect();
 
+        let lower_bounds = Vec3::from(snapshot.reader().grid().lower_bounds());
+        let upper_bounds = Vec3::from(snapshot.reader().grid().upper_bounds());
+
         ElectronBeamSwarm {
+            lower_bounds,
+            upper_bounds,
             properties,
             metadata,
             verbose,
@@ -365,7 +372,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             );
         }
 
+        let lower_bounds = Vec3::from(snapshot.reader().grid().lower_bounds());
+        let upper_bounds = Vec3::from(snapshot.reader().grid().upper_bounds());
+
         ElectronBeamSwarm {
+            lower_bounds,
+            upper_bounds,
             properties,
             metadata,
             verbose,
@@ -543,43 +555,52 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             println!("Saving beams in {}", output_file_path.as_ref().display());
         }
         let mut buffer_1 = Vec::new();
-        utils::write_data_as_pickle(&mut buffer_1, &self.number_of_beams())?;
+        utils::write_data_as_pickle(&mut buffer_1, &self.lower_bounds)?;
+        let mut buffer_2 = Vec::new();
+        utils::write_data_as_pickle(&mut buffer_2, &self.upper_bounds)?;
+        let mut buffer_3 = Vec::new();
+        utils::write_data_as_pickle(&mut buffer_3, &self.number_of_beams())?;
 
-        let (mut result_2, mut result_3, mut result_4, mut result_5, mut result_6) =
+        let (mut result_4, mut result_5, mut result_6, mut result_7, mut result_8) =
             (Ok(()), Ok(()), Ok(()), Ok(()), Ok(()));
-        let (mut buffer_2, mut buffer_3, mut buffer_4, mut buffer_5, mut buffer_6) =
+        let (mut buffer_4, mut buffer_5, mut buffer_6, mut buffer_7, mut buffer_8) =
             (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
         rayon::scope(|s| {
             s.spawn(|_| {
-                result_2 =
-                    utils::write_data_as_pickle(&mut buffer_2, &self.properties.fixed_scalar_values)
+                result_4 =
+                    utils::write_data_as_pickle(&mut buffer_4, &self.properties.fixed_scalar_values)
             });
             s.spawn(|_| {
-                result_3 =
-                    utils::write_data_as_pickle(&mut buffer_3, &self.properties.fixed_vector_values)
+                result_5 =
+                    utils::write_data_as_pickle(&mut buffer_5, &self.properties.fixed_vector_values)
             });
             s.spawn(|_| {
-                result_4 = utils::write_data_as_pickle(
-                    &mut buffer_4,
+                result_6 = utils::write_data_as_pickle(
+                    &mut buffer_6,
                     &self.properties.varying_scalar_values,
                 )
             });
             s.spawn(|_| {
-                result_5 = utils::write_data_as_pickle(
-                    &mut buffer_5,
+                result_7 = utils::write_data_as_pickle(
+                    &mut buffer_7,
                     &self.properties.varying_vector_values,
                 )
             });
-            s.spawn(|_| result_6 = utils::write_data_as_pickle(&mut buffer_6, &self.metadata));
+            s.spawn(|_| result_8 = utils::write_data_as_pickle(&mut buffer_8, &self.metadata));
         });
-        result_2?;
-        result_3?;
         result_4?;
         result_5?;
         result_6?;
+        result_7?;
+        result_8?;
 
         let mut file = fs::File::create(output_file_path)?;
-        file.write_all(&[buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6].concat())?;
+        file.write_all(
+            &[
+                buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6, buffer_7, buffer_8,
+            ]
+            .concat(),
+        )?;
         Ok(())
     }
 
@@ -595,6 +616,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         }
         let mut file = field_line::write_field_line_data_in_custom_binary_format(
             output_file_path,
+            &self.lower_bounds,
+            &self.upper_bounds,
             self.properties.clone().into_field_line_set_properties(),
         )?;
         utils::write_data_as_pickle(&mut file, &self.metadata)
@@ -610,6 +633,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         }
         let mut file = field_line::write_field_line_data_in_custom_binary_format(
             output_file_path,
+            &self.lower_bounds,
+            &self.upper_bounds,
             self.properties.into_field_line_set_properties(),
         )?;
         utils::write_data_as_pickle(&mut file, &self.metadata)
@@ -687,7 +712,9 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
 
 impl<A: Accelerator> Serialize for ElectronBeamSwarm<A> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("ElectronBeamSwarm", 6)?;
+        let mut s = serializer.serialize_struct("ElectronBeamSwarm", 7)?;
+        s.serialize_field("lower_bounds", &self.lower_bounds)?;
+        s.serialize_field("upper_bounds", &self.upper_bounds)?;
         s.serialize_field("number_of_beams", &self.number_of_beams())?;
         s.serialize_field("fixed_scalar_values", &self.properties.fixed_scalar_values)?;
         s.serialize_field("fixed_vector_values", &self.properties.fixed_vector_values)?;
