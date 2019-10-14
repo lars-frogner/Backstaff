@@ -1,5 +1,5 @@
 import numpy as np
-import bifrost_utils.plotting as plotting
+import bifrust.plotting as plotting
 
 
 class Coords3:
@@ -24,7 +24,7 @@ class Coords2:
 class ScalarField2:
     @staticmethod
     def from_pickle_file(file_path):
-        import bifrost_utils.reading as reading
+        import bifrust.reading as reading
         return reading.read_2d_scalar_field(file_path)
 
     def __init__(self, coords, values):
@@ -100,7 +100,7 @@ def plot_2d_scalar_field(field,
 
 if __name__ == "__main__":
     from pathlib import Path
-    import bifrost_utils.reading as reading
+    import bifrust.reading as reading
 
     fig, axes = plotting.create_2d_subplots(ncols=1)
     reading.read_2d_scalar_field(

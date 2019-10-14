@@ -1,4 +1,4 @@
-# bifrost-rust
+# BifRust
 
 A flexible tookit for working with Bifrost simulations, written in [Rust](https://www.rust-lang.org/).
 
@@ -40,11 +40,11 @@ The simplest way to run the command line executable is with `cargo run` command.
 Actions are specified and configured through a hierachy of subcommands, which can be inspected by looking at their help texts. For example, the help text for the `snapshot` subcommand can be viewed as follows:
 ```
 $ cargo run --release -- snapshot -h
-bifrost-snapshot
+bifrust-snapshot
 Specify input snapshot to perform further actions on
 
 USAGE:
-    bifrost snapshot [FLAGS] [OPTIONS] --param-path=<PATH> <SUBCOMMAND>
+    bifrust snapshot [FLAGS] [OPTIONS] --param-path=<PATH> <SUBCOMMAND>
 
 FLAGS:
     -v, --verbose    Print status messages while reading fields
@@ -98,9 +98,9 @@ Saving field lines in field_lines.fl
 Elapsed time: 14.990034051 s
 ```
 
-Using the included `bifrost_utils` Python package we can easily read and visualize the field line data:
+Using the included `bifrust` Python package we can easily read and visualize the field line data:
 ```python
-import bifrost_utils.field_lines as field_lines
+import bifrust.field_lines as field_lines
 field_line_set = field_lines.FieldLineSet3.from_file('field_lines.fl')
 field_lines.plot_field_lines(field_line_set, alpha=0.01, output_path='field_lines.png')
 ```

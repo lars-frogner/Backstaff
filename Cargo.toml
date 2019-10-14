@@ -1,10 +1,10 @@
 [package]
-name = "bifrost"
+name = "bifrust"
 version = "0.1.0"
 authors = ["Lars Frogner <lars.frogner@astro.uio.no>"]
-description = "Useful tools for working with Bifrost"
+description = "A flexible tookit for working with Bifrost simulations"
 edition = "2018"
-default-run = "bifrost"
+default-run = "bifrust"
 
 [features]
 default = ["cli"]

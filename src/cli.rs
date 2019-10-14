@@ -17,7 +17,7 @@ use num;
 use std::time::Instant;
 use std::{str, string};
 
-/// Runs the `bifrost` command line program.
+/// Runs the `bifrust` command line program.
 pub fn run() {
     let app = App::new(clap::crate_name!())
         .version(clap::crate_version!())

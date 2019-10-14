@@ -1,7 +1,7 @@
 import subprocess
 
 
-def run_bifrost_rust(*args, features=['cli']):
+def run_bifrust(*args, features=['cli']):
     args = [
         'cargo', 'run', '--release', '--no-default-features', '--features',
         ' '.join(features), '--'

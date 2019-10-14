@@ -1,9 +1,9 @@
 import os
 import pickle
 import numpy as np
-import bifrost_utils.fields as fields
-import bifrost_utils.field_lines as field_lines
-import bifrost_utils.electron_beams as electron_beams
+import bifrust.fields as fields
+import bifrust.field_lines as field_lines
+import bifrust.electron_beams as electron_beams
 
 SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
 PROJECT_PATH = os.path.dirname(SCRIPTS_PATH)

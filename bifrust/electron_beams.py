@@ -2,8 +2,8 @@ import collections
 import functools
 import numpy as np
 from pathlib import Path
-import bifrost_utils.plotting as plotting
-import bifrost_utils.field_lines as field_lines
+import bifrust.plotting as plotting
+import bifrust.field_lines as field_lines
 
 
 class ElectronBeamSwarm(field_lines.FieldLineSet3):
@@ -29,7 +29,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
     @staticmethod
     def from_file(file_path, derived_quantities=[], verbose=False):
-        import bifrost_utils.reading as reading
+        import bifrust.reading as reading
         file_path = Path(file_path)
         extension = file_path.suffix
         if extension == '.pickle':
@@ -549,7 +549,7 @@ def plot_beam_value_2d_histogram_comparison(*args, **kwargs):
 
 
 if __name__ == "__main__":
-    import bifrost_utils.reading as reading
+    import bifrust.reading as reading
 
     electron_beam_swarm = ElectronBeamSwarm.from_file(
         Path(
