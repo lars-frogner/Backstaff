@@ -3,6 +3,7 @@ import functools
 import numpy as np
 import plotting
 import field_lines
+from pathlib import Path
 
 
 class ElectronBeamSwarm(field_lines.FieldLineSet3):
@@ -27,10 +28,26 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     }
 
     @staticmethod
-    def from_pickle_file(file_path, derived_quantities=[], verbose=False):
+    def from_file(file_path, derived_quantities=[], verbose=False):
         import reading
-        return reading.read_electron_beam_swarm_from_combined_pickles(
-            file_path, derived_quantities=derived_quantities, verbose=verbose)
+        file_path = Path(file_path)
+        extension = file_path.suffix
+        if extension == '.pickle':
+            electron_beam_swarm = reading.read_electron_beam_swarm_from_combined_pickles(
+                file_path,
+                derived_quantities=derived_quantities,
+                verbose=verbose)
+        elif extension == '.fl':
+            electron_beam_swarm = reading.read_electron_beam_swarm_from_custom_binary_file(
+                file_path,
+                derived_quantities=derived_quantities,
+                verbose=verbose)
+        else:
+            raise ValueError(
+                'Invalid file extension {} for electron beam data.'.format(
+                    extension))
+
+        return electron_beam_swarm
 
     def __init__(self,
                  number_of_beams,
@@ -530,10 +547,9 @@ def plot_beam_value_2d_histogram_comparison(*args, **kwargs):
 
 
 if __name__ == "__main__":
-    from pathlib import Path
     import reading
 
-    electron_beam_swarm = ElectronBeamSwarm.from_pickle_file(
+    electron_beam_swarm = ElectronBeamSwarm.from_file(
         Path(
             reading.DATA_PATH,
             'phd_run',

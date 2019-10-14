@@ -1,5 +1,6 @@
 import numpy as np
 import plotting
+from pathlib import Path
 
 
 class FieldLineSet3:
@@ -18,10 +19,26 @@ class FieldLineSet3:
                                                                   2.525689))
 
     @staticmethod
-    def from_pickle_file(file_path, derived_quantities=[], verbose=False):
+    def from_file(file_path, derived_quantities=[], verbose=False):
         import reading
-        return reading.read_3d_field_line_set_from_combined_pickles(
-            file_path, derived_quantities=derived_quantities, verbose=verbose)
+        file_path = Path(file_path)
+        extension = file_path.suffix
+        if extension == '.pickle':
+            field_line_set = reading.read_3d_field_line_set_from_combined_pickles(
+                file_path,
+                derived_quantities=derived_quantities,
+                verbose=verbose)
+        elif extension == '.fl':
+            field_line_set = reading.read_3d_field_line_set_from_custom_binary_file(
+                file_path,
+                derived_quantities=derived_quantities,
+                verbose=verbose)
+        else:
+            raise ValueError(
+                'Invalid file extension {} for field line data.'.format(
+                    extension))
+
+        return field_line_set
 
     def __init__(self,
                  number_of_field_lines,
