@@ -586,7 +586,13 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// Serializes the electron beam data into a custom binary format and saves at the given path.
     ///
     /// The metadata is serialized to pickle format and appended at the end.
-    pub fn save_as_custom_binary_file<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_custom_binary_file<P: AsRef<Path>>(
+        &self,
+        output_file_path: P,
+    ) -> io::Result<()> {
+        if self.verbose.is_yes() {
+            println!("Saving beams in {}", output_file_path.as_ref().display());
+        }
         let mut file = field_line::write_field_line_data_in_custom_binary_format(
             output_file_path,
             self.properties.clone().into_field_line_set_properties(),
@@ -599,6 +605,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// The metadata is serialized to pickle format and appended at the end.
     pub fn into_custom_binary_file<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
+        if self.verbose.is_yes() {
+            println!("Saving beams in {}", output_file_path.as_ref().display());
+        }
         let mut file = field_line::write_field_line_data_in_custom_binary_format(
             output_file_path,
             self.properties.into_field_line_set_properties(),
