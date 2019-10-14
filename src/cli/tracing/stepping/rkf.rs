@@ -15,13 +15,13 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
              the step length, and steps are re-attempted until the error is below a certain\n\
              tolerance.",
         )
+        .help_message("Print help information")
         .arg(
             Arg::with_name("dense-step-length")
                 .long("dense-step-length")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Step length to use for dense (uniform) output positions [Mm]")
-                .next_line_help(true)
+                .help("Step length to use for dense (uniform) output positions [Mm]\n")
                 .takes_value(true)
                 .default_value("0.01"),
         )
@@ -30,8 +30,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("max-step-attempts")
                 .require_equals(true)
                 .value_name("NUMBER")
-                .long_help("Maximum number of step attempts before terminating")
-                .next_line_help(true)
+                .help("Maximum number of step attempts before terminating")
                 .takes_value(true)
                 .default_value("16"),
         )
@@ -40,8 +39,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("absolute-tolerance")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Absolute error tolerance for stepping")
-                .next_line_help(true)
+                .help("Absolute error tolerance for stepping")
                 .takes_value(true)
                 .default_value("1e-6"),
         )
@@ -50,8 +48,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("relative-tolerance")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Relative error tolerance for stepping")
-                .next_line_help(true)
+                .help("Relative error tolerance for stepping")
                 .takes_value(true)
                 .default_value("1e-6"),
         )
@@ -60,8 +57,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("safety-factor")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Scaling factor for the error to reduce step length oscillations")
-                .next_line_help(true)
+                .help("Scaling factor for the error to reduce step length oscillations\n")
                 .takes_value(true)
                 .default_value("0.9"),
         )
@@ -70,8 +66,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("min-step-scale")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Smallest allowed scaling of the step size in one step")
-                .next_line_help(true)
+                .help("Smallest allowed scaling of the step size in one step")
                 .takes_value(true)
                 .default_value("0.2"),
         )
@@ -80,8 +75,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("max-step-scale")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Largest allowed scaling of the step size in one step")
-                .next_line_help(true)
+                .help("Largest allowed scaling of the step size in one step")
                 .takes_value(true)
                 .default_value("10.0"),
         )
@@ -90,18 +84,16 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("initial-error")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Start value for stepping error")
-                .next_line_help(true)
+                .help("Start value for stepping error")
                 .takes_value(true)
                 .default_value("1e-4"),
         )
         .arg(
             Arg::with_name("initial-step-length")
-                .long("stepping-initial-step-length")
+                .long("initial-step-length")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Initial step size")
-                .next_line_help(true)
+                .help("Initial step size")
                 .takes_value(true)
                 .default_value("1e-4"),
         )
@@ -110,10 +102,10 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("sudden-reversals-for-sink")
                 .require_equals(true)
                 .value_name("NUMBER")
-                .long_help(
-                    "Number of sudden direction reversals before the area is considered a sink",
+                .help(
+                    "Number of sudden direction reversals before the area is considered\n\
+                     a sink",
                 )
-                .next_line_help(true)
                 .takes_value(true)
                 .default_value("3"),
         )
@@ -129,8 +121,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("stepping-scheme")
                 .require_equals(true)
                 .value_name("NAME")
-                .long_help("Which Runge-Kutta-Fehlberg stepping scheme to use")
-                .next_line_help(true)
+                .help("Which Runge-Kutta-Fehlberg stepping scheme to use\n")
                 .takes_value(true)
                 .possible_values(&["rkf23", "rkf45"])
                 .default_value("rkf45"),

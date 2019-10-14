@@ -14,13 +14,13 @@ pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
              fitted to the surrounding points. To reduce overshoot, linear interpolation\n\
              can be engaged automatically in regions with high variance.",
         )
+        .help_message("Print help information")
         .arg(
             Arg::with_name("order")
                 .long("order")
                 .require_equals(true)
                 .value_name("NUMBER")
-                .long_help("Order of the polynomials to fit when interpolating field values\n")
-                .next_line_help(true)
+                .help("Order of the polynomials to fit when interpolating field values\n")
                 .takes_value(true)
                 .possible_values(&["1", "2", "3", "4", "5"])
                 .default_value("3"),
@@ -30,11 +30,10 @@ pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("variation-threshold")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
+                .help(
                     "Linear interpolation is used when a normalized variance of the values\n\
                      surrounding the interpolation point exceeds this",
                 )
-                .next_line_help(true)
                 .takes_value(true)
                 .default_value("0.3"),
         )

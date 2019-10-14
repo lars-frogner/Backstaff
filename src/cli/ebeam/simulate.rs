@@ -43,8 +43,13 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
              left unspecified, in which case the default implementation and parameters are used\n\
              for that action.",
         )
+        .help_message("Print help information")
         .arg(
-            Arg::with_name("OUTPUT_PATH")
+            Arg::with_name("output-path")
+                .short("o")
+                .long("output-path")
+                .require_equals(true)
+                .value_name("PATH")
                 .help("Path where the beam data should be saved")
                 .required(true)
                 .takes_value(true),
@@ -55,8 +60,7 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("output-format")
                 .require_equals(true)
                 .value_name("FORMAT")
-                .long_help("Format to use for saving beam data")
-                .next_line_help(true)
+                .help("Format to use for saving beam data\n")
                 .takes_value(true)
                 .possible_values(&["fl", "pickle", "json"])
                 .default_value("fl"),
@@ -73,10 +77,10 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help(
-                    "List of scalar fields to extract at acceleration sites (comma-separated)",
+                .help(
+                    "List of scalar fields to extract at acceleration sites\n \
+                     (comma-separated)",
                 )
-                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )
@@ -86,10 +90,10 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help(
-                    "List of scalar fields to extract along beam trajectories (comma-separated)",
+                .help(
+                    "List of scalar fields to extract along beam trajectories\n \
+                     (comma-separated)",
                 )
-                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )
@@ -382,10 +386,10 @@ fn perform_post_simulation_actions<G, A, I>(
 {
     let mut output_file_path = PathBuf::from_str(
         root_arguments
-            .value_of("OUTPUT_PATH")
+            .value_of("output-path")
             .expect("No value for required argument."),
     )
-    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
 
     let output_format = root_arguments
         .value_of("output-format")

@@ -23,28 +23,45 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
         )
+        .help_message("Print help information")
         .arg(
-            Arg::with_name("QUANTITY")
+            Arg::with_name("quantity")
+                .short("q")
+                .long("quantity")
+                .require_equals(true)
+                .value_name("NAME")
                 .help("Quantity whose field to slice")
                 .required(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("AXIS")
+            Arg::with_name("axis")
+                .short("a")
+                .long("axis")
+                .require_equals(true)
+                .value_name("AXIS")
                 .help("Which axis to slice across")
                 .required(true)
                 .takes_value(true)
                 .possible_values(&["x", "y", "z"]),
         )
         .arg(
-            Arg::with_name("COORD")
+            Arg::with_name("coord")
+                .short("c")
+                .long("coord")
+                .require_equals(true)
+                .value_name("VALUE")
+                .allow_hyphen_values(true)
                 .help("Coordinate along the axis to slice at")
                 .required(true)
-                .takes_value(true)
-                .allow_hyphen_values(true),
+                .takes_value(true),
         )
         .arg(
-            Arg::with_name("OUTPUT_PATH")
+            Arg::with_name("output-path")
+                .short("o")
+                .long("output-path")
+                .require_equals(true)
+                .value_name("PATH")
                 .help("Path where the slice field should be saved in pickle format")
                 .required(true)
                 .takes_value(true),
@@ -55,7 +72,7 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("sample-location")
                 .require_equals(true)
                 .value_name("LOCATION")
-                .long_help("Location in the grid cell where slice values should be sampled\n")
+                .help("Location in the grid cell where slice values should be sampled\n")
                 .takes_value(true)
                 .possible_values(&["center", "lower", "original"])
                 .default_value("center"),
@@ -64,7 +81,7 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("allow-non-uniform")
                 .short("n")
                 .long("allow-non-uniform")
-                .long_help(
+                .help(
                     "Make sampled slice values follow the potentially non-uniform underlying grid",
                 ),
         )
@@ -77,21 +94,21 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
     snapshot: &mut SnapshotCacher3<G>,
 ) {
     let quantity = arguments
-        .value_of("QUANTITY")
+        .value_of("quantity")
         .expect("No value for required argument.");
 
     let axis = arguments
-        .value_of("AXIS")
+        .value_of("axis")
         .expect("No value for required argument.");
 
     let coord = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "COORD");
 
     let mut output_file_path = PathBuf::from_str(
         arguments
-            .value_of("OUTPUT_PATH")
+            .value_of("output-path")
             .expect("No value for required argument."),
     )
-    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
 
     if output_file_path.extension().is_none() {
         output_file_path.set_extension("pickle");
@@ -143,7 +160,7 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
                     .save_as_pickle(output_file_path)
                     .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
             }
-            invalid => panic!("Invalid AXIS: {}", invalid),
+            invalid => panic!("Invalid axis: {}", invalid),
         }
     } else {
         let location = match sample_location {
@@ -159,7 +176,7 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
             "x" => Dim3::X,
             "y" => Dim3::Y,
             "z" => Dim3::Z,
-            invalid => panic!("Invalid AXIS: {}", invalid),
+            invalid => panic!("Invalid axis: {}", invalid),
         };
 
         field

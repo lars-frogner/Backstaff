@@ -13,6 +13,7 @@ use clap::{App, AppSettings, ArgMatches, SubCommand};
 pub fn create_ebeam_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("ebeam")
         .about("Perform actions related to electron beams in the snapshot")
+        .help_message("Print help information")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(simulate::create_simulate_subcommand())
 }

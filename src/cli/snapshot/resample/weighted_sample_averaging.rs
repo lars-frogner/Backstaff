@@ -20,5 +20,6 @@ pub fn create_weighted_sample_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
         )
+        .help_message("Print help information")
         .subcommand(cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand())
 }

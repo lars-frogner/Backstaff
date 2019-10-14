@@ -13,4 +13,5 @@ pub fn create_weighted_cell_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
              This method is suited for downsampling. It is faster than weighted sample\n\
              averaging, but slightly less accurate.",
         )
+        .help_message("Print help information")
 }

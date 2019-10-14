@@ -31,8 +31,13 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
              can be left unspecified, in which case the default implementation and parameters\n\
              are used for that action.",
         )
+        .help_message("Print help information")
         .arg(
-            Arg::with_name("OUTPUT_PATH")
+            Arg::with_name("output-path")
+                .short("o")
+                .long("output-path")
+                .require_equals(true)
+                .value_name("PATH")
                 .help("Path where the field line data should be saved")
                 .required(true)
                 .takes_value(true),
@@ -43,8 +48,7 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("vector-quantity")
                 .require_equals(true)
                 .value_name("NAME")
-                .long_help("Which vector field from the snapshot to trace")
-                .next_line_help(true)
+                .help("Vector field from the snapshot to trace")
                 .takes_value(true)
                 .default_value("b"),
         )
@@ -54,8 +58,7 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("output-format")
                 .require_equals(true)
                 .value_name("FORMAT")
-                .long_help("Format to use for saving field line data")
-                .next_line_help(true)
+                .help("Format to use for saving field line data\n")
                 .takes_value(true)
                 .possible_values(&["fl", "pickle", "json"])
                 .default_value("fl"),
@@ -66,8 +69,10 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help("List of scalar fields to extract at seed positions (comma-separated)")
-                .next_line_help(true)
+                .help(
+                    "List of scalar fields to extract at seed positions\n \
+                     (comma-separated)",
+                )
                 .takes_value(true)
                 .multiple(true),
         )
@@ -77,10 +82,10 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .long_help(
-                    "List of scalar fields to extract along field line paths (comma-separated)",
+                .help(
+                    "List of scalar fields to extract along field line paths\n \
+                     (comma-separated)",
                 )
-                .next_line_help(true)
                 .takes_value(true)
                 .multiple(true),
         )
@@ -319,10 +324,10 @@ fn perform_post_tracing_actions<G, I>(
 {
     let mut output_file_path = PathBuf::from_str(
         root_arguments
-            .value_of("OUTPUT_PATH")
+            .value_of("output-path")
             .expect("No value for required argument."),
     )
-    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
 
     let output_format = root_arguments
         .value_of("output-format")

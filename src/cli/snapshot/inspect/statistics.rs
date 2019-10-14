@@ -12,12 +12,17 @@ use Dim3::{X, Y, Z};
 pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("statistics")
         .about("Print statistics for quantities in the snapshot")
+        .help_message("Print help information")
         .arg(
-            Arg::with_name("QUANTITIES")
-                .help("List of quantities to print statistics for")
+            Arg::with_name("quantities")
+                .short("q")
+                .long("quantities")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_name("NAMES")
+                .help("List of quantities to print statistics for (comma-separated)")
                 .required(true)
                 .takes_value(true)
-                .index(1)
                 .multiple(true)
                 .min_values(1),
         )
@@ -29,7 +34,7 @@ pub fn run_statistics_subcommand<G: Grid3<fdt>>(
     snapshot: &mut SnapshotCacher3<G>,
 ) {
     for quantity in arguments
-        .values_of("QUANTITIES")
+        .values_of("quantities")
         .expect("No values for required argument.")
     {
         match snapshot.obtain_scalar_field(quantity) {

@@ -20,21 +20,30 @@ pub fn create_slice_pdf_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
              values within a 2D slice of a quantity field. If the quantity is a vector,\n\
              the PDF is based on the norm of the vectors.",
         )
+        .help_message("Print help information")
         .arg(
-            Arg::with_name("QUANTITY")
+            Arg::with_name("quantity")
+                .short("q")
+                .long("quantity")
+                .require_equals(true)
+                .value_name("NAME")
                 .help("Quantity to compute the probability density from")
                 .required(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("POINTS")
+            Arg::with_name("n-points")
+                .short("n")
+                .long("n-points")
+                .require_equals(true)
+                .value_name("NUMBER")
                 .help("Number of seed points to generate")
                 .required(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("vector-quantity")
-                .long("vector-quantity")
+            Arg::with_name("is-vector-quantity")
+                .long("is-vector-quantity")
                 .help("Treat the specified quantity as a vector quantity"),
         )
         .arg(
@@ -62,12 +71,12 @@ where
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
     let quantity = arguments
-        .value_of("QUANTITY")
+        .value_of("quantity")
         .expect("No value for required argument.");
-    let n_seeds = cli::get_value_from_required_parseable_argument::<usize>(arguments, "POINTS");
+    let n_seeds = cli::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
     let power = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
-    if arguments.is_present("vector-quantity") {
+    if arguments.is_present("is-vector-quantity") {
         let field = snapshot
             .obtain_vector_field(quantity)
             .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", quantity, err));

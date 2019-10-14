@@ -23,31 +23,42 @@ use Dim3::{X, Y, Z};
 pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("resample")
         .about("Creates a resampled version of the snapshot")
-        .setting(AppSettings::SubcommandRequired)
         .long_about(
             "Creates a resampled version of the snapshot.\n\
              The snapshot quantity fields are resampled to the grid described by a given mesh\n\
              file.",
         )
+        .help_message("Print help information")
+        .setting(AppSettings::SubcommandRequired)
         .arg(
-            Arg::with_name("MESH_PATH")
+            Arg::with_name("mesh-path")
+                .short("m")
+                .long("mesh-path")
+                .require_equals(true)
+                .value_name("PATH")
                 .help("Path to the Bifrost mesh file representing the grid to resample to")
                 .required(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("OUTPUT_PATH")
+            Arg::with_name("output-path")
+                .short("o")
+                .long("output-path")
+                .require_equals(true)
+                .value_name("PATH")
                 .help("Path where the resampled snapshot should be saved")
                 .required(true)
                 .takes_value(true),
-            )
+        )
         .arg(
             Arg::with_name("resampled-grid-type")
                 .long("resampled-grid-type")
                 .require_equals(true)
                 .value_name("TYPE")
-                .long_help("Type of grid to assume for the resampled snapshot\n[default: same as original]")
-                .next_line_help(true)
+                .help(
+                    "Type of grid to assume for the resampled snapshot\n \
+                     [default: same as original]",
+                )
                 .takes_value(true)
                 .possible_values(&["horizontally-regular", "regular"]),
         )
@@ -115,15 +126,15 @@ fn run_resampling<G, I>(
     I: Interpolator3,
 {
     let mesh_file_path = root_arguments
-        .value_of("MESH_PATH")
+        .value_of("mesh-path")
         .expect("No value for required argument.");
 
     let output_file_path = PathBuf::from_str(
         root_arguments
-            .value_of("OUTPUT_PATH")
+            .value_of("output-path")
             .expect("No value for required argument."),
     )
-    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
 
     let grid_type = match root_arguments.value_of("resampled-grid-type") {
         None => G::TYPE,

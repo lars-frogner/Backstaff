@@ -10,6 +10,7 @@ use clap::{App, AppSettings, ArgMatches, SubCommand};
 pub fn create_inspect_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("inspect")
         .about("Inspect properties of the snapshot")
+        .help_message("Print help information")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(statistics::create_statistics_subcommand())
 }

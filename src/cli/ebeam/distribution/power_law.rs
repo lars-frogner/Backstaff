@@ -17,16 +17,16 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
              described by a total power density, lower cut-off energy and a power-law\n\
              index.",
         )
+        .help_message("Print help information")
         .arg(
             Arg::with_name("min-remaining-power-density")
                 .long("min-remaining-power-density")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
-                    "Distributions with remaining power densities smaller than this value are\n\
-                     discarded [erg/(cm^3 s)] [default: from param file]",
+                .help(
+                    "Distributions with remaining power densities smaller than this\n\
+                     value are discarded [erg/(cm^3 s)] [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
 }

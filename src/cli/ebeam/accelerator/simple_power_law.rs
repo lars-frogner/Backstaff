@@ -18,13 +18,13 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
              reconnection energy, and the lower cut-off energy is found from the intersection\n\
              of the non-thermal distribution with the thermal distribution.",
         )
+        .help_message("Print help information")
         .arg(
             Arg::with_name("acceleration-duration")
                 .long("acceleration-duration")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Duration of the acceleration events [s] [default: from param file]")
-                .next_line_help(true)
+                .help("Duration of the acceleration events [s] [default: from param file]")
                 .takes_value(true),
         )
         .arg(
@@ -32,11 +32,10 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("particle-energy-fraction")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
-                    "Fraction of the released reconnection energy going into acceleration of\n\
-                    electrons [default: from param file]",
+                .help(
+                    "Fraction of the released reconnection energy going into\n\
+                     acceleration of electrons [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
         .arg(
@@ -44,11 +43,10 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("power-law-delta")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
-                    "Exponent of the inverse power-law describing the non-thermal electron\n\
-                    distribution [default: from param file]",
+                .help(
+                    "Exponent of the inverse power-law describing the non-thermal\n\
+                     electron distribution [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
         .arg(
@@ -56,8 +54,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("pitch-angle-distribution")
                 .require_equals(true)
                 .value_name("TYPE")
-                .long_help("Type of pitch angle distribution of the non-thermal electrons\n")
-                .next_line_help(true)
+                .help("Type of pitch angle distribution of the non-thermal electrons\n")
                 .takes_value(true)
                 .possible_values(&["peaked", "isotropic"])
                 .default_value("peaked"),
@@ -67,23 +64,21 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("min-total-power-density")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
-                    "Distributions with total power densities smaller than this value are discarded\n\
-                    [erg/(cm^3 s)] [default: from param file]",
+                .help(
+                    "Distributions with total power densities smaller than this value\n\
+                     are discarded [erg/(cm^3 s)] [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-estimated-depletion-distance")
-                .long("min-estimated-depletion-distance")
+            Arg::with_name("min-depletion-distance")
+                .long("min-depletion-distance")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
-                    "Distributions with an initial estimated depletion distance smaller than this\n\
-                    value are discarded [cm] [default: from param file]",
+                .help(
+                    "Distributions with an initial estimated depletion distance smaller\n\
+                     than this value are discarded [cm] [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
         .arg(
@@ -91,41 +86,37 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("max-acceleration-angle")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
-                    "Distributions with acceleration directions angled more than this away from the\n\
-                    magnetic field axis are discarded [deg]",
+                .help(
+                    "Distributions with acceleration directions angled more than this\n\
+                     away from the magnetic field axis are discarded [deg]",
                 )
-                .next_line_help(true)
                 .takes_value(true)
                 .default_value("70.0"),
         )
         .arg(
-            Arg::with_name("initial-cutoff-energy-guess")
-                .long("initial-cutoff-energy-guess")
+            Arg::with_name("cutoff-energy-guess")
+                .long("cutoff-energy-guess")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Initial guess to use when estimating lower cut-off energy [keV]")
-                .next_line_help(true)
+                .help("Initial guess to use when estimating lower cut-off energy [keV]\n")
                 .takes_value(true)
                 .default_value("4.0"),
         )
         .arg(
-            Arg::with_name("acceptable-root-finding-error")
-                .long("acceptable-root-finding-error")
+            Arg::with_name("root-finding-error")
+                .long("root-finding-error")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Target relative error when estimating lower cut-off energy")
-                .next_line_help(true)
+                .help("Target relative error when estimating lower cut-off energy\n")
                 .takes_value(true)
                 .default_value("1e-3"),
         )
         .arg(
-            Arg::with_name("max-root-finding-iterations")
-                .long("max-root-finding-iterations")
+            Arg::with_name("root-finding-iterations")
+                .long("root-finding-iterations")
                 .require_equals(true)
                 .value_name("NUMBER")
-                .long_help("Maximum number of iterations when estimating lower cut-off energy")
-                .next_line_help(true)
+                .help("Maximum number of iterations when estimating lower cut-off energy\n")
                 .takes_value(true)
                 .default_value("100"),
         )
@@ -191,7 +182,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
     let min_estimated_depletion_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "min-estimated-depletion-distance",
+        "min-depletion-distance",
         "min_stop_dist",
         &|min_stop_dist| min_stop_dist * U_L,
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
@@ -200,11 +191,11 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
     let max_acceleration_angle =
         cli::get_value_from_required_parseable_argument(arguments, "max-acceleration-angle");
     let initial_cutoff_energy_guess =
-        cli::get_value_from_required_parseable_argument(arguments, "initial-cutoff-energy-guess");
+        cli::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
     let acceptable_root_finding_error =
-        cli::get_value_from_required_parseable_argument(arguments, "acceptable-root-finding-error");
+        cli::get_value_from_required_parseable_argument(arguments, "root-finding-error");
     let max_root_finding_iterations =
-        cli::get_value_from_required_parseable_argument(arguments, "max-root-finding-iterations");
+        cli::get_value_from_required_parseable_argument(arguments, "root-finding-iterations");
 
     let ignore_rejection = arguments.is_present("ignore-rejection");
 

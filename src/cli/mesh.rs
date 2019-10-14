@@ -13,9 +13,14 @@ use std::str::FromStr;
 pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("create_mesh")
         .about("Create a Bifrost mesh file")
+        .help_message("Print help information")
         .setting(AppSettings::SubcommandRequired)
         .arg(
-            Arg::with_name("OUTPUT_PATH")
+            Arg::with_name("output-path")
+                .short("o")
+                .long("output-path")
+                .require_equals(true)
+                .value_name("PATH")
                 .help("Path where the mesh file should be created")
                 .required(true)
                 .takes_value(true),
@@ -35,10 +40,10 @@ pub fn run_create_mesh_subcommand(arguments: &ArgMatches) {
 fn write_mesh_file<G: Grid3<fdt>>(root_arguments: &ArgMatches, grid: G) {
     let mut output_file_path = PathBuf::from_str(
         root_arguments
-            .value_of("OUTPUT_PATH")
+            .value_of("output-path")
             .expect("No value for required argument."),
     )
-    .unwrap_or_else(|err| panic!("Could not interpret OUTPUT_PATH: {}", err));
+    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
 
     if output_file_path.extension().is_none() {
         output_file_path.set_extension("mesh");

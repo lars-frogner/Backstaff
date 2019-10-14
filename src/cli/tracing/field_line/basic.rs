@@ -17,12 +17,13 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
              natural positions provided by the stepper. The field line can have a maximum\n\
              length.",
         )
+        .help_message("Print help information")
         .arg(
             Arg::with_name("tracing-sense")
                 .long("tracing-sense")
                 .require_equals(true)
                 .value_name("SENSE")
-                .long_help("Direction(s) to trace the field line relative to the field direction\n")
+                .help("Direction(s) to trace the field line relative to the field direction\n")
                 .takes_value(true)
                 .possible_values(&["both", "same", "opposite"])
                 .default_value("both"),
@@ -32,7 +33,7 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("point-spacing")
                 .require_equals(true)
                 .value_name("SPACING")
-                .long_help("Form of spacing between field line points\n")
+                .help("Form of spacing between field line points\n")
                 .takes_value(true)
                 .possible_values(&["regular", "natural"])
                 .default_value("regular"),
@@ -42,7 +43,7 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("max-length")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help("Field lines reaching lengths larger than this will be terminated\n")
+                .help("Field lines reaching lengths larger than this will be terminated\n")
                 .takes_value(true)
                 .default_value("inf"),
         )

@@ -24,20 +24,29 @@ pub struct CommonSliceSeederParameters {
 pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("slice_seeder")
         .about("Use a slice seeder")
+        .help_message("Print help information")
         .setting(AppSettings::SubcommandRequired)
         .arg(
-            Arg::with_name("AXIS")
+            Arg::with_name("axis")
+                .short("a")
+                .long("axis")
+                .value_name("AXIS")
+                .require_equals(true)
                 .help("Which axis to slice across")
                 .required(true)
                 .takes_value(true)
                 .possible_values(&["x", "y", "z"]),
         )
         .arg(
-            Arg::with_name("COORD")
+            Arg::with_name("coord")
+                .short("c")
+                .long("coord")
+                .require_equals(true)
+                .value_name("VALUE")
+                .allow_hyphen_values(true)
                 .help("Coordinate along the axis to slice at")
                 .required(true)
-                .takes_value(true)
-                .allow_hyphen_values(true),
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("horizontal-limits")
@@ -46,11 +55,10 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
-                .long_help(
-                    "Smallest and largest value of the first slice coordinate for which generated\n\
-                    seed points will be accepted. [default: no limits]",
+                .help(
+                    "Smallest and largest value of the first slice coordinate for which\n\
+                     generated seed points will be accepted [default: no limits]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
         .arg(
@@ -60,11 +68,10 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
-                .long_help(
-                    "Smallest and largest value of the second slice coordinate for which generated\n\
-                    seed points will be accepted. [default: no limits]",
+                .help(
+                    "Smallest and largest value of the second slice coordinate for which\n\
+                     generated seed points will be accepted [default: no limits]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
         .subcommand(regular::create_regular_slice_seeder_subcommand())
@@ -90,11 +97,11 @@ where
 {
     let axis = cli::get_value_from_required_constrained_argument(
         arguments,
-        "AXIS",
+        "axis",
         &["x", "y", "z"],
         &Dim3::slice(),
     );
-    let coord = cli::get_value_from_required_parseable_argument::<ftr>(arguments, "COORD");
+    let coord = cli::get_value_from_required_parseable_argument::<ftr>(arguments, "coord");
 
     let horizontal_limits = cli::get_values_from_parseable_argument_with_custom_defaults(
         arguments,

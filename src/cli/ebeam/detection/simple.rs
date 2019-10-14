@@ -16,18 +16,18 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
             "Use the simple reconnection site detection method.\n\
              Evaluates a reconnection factor in each grid cell and considers a reconnection\n\
              site to be where the factor exceeds a given threshold. The reconnection factor\n\
-             indicates changes in the magnetic topology and is described by Biskamp (2005)",
+             indicates changes in the magnetic topology and is described by Biskamp (2005).",
         )
+        .help_message("Print help information")
         .arg(
             Arg::with_name("reconnection-factor-type")
                 .long("reconnection-factor-type")
                 .require_equals(true)
                 .value_name("TYPE")
-                .long_help(
-                    "Which version of the reconnection factor to use for seeding\n\
-                    [default: from param file]",
+                .help(
+                    "Which version of the reconnection factor to use for seeding\n \
+                     [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true)
                 .possible_values(&["standard", "normalized"]),
         )
@@ -36,11 +36,10 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
                 .long("reconnection-factor-threshold")
                 .require_equals(true)
                 .value_name("VALUE")
-                .long_help(
-                    "Reconnection sites will be detected where the reconnection factor value is larger than this\n\
-                    [default: from param file]",
+                .help(
+                    "Reconnection sites will be detected where the reconnection factor\n\
+                     value is larger than this [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
         .arg(
@@ -50,10 +49,10 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
-                .long_help(
-                    "Smallest and largest depth at which reconnection sites will be detected [Mm] [default: from param file]",
+                .help(
+                    "Smallest and largest depth at which reconnection sites will be \n\
+                     detected [Mm] [default: from param file]",
                 )
-                .next_line_help(true)
                 .takes_value(true),
         )
 }

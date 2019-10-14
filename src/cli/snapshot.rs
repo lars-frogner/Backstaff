@@ -16,9 +16,14 @@ use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
     let app = SubCommand::with_name("snapshot")
         .about("Specify input snapshot to perform further actions on")
+        .help_message("Print help information")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(
-            Arg::with_name("PARAM_PATH")
+            Arg::with_name("param-path")
+                .short("p")
+                .long("param-path")
+                .require_equals(true)
+                .value_name("PATH")
                 .help("Path to the parameter (.idl) file for the snapshot")
                 .required(true)
                 .takes_value(true),
@@ -29,8 +34,7 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("grid-type")
                 .require_equals(true)
                 .value_name("TYPE")
-                .long_help("Type of grid to assume for the snapshot\n")
-                .next_line_help(true)
+                .help("Type of grid to assume for the snapshot\n")
                 .takes_value(true)
                 .possible_values(&["horizontally-regular", "regular"])
                 .default_value("horizontally-regular"),
@@ -41,8 +45,7 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long("endianness")
                 .require_equals(true)
                 .value_name("ENDIANNESS")
-                .long_help("Endianness to assume for the snapshot\n")
-                .next_line_help(true)
+                .help("Endianness to assume for the snapshot\n")
                 .takes_value(true)
                 .possible_values(&["little", "big"])
                 .default_value("little"),
@@ -80,7 +83,7 @@ pub fn construct_snapshot_reader_config_from_arguments(
     };
 
     let param_file_path = arguments
-        .value_of("PARAM_PATH")
+        .value_of("param-path")
         .expect("Required argument not present.");
 
     let endianness = match arguments

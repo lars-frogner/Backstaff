@@ -17,8 +17,13 @@ pub fn create_random_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
              Seed points are produced at uniformly random positions within\n\
              a 2D slice of the 3D grid.",
         )
+        .help_message("Print help information")
         .arg(
-            Arg::with_name("POINTS")
+            Arg::with_name("n-points")
+                .short("n")
+                .long("n-points")
+                .require_equals(true)
+                .value_name("NUMBER")
                 .help("Number of seed points to generate")
                 .required(true)
                 .takes_value(true),
@@ -36,7 +41,7 @@ where
     G: Grid3<fdt>,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
-    let n_seeds = cli::get_value_from_required_parseable_argument::<usize>(arguments, "POINTS");
+    let n_seeds = cli::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
 
     SliceSeeder3::random(
         grid,

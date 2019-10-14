@@ -23,7 +23,9 @@ pub fn run() {
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
         .about(clap::crate_description!())
+        .help_message("Print help information")
         .global_setting(AppSettings::VersionlessSubcommands)
+        .global_setting(AppSettings::DisableHelpSubcommand)
         .global_setting(AppSettings::DeriveDisplayOrder)
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(

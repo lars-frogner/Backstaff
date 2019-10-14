@@ -9,6 +9,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("regular")
         .about("Use a regular grid")
+        .help_message("Print help information")
         .arg(
             Arg::with_name("shape")
                 .short("s")
@@ -16,7 +17,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .long_help("Shape of the grid.")
+                .help("Shape of the grid.")
                 .takes_value(true)
                 .required(true),
         )
@@ -28,7 +29,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .long_help("Lower and upper bound for the x-coordinates.")
+                .help("Lower and upper bound for the x-coordinates.")
                 .takes_value(true)
                 .required(true),
         )
@@ -40,7 +41,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .long_help("Lower and upper bound for the y-coordinates.")
+                .help("Lower and upper bound for the y-coordinates.")
                 .takes_value(true)
                 .required(true),
         )
@@ -52,7 +53,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .long_help("Lower and upper bound for the z-coordinates.")
+                .help("Lower and upper bound for the z-coordinates.")
                 .takes_value(true)
                 .required(true),
         )

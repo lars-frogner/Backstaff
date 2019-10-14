@@ -17,10 +17,15 @@ pub fn create_regular_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
              Seed points are produced at the cell centers of a regular 2D grid spanning a\n\
              slice of the 3D grid.",
         )
+        .help_message("Print help information")
         .arg(
-            Arg::with_name("SHAPE")
-                .help("Shape of the regular 2D grid to seed in")
+            Arg::with_name("shape")
+                .short("s")
+                .long("shape")
+                .require_equals(true)
+                .require_delimiter(true)
                 .value_names(&["WIDTH", "HEIGHT"])
+                .help("Number of seed points to generate")
                 .required(true)
                 .takes_value(true)
                 .number_of_values(2),
@@ -38,7 +43,7 @@ where
     G: Grid3<fdt>,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
-    let shape = cli::get_values_from_required_parseable_argument::<usize>(arguments, "SHAPE");
+    let shape = cli::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
 
     SliceSeeder3::regular(
         grid,
