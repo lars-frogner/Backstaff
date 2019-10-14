@@ -50,6 +50,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         return electron_beam_swarm
 
     def __init__(self,
+                 domain_bounds,
                  number_of_beams,
                  fixed_scalar_values,
                  fixed_vector_values,
@@ -58,7 +59,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                  metadata,
                  derived_quantities=[],
                  verbose=False):
-        super().__init__(number_of_beams,
+        super().__init__(domain_bounds,
+                         number_of_beams,
                          fixed_scalar_values,
                          fixed_vector_values,
                          varying_scalar_values,
@@ -479,7 +481,7 @@ def plot_rejection_map(electron_beam_swarm,
     if fig is None or ax is None:
         fig, ax = plotting.create_3d_plot()
 
-    plotting.set_3d_plot_extent(ax, *ElectronBeamSwarm.GRID_BOUNDS)
+    plotting.set_3d_plot_extent(ax, *electron_beam_swarm.get_domain_bounds())
     plotting.set_3d_spatial_axis_labels(ax, unit='Mm')
     ax.invert_zaxis()
     if hide_grid:

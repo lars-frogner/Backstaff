@@ -15,9 +15,6 @@ class FieldLineSet3:
         'tg0': 'Temperature [K]',
     }
 
-    GRID_BOUNDS = ((-0.015625, 23.98438), (-0.015625, 23.98438), (-14.33274,
-                                                                  2.525689))
-
     @staticmethod
     def from_file(file_path, derived_quantities=[], verbose=False):
         import bifrost_utils.reading as reading
@@ -41,6 +38,7 @@ class FieldLineSet3:
         return field_line_set
 
     def __init__(self,
+                 domain_bounds,
                  number_of_field_lines,
                  fixed_scalar_values,
                  fixed_vector_values,
@@ -48,11 +46,13 @@ class FieldLineSet3:
                  varying_vector_values,
                  derived_quantities=[],
                  verbose=False):
+        assert all([upper >= lower for lower, upper in domain_bounds])
         assert isinstance(number_of_field_lines, int)
         assert isinstance(fixed_scalar_values, dict)
         assert isinstance(fixed_vector_values, dict)
         assert isinstance(varying_scalar_values, dict)
         assert isinstance(varying_vector_values, dict)
+        self.bounds_x, self.bounds_y, self.bounds_z = tuple(domain_bounds)
         self.number_of_field_lines = number_of_field_lines
         self.fixed_scalar_values = fixed_scalar_values
         self.fixed_vector_values = fixed_vector_values
@@ -216,6 +216,9 @@ class FieldLineSet3:
 
     def has_varying_scalar_values(self, value_name):
         return value_name in self.varying_scalar_values
+
+    def get_domain_bounds(self):
+        return self.bounds_x, self.bounds_y, self.bounds_z
 
     def get_number_of_field_lines(self):
         return self.number_of_field_lines
@@ -419,7 +422,7 @@ def plot_field_lines(field_line_set,
     if fig is None or ax is None:
         fig, ax = plotting.create_3d_plot()
 
-    plotting.set_3d_plot_extent(ax, *FieldLineSet3.GRID_BOUNDS)
+    plotting.set_3d_plot_extent(ax, *field_line_set.get_domain_bounds())
     plotting.set_3d_spatial_axis_labels(ax, unit='Mm')
     ax.invert_zaxis()
     if hide_grid:

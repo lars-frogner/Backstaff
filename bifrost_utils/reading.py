@@ -19,12 +19,14 @@ def read_2d_scalar_field(file_path):
 def read_3d_field_line_set_from_single_pickle(file_path, **kwargs):
     with open(file_path, mode='rb') as f:
         data = pickle.load(f)
-    return __parse_electronbeamswarm(data, **kwargs)
+    return __parse_fieldlineset3(data, **kwargs)
 
 
 def read_3d_field_line_set_from_combined_pickles(file_path, **kwargs):
     data = {}
     with open(file_path, mode='rb') as f:
+        data['lower_bounds'] = pickle.load(f)
+        data['upper_bounds'] = pickle.load(f)
         data['number_of_field_lines'] = pickle.load(f)
         data['fixed_scalar_values'] = pickle.load(f)
         data['fixed_vector_values'] = pickle.load(f)
@@ -49,6 +51,8 @@ def read_electron_beam_swarm_from_single_pickle(file_path, **kwargs):
 def read_electron_beam_swarm_from_combined_pickles(file_path, **kwargs):
     data = {}
     with open(file_path, mode='rb') as f:
+        data['lower_bounds'] = pickle.load(f)
+        data['upper_bounds'] = pickle.load(f)
         data['number_of_beams'] = pickle.load(f)
         data['fixed_scalar_values'] = pickle.load(f)
         data['fixed_vector_values'] = pickle.load(f)
@@ -76,6 +80,11 @@ def __parse_custom_field_line_binary_file(f):
         number_of_varying_scalar_quantities, \
         number_of_varying_vector_quantities = tuple(counts)
 
+    float_dtype = np.dtype('<f{:d}'.format(float_size))
+
+    domain_bounds = np.fromfile(f, dtype=float_dtype, count=6, sep='')
+    domain_bounds = list(zip(domain_bounds[0::2], domain_bounds[1::2]))
+
     fixed_scalar_names = [
         f.readline().decode('utf-8').strip()
         for _ in range(number_of_fixed_scalar_quantities)
@@ -95,8 +104,6 @@ def __parse_custom_field_line_binary_file(f):
 
     split_indices_of_field_line_elements = np.fromfile(
         f, dtype=np.dtype('<u8'), count=number_of_field_lines, sep='')[1:]
-
-    float_dtype = np.dtype('<f{:d}'.format(float_size))
 
     fixed_scalar_values_shape = (number_of_fixed_scalar_quantities,
                                  number_of_field_lines)
@@ -152,7 +159,8 @@ def __parse_custom_field_line_binary_file(f):
                       split_indices_of_field_line_elements,
                       axis=0) for n in range(varying_vector_values.shape[0]))))
 
-    return int(number_of_field_lines), \
+    return domain_bounds, \
+        int(number_of_field_lines), \
         fixed_scalar_values, \
         fixed_vector_values, \
         varying_scalar_values, \
@@ -160,13 +168,15 @@ def __parse_custom_field_line_binary_file(f):
 
 
 def __parse_custom_electron_beam_binary_file(f):
-    number_of_beams, \
+    domain_bounds, \
+        number_of_beams, \
         fixed_scalar_values, \
         fixed_vector_values, \
         varying_scalar_values, \
         varying_vector_values = __parse_custom_field_line_binary_file(f)
     metadata = __parse_electronbeamswarm_metadata(pickle.load(f))
-    return number_of_beams, \
+    return domain_bounds, \
+        number_of_beams, \
         fixed_scalar_values, \
         fixed_vector_values, \
         varying_scalar_values, \
@@ -175,6 +185,9 @@ def __parse_custom_electron_beam_binary_file(f):
 
 
 def __parse_fieldlineset3(data, **kwargs):
+    lower_bounds = data.pop('lower_bounds')
+    upper_bounds = data.pop('upper_bounds')
+    domain_bounds = list(zip(lower_bounds, upper_bounds))
     number_of_field_lines = data.pop('number_of_field_lines')
     fixed_scalar_values = __parse_map_of_vec_of_float(
         data['fixed_scalar_values'])
@@ -184,13 +197,16 @@ def __parse_fieldlineset3(data, **kwargs):
         data.pop('varying_scalar_values'))
     varying_vector_values = __parse_map_of_vec_of_vec_of_vec3(
         data.pop('varying_vector_values'))
-    return field_lines.FieldLineSet3(number_of_field_lines,
+    return field_lines.FieldLineSet3(domain_bounds, number_of_field_lines,
                                      fixed_scalar_values, fixed_vector_values,
                                      varying_scalar_values,
                                      varying_vector_values, **kwargs)
 
 
 def __parse_electronbeamswarm(data, **kwargs):
+    lower_bounds = data.pop('lower_bounds')
+    upper_bounds = data.pop('upper_bounds')
+    domain_bounds = list(zip(lower_bounds, upper_bounds))
     number_of_beams = data.pop('number_of_beams')
     fixed_scalar_values = __parse_map_of_vec_of_float(
         data['fixed_scalar_values'])
@@ -201,9 +217,12 @@ def __parse_electronbeamswarm(data, **kwargs):
     varying_vector_values = __parse_map_of_vec_of_vec_of_vec3(
         data.pop('varying_vector_values'))
     metadata = __parse_electronbeamswarm_metadata(data['metadata'])
-    return electron_beams.ElectronBeamSwarm(
-        number_of_beams, fixed_scalar_values, fixed_vector_values,
-        varying_scalar_values, varying_vector_values, metadata, **kwargs)
+    return electron_beams.ElectronBeamSwarm(domain_bounds, number_of_beams,
+                                            fixed_scalar_values,
+                                            fixed_vector_values,
+                                            varying_scalar_values,
+                                            varying_vector_values, metadata,
+                                            **kwargs)
 
 
 def __parse_electronbeamswarm_metadata(metadata):
