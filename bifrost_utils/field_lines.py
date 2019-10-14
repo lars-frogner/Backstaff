@@ -1,6 +1,6 @@
 import numpy as np
-import plotting
 from pathlib import Path
+import bifrost_utils.plotting as plotting
 
 
 class FieldLineSet3:
@@ -20,7 +20,7 @@ class FieldLineSet3:
 
     @staticmethod
     def from_file(file_path, derived_quantities=[], verbose=False):
-        import reading
+        import bifrost_utils.reading as reading
         file_path = Path(file_path)
         extension = file_path.suffix
         if extension == '.pickle':

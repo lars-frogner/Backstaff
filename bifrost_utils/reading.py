@@ -1,9 +1,9 @@
 import os
 import pickle
 import numpy as np
-from fields import Coords3, Coords2, ScalarField2
-from field_lines import FieldLineSet3
-from electron_beams import ElectronBeamSwarm
+import bifrost_utils.fields as fields
+import bifrost_utils.field_lines as field_lines
+import bifrost_utils.electron_beams as electron_beams
 
 SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
 PROJECT_PATH = os.path.dirname(SCRIPTS_PATH)
@@ -35,7 +35,7 @@ def read_3d_field_line_set_from_combined_pickles(file_path, **kwargs):
 
 def read_3d_field_line_set_from_custom_binary_file(file_path, **kwargs):
     with open(file_path, 'rb') as f:
-        field_line_set = FieldLineSet3(
+        field_line_set = field_lines.FieldLineSet3(
             *__parse_custom_field_line_binary_file(f), **kwargs)
     return field_line_set
 
@@ -60,7 +60,7 @@ def read_electron_beam_swarm_from_combined_pickles(file_path, **kwargs):
 
 def read_electron_beam_swarm_from_custom_binary_file(file_path, **kwargs):
     with open(file_path, 'rb') as f:
-        electron_beam_swarm = ElectronBeamSwarm(
+        electron_beam_swarm = electron_beams.ElectronBeamSwarm(
             *__parse_custom_electron_beam_binary_file(f), **kwargs)
     return electron_beam_swarm
 
@@ -184,9 +184,10 @@ def __parse_fieldlineset3(data, **kwargs):
         data.pop('varying_scalar_values'))
     varying_vector_values = __parse_map_of_vec_of_vec_of_vec3(
         data.pop('varying_vector_values'))
-    return FieldLineSet3(number_of_field_lines, fixed_scalar_values,
-                         fixed_vector_values, varying_scalar_values,
-                         varying_vector_values, **kwargs)
+    return field_lines.FieldLineSet3(number_of_field_lines,
+                                     fixed_scalar_values, fixed_vector_values,
+                                     varying_scalar_values,
+                                     varying_vector_values, **kwargs)
 
 
 def __parse_electronbeamswarm(data, **kwargs):
@@ -200,9 +201,9 @@ def __parse_electronbeamswarm(data, **kwargs):
     varying_vector_values = __parse_map_of_vec_of_vec_of_vec3(
         data.pop('varying_vector_values'))
     metadata = __parse_electronbeamswarm_metadata(data['metadata'])
-    return ElectronBeamSwarm(number_of_beams, fixed_scalar_values,
-                             fixed_vector_values, varying_scalar_values,
-                             varying_vector_values, metadata, **kwargs)
+    return electron_beams.ElectronBeamSwarm(
+        number_of_beams, fixed_scalar_values, fixed_vector_values,
+        varying_scalar_values, varying_vector_values, metadata, **kwargs)
 
 
 def __parse_electronbeamswarm_metadata(metadata):
@@ -218,12 +219,12 @@ def __parse_electronbeamswarm_metadata(metadata):
 def __parse_scalarfield2(data):
     coords = __parse_coords2(data['coords'])
     values = __parse_ndarray(data['values'])
-    return ScalarField2(coords, values)
+    return fields.ScalarField2(coords, values)
 
 
 def __parse_coords2(data):
-    return Coords2(__parse_vec_of_float(data[0]),
-                   __parse_vec_of_float(data[1]))
+    return fields.Coords2(__parse_vec_of_float(data[0]),
+                          __parse_vec_of_float(data[1]))
 
 
 def __parse_ndarray(data):
@@ -244,7 +245,7 @@ def __parse_vec_of_vec3(data):
 
 def __parse_vec_of_vec3_into_coords3(data):
     arr = __parse_vec_of_vec3(data)
-    return Coords3(arr[0, :], arr[1, :], arr[2, :])
+    return fields.Coords3(arr[0, :], arr[1, :], arr[2, :])
 
 
 def __parse_vec_of_vec_of_vec3(data):
