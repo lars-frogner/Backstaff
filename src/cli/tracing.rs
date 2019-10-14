@@ -57,8 +57,8 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .long_help("Format to use for saving field line data")
                 .next_line_help(true)
                 .takes_value(true)
-                .possible_values(&["pickle", "json", "fl"])
-                .default_value("pickle"),
+                .possible_values(&["fl", "pickle", "json"])
+                .default_value("fl"),
         )
         .arg(
             Arg::with_name("extra-fixed-scalars")
