@@ -62,7 +62,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             .params_path
             .with_file_name(params.get_str_param("meshfile")?);
         let snap_path = config.params_path.with_file_name(format!(
-            "{}_{}.snap",
+            "{}_{:03}.snap",
             params.get_str_param("snapname")?,
             snap_num
         ));
