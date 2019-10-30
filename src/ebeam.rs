@@ -677,21 +677,25 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             &start_position,
             distribution.propagation_sense(),
             &mut |displacement, position, distance| {
-                let PropagationResult {
-                    deposited_power_density,
-                    deposition_position,
-                    depletion_status,
-                } = distribution.propagate(snapshot, interpolator, displacement, position);
+                if distance <= distribution.max_propagation_distance() {
+                    let PropagationResult {
+                        deposited_power_density,
+                        deposition_position,
+                        depletion_status,
+                    } = distribution.propagate(snapshot, interpolator, displacement, position);
 
-                trajectory.0.push(deposition_position[X]);
-                trajectory.1.push(deposition_position[Y]);
-                trajectory.2.push(deposition_position[Z]);
-                deposited_power_densities.push(deposited_power_density);
-                total_propagation_distance = distance;
+                    trajectory.0.push(deposition_position[X]);
+                    trajectory.1.push(deposition_position[Y]);
+                    trajectory.2.push(deposition_position[Z]);
+                    deposited_power_densities.push(deposited_power_density);
+                    total_propagation_distance = distance;
 
-                match depletion_status {
-                    DepletionStatus::Undepleted => StepperInstruction::Continue,
-                    DepletionStatus::Depleted => StepperInstruction::Terminate,
+                    match depletion_status {
+                        DepletionStatus::Undepleted => StepperInstruction::Continue,
+                        DepletionStatus::Depleted => StepperInstruction::Terminate,
+                    }
+                } else {
+                    StepperInstruction::Terminate
                 }
             },
         );

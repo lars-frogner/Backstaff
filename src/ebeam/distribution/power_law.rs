@@ -26,6 +26,8 @@ pub enum PitchAngleDistribution {
 pub struct PowerLawDistributionConfig {
     /// Distributions with remaining power densities smaller than this value are discarded [erg/(cm^3 s)].
     pub min_remaining_power_density: feb,
+    // Maximum distance the distribution can propagate before propagation should be terminated [Mm].
+    pub max_propagation_distance: ftr,
 }
 
 /// Data associated with a power-law distribution.
@@ -299,6 +301,10 @@ impl Distribution for PowerLawDistribution {
         self.data.propagation_sense
     }
 
+    fn max_propagation_distance(&self) -> ftr {
+        self.config.max_propagation_distance
+    }
+
     fn properties(&self) -> <Self::PropertiesCollectionType as BeamPropertiesCollection>::Item {
         PowerLawDistributionProperties {
             total_power_density: self.data.total_power_density,
@@ -375,6 +381,7 @@ impl Distribution for PowerLawDistribution {
 
 impl PowerLawDistributionConfig {
     pub const DEFAULT_MIN_REMAINING_POWER_DENSITY: feb = 1e-6; // [erg/(cm^3 s)]
+    pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = std::f64::INFINITY; // [MM]
 
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
@@ -389,6 +396,7 @@ impl PowerLawDistributionConfig {
             );
         PowerLawDistributionConfig {
             min_remaining_power_density,
+            max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
         }
     }
 
@@ -398,6 +406,10 @@ impl PowerLawDistributionConfig {
             self.min_remaining_power_density >= 0.0,
             "Minimum remaining power density must be larger than or equal to zero."
         );
+        assert!(
+            self.max_propagation_distance >= 0.0,
+            "Maximum propagation distance must be larger than or equal to zero."
+        );
     }
 }
 
@@ -405,6 +417,7 @@ impl Default for PowerLawDistributionConfig {
     fn default() -> Self {
         PowerLawDistributionConfig {
             min_remaining_power_density: Self::DEFAULT_MIN_REMAINING_POWER_DENSITY,
+            max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
         }
     }
 }

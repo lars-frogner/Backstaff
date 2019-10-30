@@ -29,6 +29,18 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 )
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("max-propagation-distance")
+                .long("max-propagation-distance")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Maximum distance the distribution can propagate before propagation\n\
+                     should be terminated [Mm]",
+                )
+                .takes_value(true)
+                .default_value("inf"),
+        )
 }
 
 /// Determines power-law distribution parameters based on
@@ -45,7 +57,17 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
         &|min_stop_en| min_stop_en * U_E / U_T,
         PowerLawDistributionConfig::DEFAULT_MIN_REMAINING_POWER_DENSITY,
     );
+    let max_propagation_distance = match arguments
+        .value_of("max-propagation-distance")
+        .expect("No value for argument with default.")
+    {
+        "inf" => PowerLawDistributionConfig::DEFAULT_MAX_PROPAGATION_DISTANCE,
+        distance_str => distance_str.parse().unwrap_or_else(|err| {
+            panic!("Could not parse value of max-propagation-distance: {}", err)
+        }),
+    };
     PowerLawDistributionConfig {
         min_remaining_power_density,
+        max_propagation_distance,
     }
 }

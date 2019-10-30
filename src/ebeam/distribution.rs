@@ -38,6 +38,9 @@ pub trait Distribution {
     /// Returns the direction of propagation of the electrons relative to the magnetic field direction.
     fn propagation_sense(&self) -> SteppingSense;
 
+    /// Returns the maximum distance the distribution can propagate before propagation should be terminated.
+    fn max_propagation_distance(&self) -> ftr;
+
     /// Returns an object holding properties associated with the distribution.
     fn properties(&self) -> <Self::PropertiesCollectionType as BeamPropertiesCollection>::Item;
 
