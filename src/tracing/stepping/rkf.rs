@@ -47,6 +47,9 @@ struct RKFStepperState3 {
     previous_direction: Vec3<ftr>,
     /// Intermediate step directions used during the previous step.
     intermediate_directions: Vec<Vec3<ftr>>,
+    /// Position of the stepper directly before the previous step was taken,
+    /// not wrapped around periodic boundaries.
+    previous_unwrapped_position: Point3<ftr>,
     /// Displacement vector from the previous to the current position
     /// (with periodic boundaries taken into account).
     previous_step_displacement: Vec3<ftr>,
@@ -55,6 +58,8 @@ struct RKFStepperState3 {
     /// Distance along the field line where the next dense output position
     /// should be computed.
     next_output_distance: ftr,
+    /// Previous dense output was position, not wrapped around periodic boundaries.
+    previous_unwrapped_output_position: Point3<ftr>,
 }
 
 /// Configuration parameters for RKF steppers.
@@ -131,15 +136,11 @@ trait RKFStepper3 {
 
     fn compute_dense_interpolation_coefs(&self) -> Vec<Vec3<ftr>>;
 
-    fn interpolate_dense_position<F, G>(
-        &self,
-        grid: &G,
-        coefs: &[Vec3<ftr>],
-        fraction: ftr,
-    ) -> Option<Point3<ftr>>
-    where
-        F: BFloat,
-        G: Grid3<F>;
+    /// Computes the interpolated position at the given fraction between
+    /// the previous and current natural output position.
+    ///
+    /// The returned position is not wrapped around periodic boundaries.
+    fn interpolate_dense_position(&self, coefs: &[Vec3<ftr>], fraction: ftr) -> Point3<ftr>;
 
     fn reset_state(&mut self, position: &Point3<ftr>, direction: &Vec3<ftr>) {
         let state = self.state_mut();
@@ -153,9 +154,11 @@ trait RKFStepper3 {
         state.previous_position = position.clone();
         state.previous_direction = direction.clone();
         state.intermediate_directions = Vec::new();
+        state.previous_unwrapped_position = position.clone();
         state.previous_step_displacement = Vec3::zero();
         state.previous_step_wrapped = false;
         state.next_output_distance = state.config.dense_step_length;
+        state.previous_unwrapped_output_position = position.clone();
     }
 
     fn place_with_callback<F, G, I, D, C>(
@@ -435,8 +438,12 @@ trait RKFStepper3 {
         state.previous_direction = state.direction.clone();
         state.position = attempt.next_position;
         state.direction = attempt.next_direction;
-        state.distance += state.step_length; // Advance distance with step size *prior to* calling `update_step_length`
+        // Advance distance with step size *prior to* calling `update_step_length`
+        state.distance += state.step_length;
         state.intermediate_directions = attempt.intermediate_directions;
+        // Advance previous unwrapped position before updating previous step displacement.
+        state.previous_unwrapped_position =
+            &state.previous_unwrapped_position + &state.previous_step_displacement;
         state.previous_step_displacement = attempt.step_displacement;
         state.previous_step_wrapped = attempt.step_wrapped;
     }
@@ -461,18 +468,23 @@ trait RKFStepper3 {
         debug_assert!(state.next_output_distance > previous_distance);
 
         let mut next_output_distance = state.next_output_distance;
+        let mut previous_unwrapped_output_position =
+            state.previous_unwrapped_output_position.clone();
+
         if next_output_distance <= state.distance {
-            let dense_step_displacement = &state.previous_step_displacement
-                * (state.config.dense_step_length / state.previous_step_length);
             let coefs = self.compute_dense_interpolation_coefs();
             loop {
                 let fraction =
                     (next_output_distance - previous_distance) / state.previous_step_length;
-                let output_position = match self.interpolate_dense_position(grid, &coefs, fraction)
-                {
-                    Some(position) => position,
-                    None => return StepperResult::Stopped(StoppingCause::OutOfBounds),
-                };
+                let unwrapped_output_position = self.interpolate_dense_position(&coefs, fraction);
+                let output_position =
+                    match grid.wrap_point(&Point3::from(&unwrapped_output_position)) {
+                        Some(ref position) => Point3::from(position),
+                        None => return StepperResult::Stopped(StoppingCause::OutOfBounds),
+                    };
+                let dense_step_displacement =
+                    &unwrapped_output_position - &previous_unwrapped_output_position;
+                previous_unwrapped_output_position = unwrapped_output_position;
                 if let StepperInstruction::Terminate = callback(
                     &dense_step_displacement,
                     &output_position,
@@ -487,9 +499,10 @@ trait RKFStepper3 {
             }
         }
 
-        // Reborrow state as mutable to update distance
+        // Reborrow state as mutable to update distance and position
         let state = self.state_mut();
         state.next_output_distance = next_output_distance;
+        state.previous_unwrapped_output_position = previous_unwrapped_output_position;
 
         StepperResult::Ok(())
     }

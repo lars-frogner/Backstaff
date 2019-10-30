@@ -58,9 +58,11 @@ impl RKF23Stepper3 {
         let previous_position = Point3::origin();
         let previous_direction = Vec3::zero();
         let intermediate_directions = Vec::with_capacity(Self::N_INTERMEDIATE_STEPS);
+        let previous_unwrapped_position = Point3::origin();
         let previous_step_displacement = Vec3::zero();
         let previous_step_wrapped = false;
         let next_output_distance = config.dense_step_length;
+        let previous_unwrapped_output_position = Point3::origin();
 
         RKF23Stepper3(RKFStepperState3 {
             config,
@@ -75,9 +77,11 @@ impl RKF23Stepper3 {
             previous_position,
             previous_direction,
             intermediate_directions,
+            previous_unwrapped_position,
             previous_step_displacement,
             previous_step_wrapped,
             next_output_distance,
+            previous_unwrapped_output_position,
         })
     }
 }
@@ -179,34 +183,22 @@ impl RKFStepper3 for RKF23Stepper3 {
 
     fn compute_dense_interpolation_coefs(&self) -> Vec<Vec3<ftr>> {
         let state = self.state();
-        let coef_vec_1 = state.previous_position.to_vec3();
+        let coef_vec_1 = state.previous_unwrapped_position.to_vec3();
         let coef_vec_2 = state.previous_step_displacement.clone();
         let coef_vec_3 = &state.previous_direction * state.previous_step_length;
         let coef_vec_4 = &state.direction * state.previous_step_length;
         vec![coef_vec_1, coef_vec_2, coef_vec_3, coef_vec_4]
     }
 
-    fn interpolate_dense_position<F, G>(
-        &self,
-        grid: &G,
-        coefs: &[Vec3<ftr>],
-        fraction: ftr,
-    ) -> Option<Point3<ftr>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
+    fn interpolate_dense_position(&self, coefs: &[Vec3<ftr>], fraction: ftr) -> Point3<ftr> {
         debug_assert!(fraction > 0.0 && fraction <= 1.0);
         let fraction_minus_one = fraction - 1.0;
-        let position = coefs[0].to_point3()
+        coefs[0].to_point3()
             + &coefs[1] * fraction
             + (&coefs[1] * (-(fraction + fraction_minus_one))
                 + &coefs[2] * fraction_minus_one
                 + &coefs[3] * fraction)
-                * (fraction * fraction_minus_one);
-
-        grid.wrap_point(&Point3::from(&position))
-            .map(|pos| Point3::from(&pos))
+                * (fraction * fraction_minus_one)
     }
 }
 
