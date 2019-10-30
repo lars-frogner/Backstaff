@@ -1,5 +1,8 @@
 import numpy as np
-import bifrust.plotting as plotting
+try:
+    import bifrust.plotting as plotting
+except ModuleNotFoundError:
+    import plotting
 
 
 class Coords3:
@@ -82,10 +85,9 @@ def plot_2d_scalar_field(field,
 
     im = field.add_to_plot(ax, **kwargs)
 
-    ax.set_xlim(*field.get_horizontal_bounds())
-    ax.set_ylim(*field.get_vertical_bounds())
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    plotting.set_2d_plot_extent(ax, *field.get_horizontal_bounds(),
+                                *field.get_vertical_bounds())
+    plotting.set_2d_axis_labels(ax, xlabel, ylabel)
     plotting.add_2d_colorbar(
         fig,
         ax,
