@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import matplotlib.cm as mpl_cm
+import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -13,8 +14,10 @@ def create_2d_subplots(dpi=200, **kwargs):
 
 
 def set_2d_plot_extent(ax, x_lims, y_lims):
-    ax.set_xlim(*x_lims)
-    ax.set_ylim(*y_lims)
+    if x_lims is not None:
+        ax.set_xlim(*x_lims)
+    if y_lims is not None:
+        ax.set_ylim(*y_lims)
 
 
 def create_3d_plot(dpi=200, **kwargs):
@@ -47,14 +50,15 @@ def set_3d_axes_equal(ax):
     set_axes_radius(ax, origin, radius)
 
 
-def set_2d_spatial_axis_labels(ax, unit='Mm'):
-    ax.set_xlabel('x [{}]'.format(unit))
-    ax.set_ylabel('y [{}]'.format(unit))
+def set_2d_axis_labels(ax, xlabel, ylabel):
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
 
-def set_3d_spatial_axis_labels(ax, unit='Mm'):
-    set_2d_spatial_axis_labels(ax, unit=unit)
-    ax.set_zlabel('z [{}]'.format(unit))
+def set_3d_axis_labels(ax, xlabel, ylabel, zlabel):
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
 
 
 def get_default_colors():
@@ -83,9 +87,11 @@ def get_normalizer(vmin, vmax, clip=False, log=False):
                                   vmin, vmax, clip=clip)
 
 
-def get_cmap(name):
-    cmap = CUSTOM_COLORMAPS.get(name)
-    return plt.get_cmap(name) if cmap is None else cmap
+def get_cmap(name, bad_color='w'):
+    cmap = CUSTOM_COLORMAPS[
+        name] if name in CUSTOM_COLORMAPS else plt.get_cmap(name)
+    cmap.set_bad(bad_color)
+    return cmap
 
 
 def define_linear_segmented_colormap(name,
@@ -155,8 +161,157 @@ def render(fig, tight_layout=True, output_path=None):
         plt.show()
 
 
-def compute_histogram(values, weights, vmin, vmax, decide_bins_in_log_space,
-                      weighted_average):
+def setup_line_animation(fig,
+                         ax,
+                         initial_coordinates,
+                         update_coordinates,
+                         x_lims=None,
+                         y_lims=None,
+                         invert_xaxis=False,
+                         invert_yaxis=False,
+                         ds='default',
+                         ls='-',
+                         lw=1.0,
+                         c='navy',
+                         alpha=1.0,
+                         xlabel=None,
+                         ylabel=None,
+                         show_time_label=False,
+                         extra_init_setup=lambda ax: None):
+
+    line, = ax.plot([], [], ds=ds, ls=ls, lw=lw, c=c, alpha=alpha)
+    text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
+                   va='top') if show_time_label else None
+
+    def init():
+        line.set_data(*initial_coordinates)
+        extra_init_setup(ax)
+        set_2d_plot_extent(ax, x_lims, y_lims)
+        set_2d_axis_labels(ax, xlabel, ylabel)
+        if invert_xaxis:
+            ax.invert_xaxis()
+        if invert_yaxis:
+            ax.invert_yaxis()
+        if text is None:
+            return line,
+        else:
+            text.set_text('t = 0 s')
+            return line, text
+
+    def update(frame):
+        time, coordinates = update_coordinates()
+        line.set_data(*coordinates)
+        if text is None:
+            return line,
+        else:
+            text.set_text('t = {:g} s'.format(time))
+            return line, text
+
+    return init, update
+
+
+def setup_scatter_animation(fig,
+                            ax,
+                            initial_coordinates,
+                            update_coordinates,
+                            x_lims=None,
+                            y_lims=None,
+                            invert_xaxis=False,
+                            invert_yaxis=False,
+                            marker='o',
+                            s=1.0,
+                            c='navy',
+                            edgecolors='none',
+                            alpha=1.0,
+                            xlabel=None,
+                            ylabel=None,
+                            show_time_label=False,
+                            extra_init_setup=lambda ax: None):
+
+    sc = ax.scatter([], [],
+                    marker=marker,
+                    s=s,
+                    c=c,
+                    edgecolors=edgecolors,
+                    alpha=alpha)
+    text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
+                   va='top') if show_time_label else None
+
+    def init():
+        sc.set_offsets(initial_coordinates)
+        extra_init_setup(ax)
+        set_2d_plot_extent(ax, x_lims, y_lims)
+        set_2d_axis_labels(ax, xlabel, ylabel)
+        if invert_xaxis:
+            ax.invert_xaxis()
+        if invert_yaxis:
+            ax.invert_yaxis()
+        if text is None:
+            return sc,
+        else:
+            text.set_text('t = 0 s')
+            return sc, text
+
+    def update(frame):
+        time, coordinates = update_coordinates()
+        sc.set_offsets(coordinates)
+        if text is None:
+            return sc,
+        else:
+            text.set_text('t = {:g} s'.format(time))
+            return sc, text
+
+    return init, update
+
+
+def animate(fig,
+            init_func,
+            update_func,
+            blit=False,
+            fps=30.0,
+            video_duration=None,
+            tight_layout=False,
+            writer='ffmpeg',
+            codec='h264',
+            dpi=None,
+            bitrate=None,
+            output_path=None):
+
+    interval = 1e3/fps
+    n_frames = None if video_duration is None else int(video_duration*fps)
+
+    anim = animation.FuncAnimation(fig,
+                                   update_func,
+                                   init_func=init_func,
+                                   frames=n_frames,
+                                   blit=blit,
+                                   interval=interval)
+
+    if tight_layout:
+        fig.tight_layout()
+
+    if output_path is None:
+        plt.show()
+    else:
+        assert n_frames is not None
+        anim.save(
+            output_path,
+            writer=writer,
+            codec=codec,
+            dpi=dpi,
+            bitrate=bitrate,
+            fps=fps,
+            progress_callback=lambda i, n: print(
+                'Animation progress: {:4.1f}%'.format(i*100.0/n), end='\r'))
+
+
+def compute_histogram(values,
+                      weights=None,
+                      bins='auto',
+                      vmin=None,
+                      vmax=None,
+                      decide_bins_in_log_space=False,
+                      weighted_average=False):
 
     min_value = np.nanmin(values)
     max_value = np.nanmax(values)
@@ -172,7 +327,7 @@ def compute_histogram(values, weights, vmin, vmax, decide_bins_in_log_space,
         max_value = np.log10(max_value)
 
     hist, bin_edges = np.histogram(values,
-                                   bins='auto',
+                                   bins=bins,
                                    range=(min_value, max_value),
                                    weights=weights)
 
