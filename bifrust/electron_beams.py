@@ -2,8 +2,14 @@ import collections
 import functools
 import numpy as np
 from pathlib import Path
-import bifrust.plotting as plotting
-import bifrust.field_lines as field_lines
+try:
+    import bifrust.units as units
+    import bifrust.plotting as plotting
+    import bifrust.field_lines as field_lines
+except ModuleNotFoundError:
+    import units
+    import plotting
+    import field_lines
 
 
 class ElectronBeamSwarm(field_lines.FieldLineSet3):
@@ -20,11 +26,18 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         r'Deposited power density [erg/(cm$^3\;$s)]',
         'remaining_power_density':
         r'Remaining power density [erg/(cm$^3\;$s)]',
-        'r': r'Mass density [10$^{-7}\:$g/cm$^3$]',
+        'r': r'Mass density [g/cm$^3$]',
         'tg': 'Temperature [K]',
         'krec': 'Reconnection factor [Bifrost units]',
-        'r0': r'Mass density [10$^{-7}\:$g/cm$^3$]',
+        'qspitz': r'Power density increase [erg/(cm$^3\;$s)]',
+        'r0': r'Mass density [g/cm$^3$]',
         'tg0': 'Temperature [K]',
+    }
+
+    VALUE_UNIT_CONVERTERS = {
+        'r': lambda f: f*units.U_R,
+        'qspitz': lambda f: f*units.U_E,
+        'r0': lambda f: f*units.U_R,
     }
 
     @staticmethod
@@ -79,12 +92,18 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                                      ax,
                                      value_name,
                                      value_name_weights=None,
+                                     do_conversion=True,
                                      rejected=False,
                                      **kwargs):
 
         if rejected:
             values, weights = self.get_scalar_values(value_name,
                                                      value_name_weights)
+
+            values = self._convert_values(value_name, values, do_conversion)
+            if weights is not None:
+                weights = self._convert_values(value_name_weights, weights,
+                                               do_conversion)
 
             rejection_map = DistributionRejectionMap(
                 self.get_rejection_cause_codes())
@@ -96,6 +115,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 ax,
                 value_name,
                 value_name_weights=value_name_weights,
+                do_conversion=do_conversion,
                 **kwargs)
 
     def add_values_as_2d_histogram_image(self,
@@ -103,12 +123,21 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                                          value_name_x,
                                          value_name_y,
                                          value_name_weights=None,
+                                         do_conversion=True,
                                          rejected=False,
                                          **kwargs):
 
         if rejected:
             values_x, values_y, weights = self.get_scalar_values(
                 value_name_x, value_name_y, value_name_weights)
+
+            values_x = self._convert_values(value_name_x, values_x,
+                                            do_conversion)
+            values_y = self._convert_values(value_name_y, values_y,
+                                            do_conversion)
+            if weights is not None:
+                weights = self._convert_values(value_name_weights, weights,
+                                               do_conversion)
 
             rejection_map = DistributionRejectionMap(
                 self.get_rejection_cause_codes())
@@ -121,6 +150,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 value_name_x,
                 value_name_y,
                 value_name_weights=value_name_weights,
+                do_conversion=do_conversion,
                 **kwargs)
 
     def add_rejection_cause_codes_to_3d_plot_as_scatter(self, ax, **kwargs):
@@ -250,8 +280,13 @@ class DistributionRejectionMap:
                 rejection_cause_codes == code)
 
             hist, bin_edges, _ = plotting.compute_histogram(
-                values[mask], None if weights is None else weights[mask], vmin,
-                vmax, decide_bins_in_log_space, weighted_average)
+                values[mask],
+                weights=(None if weights is None else weights[mask]),
+                bins='auto',
+                vmin=vmin,
+                vmax=vmax,
+                decide_bins_in_log_space=decide_bins_in_log_space,
+                weighted_average=weighted_average)
 
             ax.step(bin_edges[:-1],
                     hist,
@@ -482,7 +517,10 @@ def plot_rejection_map(electron_beam_swarm,
         fig, ax = plotting.create_3d_plot()
 
     plotting.set_3d_plot_extent(ax, *electron_beam_swarm.get_domain_bounds())
-    plotting.set_3d_spatial_axis_labels(ax, unit='Mm')
+    plotting.set_3d_axis_labels(ax,
+                                electron_beam_swarm.VALUE_DESCRIPTIONS['x'],
+                                electron_beam_swarm.VALUE_DESCRIPTIONS['y'],
+                                electron_beam_swarm.VALUE_DESCRIPTIONS['z'])
     ax.invert_zaxis()
     if hide_grid:
         ax.set_axis_off()
@@ -524,12 +562,13 @@ def plot_rejected_beam_value_histogram(electron_beam_swarm,
         ax.set_xscale('log')
     if log_y:
         ax.set_yscale('log')
-    ax.set_xlabel(
+    plotting.set_2d_axis_labels(
+        ax,
         electron_beam_swarm.process_value_description(value_name,
-                                                      value_description))
-    ax.set_ylabel('Number of values' if value_name_weights is None else
-                  electron_beam_swarm.process_value_description(
-                      value_name_weights, value_description_weights))
+                                                      value_description),
+        'Number of values' if value_name_weights is None else
+        electron_beam_swarm.process_value_description(
+            value_name_weights, value_description_weights))
     ax.set_title(title)
 
     if render:

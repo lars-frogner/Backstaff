@@ -1,6 +1,11 @@
 import numpy as np
 from pathlib import Path
-import bifrust.plotting as plotting
+try:
+    import bifrust.units as units
+    import bifrust.plotting as plotting
+except ModuleNotFoundError:
+    import units
+    import plotting
 
 
 class FieldLineSet3:
@@ -9,10 +14,15 @@ class FieldLineSet3:
         'x': r'$x$ [Mm]',
         'y': r'$y$ [Mm]',
         'z': r'$z$ [Mm]',
-        'r': r'Mass density [10$^{-7}\:$g/cm$^3$]',
+        'r': r'Mass density [g/cm$^3$]',
         'tg': 'Temperature [K]',
-        'r0': r'Mass density [10$^{-7}\:$g/cm$^3$]',
+        'r0': r'Mass density [g/cm$^3$]',
         'tg0': 'Temperature [K]',
+    }
+
+    VALUE_UNIT_CONVERTERS = {
+        'r': lambda f: f*units.U_R,
+        'r0': lambda f: f*units.U_R,
     }
 
     @staticmethod
@@ -74,6 +84,7 @@ class FieldLineSet3:
     def add_values_to_3d_plot(self,
                               ax,
                               value_name,
+                              do_conversion=True,
                               log=False,
                               vmin=None,
                               vmax=None,
@@ -89,6 +100,8 @@ class FieldLineSet3:
         values, x, y, z = self.get_scalar_values(
             value_name, *[dim + suffix for dim in ['x', 'y', 'z']])
 
+        values = self._convert_values(value_name, values, do_conversion)
+
         if vmin is None:
             vmin = np.nanmin(values)
         if vmax is None:
@@ -102,9 +115,9 @@ class FieldLineSet3:
                                         alpha=alpha,
                                         relative_alpha=relative_alpha)
 
-        ax.scatter(x,
-                   y,
-                   z,
+        ax.scatter(self._convert_values('x', x, do_conversion),
+                   self._convert_values('y', y, do_conversion),
+                   self._convert_values('z', z, do_conversion),
                    c=c,
                    s=s,
                    marker=marker,
@@ -116,6 +129,7 @@ class FieldLineSet3:
 
     def add_to_3d_plot_with_single_color(self,
                                          ax,
+                                         do_conversion=True,
                                          scatter=False,
                                          c='k',
                                          lw=1.0,
@@ -126,9 +140,9 @@ class FieldLineSet3:
                                          alpha=1.0):
         if scatter:
             x, y, z = self.get_scalar_values('x', 'y', 'z')
-            ax.scatter(x,
-                       y,
-                       z,
+            ax.scatter(self._convert_values('x', x, do_conversion),
+                       self._convert_values('y', y, do_conversion),
+                       self._convert_values('z', z, do_conversion),
                        c=c,
                        s=s,
                        marker=marker,
@@ -136,9 +150,15 @@ class FieldLineSet3:
                        depthshade=depthshade,
                        alpha=alpha)
         else:
-            paths_x = self.get_varying_scalar_values('x')
-            paths_y = self.get_varying_scalar_values('y')
-            paths_z = self.get_varying_scalar_values('z')
+            paths_x = self._convert_values('x',
+                                           self.get_varying_scalar_values('x'),
+                                           do_conversion)
+            paths_y = self._convert_values('y',
+                                           self.get_varying_scalar_values('y'),
+                                           do_conversion)
+            paths_z = self._convert_values('z',
+                                           self.get_varying_scalar_values('z'),
+                                           do_conversion)
             for field_line_idx in range(self.get_number_of_field_lines()):
                 for x, y, z in zip(*self.__find_nonwrapping_segments(
                         paths_x[field_line_idx], paths_y[field_line_idx],
@@ -149,10 +169,16 @@ class FieldLineSet3:
                                      ax,
                                      value_name,
                                      value_name_weights=None,
+                                     do_conversion=True,
                                      **kwargs):
 
         values, weights = self.get_scalar_values(value_name,
                                                  value_name_weights)
+
+        values = self._convert_values(value_name, values, do_conversion)
+        if weights is not None:
+            weights = self._convert_values(value_name_weights, weights,
+                                           do_conversion)
 
         self.__add_values_as_line_histogram(ax, values, weights, **kwargs)
 
@@ -160,6 +186,7 @@ class FieldLineSet3:
                                                 ax,
                                                 value_names,
                                                 value_names_weights=None,
+                                                do_conversion=True,
                                                 **kwargs):
 
         left_value_name, right_value_name = value_names
@@ -171,6 +198,18 @@ class FieldLineSet3:
         right_values, right_weights = self.get_scalar_values(
             right_value_name, right_value_name_weights)
 
+        left_values = self._convert_values(left_value_name, left_values,
+                                           do_conversion)
+        if left_weights is not None:
+            left_weights = self._convert_values(left_value_name_weights,
+                                                left_weights, do_conversion)
+
+        right_values = self._convert_values(right_value_name, right_values,
+                                            do_conversion)
+        if right_weights is not None:
+            right_weights = self._convert_values(right_value_name_weights,
+                                                 right_weights, do_conversion)
+
         return self.__add_values_as_line_histogram_difference(
             ax, (left_values, right_values), (left_weights, right_weights),
             **kwargs)
@@ -180,10 +219,17 @@ class FieldLineSet3:
                                          value_name_x,
                                          value_name_y,
                                          value_name_weights=None,
+                                         do_conversion=True,
                                          **kwargs):
 
         values_x, values_y, weights = self.get_scalar_values(
             value_name_x, value_name_y, value_name_weights)
+
+        values_x = self._convert_values(value_name_x, values_x, do_conversion)
+        values_y = self._convert_values(value_name_y, values_y, do_conversion)
+        if weights is not None:
+            weights = self._convert_values(value_name_weights, weights,
+                                           do_conversion)
 
         return self.__add_values_as_2d_histogram_image(ax, values_x, values_y,
                                                        weights, **kwargs)
@@ -194,6 +240,7 @@ class FieldLineSet3:
                                                     value_names_y,
                                                     value_names_weights=(None,
                                                                          None),
+                                                    do_conversion=True,
                                                     **kwargs):
 
         left_value_name_x, right_value_name_x = value_names_x
@@ -205,6 +252,22 @@ class FieldLineSet3:
 
         right_values_x, right_values_y, right_weights = self.get_scalar_values(
             right_value_name_x, right_value_name_y, right_value_name_weights)
+
+        left_values_x = self._convert_values(left_value_name_x, left_values_x,
+                                             do_conversion)
+        left_values_y = self._convert_values(left_value_name_y, left_values_y,
+                                             do_conversion)
+        if left_weights is not None:
+            left_weights = self._convert_values(left_value_name_weights,
+                                                left_weights, do_conversion)
+
+        right_values_x = self._convert_values(right_value_name_x,
+                                              right_values_x, do_conversion)
+        right_values_y = self._convert_values(right_value_name_y,
+                                              right_values_y, do_conversion)
+        if right_weights is not None:
+            right_weights = self._convert_values(right_value_name_weights,
+                                                 right_weights, do_conversion)
 
         return self.__add_values_as_2d_histogram_difference_image(
             ax, (left_values_x, right_values_x),
@@ -263,6 +326,12 @@ class FieldLineSet3:
         else:
             return value_description
 
+    def _convert_values(self, value_name, values, do_conversion):
+        if do_conversion and value_name in self.VALUE_UNIT_CONVERTERS:
+            return self.VALUE_UNIT_CONVERTERS[value_name](values)
+        else:
+            return values
+
     def _derive_quantities(self, derived_quantities):
 
         for value_name in filter(
@@ -306,8 +375,13 @@ class FieldLineSet3:
                                        s=1.0):
 
         hist, bin_edges, bin_centers = plotting.compute_histogram(
-            values, weights, vmin, vmax, decide_bins_in_log_space,
-            weighted_average)
+            values,
+            weights=weights,
+            bins='auto',
+            vmin=vmin,
+            vmax=vmax,
+            decide_bins_in_log_space=decide_bins_in_log_space,
+            weighted_average=weighted_average)
 
         if scatter:
             ax.scatter(bin_centers, hist, c=c, s=s)
@@ -334,7 +408,8 @@ class FieldLineSet3:
         if scatter:
             ax.scatter(bin_centers, hist, c=c, s=s)
             if decide_bins_in_log_space:
-                ax.set_xlim(bin_centers[0], bin_centers[-1])
+                plotting.set_2d_plot_extent(ax, bin_centers[0],
+                                            bin_centers[-1])
         else:
             ax.step(bin_edges[:-1], hist, where='pre', c=c, lw=lw)
 
@@ -351,22 +426,35 @@ class FieldLineSet3:
                                            vmax_x=None,
                                            vmin_y=None,
                                            vmax_y=None,
+                                           symlog=False,
+                                           linthresh=np.inf,
+                                           linscale=1.0,
                                            weighted_average=False,
                                            log=False,
                                            vmin=None,
                                            vmax=None,
-                                           cmap_name='viridis'):
+                                           cmap_name='viridis',
+                                           cmap_bad_color='w'):
 
         hist, bin_edges_x, bin_edges_y = plotting.compute_2d_histogram(
             values_x, values_y, weights, vmin_x, vmax_x, vmin_y, vmax_y, log_x,
             log_y, bins_x, bins_y, weighted_average)
 
+        if symlog:
+            norm = plotting.get_symlog_normalizer(vmin,
+                                                  vmax,
+                                                  linthresh,
+                                                  linscale=linscale)
+        else:
+            norm = plotting.get_normalizer(vmin, vmax, log=log)
+
         return ax.pcolormesh(*np.meshgrid(bin_edges_x, bin_edges_y),
                              hist.T,
-                             norm=plotting.get_normalizer(vmin, vmax, log=log),
+                             norm=norm,
                              vmin=vmin,
                              vmax=vmax,
-                             cmap=plotting.get_cmap(cmap_name))
+                             cmap=plotting.get_cmap(cmap_name,
+                                                    bad_color=cmap_bad_color))
 
     def __add_values_as_2d_histogram_difference_image(self,
                                                       ax,
@@ -386,7 +474,8 @@ class FieldLineSet3:
                                                       linscale=1.0,
                                                       vmin=None,
                                                       vmax=None,
-                                                      cmap_name='viridis'):
+                                                      cmap_name='viridis',
+                                                      cmap_bad_color='w'):
 
         hist_diff, bin_edges_x, bin_edges_y = plotting.compute_2d_histogram_difference(
             values_x, values_y, weights, vmin_x, vmax_x, vmin_y, vmax_y, log_x,
@@ -405,7 +494,8 @@ class FieldLineSet3:
                              norm=norm,
                              vmin=vmin,
                              vmax=vmax,
-                             cmap=plotting.get_cmap(cmap_name))
+                             cmap=plotting.get_cmap(cmap_name,
+                                                    bad_color=cmap_bad_color))
 
 
 def plot_field_lines(field_line_set,
@@ -423,7 +513,9 @@ def plot_field_lines(field_line_set,
         fig, ax = plotting.create_3d_plot()
 
     plotting.set_3d_plot_extent(ax, *field_line_set.get_domain_bounds())
-    plotting.set_3d_spatial_axis_labels(ax, unit='Mm')
+    plotting.set_3d_axis_labels(ax, field_line_set.VALUE_DESCRIPTIONS['x'],
+                                field_line_set.VALUE_DESCRIPTIONS['y'],
+                                field_line_set.VALUE_DESCRIPTIONS['z'])
     ax.invert_zaxis()
     if hide_grid:
         ax.set_axis_off()
@@ -475,12 +567,13 @@ def plot_field_line_value_histogram(field_line_set,
         ax.set_xscale('log')
     if log_y:
         ax.set_yscale('log')
-    ax.set_xlabel(
+    plotting.set_2d_axis_labels(
+        ax,
         field_line_set.process_value_description(value_name,
-                                                 value_description))
-    ax.set_ylabel('Number of values' if value_name_weights is None else
-                  field_line_set.process_value_description(
-                      value_name_weights, value_description_weights))
+                                                 value_description),
+        'Number of values' if value_name_weights is None
+        else field_line_set.process_value_description(
+            value_name_weights, value_description_weights))
     ax.set_title(title)
 
     if render:
@@ -516,12 +609,13 @@ def plot_field_line_value_histogram_difference(field_line_set,
         ax.set_xscale('log')
     if symlog_y:
         ax.set_yscale('symlog', linthreshy=linethresh_y)
-    ax.set_xlabel(
+    plotting.set_2d_axis_labels(
+        ax,
         field_line_set.process_value_description(value_names[0],
-                                                 value_description))
-    ax.set_ylabel('Number of values' if value_names_weights[0] is None else
-                  field_line_set.process_value_description(
-                      value_names_weights[0], value_description_weights))
+                                                 value_description),
+        'Number of values' if value_names_weights[0] is None
+        else field_line_set.process_value_description(
+            value_names_weights[0], value_description_weights))
     ax.set_title(title)
 
     if render:
@@ -556,14 +650,15 @@ def plot_field_line_value_2d_histogram(field_line_set,
         log_y=log_y,
         **kwargs)
 
-    ax.set_xlabel('{}{}'.format(
-        r'$\log_{10}$ ' if log_x else '',
-        field_line_set.process_value_description(value_name_x,
-                                                 value_description_x)))
-    ax.set_ylabel('{}{}'.format(
-        r'$\log_{10}$ ' if log_y else '',
-        field_line_set.process_value_description(value_name_y,
-                                                 value_description_y)))
+    plotting.set_2d_axis_labels(
+        ax, '{}{}'.format(
+            r'$\log_{10}$ ' if log_x else '',
+            field_line_set.process_value_description(value_name_x,
+                                                     value_description_x)),
+        '{}{}'.format(
+            r'$\log_{10}$ ' if log_y else '',
+            field_line_set.process_value_description(value_name_y,
+                                                     value_description_y)))
     plotting.add_2d_colorbar(
         fig,
         ax,
@@ -607,14 +702,15 @@ def plot_field_line_value_2d_histogram_difference(
         log_y=log_y,
         **kwargs)
 
-    ax.set_xlabel('{}{}'.format(
-        r'$\log_{10}$ ' if log_x else '',
-        field_line_set.process_value_description(value_names_x[0],
-                                                 value_description_x)))
-    ax.set_ylabel('{}{}'.format(
-        r'$\log_{10}$ ' if log_y else '',
-        field_line_set.process_value_description(value_names_y[0],
-                                                 value_description_y)))
+    plotting.set_2d_axis_labels(
+        ax, '{}{}'.format(
+            r'$\log_{10}$ ' if log_x else '',
+            field_line_set.process_value_description(value_names_x[0],
+                                                     value_description_x)),
+        '{}{}'.format(
+            r'$\log_{10}$ ' if log_y else '',
+            field_line_set.process_value_description(value_names_y[0],
+                                                     value_description_y)))
     plotting.add_2d_colorbar(
         fig,
         ax,
