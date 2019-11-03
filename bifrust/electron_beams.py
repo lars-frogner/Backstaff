@@ -528,7 +528,8 @@ def plot_rejection_map(electron_beam_swarm,
     electron_beam_swarm.add_rejection_cause_codes_to_3d_plot_as_scatter(
         ax, **kwargs)
 
-    ax.set_title(title)
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)
@@ -569,7 +570,9 @@ def plot_rejected_beam_value_histogram(electron_beam_swarm,
         'Number of values' if value_name_weights is None else
         electron_beam_swarm.process_value_description(
             value_name_weights, value_description_weights))
-    ax.set_title(title)
+
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)

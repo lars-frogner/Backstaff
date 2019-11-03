@@ -533,7 +533,8 @@ def plot_field_lines(field_line_set,
             label=field_line_set.process_value_description(
                 value_name, value_description))
 
-    ax.set_title(title)
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)
@@ -574,7 +575,9 @@ def plot_field_line_value_histogram(field_line_set,
         'Number of values' if value_name_weights is None
         else field_line_set.process_value_description(
             value_name_weights, value_description_weights))
-    ax.set_title(title)
+
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)
@@ -616,7 +619,9 @@ def plot_field_line_value_histogram_difference(field_line_set,
         'Number of values' if value_names_weights[0] is None
         else field_line_set.process_value_description(
             value_names_weights[0], value_description_weights))
-    ax.set_title(title)
+
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)
@@ -667,7 +672,8 @@ def plot_field_line_value_2d_histogram(field_line_set,
                field_line_set.process_value_description(
                    value_name_weights, value_description_weights)))
 
-    ax.set_title(title)
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)
@@ -719,7 +725,8 @@ def plot_field_line_value_2d_histogram_difference(
                field_line_set.process_value_description(
                    value_names_weights[0], value_description_weights)))
 
-    ax.set_title(title)
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)

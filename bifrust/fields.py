@@ -94,7 +94,8 @@ def plot_2d_scalar_field(field,
         im,
         label='' if value_description is None else value_description)
 
-    ax.set_title(title)
+    if title is not None:
+        ax.set_title(title)
 
     if render:
         plotting.render(fig, output_path=output_path)
