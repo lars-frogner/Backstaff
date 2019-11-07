@@ -156,7 +156,7 @@ pub fn construct_rkf_stepper_config_from_options(
     let stepper_type = cli::get_value_from_required_constrained_argument(
         arguments,
         "stepping-scheme",
-        &["peaked", "isotropic"],
+        &["rkf23", "rkf45"],
         &[RKFStepperType::RKF23, RKFStepperType::RKF45],
     );
 
