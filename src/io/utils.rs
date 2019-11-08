@@ -113,12 +113,12 @@ where
     write_data_as_pickle(&mut file, data)
 }
 
-/// Serializes the given data into JSON format and writes to the given file.
+/// Serializes the given data into JSON format and writes to the given writer.
 pub fn write_data_as_json<T: Serialize, W: io::Write>(writer: &mut W, data: &T) -> io::Result<()> {
     serde_json::to_writer(writer, data).map_err(|err| err.into())
 }
 
-/// Serializes the given data into protocol 3 pickle format and writes to the given file.
+/// Serializes the given data into protocol 3 pickle format and writes to the given writer.
 pub fn write_data_as_pickle<T: Serialize, W: io::Write>(
     writer: &mut W,
     data: &T,
