@@ -2,7 +2,7 @@
 
 use super::super::super::super::accelerator::Accelerator;
 use super::super::super::super::detection::ReconnectionSiteDetector;
-use super::super::super::super::{feb, BeamMetadataCollection};
+use super::super::super::super::{feb, AccelerationDataCollection};
 use super::super::{
     PitchAngleDistribution, PowerLawDistribution, PowerLawDistributionConfig,
     PowerLawDistributionData,
@@ -12,6 +12,7 @@ use crate::geometry::{Dim3, Idx3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
+use crate::io::utils;
 use crate::io::Verbose;
 use crate::tracing::stepping::SteppingSense;
 use crate::units::solar::{U_E, U_L, U_R, U_T};
@@ -94,8 +95,16 @@ impl Default for RejectionCauseCode {
     }
 }
 
-impl BeamMetadataCollection for RejectionCauseCodeCollection {
+impl AccelerationDataCollection for RejectionCauseCodeCollection {
     type Item = RejectionCauseCode;
+
+    fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        utils::write_data_as_pickle(writer, &self)
+    }
+
+    fn write_into<W: io::Write>(self, writer: &mut W) -> io::Result<()> {
+        utils::write_data_as_pickle(writer, &self)
+    }
 }
 
 impl ParallelExtend<RejectionCauseCode> for RejectionCauseCodeCollection {
@@ -699,7 +708,7 @@ impl SimplePowerLawAccelerator {
 
 impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
-    type MetadataCollectionType = RejectionCauseCodeCollection;
+    type AccelerationDataCollectionType = RejectionCauseCodeCollection;
 
     fn generate_distributions<G, D, I>(
         &self,
@@ -707,7 +716,10 @@ impl Accelerator for SimplePowerLawAccelerator {
         detector: D,
         interpolator: &I,
         verbose: Verbose,
-    ) -> io::Result<(Vec<Self::DistributionType>, Self::MetadataCollectionType)>
+    ) -> io::Result<(
+        Vec<Self::DistributionType>,
+        Self::AccelerationDataCollectionType,
+    )>
     where
         G: Grid3<fdt>,
         D: ReconnectionSiteDetector,

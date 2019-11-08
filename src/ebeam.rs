@@ -52,11 +52,18 @@ pub trait BeamPropertiesCollection: Default + Sync + Send {
 }
 
 /// Defines the required behaviour of a type representing
-/// a collection of objects holding electron beam metadata.
-pub trait BeamMetadataCollection:
+/// a collection of objects holding electron beam acceleration data.
+pub trait AccelerationDataCollection:
     Clone + Default + std::fmt::Debug + Serialize + Sync + Send
 {
     type Item: Clone + std::fmt::Debug + Send;
+
+    /// Writes the acceleration data into the given writer.
+    fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()>;
+
+    /// Writes the acceleration data into the given writer,
+    /// consuming the data object.
+    fn write_into<W: io::Write>(self, writer: &mut W) -> io::Result<()>;
 }
 
 /// A set of non-thermal electron beams.
@@ -65,7 +72,7 @@ pub struct ElectronBeamSwarm<A: Accelerator> {
     lower_bounds: Vec3<ftr>,
     upper_bounds: Vec3<ftr>,
     properties: ElectronBeamSwarmProperties,
-    metadata: A::MetadataCollectionType,
+    acceleration_data: A::AccelerationDataCollectionType,
     verbose: Verbose,
 }
 
@@ -290,7 +297,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
           I: Interpolator3
     {
-        let (distributions, metadata) = accelerator
+        let (distributions, acceleration_data) = accelerator
             .generate_distributions(snapshot, detector, interpolator, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
@@ -306,7 +313,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             lower_bounds,
             upper_bounds,
             properties,
-            metadata,
+            acceleration_data,
             verbose,
         }
     }
@@ -342,7 +349,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           I: Interpolator3,
           StF: StepperFactory3 + Sync
     {
-        let (distributions, metadata) = accelerator
+        let (distributions, acceleration_data) = accelerator
             .generate_distributions(snapshot, detector, interpolator, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
@@ -379,7 +386,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             lower_bounds,
             upper_bounds,
             properties,
-            metadata,
+            acceleration_data,
             verbose,
         }
     }
@@ -586,7 +593,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                     &self.properties.varying_vector_values,
                 )
             });
-            s.spawn(|_| result_8 = utils::write_data_as_pickle(&mut buffer_8, &self.metadata));
+            s.spawn(|_| result_8 = self.acceleration_data.write(&mut buffer_8));
         });
         result_4?;
         result_5?;
@@ -606,7 +613,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
     /// Serializes the electron beam data into a custom binary format and saves at the given path.
     ///
-    /// The metadata is serialized to pickle format and appended at the end.
+    /// The acceleration data is serialized to pickle format and appended at the end.
     pub fn save_as_custom_binary_file<P: AsRef<Path>>(
         &self,
         output_file_path: P,
@@ -614,30 +621,30 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         if self.verbose.is_yes() {
             println!("Saving beams in {}", output_file_path.as_ref().display());
         }
-        let mut file = field_line::write_field_line_data_in_custom_binary_format(
+        let mut file = field_line::save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
             &self.upper_bounds,
             self.properties.clone().into_field_line_set_properties(),
         )?;
-        utils::write_data_as_pickle(&mut file, &self.metadata)
+        self.acceleration_data.write(&mut file)
     }
 
     /// Serializes the electron beam data into a custom binary format and saves at the given path,
     /// consuming the electron beam swarm in the process.
     ///
-    /// The metadata is serialized to pickle format and appended at the end.
+    /// The acceleration data is serialized to pickle format and appended at the end.
     pub fn into_custom_binary_file<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
         if self.verbose.is_yes() {
             println!("Saving beams in {}", output_file_path.as_ref().display());
         }
-        let mut file = field_line::write_field_line_data_in_custom_binary_format(
+        let mut file = field_line::save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
             &self.upper_bounds,
             self.properties.into_field_line_set_properties(),
         )?;
-        utils::write_data_as_pickle(&mut file, &self.metadata)
+        self.acceleration_data.write_into(&mut file)
     }
 }
 
@@ -730,7 +737,7 @@ impl<A: Accelerator> Serialize for ElectronBeamSwarm<A> {
             "varying_vector_values",
             &self.properties.varying_vector_values,
         )?;
-        s.serialize_field("metadata", &self.metadata)?;
+        s.serialize_field("acceleration_data", &self.acceleration_data)?;
         s.end()
     }
 }
