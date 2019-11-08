@@ -1,30 +1,27 @@
 //! Basic field line tracing.
 
 use super::super::stepping::{Stepper3, StepperInstruction, SteppingSense};
-use super::{FieldLineData3, FieldLineTracer3};
-use crate::field::VectorField3;
+use super::{FieldLinePath3, FieldLineSetProperties3, FieldLineTracer3};
 use crate::geometry::{Dim3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
-use crate::num::BFloat;
+use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::tracing::{self, ftr, TracerResult};
-use std::collections::VecDeque;
+use rayon::prelude::*;
+use std::collections::{HashMap, VecDeque};
 use Dim3::{X, Y, Z};
+
+/// Data required to represent a basic 3D field line.
+pub struct BasicFieldLineData3 {
+    path: FieldLinePath3,
+    total_length: ftr,
+}
 
 /// Whether to trace a field line a specified direction or in both directions.
 #[derive(Clone, Copy, Debug)]
 pub enum FieldLineTracingSense {
     Both,
     One(SteppingSense),
-}
-
-impl FieldLineTracingSense {
-    pub fn same() -> Self {
-        FieldLineTracingSense::One(SteppingSense::Same)
-    }
-    pub fn opposite() -> Self {
-        FieldLineTracingSense::One(SteppingSense::Opposite)
-    }
 }
 
 /// Whether to trace a field line with regular or natural spacing between points.
@@ -60,19 +57,23 @@ impl BasicFieldLineTracer3 {
 }
 
 impl FieldLineTracer3 for BasicFieldLineTracer3 {
-    fn trace<F, G, I, S>(
+    type Data = BasicFieldLineData3;
+
+    fn trace<G, I, S>(
         &self,
-        field: &VectorField3<F, G>,
+        field_name: &str,
+        snapshot: &SnapshotCacher3<G>,
         interpolator: &I,
         stepper: S,
         start_position: &Point3<ftr>,
-    ) -> Option<FieldLineData3>
+    ) -> Option<Self::Data>
     where
-        F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fdt>,
         I: Interpolator3,
         S: Stepper3,
     {
+        let field = snapshot.cached_vector_field(field_name);
+
         let mut backward_path = (VecDeque::new(), VecDeque::new(), VecDeque::new());
         let mut backward_length = 0.0;
 
@@ -231,7 +232,68 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
 
         let total_length = backward_length + forward_length;
 
-        Some(FieldLineData3 { path, total_length })
+        Some(Self::Data { path, total_length })
+    }
+}
+
+impl FromParallelIterator<BasicFieldLineData3> for FieldLineSetProperties3 {
+    fn from_par_iter<I>(par_iter: I) -> Self
+    where
+        I: IntoParallelIterator<Item = BasicFieldLineData3>,
+    {
+        let nested_tuples_iter = par_iter.into_par_iter().map(|field_line| {
+            (
+                field_line.path.0,
+                (
+                    field_line.path.1,
+                    (field_line.path.2, field_line.total_length),
+                ),
+            )
+        });
+
+        let (paths_x, (paths_y, (paths_z, total_lengths))): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) =
+            nested_tuples_iter.unzip();
+
+        let number_of_field_lines = paths_x.len();
+        let mut fixed_scalar_values = HashMap::new();
+        let fixed_vector_values = HashMap::new();
+        let mut varying_scalar_values = HashMap::new();
+        let varying_vector_values = HashMap::new();
+
+        fixed_scalar_values.insert(
+            "x0".to_string(),
+            paths_x.par_iter().map(|path_x| path_x[0]).collect(),
+        );
+        fixed_scalar_values.insert(
+            "y0".to_string(),
+            paths_y.par_iter().map(|path_y| path_y[0]).collect(),
+        );
+        fixed_scalar_values.insert(
+            "z0".to_string(),
+            paths_z.par_iter().map(|path_z| path_z[0]).collect(),
+        );
+        fixed_scalar_values.insert("total_length".to_string(), total_lengths);
+
+        varying_scalar_values.insert("x".to_string(), paths_x);
+        varying_scalar_values.insert("y".to_string(), paths_y);
+        varying_scalar_values.insert("z".to_string(), paths_z);
+
+        FieldLineSetProperties3 {
+            number_of_field_lines,
+            fixed_scalar_values,
+            fixed_vector_values,
+            varying_scalar_values,
+            varying_vector_values,
+        }
+    }
+}
+
+impl FieldLineTracingSense {
+    pub fn same() -> Self {
+        FieldLineTracingSense::One(SteppingSense::Same)
+    }
+    pub fn opposite() -> Self {
+        FieldLineTracingSense::One(SteppingSense::Opposite)
     }
 }
 
@@ -282,12 +344,15 @@ mod tests {
             Verbose::No,
         ))
         .unwrap();
-        let magnetic_field = reader.read_vector_field("b").unwrap();
+        let mut snapshot = reader.into_cacher();
+
+        let field_name = "b";
+        snapshot.cache_vector_field(field_name).unwrap();
 
         let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig::default());
         let seeder = SliceSeeder3::stratified(
-            magnetic_field.grid(),
+            snapshot.reader().grid(),
             Dim3::Z,
             0.0,
             In2D::same(3),
@@ -299,9 +364,10 @@ mod tests {
         let tracer = BasicFieldLineTracer3::new(BasicFieldLineTracerConfig::default());
 
         let field_line_set = FieldLineSet3::trace(
+            field_name,
+            &snapshot,
             seeder,
             &tracer,
-            &magnetic_field,
             &interpolator,
             stepper_factory,
             Verbose::No,
