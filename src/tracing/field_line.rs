@@ -459,7 +459,7 @@ impl FieldLineSet3 {
                 output_file_path.as_ref().display()
             );
         }
-        write_field_line_data_in_custom_binary_format(
+        save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
             &self.upper_bounds,
@@ -477,7 +477,7 @@ impl FieldLineSet3 {
                 output_file_path.as_ref().display()
             );
         }
-        write_field_line_data_in_custom_binary_format(
+        save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
             &self.upper_bounds,
@@ -509,12 +509,25 @@ impl Serialize for FieldLineSet3 {
 
 /// Writes the given field line data in a custom binary format at the
 /// given path.
-pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
+pub fn save_field_line_data_as_custom_binary<P: AsRef<Path>>(
     output_file_path: P,
     lower_bounds: &Vec3<ftr>,
     upper_bounds: &Vec3<ftr>,
     properties: FieldLineSetProperties3,
 ) -> io::Result<fs::File> {
+    let mut file = fs::File::create(output_file_path)?;
+    write_field_line_data_as_custom_binary(&mut file, lower_bounds, upper_bounds, properties)?;
+    Ok(file)
+}
+
+/// Writes the given field line data in a custom binary format into
+/// the given writer.
+pub fn write_field_line_data_as_custom_binary<W: io::Write>(
+    writer: &mut W,
+    lower_bounds: &Vec3<ftr>,
+    upper_bounds: &Vec3<ftr>,
+    properties: FieldLineSetProperties3,
+) -> io::Result<()> {
     // Field line file format:
     // [HEADER]
     // float_size: u64
@@ -681,10 +694,6 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
     let byte_buffer_size = *section_sizes.iter().max().unwrap();
     let mut byte_buffer = vec![0_u8; byte_buffer_size];
 
-    let file_size: usize = section_sizes.iter().sum();
-    let mut file = fs::File::create(output_file_path)?;
-    file.set_len(file_size as u64)?;
-
     let byte_offset = utils::write_into_byte_buffer(
         &[
             float_size as u64,
@@ -699,7 +708,7 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
         0,
         ENDIANNESS,
     );
-    file.write_all(&byte_buffer[..byte_offset])?;
+    writer.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset = utils::write_into_byte_buffer(
         &[
@@ -714,9 +723,9 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
         0,
         ENDIANNESS,
     );
-    file.write_all(&byte_buffer[..byte_offset])?;
+    writer.write_all(&byte_buffer[..byte_offset])?;
 
-    write!(&mut file, "{}", names)?;
+    write!(writer, "{}", names)?;
 
     let byte_offset = utils::write_into_byte_buffer(
         &start_indices_of_field_line_elements,
@@ -725,27 +734,27 @@ pub fn write_field_line_data_in_custom_binary_format<P: AsRef<Path>>(
         ENDIANNESS,
     );
     mem::drop(start_indices_of_field_line_elements);
-    file.write_all(&byte_buffer[..byte_offset])?;
+    writer.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
         utils::write_into_byte_buffer(&flat_fixed_scalar_values, &mut byte_buffer, 0, ENDIANNESS);
     mem::drop(flat_fixed_scalar_values);
-    file.write_all(&byte_buffer[..byte_offset])?;
+    writer.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
         utils::write_into_byte_buffer(&flat_fixed_vector_values, &mut byte_buffer, 0, ENDIANNESS);
     mem::drop(flat_fixed_vector_values);
-    file.write_all(&byte_buffer[..byte_offset])?;
+    writer.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
         utils::write_into_byte_buffer(&flat_varying_scalar_values, &mut byte_buffer, 0, ENDIANNESS);
     mem::drop(flat_varying_scalar_values);
-    file.write_all(&byte_buffer[..byte_offset])?;
+    writer.write_all(&byte_buffer[..byte_offset])?;
 
     let byte_offset =
         utils::write_into_byte_buffer(&flat_varying_vector_values, &mut byte_buffer, 0, ENDIANNESS);
     mem::drop(flat_varying_vector_values);
-    file.write_all(&byte_buffer[..byte_offset])?;
+    writer.write_all(&byte_buffer[..byte_offset])?;
 
-    Ok(file)
+    Ok(())
 }
