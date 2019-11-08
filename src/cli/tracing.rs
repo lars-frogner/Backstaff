@@ -10,13 +10,14 @@ use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorCo
 use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::tracing::field_line::basic::{BasicFieldLineTracer3, BasicFieldLineTracerConfig};
-use crate::tracing::field_line::{FieldLineSet3, FieldLineTracer3};
+use crate::tracing::field_line::{FieldLineSet3, FieldLineSetProperties3, FieldLineTracer3};
 use crate::tracing::seeding::Seeder3;
 use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
 use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
 use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
 use crate::tracing::stepping::StepperFactory3;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use rayon::prelude::*;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -169,6 +170,8 @@ fn run_with_selected_stepper_factory<G, Tr>(
 ) where
     G: Grid3<fdt>,
     Tr: FieldLineTracer3 + Sync,
+    <Tr as FieldLineTracer3>::Data: Send,
+    FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
 {
     let ((stepper_type, stepper_config), stepper_arguments) =
         if let Some(stepper_arguments) = arguments.subcommand_matches("rkf_stepper") {
@@ -216,6 +219,8 @@ fn run_with_selected_interpolator<G, Tr, StF>(
 ) where
     G: Grid3<fdt>,
     Tr: FieldLineTracer3 + Sync,
+    <Tr as FieldLineTracer3>::Data: Send,
+    FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
     StF: StepperFactory3 + Sync,
 {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
@@ -257,6 +262,8 @@ fn run_with_selected_seeder<G, Tr, StF, I>(
 ) where
     G: Grid3<fdt>,
     Tr: FieldLineTracer3 + Sync,
+    <Tr as FieldLineTracer3>::Data: Send,
+    FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
     StF: StepperFactory3 + Sync,
     I: Interpolator3,
 {
@@ -290,6 +297,8 @@ fn run_tracing<G, Tr, StF, I, Sd>(
 ) where
     G: Grid3<fdt>,
     Tr: FieldLineTracer3 + Sync,
+    <Tr as FieldLineTracer3>::Data: Send,
+    FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
     StF: StepperFactory3 + Sync,
     I: Interpolator3,
     Sd: Seeder3,
@@ -297,14 +306,15 @@ fn run_tracing<G, Tr, StF, I, Sd>(
     let quantity = root_arguments
         .value_of("vector-quantity")
         .expect("No value for argument with default.");
-    let field = snapshot
-        .obtain_vector_field(quantity)
+    snapshot
+        .cache_vector_field(quantity)
         .unwrap_or_else(|err| panic!("Could not read {}: {}", quantity, err));
 
     let field_lines = FieldLineSet3::trace(
+        quantity,
+        snapshot,
         seeder,
         &tracer,
-        &field,
         &interpolator,
         stepper_factory,
         root_arguments.is_present("verbose").into(),
