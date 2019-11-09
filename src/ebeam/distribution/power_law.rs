@@ -47,8 +47,6 @@ pub struct PowerLawDistributionData {
     estimated_depletion_distance: feb,
     /// Position where the distribution originates [Mm].
     acceleration_position: Point3<fdt>,
-    /// Direction of acceleration of the electrons.
-    acceleration_direction: Vec3<fdt>,
     /// Direction of propagation of the electrons relative to the magnetic field direction.
     propagation_sense: SteppingSense,
     /// Total mass density at the acceleration site [g/cm^3].
@@ -64,8 +62,6 @@ pub struct PowerLawDistributionProperties {
     lower_cutoff_energy: feb,
     /// Estimated propagation distance until the remaining power density drops below the minimum value [Mm].
     estimated_depletion_distance: feb,
-    /// Direction of acceleration of the electrons.
-    acceleration_direction: Vec3<feb>,
 }
 
 /// Property values of each individual distribution in a set of power-law distributions.
@@ -74,7 +70,6 @@ pub struct PowerLawDistributionPropertiesCollection {
     total_power_densities: Vec<feb>,
     lower_cutoff_energies: Vec<feb>,
     estimated_depletion_distances: Vec<feb>,
-    acceleration_directions: Vec<Vec3<feb>>,
 }
 
 /// A non-thermal power-law distribution over electron energy,
@@ -237,7 +232,7 @@ impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
     fn distribute_into_maps(
         self,
         scalar_values: &mut FixedBeamScalarValues,
-        vector_values: &mut FixedBeamVectorValues,
+        _vector_values: &mut FixedBeamVectorValues,
     ) {
         scalar_values.insert(
             "total_power_density".to_string(),
@@ -251,10 +246,6 @@ impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
             "estimated_depletion_distance".to_string(),
             self.estimated_depletion_distances,
         );
-        vector_values.insert(
-            "acceleration_direction".to_string(),
-            self.acceleration_directions,
-        );
     }
 }
 
@@ -266,27 +257,19 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
         let nested_tuples_iter = par_iter.into_par_iter().map(|data| {
             (
                 data.total_power_density,
-                (
-                    data.lower_cutoff_energy,
-                    (
-                        data.estimated_depletion_distance,
-                        data.acceleration_direction,
-                    ),
-                ),
+                (data.lower_cutoff_energy, data.estimated_depletion_distance),
             )
         });
 
-        let (
-            total_power_densities,
-            (lower_cutoff_energies, (estimated_depletion_distances, acceleration_directions)),
-        ): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = nested_tuples_iter.unzip();
+        let (total_power_densities, (lower_cutoff_energies, estimated_depletion_distances)): (
+            Vec<_>,
+            (Vec<_>, Vec<_>),
+        ) = nested_tuples_iter.unzip();
 
         self.total_power_densities.par_extend(total_power_densities);
         self.lower_cutoff_energies.par_extend(lower_cutoff_energies);
         self.estimated_depletion_distances
             .par_extend(estimated_depletion_distances);
-        self.acceleration_directions
-            .par_extend(acceleration_directions);
     }
 }
 
@@ -310,7 +293,6 @@ impl Distribution for PowerLawDistribution {
             total_power_density: self.data.total_power_density,
             lower_cutoff_energy: self.data.lower_cutoff_energy * MC2_ELECTRON / KEV_TO_ERG,
             estimated_depletion_distance: self.data.estimated_depletion_distance / U_L,
-            acceleration_direction: Vec3::from(&self.data.acceleration_direction),
         }
     }
 
