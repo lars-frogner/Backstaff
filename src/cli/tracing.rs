@@ -316,7 +316,7 @@ fn run_tracing<G, Tr, StF, I, Sd>(
         seeder,
         &tracer,
         &interpolator,
-        stepper_factory,
+        &stepper_factory,
         root_arguments.is_present("verbose").into(),
     );
     snapshot.drop_all_fields();
@@ -379,7 +379,7 @@ fn perform_post_tracing_actions<G, I>(
     let result = match output_format {
         "pickle" => field_lines.save_as_combined_pickles(output_file_path),
         "json" => field_lines.save_as_json(output_file_path),
-        "fl" => field_lines.into_custom_binary_file(output_file_path),
+        "fl" => field_lines.save_into_custom_binary(output_file_path),
         invalid => panic!("Invalid output format {}.", invalid),
     };
     result.unwrap_or_else(|err| panic!("Could not save output data: {}", err));
