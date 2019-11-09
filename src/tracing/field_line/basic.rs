@@ -369,7 +369,7 @@ mod tests {
             seeder,
             &tracer,
             &interpolator,
-            stepper_factory,
+            &stepper_factory,
             Verbose::No,
         );
         field_line_set
