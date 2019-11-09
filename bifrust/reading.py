@@ -63,7 +63,7 @@ def read_electron_beam_swarm_from_combined_pickles(file_path, **kwargs):
         data['fixed_vector_values'] = pickle.load(f)
         data['varying_scalar_values'] = pickle.load(f)
         data['varying_vector_values'] = pickle.load(f)
-        data['metadata'] = pickle.load(f)
+        data['acceleration_data'] = pickle.load(f)
     return __parse_electronbeamswarm(data, **kwargs)
 
 
@@ -179,14 +179,15 @@ def __parse_custom_electron_beam_binary_file(f):
         fixed_vector_values, \
         varying_scalar_values, \
         varying_vector_values = __parse_custom_field_line_binary_file(f)
-    metadata = __parse_electronbeamswarm_metadata(pickle.load(f))
+    acceleration_data = __parse_electronbeamswarm_acceleration_data(
+        pickle.load(f))
     return domain_bounds, \
         number_of_beams, \
         fixed_scalar_values, \
         fixed_vector_values, \
         varying_scalar_values, \
         varying_vector_values, \
-        metadata
+        acceleration_data
 
 
 def __parse_fieldlineset3(data, **kwargs):
@@ -221,23 +222,25 @@ def __parse_electronbeamswarm(data, **kwargs):
         data.pop('varying_scalar_values'))
     varying_vector_values = __parse_map_of_vec_of_vec_of_vec3(
         data.pop('varying_vector_values'))
-    metadata = __parse_electronbeamswarm_metadata(data['metadata'])
+    acceleration_data = __parse_electronbeamswarm_acceleration_data(
+        data['acceleration_data'])
     return electron_beams.ElectronBeamSwarm(domain_bounds, number_of_beams,
                                             fixed_scalar_values,
                                             fixed_vector_values,
                                             varying_scalar_values,
-                                            varying_vector_values, metadata,
-                                            **kwargs)
+                                            varying_vector_values,
+                                            acceleration_data, **kwargs)
 
 
-def __parse_electronbeamswarm_metadata(metadata):
-    label = metadata[0]
-    values = metadata[1]
+def __parse_electronbeamswarm_acceleration_data(acceleration_data):
+    label = acceleration_data[0]
+    values = acceleration_data[1]
     if label == 'rejection_cause_code':
-        metadata = {label: np.array(values, dtype=np.ubyte)}
+        acceleration_data = {label: np.array(values, dtype=np.ubyte)}
     else:
-        raise NotImplementedError('Invalid metadata label {}'.format(label))
-    return metadata
+        raise NotImplementedError(
+            'Invalid acceleration data label {}'.format(label))
+    return acceleration_data
 
 
 def __parse_scalarfield2(data):
