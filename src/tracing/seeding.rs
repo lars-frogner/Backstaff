@@ -5,6 +5,8 @@ pub mod slice;
 
 use super::ftr;
 use crate::geometry::{Idx3, Point3};
+use crate::grid::Grid3;
+use crate::num::BFloat;
 use rayon::prelude::*;
 
 /// Defines the properties of a 3D seed point generator.
@@ -31,6 +33,13 @@ pub trait IndexSeeder3:
     fn retain_indices<P>(&mut self, predicate: P)
     where
         P: FnMut(&Idx3<usize>) -> bool;
+
+    /// Creates a list of seed points from the seed indices by indexing the center coordinates
+    /// of the given grid.
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
+    where
+        F: BFloat,
+        G: Grid3<F>;
 }
 
 // Let a vector of points work as a seeder.
@@ -58,5 +67,15 @@ impl IndexSeeder3 for Vec<Idx3<usize>> {
         P: FnMut(&Idx3<usize>) -> bool,
     {
         self.retain(predicate);
+    }
+
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+    {
+        self.par_iter()
+            .map(|indices| Point3::from(&grid.centers().point(indices)))
+            .collect()
     }
 }

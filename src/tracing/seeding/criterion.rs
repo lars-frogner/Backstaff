@@ -194,19 +194,6 @@ impl CriterionSeeder3 {
 
         CriterionSeeder3 { seed_indices }
     }
-
-    /// Creates a list of seed points from the seed indices by indexing the center coordinates
-    /// of the given grid.
-    pub fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
-        self.seed_indices
-            .par_iter()
-            .map(|indices| Point3::from(&grid.centers().point(indices)))
-            .collect()
-    }
 }
 
 impl IntoIterator for CriterionSeeder3 {
@@ -235,5 +222,16 @@ impl IndexSeeder3 for CriterionSeeder3 {
         P: FnMut(&Idx3<usize>) -> bool,
     {
         self.seed_indices.retain(predicate);
+    }
+
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+    {
+        self.seed_indices
+            .par_iter()
+            .map(|indices| Point3::from(&grid.centers().point(indices)))
+            .collect()
     }
 }
