@@ -14,7 +14,7 @@ use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
 use crate::io::utils;
 use crate::io::Verbose;
-use crate::tracing::stepping::SteppingSense;
+use crate::tracing::stepping::{StepperFactory3, SteppingSense};
 use crate::units::solar::{U_E, U_L, U_R, U_T};
 use nrfind;
 use rayon::prelude::*;
@@ -96,13 +96,11 @@ impl Default for RejectionCauseCode {
 }
 
 impl AccelerationDataCollection for RejectionCauseCodeCollection {
-    type Item = RejectionCauseCode;
-
-    fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    fn write<W: io::Write>(&self, _format_hint: &str, writer: &mut W) -> io::Result<()> {
         utils::write_data_as_pickle(writer, &self)
     }
 
-    fn write_into<W: io::Write>(self, writer: &mut W) -> io::Result<()> {
+    fn write_into<W: io::Write>(self, _format_hint: &str, writer: &mut W) -> io::Result<()> {
         utils::write_data_as_pickle(writer, &self)
     }
 }
@@ -502,7 +500,6 @@ impl SimplePowerLawAccelerator {
                             mean_energy,
                             estimated_depletion_distance,
                             acceleration_position,
-                            acceleration_direction,
                             propagation_sense,
                             mass_density,
                         };
@@ -688,7 +685,6 @@ impl SimplePowerLawAccelerator {
                             mean_energy,
                             estimated_depletion_distance,
                             acceleration_position,
-                            acceleration_direction,
                             propagation_sense,
                             mass_density,
                         };
@@ -710,11 +706,12 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
     type AccelerationDataCollectionType = RejectionCauseCodeCollection;
 
-    fn generate_distributions<G, D, I>(
+    fn generate_distributions<G, D, I, StF>(
         &self,
         snapshot: &mut SnapshotCacher3<G>,
         detector: D,
         interpolator: &I,
+        _stepper_factory: &StF,
         verbose: Verbose,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
@@ -724,6 +721,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         G: Grid3<fdt>,
         D: ReconnectionSiteDetector,
         I: Interpolator3,
+        StF: StepperFactory3 + Sync,
     {
         Ok(if self.config.ignore_rejection {
             self.generate_distributions_without_rejection(
