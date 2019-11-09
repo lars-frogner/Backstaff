@@ -1,4 +1,10 @@
 import numpy as np
+import matplotlib as mpl
+mpl.use('agg')
+try:
+    mpl.style.use('default')
+except:
+    pass
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import matplotlib.cm as mpl_cm
@@ -107,15 +113,8 @@ def define_linear_segmented_colormap(name,
     return cmap
 
 
-def colors_from_values(values,
-                       log=False,
-                       vmin=None,
-                       vmax=None,
-                       cmap_name='viridis',
-                       alpha=1.0,
-                       relative_alpha=True):
-    cmap = get_cmap(cmap_name)
-    normalized_values = get_normalizer(vmin, vmax, clip=False, log=log)(values)
+def colors_from_values(values, norm, cmap, alpha=1.0, relative_alpha=True):
+    normalized_values = norm(values)
     colors = cmap(normalized_values)
 
     if relative_alpha:
@@ -131,6 +130,19 @@ def add_2d_colorbar(fig, ax, mappeable, pad=0.05, label=None):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=pad)
     fig.colorbar(mappeable, cax=cax, label=label)
+
+
+def add_2d_colorbar_from_cmap_and_norm(fig,
+                                       ax,
+                                       norm,
+                                       cmap,
+                                       pad=0.05,
+                                       label=None):
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('right', size='5%', pad=pad)
+    sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    fig.colorbar(sm, cax=cax, label=label)
 
 
 def add_3d_colorbar(fig, norm, cmap, label=None):
@@ -493,11 +505,37 @@ def compute_2d_histogram_difference(values_x, values_y, weights, vmin_x,
 CUSTOM_COLORMAPS = {
     'transport':
     define_linear_segmented_colormap(
-        'transport',
+        '',
         np.vstack(
             (plt.get_cmap('Blues')(np.linspace(1, 0,
                                                128)), [[1.0, 1.0, 1.0, 1.0]],
              plt.get_cmap('Oranges')(np.linspace(0, 1, 128)))),
         bad_color='white',
-        N=257)
+        N=257),
+    'afternoon':
+        define_linear_segmented_colormap('', ['#8C0004','#C8000A','#E8A735','#E2C499']),
+    'timeless':
+        define_linear_segmented_colormap('', ['#16253D','#002C54','#EFB509','#CD7213']),
+    'arctic':
+        define_linear_segmented_colormap('', ['#006C84','#6EB5C0','#E2E8E4','#FFCCBB']),
+    'sunkissed':
+        define_linear_segmented_colormap('', ['#D24136','#EB8A3E','#EBB582','#785A46']),
+    'berry':
+        define_linear_segmented_colormap('', ['#D0E1F9','#4D648D','#283655','#1E1F26']),
+    'sunset':
+        define_linear_segmented_colormap('', ['#363237','#2D4262','#73605B','#D09683']),
+    'watery':
+        define_linear_segmented_colormap('', ['#021C1E','#004445','#2C7873','#6FB98F']),
+    'bright':
+        define_linear_segmented_colormap('', ['#061283','#FD3C3C','#FFB74C','#138D90']),
+    'school':
+        define_linear_segmented_colormap('', ['#81715E','#FAAE3D','#E38533','#E4535E']),
+    'golden':
+        define_linear_segmented_colormap('', ['#323030','#CDBEA7','#C29545','#882426']),
+    'misty':
+        define_linear_segmented_colormap('', ['#04202C','#2C493F','#5B7065','#C9D1C8']),
+    'coolblues':
+        define_linear_segmented_colormap('', ['#003B46','#07575B','#66A5AD','#C4DFE6']),
+    'candy':
+        define_linear_segmented_colormap('', ['#AD1457','#D81B60','#FFA000','#FDD835','#FFEE58'])
 }
