@@ -22,14 +22,17 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'lower_cutoff_energy': 'Lower cut-off energy [keV]',
         'estimated_depletion_distance': 'Estimated depletion distance [Mm]',
         'total_propagation_distance': 'Total propagation distance [Mm]',
+        'beam_electron_fraction': 'Beam electrons relative to total electrons',
+        'return_current_speed_fraction': 'Speed relative to speed of light',
         'deposited_power_density':
         r'Deposited power density [erg/(cm$^3\;$s)]',
+        'power_density_change': r'Power density change [erg/(cm$^3\;$s)]',
         'remaining_power_density':
         r'Remaining power density [erg/(cm$^3\;$s)]',
         'r': r'Mass density [g/cm$^3$]',
         'tg': 'Temperature [K]',
         'krec': 'Reconnection factor [Bifrost units]',
-        'qspitz': r'Power density increase [erg/(cm$^3\;$s)]',
+        'qspitz': r'Power density change [erg/(cm$^3\;$s)]',
         'r0': r'Mass density [g/cm$^3$]',
         'tg0': 'Temperature [K]',
     }
@@ -41,18 +44,20 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     }
 
     @staticmethod
-    def from_file(file_path, derived_quantities=[], verbose=False):
+    def from_file(file_path, params={}, derived_quantities=[], verbose=False):
         import bifrust.reading as reading
         file_path = Path(file_path)
         extension = file_path.suffix
         if extension == '.pickle':
             electron_beam_swarm = reading.read_electron_beam_swarm_from_combined_pickles(
                 file_path,
+                params=params,
                 derived_quantities=derived_quantities,
                 verbose=verbose)
         elif extension == '.fl':
             electron_beam_swarm = reading.read_electron_beam_swarm_from_custom_binary_file(
                 file_path,
+                params=params,
                 derived_quantities=derived_quantities,
                 verbose=verbose)
         else:
@@ -69,24 +74,26 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                  fixed_vector_values,
                  varying_scalar_values,
                  varying_vector_values,
-                 metadata,
+                 acceleration_data,
+                 params={},
                  derived_quantities=[],
                  verbose=False):
+        assert isinstance(acceleration_data, dict)
+        self.number_of_beams = number_of_beams
+        self.acceleration_data = acceleration_data
         super().__init__(domain_bounds,
                          number_of_beams,
                          fixed_scalar_values,
                          fixed_vector_values,
                          varying_scalar_values,
                          varying_vector_values,
+                         params=params,
                          derived_quantities=derived_quantities,
                          verbose=verbose)
-        assert isinstance(metadata, dict)
-        self.number_of_beams = number_of_beams
-        self.metadata = metadata
 
         if self.verbose:
-            print('Metadata:\n    {}'.format('\n    '.join(
-                self.metadata.keys())))
+            print('Acceleration data:\n    {}'.format('\n    '.join(
+                self.acceleration_data.keys())))
 
     def add_values_as_line_histogram(self,
                                      ax,
@@ -167,11 +174,11 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     def get_number_of_beams(self):
         return self.number_of_beams
 
-    def get_metadata(self, metadata_label):
-        return self.metadata[metadata_label]
+    def get_acceleration_data(self, acceleration_data_label):
+        return self.acceleration_data[acceleration_data_label]
 
     def get_rejection_cause_codes(self):
-        return self.get_metadata('rejection_cause_code')
+        return self.get_acceleration_data('rejection_cause_code')
 
     def _derive_quantities(self, derived_quantities):
 
@@ -185,14 +192,59 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 for values in self.get_varying_scalar_values(value_name[:-1])
             ])
 
+        if 'mean_electron_energy' in derived_quantities:
+            self._obtain_mean_electron_energies()
+
+        if 'acceleration_site_electron_density' in derived_quantities:
+            self._obtain_acceleration_site_electron_densities()
+
+        if 'beam_electron_fraction' in derived_quantities:
+            self._obtain_beam_electron_fractions()
+
+        if 'return_current_speed_fraction' in derived_quantities:
+            mean_electron_energies = self._obtain_mean_electron_energies(
+            )*units.KEV_TO_ERG
+            mean_electron_speed_fractions = np.sqrt(
+                1.0 - 1.0/(1.0 + mean_electron_energies/units.MC2_ELECTRON)**2)
+            beam_electron_fractions = self._obtain_beam_electron_fractions()
+            self.fixed_scalar_values[
+                'return_current_speed_fraction'] = beam_electron_fractions*mean_electron_speed_fractions
+
         if 'underestimated_total_propagation_distance' in derived_quantities:
             self.fixed_scalar_values['underestimated_total_propagation_distance'] = \
                 np.where(self.fixed_scalar_values['total_propagation_distance'] > self.fixed_scalar_values['estimated_depletion_distance'], self.fixed_scalar_values['total_propagation_distance'], np.nan)
 
+        if 'depth_weighted_total_power_density' in derived_quantities:
+            assert self.has_fixed_scalar_values('z0')
+            self.fixed_scalar_values[
+                'depth_weighted_total_power_density'] = self.fixed_scalar_values[
+                    'total_power_density']*(
+                        self.get_fixed_scalar_values('z0') -
+                        self.bounds_z[0])/(self.bounds_z[1] - self.bounds_z[0])
+
+        if 'electron_density' in derived_quantities:
+            assert self.has_varying_scalar_values('r')
+            self.varying_scalar_values['electron_density'] = [
+                self.varying_scalar_values['r'][i]*units.U_R*
+                units.MASS_DENSITY_TO_ELECTRON_DENSITY
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if 'power_density_change' in derived_quantities:
+            self.varying_scalar_values['power_density_change'] = [
+                arr.copy() for arr in
+                self.varying_scalar_values['deposited_power_density']
+            ]
+            for i in range(self.get_number_of_beams()):
+                self.varying_scalar_values['power_density_change'][i][
+                    0] -= self.fixed_scalar_values['total_power_density'][i]
+
         if 'remaining_power_density' in derived_quantities:
-            self.varying_scalar_values['remaining_power_density'] = [self.fixed_scalar_values['total_power_density'][i] - \
-                np.cumsum(
-                    self.varying_scalar_values['deposited_power_density'][i]) for i in range(self.get_number_of_beams())]
+            self.varying_scalar_values['remaining_power_density'] = [
+                self.fixed_scalar_values['total_power_density'][i] - np.cumsum(
+                    self.varying_scalar_values['deposited_power_density'][i])
+                for i in range(self.get_number_of_beams())
+            ]
 
         if 'distance_weighted_deposited_power_density' in derived_quantities:
             self.varying_scalar_values[
@@ -202,6 +254,68 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                     for deposited_power_densities in
                     self.varying_scalar_values['deposited_power_density']
                 ]
+
+        if 'depth_weighted_deposited_power_density' in derived_quantities:
+            self.varying_scalar_values[
+                'depth_weighted_deposited_power_density'] = [
+                    deposited_power_densities*(depths - self.bounds_z[0])/
+                    (self.bounds_z[1] - self.bounds_z[0])
+                    for deposited_power_densities, depths in zip(
+                        self.varying_scalar_values['deposited_power_density'],
+                        self.varying_scalar_values['z'])
+                ]
+
+    def _obtain_mean_electron_energies(self):
+        if not self.has_fixed_scalar_values('mean_electron_energy'):
+            assert self.has_param('power_law_delta')
+            delta = self.get_param('power_law_delta')
+            self.fixed_scalar_values['mean_electron_energy'] = (
+                (delta - 1.0)/(delta - 2.0)
+            )*self.get_fixed_scalar_values('lower_cutoff_energy')
+
+        return self.get_fixed_scalar_values('mean_electron_energy')
+
+    def _obtain_acceleration_site_electron_densities(self):
+        if not self.has_fixed_scalar_values(
+                'acceleration_site_electron_density'):
+            assert self.has_fixed_scalar_values(
+                'r0') or self.has_fixed_scalar_values('r')
+            self.fixed_scalar_values[
+                'acceleration_site_electron_density'] = self.get_fixed_scalar_values(
+                    'r0' if self.has_fixed_scalar_values('r0') else 'r'
+                )*units.U_R*units.MASS_DENSITY_TO_ELECTRON_DENSITY
+
+        return self.get_fixed_scalar_values(
+            'acceleration_site_electron_density')
+
+    def _obtain_beam_electron_fractions(self):
+        if not self.has_fixed_scalar_values('beam_electron_fraction'):
+            assert self.has_param('particle_energy_fraction')
+            assert self.has_fixed_scalar_values(
+                'bx') and self.has_fixed_scalar_values(
+                    'by') and self.has_fixed_scalar_values('bz')
+            assert self.has_fixed_scalar_values(
+                'ix') and self.has_fixed_scalar_values(
+                    'iy') and self.has_fixed_scalar_values('iz')
+
+            bx = self.get_fixed_scalar_values('bx')*units.U_B
+            by = self.get_fixed_scalar_values('by')*units.U_B
+            bz = self.get_fixed_scalar_values('bz')*units.U_B
+            ix = self.get_fixed_scalar_values('ix')
+            iy = self.get_fixed_scalar_values('iy')
+            iz = self.get_fixed_scalar_values('iz')
+            free_energy = (bx*bx + by*by + bz*bz - (bx*ix + by*iy + bz*iz)**2/
+                           (ix*ix + iy*iy + iz*iz))/(8.0*np.pi)
+            mean_electron_energies = self._obtain_mean_electron_energies(
+            )*units.KEV_TO_ERG
+            electron_densities = self._obtain_acceleration_site_electron_densities(
+            )
+            self.fixed_scalar_values[
+                'beam_electron_fraction'] = self.get_param(
+                    'particle_energy_fraction')*free_energy/(
+                        mean_electron_energies*electron_densities)
+
+        return self.get_fixed_scalar_values('beam_electron_fraction')
 
 
 class DistributionRejectionMap:
@@ -492,8 +606,20 @@ class DistributionRejectionMap:
         ax.legend(loc='best')
 
 
+def find_beams_propagating_longer_than_distance(min_distance,
+                                                fixed_scalar_values):
+    return list(
+        np.nonzero(
+            fixed_scalar_values['total_propagation_distance'] > min_distance)
+        [0])
+
+
 def plot_electron_beams(*args, **kwargs):
     field_lines.plot_field_lines(*args, **kwargs)
+
+
+def plot_electron_beam_properties(*args, **kwargs):
+    field_lines.plot_field_line_properties(*args, **kwargs)
 
 
 def plot_beam_value_histogram(*args, **kwargs):
