@@ -6,6 +6,8 @@ use crate::ebeam::detection::simple::{
     SimpleReconnectionSiteDetector, SimpleReconnectionSiteDetectorConfig,
 };
 use crate::ebeam::detection::ReconnectionSiteDetector;
+use crate::ebeam::distribution::power_law::acceleration::dc::acceleration_region::AccelerationRegionTracer;
+use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerator;
 use crate::ebeam::distribution::power_law::acceleration::simple::{
     SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
 };
@@ -19,7 +21,6 @@ use crate::io::snapshot::{fdt, SnapshotCacher3};
 use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
 use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
 use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
-use crate::tracing::stepping::StepperFactory3;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
 use std::path::PathBuf;
@@ -116,6 +117,8 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
         super::distribution::power_law::create_power_law_distribution_subcommand();
     let simple_power_law_accelerator_subcommand =
         super::accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand();
+    let dc_power_law_accelerator_subcommand =
+        super::accelerator::dc_power_law::create_dc_power_law_accelerator_subcommand();
     let poly_fit_interpolator_subcommand =
         cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand();
     let rkf_stepper_subcommand = cli::tracing::stepping::rkf::create_rkf_stepper_subcommand();
@@ -125,19 +128,25 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
     let simple_power_law_accelerator_subcommand = simple_power_law_accelerator_subcommand
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
+    let dc_power_law_accelerator_subcommand = dc_power_law_accelerator_subcommand
+        .subcommand(poly_fit_interpolator_subcommand.clone())
+        .subcommand(rkf_stepper_subcommand.clone());
     let power_law_distribution_subcommand = power_law_distribution_subcommand
         .subcommand(simple_power_law_accelerator_subcommand.clone())
+        .subcommand(dc_power_law_accelerator_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
     let simple_reconnection_site_detector_subcommand = simple_reconnection_site_detector_subcommand
         .subcommand(power_law_distribution_subcommand.clone())
         .subcommand(simple_power_law_accelerator_subcommand.clone())
+        .subcommand(dc_power_law_accelerator_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
 
     app.subcommand(simple_reconnection_site_detector_subcommand)
         .subcommand(power_law_distribution_subcommand)
         .subcommand(simple_power_law_accelerator_subcommand)
+        .subcommand(dc_power_law_accelerator_subcommand)
         .subcommand(poly_fit_interpolator_subcommand)
         .subcommand(rkf_stepper_subcommand)
 }
@@ -207,30 +216,56 @@ fn run_with_selected_accelerator<G, D>(
         println!("{:#?}", distribution_config);
     }
 
-    let (accelerator_config, accelerator_arguments) = if let Some(accelerator_arguments) =
+    if let Some(accelerator_arguments) =
+        distribution_arguments.subcommand_matches("dc_power_law_accelerator")
+    {
+        let (accelerator_config, acceleration_region_config) = super::accelerator::dc_power_law::construct_dc_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
+        if root_arguments.is_present("print-parameter-values") {
+            println!("{:#?}", accelerator_config);
+            println!("{:#?}", acceleration_region_config);
+        }
+        let accelerator = DCPowerLawAccelerator::new(
+            distribution_config,
+            accelerator_config,
+            AccelerationRegionTracer::new(acceleration_region_config),
+        );
+        run_with_selected_interpolator(
+            root_arguments,
+            accelerator_arguments,
+            snapshot,
+            detector,
+            accelerator,
+        );
+    } else if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("simple_power_law_accelerator")
     {
-        (super::accelerator::simple_power_law::construct_simple_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader()), accelerator_arguments)
+        let accelerator_config = super::accelerator::simple_power_law::construct_simple_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
+        if root_arguments.is_present("print-parameter-values") {
+            println!("{:#?}", accelerator_config);
+        }
+        let accelerator = SimplePowerLawAccelerator::new(distribution_config, accelerator_config);
+        run_with_selected_interpolator(
+            root_arguments,
+            accelerator_arguments,
+            snapshot,
+            detector,
+            accelerator,
+        );
     } else {
-        (
-            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(snapshot.reader()),
+        let accelerator_config =
+            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(snapshot.reader());
+        if root_arguments.is_present("print-parameter-values") {
+            println!("{:#?}", accelerator_config);
+        }
+        let accelerator = SimplePowerLawAccelerator::new(distribution_config, accelerator_config);
+        run_with_selected_interpolator(
+            root_arguments,
             distribution_arguments,
-        )
+            snapshot,
+            detector,
+            accelerator,
+        );
     };
-
-    if root_arguments.is_present("print-parameter-values") {
-        println!("{:#?}", accelerator_config);
-    }
-
-    let accelerator = SimplePowerLawAccelerator::new(distribution_config, accelerator_config);
-
-    run_with_selected_interpolator(
-        root_arguments,
-        accelerator_arguments,
-        snapshot,
-        detector,
-        accelerator,
-    );
 }
 
 fn run_with_selected_interpolator<G, D, A>(
@@ -264,24 +299,14 @@ where G: Grid3<fdt>,
 
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
-    if root_arguments.is_present("generate-only") {
-        run_generation(
-            root_arguments,
-            snapshot,
-            detector,
-            accelerator,
-            interpolator,
-        );
-    } else {
-        run_with_selected_stepper_factory(
-            root_arguments,
-            interpolator_arguments,
-            snapshot,
-            detector,
-            accelerator,
-            interpolator,
-        );
-    }
+    run_with_selected_stepper_factory(
+        root_arguments,
+        interpolator_arguments,
+        snapshot,
+        detector,
+        accelerator,
+        interpolator,
+    );
 }
 
 fn run_with_selected_stepper_factory<G, D, A, I>(
@@ -310,66 +335,53 @@ where G: Grid3<fdt>,
         println!("{:#?}\nstepper_type: {:?}", stepper_config, stepper_type);
     }
 
-    match stepper_type {
+    let verbose = root_arguments.is_present("verbose").into();
+    let beams = match stepper_type {
         RKFStepperType::RKF23 => {
-            run_propagation(
-                root_arguments,
-                snapshot,
-                detector,
-                accelerator,
-                interpolator,
-                RKF23StepperFactory3::new(stepper_config),
-            );
+            let stepper_factory = RKF23StepperFactory3::new(stepper_config);
+            if root_arguments.is_present("generate-only") {
+                ElectronBeamSwarm::generate_unpropagated(
+                    snapshot,
+                    detector,
+                    accelerator,
+                    &interpolator,
+                    &stepper_factory,
+                    verbose,
+                )
+            } else {
+                ElectronBeamSwarm::generate_propagated(
+                    snapshot,
+                    detector,
+                    accelerator,
+                    &interpolator,
+                    &stepper_factory,
+                    verbose,
+                )
+            }
         }
         RKFStepperType::RKF45 => {
-            run_propagation(
-                root_arguments,
-                snapshot,
-                detector,
-                accelerator,
-                interpolator,
-                RKF45StepperFactory3::new(stepper_config),
-            );
+            let stepper_factory = RKF45StepperFactory3::new(stepper_config);
+            if root_arguments.is_present("generate-only") {
+                ElectronBeamSwarm::generate_unpropagated(
+                    snapshot,
+                    detector,
+                    accelerator,
+                    &interpolator,
+                    &stepper_factory,
+                    verbose,
+                )
+            } else {
+                ElectronBeamSwarm::generate_propagated(
+                    snapshot,
+                    detector,
+                    accelerator,
+                    &interpolator,
+                    &stepper_factory,
+                    verbose,
+                )
+            }
         }
-    }
-}
-
-fn run_generation<G, D, A, I>(root_arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: I)
-where G: Grid3<fdt>,
-      D: ReconnectionSiteDetector,
-      A: Accelerator + Sync,
-      A::DistributionType: Send,
-      <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-      I: Interpolator3
-{
-    let beams = ElectronBeamSwarm::generate_unpropagated(
-        snapshot,
-        detector,
-        accelerator,
-        &interpolator,
-        root_arguments.is_present("verbose").into(),
-    );
-    snapshot.drop_all_fields();
-    perform_post_simulation_actions(root_arguments, snapshot, interpolator, beams);
-}
-
-fn run_propagation<G, D, A, I, StF>(root_arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: I, stepper_factory: StF)
-where G: Grid3<fdt>,
-      D: ReconnectionSiteDetector,
-      A: Accelerator + Sync + Send,
-      A::DistributionType: Send,
-      <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-      I: Interpolator3,
-      StF: StepperFactory3 + Sync
-{
-    let beams = ElectronBeamSwarm::generate_propagated(
-        snapshot,
-        detector,
-        accelerator,
-        &interpolator,
-        stepper_factory,
-        root_arguments.is_present("verbose").into(),
-    );
+    };
     snapshot.drop_all_fields();
     perform_post_simulation_actions(root_arguments, snapshot, interpolator, beams);
 }
