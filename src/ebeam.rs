@@ -53,17 +53,13 @@ pub trait BeamPropertiesCollection: Default + Sync + Send {
 
 /// Defines the required behaviour of a type representing
 /// a collection of objects holding electron beam acceleration data.
-pub trait AccelerationDataCollection:
-    Clone + Default + std::fmt::Debug + Serialize + Sync + Send
-{
-    type Item: Clone + std::fmt::Debug + Send;
-
+pub trait AccelerationDataCollection: Serialize + Sync {
     /// Writes the acceleration data into the given writer.
-    fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()>;
+    fn write<W: io::Write>(&self, format_hint: &str, writer: &mut W) -> io::Result<()>;
 
     /// Writes the acceleration data into the given writer,
     /// consuming the data object.
-    fn write_into<W: io::Write>(self, writer: &mut W) -> io::Result<()>;
+    fn write_into<W: io::Write>(self, format_hint: &str, writer: &mut W) -> io::Result<()>;
 }
 
 /// A set of non-thermal electron beams.
@@ -278,6 +274,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `detector`: Reconnection site detector to use for obtaining acceleration positions.
     /// - `accelerator`: Accelerator to use for generating electron distributions.
     /// - `interpolator`: Interpolator to use.
+    /// - `stepper_factory`: Factory structure to use for producing steppers.
     /// - `verbose`: Whether to print status messages.
     ///
     /// # Returns
@@ -289,16 +286,18 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `G`: Type of grid.
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
-    pub fn generate_unpropagated<G, D, I>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, verbose: Verbose) -> Self
+    /// - `StF`: Type of stepper factory.
+    pub fn generate_unpropagated<G, D, I, StF>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          I: Interpolator3
+          I: Interpolator3,
+          StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
-            .generate_distributions(snapshot, detector, interpolator, verbose)
+            .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         let properties: ElectronBeamSwarmProperties = distributions
@@ -340,7 +339,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<G, D, I, StF>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, stepper_factory: StF, verbose: Verbose) -> Self
+    pub fn generate_propagated<G, D, I, StF>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
@@ -350,7 +349,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
-            .generate_distributions(snapshot, detector, interpolator, verbose)
+            .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         if verbose.is_yes() {
@@ -593,7 +592,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                     &self.properties.varying_vector_values,
                 )
             });
-            s.spawn(|_| result_8 = self.acceleration_data.write(&mut buffer_8));
+            s.spawn(|_| result_8 = self.acceleration_data.write("pickle", &mut buffer_8));
         });
         result_4?;
         result_5?;
@@ -627,7 +626,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             &self.upper_bounds,
             self.properties.clone().into_field_line_set_properties(),
         )?;
-        self.acceleration_data.write(&mut file)
+        self.acceleration_data.write("fl", &mut file)
     }
 
     /// Serializes the electron beam data into a custom binary format and saves at the given path,
@@ -644,7 +643,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             &self.upper_bounds,
             self.properties.into_field_line_set_properties(),
         )?;
-        self.acceleration_data.write_into(&mut file)
+        self.acceleration_data.write_into("fl", &mut file)
     }
 }
 
