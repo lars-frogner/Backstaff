@@ -313,7 +313,7 @@ impl Stepper3 for RKF45Stepper3 {
         G: Grid3<F>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
-        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
+        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.place_with_callback(field, interpolator, direction_computer, position, callback)
     }
@@ -330,7 +330,7 @@ impl Stepper3 for RKF45Stepper3 {
         G: Grid3<F>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
-        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
+        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.step_with_callback(field, interpolator, direction_computer, callback)
     }
@@ -347,7 +347,7 @@ impl Stepper3 for RKF45Stepper3 {
         G: Grid3<F>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
-        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
+        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.step_with_callback_dense_output(field, interpolator, direction_computer, callback)
     }

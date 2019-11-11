@@ -79,17 +79,18 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
 
         if let FieldLineTracingSense::Both = self.config.tracing_sense {
             let tracer_result = if let Some(length) = self.config.max_length {
-                let mut callback = |_: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
-                    if distance <= length {
-                        backward_path.0.push_front(position[X]);
-                        backward_path.1.push_front(position[Y]);
-                        backward_path.2.push_front(position[Z]);
-                        backward_length = distance;
-                        StepperInstruction::Continue
-                    } else {
-                        StepperInstruction::Terminate
-                    }
-                };
+                let mut callback =
+                    |_: &Vec3<ftr>, _: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
+                        if distance <= length {
+                            backward_path.0.push_front(position[X]);
+                            backward_path.1.push_front(position[Y]);
+                            backward_path.2.push_front(position[Z]);
+                            backward_length = distance;
+                            StepperInstruction::Continue
+                        } else {
+                            StepperInstruction::Terminate
+                        }
+                    };
                 match self.config.point_spacing {
                     FieldLinePointSpacing::Regular => tracing::trace_3d_field_line_dense(
                         field,
@@ -109,13 +110,14 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
                     ),
                 }
             } else {
-                let mut callback = |_: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
-                    backward_path.0.push_front(position[X]);
-                    backward_path.1.push_front(position[Y]);
-                    backward_path.2.push_front(position[Z]);
-                    backward_length = distance;
-                    StepperInstruction::Continue
-                };
+                let mut callback =
+                    |_: &Vec3<ftr>, _: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
+                        backward_path.0.push_front(position[X]);
+                        backward_path.1.push_front(position[Y]);
+                        backward_path.2.push_front(position[Z]);
+                        backward_length = distance;
+                        StepperInstruction::Continue
+                    };
                 match self.config.point_spacing {
                     FieldLinePointSpacing::Regular => tracing::trace_3d_field_line_dense(
                         field,
@@ -155,17 +157,18 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
         };
 
         let tracer_result = if let Some(length) = self.config.max_length {
-            let mut callback = |_: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
-                if distance <= length {
-                    forward_path.0.push(position[X]);
-                    forward_path.1.push(position[Y]);
-                    forward_path.2.push(position[Z]);
-                    forward_length = distance;
-                    StepperInstruction::Continue
-                } else {
-                    StepperInstruction::Terminate
-                }
-            };
+            let mut callback =
+                |_: &Vec3<ftr>, _: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
+                    if distance <= length {
+                        forward_path.0.push(position[X]);
+                        forward_path.1.push(position[Y]);
+                        forward_path.2.push(position[Z]);
+                        forward_length = distance;
+                        StepperInstruction::Continue
+                    } else {
+                        StepperInstruction::Terminate
+                    }
+                };
             match self.config.point_spacing {
                 FieldLinePointSpacing::Regular => tracing::trace_3d_field_line_dense(
                     field,
@@ -185,13 +188,14 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
                 ),
             }
         } else {
-            let mut callback = |_: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
-                forward_path.0.push(position[X]);
-                forward_path.1.push(position[Y]);
-                forward_path.2.push(position[Z]);
-                forward_length = distance;
-                StepperInstruction::Continue
-            };
+            let mut callback =
+                |_: &Vec3<ftr>, _: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
+                    forward_path.0.push(position[X]);
+                    forward_path.1.push(position[Y]);
+                    forward_path.2.push(position[Z]);
+                    forward_length = distance;
+                    StepperInstruction::Continue
+                };
             match self.config.point_spacing {
                 FieldLinePointSpacing::Regular => tracing::trace_3d_field_line_dense(
                     field,

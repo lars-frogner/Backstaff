@@ -174,12 +174,13 @@ trait RKFStepper3 {
         G: Grid3<F>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
-        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
+        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let place_result = self.perform_place(field, interpolator, direction_computer, position);
         if let StepperResult::Ok(_) = place_result {
             if let StepperInstruction::Terminate = callback(
                 &self.state().previous_step_displacement,
+                &self.state().direction,
                 &self.state().position,
                 self.state().distance,
             ) {
@@ -201,12 +202,15 @@ trait RKFStepper3 {
         G: Grid3<F>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
-        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
+        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
+            let effective_direction =
+                &self.state().previous_step_displacement / self.state().previous_step_length;
             if let StepperInstruction::Terminate = callback(
                 &self.state().previous_step_displacement,
+                &effective_direction,
                 &self.state().position,
                 self.state().distance,
             ) {
@@ -228,7 +232,7 @@ trait RKFStepper3 {
         G: Grid3<F>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
-        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
+        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let step_result = self.perform_step(field, interpolator, direction_computer);
         if let StepperResult::Ok(_) = step_result {
@@ -459,7 +463,7 @@ trait RKFStepper3 {
     where
         F: BFloat,
         G: Grid3<F>,
-        C: FnMut(&Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
+        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         #![allow(clippy::float_cmp)] // Allows the float comparison with zero
         let state = self.state();
@@ -485,8 +489,10 @@ trait RKFStepper3 {
                 let dense_step_displacement =
                     &unwrapped_output_position - &previous_unwrapped_output_position;
                 previous_unwrapped_output_position = unwrapped_output_position;
+                let effective_direction = &dense_step_displacement / state.config.dense_step_length;
                 if let StepperInstruction::Terminate = callback(
                     &dense_step_displacement,
+                    &effective_direction,
                     &output_position,
                     next_output_distance,
                 ) {
