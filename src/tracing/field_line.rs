@@ -189,7 +189,7 @@ impl FieldLineSet3 {
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
-            println!("Extracting {} at acceleration sites", field.name());
+            println!("Extracting {} at initial positions", field.name());
         }
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
@@ -220,7 +220,7 @@ impl FieldLineSet3 {
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
-            println!("Extracting {} at acceleration sites", field.name());
+            println!("Extracting {} at initial positions", field.name());
         }
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
