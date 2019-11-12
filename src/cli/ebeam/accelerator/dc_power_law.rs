@@ -1,7 +1,9 @@
 //! Command line interface for the DC power-law distribution accelerator.
 
 use crate::cli;
-use crate::ebeam::distribution::power_law::acceleration::dc::acceleration_region::AccelerationRegionTracerConfig;
+use crate::ebeam::distribution::power_law::acceleration::dc::acceleration_region::{
+    AccelerationRegionTracer, AccelerationRegionTracerConfig,
+};
 use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerationConfig;
 use crate::ebeam::distribution::power_law::PitchAngleDistribution;
 use crate::grid::Grid3;
@@ -90,10 +92,10 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("VALUE")
                 .help(
                     "The acceleration region ends where the absolute component of the electric field\n\
-                     parallel to the magnetic field direction becomes lower than this value [statV/cm]\n",
+                     parallel to the magnetic field direction becomes lower than this value [V/m]\n",
                 )
                 .takes_value(true)
-                .default_value("1e-12"),
+                .default_value("1.0"),
         )
         .arg(
             Arg::with_name("min-length")
@@ -106,6 +108,32 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true)
                 .default_value("0"),
         )
+        .arg(
+            Arg::with_name("extra-varying-scalars")
+                .long("extra-varying-scalars")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_name("NAMES")
+                .help(
+                    "List of scalar fields to extract along acceleration regions\n \
+                     (comma-separated)",
+                )
+                .takes_value(true)
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("extra-varying-vectors")
+                .long("extra-varying-vectors")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_name("NAMES")
+                .help(
+                    "List of vector fields to extract along acceleration regions\n \
+                     (comma-separated)",
+                )
+                .takes_value(true)
+                .multiple(true),
+        )
 }
 
 /// Determines DC power-law distribution accelerator parameters
@@ -113,7 +141,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     reader: &SnapshotReader3<G>,
-) -> (DCPowerLawAccelerationConfig, AccelerationRegionTracerConfig) {
+) -> (DCPowerLawAccelerationConfig, AccelerationRegionTracer) {
     let acceleration_duration = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
@@ -175,6 +203,18 @@ pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
     );
     let min_length = cli::get_value_from_required_parseable_argument(arguments, "min-length");
 
+    let extra_varying_scalar_names = arguments
+        .values_of("extra-varying-scalars")
+        .map_or_else(Vec::new, |values| {
+            values.map(|name| name.to_string()).collect::<Vec<_>>()
+        });
+
+    let extra_varying_vector_names = arguments
+        .values_of("extra-varying-vectors")
+        .map_or_else(Vec::new, |values| {
+            values.map(|name| name.to_string()).collect::<Vec<_>>()
+        });
+
     (
         DCPowerLawAccelerationConfig {
             acceleration_duration,
@@ -184,9 +224,13 @@ pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
             min_total_power_density,
             min_estimated_depletion_distance,
         },
-        AccelerationRegionTracerConfig {
-            min_parallel_electric_field_strength,
-            min_length,
-        },
+        AccelerationRegionTracer::new(
+            AccelerationRegionTracerConfig {
+                min_parallel_electric_field_strength,
+                min_length,
+            },
+            extra_varying_scalar_names,
+            extra_varying_vector_names,
+        ),
     )
 }

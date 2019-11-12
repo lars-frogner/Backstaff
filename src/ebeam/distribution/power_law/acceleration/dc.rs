@@ -273,12 +273,35 @@ impl Accelerator for DCPowerLawAccelerator {
                 )
                 .unzip();
 
-        let acceleration_regions = DCAccelerationRegions::new(
+        let mut acceleration_regions = DCAccelerationRegions::new(
             Vec3::from(snapshot.reader().grid().lower_bounds()),
             Vec3::from(snapshot.reader().grid().upper_bounds()),
             acceleration_region_properties,
             verbose,
         );
+
+        for name in self.acceleration_region_tracer.extra_varying_scalar_names() {
+            acceleration_regions.extract_varying_scalars(
+                snapshot
+                    .obtain_scalar_field(name)
+                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                interpolator,
+            );
+            if !["r", "bx", "by", "bz"].contains(&name.as_str()) {
+                snapshot.drop_scalar_field(name);
+            }
+        }
+        for name in self.acceleration_region_tracer.extra_varying_vector_names() {
+            acceleration_regions.extract_varying_vectors(
+                snapshot
+                    .obtain_vector_field(name)
+                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                interpolator,
+            );
+            if name != "b" {
+                snapshot.drop_vector_field(name);
+            }
+        }
 
         Ok((distributions, acceleration_regions))
     }

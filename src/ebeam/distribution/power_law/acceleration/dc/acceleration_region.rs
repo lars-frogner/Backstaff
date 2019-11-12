@@ -25,7 +25,7 @@ pub struct AccelerationRegionData {
 #[derive(Clone, Debug)]
 pub struct AccelerationRegionTracerConfig {
     /// The acceleration region ends where the absolute component of the electric field
-    /// parallel to the magnetic field direction becomes lower than this value [statV/cm].
+    /// parallel to the magnetic field direction becomes lower than this value [V/m].
     pub min_parallel_electric_field_strength: feb,
     /// Acceleration regions shorter than this are discarded [Mm].
     pub min_length: ftr,
@@ -36,13 +36,38 @@ pub struct AccelerationRegionTracerConfig {
 #[derive(Clone, Debug)]
 pub struct AccelerationRegionTracer {
     config: AccelerationRegionTracerConfig,
+    extra_varying_scalar_names: Vec<String>,
+    extra_varying_vector_names: Vec<String>,
 }
 
 impl AccelerationRegionTracer {
     /// Creates a new acceleration region tracer.
-    pub fn new(config: AccelerationRegionTracerConfig) -> Self {
+    pub fn new(
+        config: AccelerationRegionTracerConfig,
+        extra_varying_scalar_names: Vec<String>,
+        extra_varying_vector_names: Vec<String>,
+    ) -> Self {
         config.validate();
-        AccelerationRegionTracer { config }
+        AccelerationRegionTracer {
+            config,
+            extra_varying_scalar_names,
+            extra_varying_vector_names,
+        }
+    }
+
+    /// Returns a reference to the configuration parameters for acceleration region tracer.
+    pub fn config(&self) -> &AccelerationRegionTracerConfig {
+        &self.config
+    }
+
+    /// Returns a reference to the list of scalar quantities to extract along acceleration regions.
+    pub fn extra_varying_scalar_names(&self) -> &[String] {
+        &self.extra_varying_scalar_names
+    }
+
+    /// Returns a reference to the list of vector quantities to extract along acceleration regions.
+    pub fn extra_varying_vector_names(&self) -> &[String] {
+        &self.extra_varying_vector_names
     }
 }
 
@@ -69,28 +94,30 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
         let mut backward_length = 0.0;
         let mut backward_parallel_electric_field_strengths = VecDeque::new();
 
-        let mut callback = |displacement: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
-            let electric_field_vector = Vec3::from(
-                &interpolator
-                    .interp_vector_field(electric_field, &Point3::from(position))
-                    .expect_inside(),
-            );
-            let parallel_electric_field_strength =
-                electric_field_vector.dot(displacement) * (*U_EL);
-            if parallel_electric_field_strength.abs()
-                >= self.config.min_parallel_electric_field_strength
-            {
-                backward_path.0.push_front(position[X]);
-                backward_path.1.push_front(position[Y]);
-                backward_path.2.push_front(position[Z]);
-                backward_length = distance;
-                backward_parallel_electric_field_strengths
-                    .push_front(parallel_electric_field_strength);
-                StepperInstruction::Continue
-            } else {
-                StepperInstruction::Terminate
-            }
-        };
+        let mut callback =
+            |_: &Vec3<ftr>, direction: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
+                let electric_field_vector = Vec3::from(
+                    &interpolator
+                        .interp_vector_field(electric_field, &Point3::from(position))
+                        .expect_inside(),
+                );
+                // Use negative sign since we are stepping in the opposite direction of the magnetic field
+                let parallel_electric_field_strength =
+                    -electric_field_vector.dot(direction) * (*U_EL);
+                if parallel_electric_field_strength.abs()
+                    >= self.config.min_parallel_electric_field_strength
+                {
+                    backward_path.0.push_front(position[X]);
+                    backward_path.1.push_front(position[Y]);
+                    backward_path.2.push_front(position[Z]);
+                    backward_length = distance;
+                    backward_parallel_electric_field_strengths
+                        .push_front(parallel_electric_field_strength);
+                    StepperInstruction::Continue
+                } else {
+                    StepperInstruction::Terminate
+                }
+            };
         let tracer_result = tracing::trace_3d_field_line_dense(
             magnetic_field,
             interpolator,
@@ -116,16 +143,16 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
         let mut forward_length = 0.0;
         let mut forward_parallel_electric_field_strengths = Vec::new();
 
-        let sense = SteppingSense::Same;
-
-        let mut callback = |displacement: &Vec3<ftr>, position: &Point3<ftr>, distance: ftr| {
+        let mut callback = |_: &Vec3<ftr>,
+                            direction: &Vec3<ftr>,
+                            position: &Point3<ftr>,
+                            distance: ftr| {
             let electric_field_vector = Vec3::from(
                 &interpolator
                     .interp_vector_field(electric_field, &Point3::from(position))
                     .expect_inside(),
             );
-            let parallel_electric_field_strength =
-                electric_field_vector.dot(displacement) * (*U_EL);
+            let parallel_electric_field_strength = electric_field_vector.dot(direction) * (*U_EL);
             if parallel_electric_field_strength.abs()
                 >= self.config.min_parallel_electric_field_strength
             {
@@ -144,7 +171,7 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
             interpolator,
             stepper,
             start_position,
-            sense,
+            SteppingSense::Same,
             &mut callback,
         );
 
@@ -310,7 +337,7 @@ impl FromParallelIterator<AccelerationRegionData> for FieldLineSetProperties3 {
 }
 
 impl AccelerationRegionTracerConfig {
-    pub const DEFAULT_MIN_PARALLEL_ELECTRIC_FIELD_STRENGTH: feb = 1e-12; // [statV/cm]
+    pub const DEFAULT_MIN_PARALLEL_ELECTRIC_FIELD_STRENGTH: feb = 1.0; // [V/m]
     pub const DEFAULT_MIN_LENGTH: ftr = 0.0; // [Mm]
 
     fn validate(&self) {
