@@ -395,6 +395,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         self.properties.number_of_beams
     }
 
+    /// Returns a reference to the acceleration data collection associated with the electron beams.
+    pub fn acceleration_data(&self) -> &A::AccelerationDataCollectionType {
+        &self.acceleration_data
+    }
+
+    /// Returns a mutable reference to the acceleration data collection associated with the electron beams.
+    pub fn acceleration_data_mut(&mut self) -> &mut A::AccelerationDataCollectionType {
+        &mut self.acceleration_data
+    }
+
     /// Extracts and stores the value of the given scalar field at the initial position for each beam.
     pub fn extract_fixed_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where
@@ -682,7 +692,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             stepper,
             &start_position,
             distribution.propagation_sense(),
-            &mut |displacement, position, distance| {
+            &mut |displacement, _, position, distance| {
                 if distance <= distribution.max_propagation_distance() {
                     let PropagationResult {
                         deposited_power_density,
