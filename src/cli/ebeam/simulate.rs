@@ -6,7 +6,6 @@ use crate::ebeam::detection::simple::{
     SimpleReconnectionSiteDetector, SimpleReconnectionSiteDetectorConfig,
 };
 use crate::ebeam::detection::ReconnectionSiteDetector;
-use crate::ebeam::distribution::power_law::acceleration::dc::acceleration_region::AccelerationRegionTracer;
 use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerator;
 use crate::ebeam::distribution::power_law::acceleration::simple::{
     SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
@@ -86,6 +85,19 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .multiple(true),
         )
         .arg(
+            Arg::with_name("extra-fixed-vectors")
+                .long("extra-fixed-vectors")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_name("NAMES")
+                .help(
+                    "List of vector fields to extract at acceleration sites\n \
+                     (comma-separated)",
+                )
+                .takes_value(true)
+                .multiple(true),
+        )
+        .arg(
             Arg::with_name("extra-varying-scalars")
                 .long("extra-varying-scalars")
                 .require_equals(true)
@@ -93,6 +105,19 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("NAMES")
                 .help(
                     "List of scalar fields to extract along beam trajectories\n \
+                     (comma-separated)",
+                )
+                .takes_value(true)
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("extra-varying-vectors")
+                .long("extra-varying-vectors")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_name("NAMES")
+                .help(
+                    "List of vector fields to extract along beam trajectories\n \
                      (comma-separated)",
                 )
                 .takes_value(true)
@@ -219,15 +244,15 @@ fn run_with_selected_accelerator<G, D>(
     if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("dc_power_law_accelerator")
     {
-        let (accelerator_config, acceleration_region_config) = super::accelerator::dc_power_law::construct_dc_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
+        let (accelerator_config, acceleration_region_tracer) = super::accelerator::dc_power_law::construct_dc_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
-            println!("{:#?}", acceleration_region_config);
+            println!("{:#?}", acceleration_region_tracer.config());
         }
         let accelerator = DCPowerLawAccelerator::new(
             distribution_config,
             accelerator_config,
-            AccelerationRegionTracer::new(acceleration_region_config),
+            acceleration_region_tracer,
         );
         run_with_selected_interpolator(
             root_arguments,
@@ -425,6 +450,20 @@ fn perform_post_simulation_actions<G, A, I>(
             snapshot.drop_scalar_field(name);
         }
     }
+    if let Some(extra_fixed_vectors) = root_arguments
+        .values_of("extra-fixed-vectors")
+        .map(|values| values.collect::<Vec<_>>())
+    {
+        for name in extra_fixed_vectors {
+            beams.extract_fixed_vectors(
+                snapshot
+                    .obtain_vector_field(name)
+                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                &interpolator,
+            );
+            snapshot.drop_vector_field(name);
+        }
+    }
     if let Some(extra_varying_scalars) = root_arguments
         .values_of("extra-varying-scalars")
         .map(|values| values.collect::<Vec<_>>())
@@ -437,6 +476,20 @@ fn perform_post_simulation_actions<G, A, I>(
                 &interpolator,
             );
             snapshot.drop_scalar_field(name);
+        }
+    }
+    if let Some(extra_varying_vectors) = root_arguments
+        .values_of("extra-varying-vectors")
+        .map(|values| values.collect::<Vec<_>>())
+    {
+        for name in extra_varying_vectors {
+            beams.extract_varying_vectors(
+                snapshot
+                    .obtain_vector_field(name)
+                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                &interpolator,
+            );
+            snapshot.drop_vector_field(name);
         }
     }
 
