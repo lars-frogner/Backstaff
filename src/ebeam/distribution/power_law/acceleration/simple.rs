@@ -18,7 +18,6 @@ use crate::tracing::stepping::{StepperFactory3, SteppingSense};
 use crate::units::solar::{U_E, U_L, U_R, U_T};
 use nrfind;
 use rayon::prelude::*;
-use serde::ser::{SerializeTuple, Serializer};
 use serde::Serialize;
 use std::io;
 use Dim3::{X, Y, Z};
@@ -37,7 +36,7 @@ enum RejectionCause {
 pub struct RejectionCauseCode(u8);
 
 /// Holds a rejection cause code for each distribution.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct RejectionCauseCodeCollection {
     rejection_cause_codes: Vec<RejectionCauseCode>,
 }
@@ -111,15 +110,6 @@ impl ParallelExtend<RejectionCauseCode> for RejectionCauseCodeCollection {
         I: IntoParallelIterator<Item = RejectionCauseCode>,
     {
         self.rejection_cause_codes.par_extend(par_iter);
-    }
-}
-
-impl Serialize for RejectionCauseCodeCollection {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut tup = serializer.serialize_tuple(2)?;
-        tup.serialize_element("rejection_cause_code")?;
-        tup.serialize_element(&self.rejection_cause_codes)?;
-        tup.end()
     }
 }
 
