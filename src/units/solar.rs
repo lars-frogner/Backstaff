@@ -1,7 +1,7 @@
 //! Solar units.
 
 use super::fun;
-use crate::constants::{CLIGHT, PI};
+use crate::constants::PI;
 use lazy_static::lazy_static;
 
 /// Unit for length [cm].
@@ -27,7 +27,7 @@ pub const U_L3: fun = U_L * U_L * U_L;
 
 lazy_static! {
     /// Unit for magnetic flux density [gauss].
-    pub static ref U_B: fun = U_U*fun::sqrt(4.0*PI*U_R);
-    /// Unit for electric field strength [statV/cm].
-    pub static ref U_EL: fun = (*U_B)*CLIGHT;
+    pub static ref U_B: fun = U_U * fun::sqrt(4.0 * PI * U_R);
+    /// Unit for electric field strength [V/m].
+    pub static ref U_EL: fun = (*U_B) * U_U * 1e-6;
 }
