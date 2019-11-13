@@ -87,5 +87,5 @@ U_TE = U_E/U_T*U_L
 U_L3 = U_L*U_L*U_L
 # Unit for magnetic flux density [gauss]
 U_B = U_U*np.sqrt(4.0*np.pi*U_R)
-# Unit for electric field strength [statV/cm].
-U_EL = U_B*CLIGHT
+# Unit for electric field strength [V/m].
+U_EL = U_B*U_U*1e-6
