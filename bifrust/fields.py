@@ -99,18 +99,3 @@ def plot_2d_scalar_field(field,
 
     if render:
         plotting.render(fig, output_path=output_path)
-
-
-if __name__ == "__main__":
-    from pathlib import Path
-    import bifrust.reading as reading
-
-    fig, axes = plotting.create_2d_subplots(ncols=1)
-    reading.read_2d_scalar_field(
-        Path(reading.DATA_PATH, 'test_data',
-             'slice1.pickle')).add_to_plot(axes, log=True)
-    # reading.read_2d_scalar_field(
-    #     Path(reading.DATA_PATH, 'phd_run',
-    #          'en024031_emer3.0str_ebeam_351.pickle')).add_to_plot(axes[1],
-    #                                                               log=False)
-    plotting.render(fig)
