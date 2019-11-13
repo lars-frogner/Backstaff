@@ -44,19 +44,25 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     }
 
     @staticmethod
-    def from_file(file_path, params={}, derived_quantities=[], verbose=False):
+    def from_file(file_path,
+                  acceleration_data_type='rejection_cause_codes',
+                  params={},
+                  derived_quantities=[],
+                  verbose=False):
         import bifrust.reading as reading
         file_path = Path(file_path)
         extension = file_path.suffix
         if extension == '.pickle':
             electron_beam_swarm = reading.read_electron_beam_swarm_from_combined_pickles(
                 file_path,
+                acceleration_data_type=acceleration_data_type,
                 params=params,
                 derived_quantities=derived_quantities,
                 verbose=verbose)
         elif extension == '.fl':
             electron_beam_swarm = reading.read_electron_beam_swarm_from_custom_binary_file(
                 file_path,
+                acceleration_data_type=acceleration_data_type,
                 params=params,
                 derived_quantities=derived_quantities,
                 verbose=verbose)
@@ -95,70 +101,49 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             print('Acceleration data:\n    {}'.format('\n    '.join(
                 self.acceleration_data.keys())))
 
-    def add_values_as_line_histogram(self,
-                                     ax,
-                                     value_name,
-                                     value_name_weights=None,
-                                     do_conversion=True,
-                                     rejected=False,
-                                     **kwargs):
+    def add_rejected_values_as_line_histograms(self,
+                                               ax,
+                                               value_name,
+                                               value_name_weights=None,
+                                               do_conversion=True,
+                                               **kwargs):
 
-        if rejected:
-            values, weights = self.get_scalar_values(value_name,
-                                                     value_name_weights)
+        values, weights = self.get_scalar_values(value_name,
+                                                 value_name_weights)
 
-            values = self._convert_values(value_name, values, do_conversion)
-            if weights is not None:
-                weights = self._convert_values(value_name_weights, weights,
-                                               do_conversion)
+        values = self._convert_values(value_name, values, do_conversion)
+        if weights is not None:
+            weights = self._convert_values(value_name_weights, weights,
+                                           do_conversion)
 
-            rejection_map = DistributionRejectionMap(
-                self.get_rejection_cause_codes())
+        rejection_map = DistributionRejectionMap(
+            self.get_rejection_cause_codes())
 
-            rejection_map.add_values_as_line_histograms(
-                ax, values, weights, **kwargs)
-        else:
-            super().add_values_as_line_histogram(
-                ax,
-                value_name,
-                value_name_weights=value_name_weights,
-                do_conversion=do_conversion,
-                **kwargs)
+        rejection_map.add_values_as_line_histograms(ax, values, weights,
+                                                    **kwargs)
 
-    def add_values_as_2d_histogram_image(self,
-                                         ax,
-                                         value_name_x,
-                                         value_name_y,
-                                         value_name_weights=None,
-                                         do_conversion=True,
-                                         rejected=False,
-                                         **kwargs):
+    def add_rejected_values_as_2d_histogram_image(self,
+                                                  ax,
+                                                  value_name_x,
+                                                  value_name_y,
+                                                  value_name_weights=None,
+                                                  do_conversion=True,
+                                                  **kwargs):
 
-        if rejected:
-            values_x, values_y, weights = self.get_scalar_values(
-                value_name_x, value_name_y, value_name_weights)
+        values_x, values_y, weights = self.get_scalar_values(
+            value_name_x, value_name_y, value_name_weights)
 
-            values_x = self._convert_values(value_name_x, values_x,
-                                            do_conversion)
-            values_y = self._convert_values(value_name_y, values_y,
-                                            do_conversion)
-            if weights is not None:
-                weights = self._convert_values(value_name_weights, weights,
-                                               do_conversion)
+        values_x = self._convert_values(value_name_x, values_x, do_conversion)
+        values_y = self._convert_values(value_name_y, values_y, do_conversion)
+        if weights is not None:
+            weights = self._convert_values(value_name_weights, weights,
+                                           do_conversion)
 
-            rejection_map = DistributionRejectionMap(
-                self.get_rejection_cause_codes())
+        rejection_map = DistributionRejectionMap(
+            self.get_rejection_cause_codes())
 
-            return rejection_map.add_values_as_2d_histogram_image(
-                ax, values_x, values_y, weights, **kwargs)
-        else:
-            return super().add_values_as_2d_histogram_image(
-                ax,
-                value_name_x,
-                value_name_y,
-                value_name_weights=value_name_weights,
-                do_conversion=do_conversion,
-                **kwargs)
+        return rejection_map.add_values_as_2d_histogram_image(
+            ax, values_x, values_y, weights, **kwargs)
 
     def add_rejection_cause_codes_to_3d_plot_as_scatter(self, ax, **kwargs):
 
@@ -174,11 +159,14 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     def get_number_of_beams(self):
         return self.number_of_beams
 
-    def get_acceleration_data(self, acceleration_data_label):
-        return self.acceleration_data[acceleration_data_label]
+    def get_acceleration_data(self, acceleration_data_type):
+        return self.acceleration_data[acceleration_data_type]
 
     def get_rejection_cause_codes(self):
         return self.get_acceleration_data('rejection_cause_code')
+
+    def get_acceleration_sites(self):
+        return self.get_acceleration_data('acceleration_sites')
 
     def _derive_quantities(self, derived_quantities):
 
@@ -316,6 +304,36 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                         mean_electron_energies*electron_densities)
 
         return self.get_fixed_scalar_values('beam_electron_fraction')
+
+
+class AccelerationSites(field_lines.FieldLineSet3):
+
+    VALUE_DESCRIPTIONS = ElectronBeamSwarm.VALUE_DESCRIPTIONS
+    VALUE_UNIT_CONVERTERS = ElectronBeamSwarm.VALUE_UNIT_CONVERTERS
+
+    def __init__(self,
+                 domain_bounds,
+                 number_of_sites,
+                 fixed_scalar_values,
+                 fixed_vector_values,
+                 varying_scalar_values,
+                 varying_vector_values,
+                 params={},
+                 derived_quantities=[],
+                 verbose=False):
+        self.number_of_sites = number_of_sites
+        super().__init__(domain_bounds,
+                         number_of_sites,
+                         fixed_scalar_values,
+                         fixed_vector_values,
+                         varying_scalar_values,
+                         varying_vector_values,
+                         params=params,
+                         derived_quantities=derived_quantities,
+                         verbose=verbose)
+
+    def get_number_of_sites(self):
+        return self.number_of_sites
 
 
 class DistributionRejectionMap:
@@ -714,154 +732,3 @@ def plot_beam_value_2d_histogram_difference(*args, **kwargs):
 
 def plot_beam_value_2d_histogram_comparison(*args, **kwargs):
     field_lines.plot_field_line_value_2d_histogram_comparison(*args, **kwargs)
-
-
-if __name__ == "__main__":
-    import bifrust.reading as reading
-
-    electron_beam_swarm = ElectronBeamSwarm.from_file(
-        Path(
-            reading.DATA_PATH,
-            'phd_run',
-            #'en024031_emer3.0str_ebeam_351_beams_no_distance_threshold.pickle'),
-            'en024031_emer3.0str_ebeam_351_beams.pickle'),
-        derived_quantities=[
-            'r0', 'tg0', 'distance_weighted_deposited_power_density'
-        ])
-
-    # plot_electron_beams(electron_beam_swarm,
-    #                     value_name='deposited_power_density',
-    #                     vmin=1e-10,
-    #                     vmax=1e-4,
-    #                     log=True,
-    #                     alpha=1.0)
-
-    # plot_electron_beams(electron_beam_swarm,
-    #                     value_name='remaining_power_density',
-    #                     vmax=1,
-    #                     log=True,
-    #                     alpha=1.0)
-
-    # plot_electron_beams(electron_beam_swarm,
-    #                     value_name='total_propagation_distance',
-    #                     log=True,
-    #                     alpha=1.0)
-
-    # plot_electron_beams(electron_beam_swarm,
-    #                     value_name='estimated_depletion_distance',
-    #                     log=True,
-    #                     alpha=1.0)
-
-    # plot_electron_beams(electron_beam_swarm,
-    #                     value_name='underestimated_total_propagation_distance',
-    #                     log=True,
-    #                     alpha=1.0,
-    #                     relative_alpha=False)
-
-    # plot_beam_value_histogram(electron_beam_swarm,
-    #                           value_name='krec',
-    #                           log_x=True,
-    #                           log_y=True)
-
-    # plot_beam_value_2d_histogram(electron_beam_swarm,
-    #                              'krec',
-    #                              'total_power_density',
-    #                              log_x=True,
-    #                              log_y=True,
-    #                              log=True)
-
-    # plot_rejection_map(electron_beam_swarm,
-    #                    included_rejectors=[2],
-    #                    excluded_rejectors=[1, 3],
-    #                    alpha=0.01,
-    #                    limited_number=None)
-
-    # plot_beam_value_histogram(electron_beam_swarm,
-    #                           'z0',
-    #                           log_x=False,
-    #                           rejected=True,
-    #                           included_rejectors=[2],
-    #                           excluded_rejectors=[1, 3],
-    #                           limited_number=None,
-    #                           aggregated=False)
-
-    # plot_beam_value_2d_histogram(
-    #     electron_beam_swarm,
-    #     'krec',
-    #     'z0',
-    #     log_x=True,
-    #     #log_y=True,
-    #     rejected=True,
-    #     included_rejectors=[2],
-    #     limited_number=None)
-
-    # plot_beam_value_2d_histogram_comparison(
-    #     electron_beam_swarm, ('r0', 'r'), ('tg0', 'tg'),
-    #     ('total_power_density', 'deposited_power_density'),
-    #     bins_x=180,
-    #     bins_y=180,
-    #     vmin_x=10**(-7.5),
-    #     vmax_x=10**(1.0),
-    #     vmin_y=10**(3.2),
-    #     vmax_y=10**(6.2),
-    #     log_x=True,
-    #     log_y=True,
-    #     vmin=1e-5,
-    #     vmax=1e3,
-    #     log=True)
-
-    # plot_beam_value_2d_histogram_difference(
-    #     electron_beam_swarm, ('r', 'r0'), ('tg', 'tg0'),
-    #     value_names_weights=('deposited_power_density', 'total_power_density'),
-    #     bins_x=300,
-    #     bins_y=300,
-    #     log_x=True,
-    #     log_y=True,
-    #     symlog=True,
-    #     linthresh=1e-4,
-    #     cmap_name='transport')
-
-    # plot_beam_value_2d_histogram_difference(
-    #     electron_beam_swarm, ('r', 'r0'), ('tg', 'tg0'),
-    #     value_names_weights=('deposited_power_density', 'total_power_density'),
-    #     bins_x=256,
-    #     bins_y=256,
-    #     log_x=True,
-    #     log_y=True,
-    #     symlog=True,
-    #     linthresh=1e-4,
-    #     cmap_name='transport',
-    #     vmin=-1e3,
-    #     vmax=1e3)
-
-    # plot_beam_value_histogram_difference(
-    #     electron_beam_swarm, ('r', 'r0'),
-    #     value_names_weights=('deposited_power_density', 'total_power_density'),
-    #     bins=500,
-    #     log_x=True,
-    #     symlog_y=True,
-    #     linethresh_y=1e-1)
-
-    # plot_beam_value_2d_histogram_comparison(
-    #     electron_beam_swarm, ('r', 'r'), ('tg', 'tg'),
-    #     ('deposited_power_density',
-    #      'distance_weighted_deposited_power_density'),
-    #     bins_x=256,
-    #     bins_y=256,
-    #     vmin_x=10**(-8.0),
-    #     vmax_x=10**(1.0),
-    #     vmin_y=10**(3.2),
-    #     vmax_y=10**(6.6),
-    #     log_x=True,
-    #     log_y=True,
-    #     log=True)
-
-    plot_beam_value_2d_histogram(
-        electron_beam_swarm,
-        'r0',
-        'tg0',
-        value_name_weights='total_propagation_distance',
-        log_x=True,
-        log_y=True,
-        log=True,
-        weighted_average=True)
