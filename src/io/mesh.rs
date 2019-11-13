@@ -139,10 +139,10 @@ where
 
         let uniform_up = up_derivatives
             .iter()
-            .all(|&element| fdt::abs(element - up_derivatives[0]) < 1e-3);
+            .all(|&element| fdt::abs(element - up_derivatives[0]) < 5e-3);
         let uniform_down = down_derivatives
             .iter()
-            .all(|&element| fdt::abs(element - down_derivatives[0]) < 1e-3);
+            .all(|&element| fdt::abs(element - down_derivatives[0]) < 5e-3);
 
         if uniform_up != uniform_down {
             return Err(io::Error::new(
