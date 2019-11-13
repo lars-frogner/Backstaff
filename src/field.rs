@@ -261,14 +261,17 @@ where
                             let weight = overlap_length_x * overlap_length_y * overlap_length_z;
 
                             accum_value = accum_value
-                                + interpolator.interp_extrap_scalar_field(
-                                    self,
-                                    &Point3::new(
-                                        overlap_center_x,
-                                        overlap_center_y,
-                                        overlap_center_z,
-                                    ),
-                                ) * weight;
+                                + interpolator
+                                    .interp_extrap_scalar_field(
+                                        self,
+                                        &Point3::new(
+                                            overlap_center_x,
+                                            overlap_center_y,
+                                            overlap_center_z,
+                                        ),
+                                    )
+                                    .expect_inside_or_moved()
+                                    * weight;
 
                             accum_weight = accum_weight + weight;
                         }
@@ -398,7 +401,9 @@ where
             .for_each(|(idx, value)| {
                 let indices = compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
                 let point = new_coords.point(&indices);
-                *value = interpolator.interp_extrap_scalar_field(self, &point);
+                *value = interpolator
+                    .interp_extrap_scalar_field(self, &point)
+                    .expect_inside_or_moved();
             });
         ScalarField3::new(self.name.clone(), grid, self.locations.clone(), new_values)
     }
@@ -515,8 +520,14 @@ where
         lower_overlying_corner: &Point3<F>,
         upper_overlying_corner: &Point3<F>,
     ) -> In3D<Vec<usize>> {
-        let lower_underlying_indices = self.grid.find_closest_grid_cell(lower_overlying_corner);
-        let upper_underlying_indices = self.grid.find_closest_grid_cell(upper_overlying_corner);
+        let lower_underlying_indices = self
+            .grid
+            .find_closest_grid_cell(lower_overlying_corner)
+            .expect_inside_or_moved();
+        let upper_underlying_indices = self
+            .grid
+            .find_closest_grid_cell(upper_overlying_corner)
+            .expect_inside_or_moved();
 
         In3D::new(
             self.grid.create_idx_range_list_wrapped(
