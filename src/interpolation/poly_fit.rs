@@ -8,13 +8,13 @@ use crate::num::BFloat;
 use Dim3::{X, Y, Z};
 
 macro_rules! compute_start_offset {
-    ($center_coords:expr, $locations:expr, $interp_coord:expr, $interp_indices:expr, $order:expr) => {{
+    ($center_coords:expr, $locations:expr, $interp_coord:expr, $interp_idx:expr, $order:expr) => {{
         const N_POINTS: usize = $order + 1;
         const DEFAULT_START_OFFSET: isize = 1 - ((N_POINTS + 1) as isize) / 2;
 
         match $locations {
             CoordLocation::Center => {
-                if $order % 2 != 0 && $interp_coord < $center_coords[$interp_indices] {
+                if $order % 2 != 0 && $interp_coord < $center_coords[$interp_idx] {
                     // If coordinates are located at cell centers, interpolation order is odd
                     // and interpolation coordinate is in lower half of the cell:
                     // Shift start offset one cell down.
@@ -24,7 +24,7 @@ macro_rules! compute_start_offset {
                 }
             }
             CoordLocation::LowerEdge => {
-                if $order % 2 == 0 && $interp_coord > $center_coords[$interp_indices] {
+                if $order % 2 == 0 && $interp_coord > $center_coords[$interp_idx] {
                     // If coordinates are located at lower cell edges, interpolation order is even
                     // and interpolation coordinate is in upper half of the cell:
                     // Shift start offset one cell up.
@@ -195,44 +195,75 @@ macro_rules! create_value_subarray {
 }
 
 macro_rules! create_coordinate_subarray_for_interior {
-    ($coords:expr, $start_indices:expr, $order:expr) => {{
+    ($coords:expr, $start_idx:expr, $order:expr) => {{
         const N_POINTS: usize = $order + 1;
 
         let mut subarray = [F::zero(); N_POINTS];
-        let offset = $start_indices as usize;
+        let offset = $start_idx as usize;
         subarray[..N_POINTS].clone_from_slice(&$coords[offset..(N_POINTS + offset)]);
         subarray
     }};
 }
 
 macro_rules! create_coordinate_subarray_for_periodic {
-    ($coords:expr, $start_indices:expr, $order:expr) => {{
+    ($coords:expr, $extent:expr, $start_idx:expr, $order:expr) => {{
         const N_POINTS: usize = $order + 1;
 
         let len = $coords.len();
-        let offset = ($start_indices + (len as isize)) as usize;
         let mut subarray = [F::zero(); N_POINTS];
-        for idx in 0..N_POINTS {
-            subarray[idx] = $coords[(offset + idx) % len];
+        if $start_idx < 0 {
+            let n_points_below = (-$start_idx) as usize;
+            let offset = len - n_points_below;
+            for idx in 0..n_points_below {
+                subarray[idx] = $coords[offset + idx] - $extent;
+            }
+            for idx in n_points_below..N_POINTS {
+                subarray[idx] = $coords[idx - n_points_below];
+            }
+        } else {
+            // start_idx + N_POINTS >= len
+            let offset = $start_idx as usize;
+            let n_points_below = len - offset;
+            for idx in 0..n_points_below {
+                subarray[idx] = $coords[offset + idx];
+            }
+            for idx in n_points_below..N_POINTS {
+                subarray[idx] = $coords[idx - n_points_below] + $extent;
+            }
         }
         subarray
     }};
 }
 
 macro_rules! create_coordinate_subarrays {
-    ($crosses_periodic_bound:expr, $coords:expr, $start_indices:expr, $order:expr) => {{
+    ($crosses_periodic_bound:expr, $coords:expr, $extents:expr, $start_indices:expr, $order:expr) => {{
         let x_coord_subarray = if $crosses_periodic_bound[X] {
-            create_coordinate_subarray_for_periodic!($coords[X], $start_indices[X], $order)
+            create_coordinate_subarray_for_periodic!(
+                $coords[X],
+                $extents[X],
+                $start_indices[X],
+                $order
+            )
         } else {
             create_coordinate_subarray_for_interior!($coords[X], $start_indices[X], $order)
         };
         let y_coord_subarray = if $crosses_periodic_bound[Y] {
-            create_coordinate_subarray_for_periodic!($coords[Y], $start_indices[Y], $order)
+            create_coordinate_subarray_for_periodic!(
+                $coords[Y],
+                $extents[Y],
+                $start_indices[Y],
+                $order
+            )
         } else {
             create_coordinate_subarray_for_interior!($coords[Y], $start_indices[Y], $order)
         };
         let z_coord_subarray = if $crosses_periodic_bound[Z] {
-            create_coordinate_subarray_for_periodic!($coords[Z], $start_indices[Z], $order)
+            create_coordinate_subarray_for_periodic!(
+                $coords[Z],
+                $extents[Z],
+                $start_indices[Z],
+                $order
+            )
         } else {
             create_coordinate_subarray_for_interior!($coords[Z], $start_indices[Z], $order)
         };
@@ -369,6 +400,7 @@ macro_rules! interp {
                     create_coordinate_subarrays!(
                         crosses_periodic_bound,
                         $coords,
+                        $grid.extents(),
                         start_indices,
                         1
                     );
@@ -386,6 +418,7 @@ macro_rules! interp {
                     create_coordinate_subarrays!(
                         crosses_periodic_bound,
                         $coords,
+                        $grid.extents(),
                         start_indices,
                         $order
                     );
@@ -401,10 +434,10 @@ macro_rules! interp {
     };
 }
 
-macro_rules! interp_scalar_field {
-    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+macro_rules! interp_scalar_field_from_grid_point_query {
+    ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         let grid = $field.grid();
-        match grid.find_grid_cell($interp_point) {
+        match $grid_point_query {
             GridPointQuery3::Inside(interp_indices) => GridPointQuery3::Inside(interp!(
                 grid,
                 &$field.coords(),
@@ -415,19 +448,19 @@ macro_rules! interp_scalar_field {
                 $variation_threshold_for_linear,
                 $order
             )),
-            GridPointQuery3::WrappedInside((interp_indices, wrapped_point)) => {
-                GridPointQuery3::WrappedInside((
+            GridPointQuery3::MovedInside((interp_indices, moved_point)) => {
+                GridPointQuery3::MovedInside((
                     interp!(
                         grid,
                         &$field.coords(),
                         $field.locations(),
                         $field.values(),
-                        $interp_point,
+                        &moved_point,
                         &interp_indices,
                         $variation_threshold_for_linear,
                         $order
                     ),
-                    wrapped_point,
+                    moved_point,
                 ))
             }
             GridPointQuery3::Outside => GridPointQuery3::Outside,
@@ -435,27 +468,10 @@ macro_rules! interp_scalar_field {
     }};
 }
 
-macro_rules! interp_extrap_scalar_field {
-    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+macro_rules! interp_vector_field_from_grid_point_query {
+    ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         let grid = $field.grid();
-        let interp_indices = grid.find_closest_grid_cell($interp_point);
-        interp!(
-            grid,
-            &$field.coords(),
-            $field.locations(),
-            $field.values(),
-            $interp_point,
-            &interp_indices,
-            $variation_threshold_for_linear,
-            $order
-        )
-    }};
-}
-
-macro_rules! interp_vector_field {
-    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
-        let grid = $field.grid();
-        match grid.find_grid_cell($interp_point) {
+        match $grid_point_query {
             GridPointQuery3::Inside(interp_indices) => GridPointQuery3::Inside(Vec3::new(
                 interp!(
                     grid,
@@ -488,15 +504,15 @@ macro_rules! interp_vector_field {
                     $order
                 ),
             )),
-            GridPointQuery3::WrappedInside((interp_indices, wrapped_point)) => {
-                GridPointQuery3::WrappedInside((
+            GridPointQuery3::MovedInside((interp_indices, moved_point)) => {
+                GridPointQuery3::MovedInside((
                     Vec3::new(
                         interp!(
                             grid,
                             &$field.coords(X),
                             $field.locations(X),
                             &$field.values(X),
-                            $interp_point,
+                            &moved_point,
                             &interp_indices,
                             $variation_threshold_for_linear,
                             $order
@@ -506,7 +522,7 @@ macro_rules! interp_vector_field {
                             &$field.coords(Y),
                             $field.locations(Y),
                             &$field.values(Y),
-                            $interp_point,
+                            &moved_point,
                             &interp_indices,
                             $variation_threshold_for_linear,
                             $order
@@ -516,13 +532,13 @@ macro_rules! interp_vector_field {
                             &$field.coords(Z),
                             $field.locations(Z),
                             &$field.values(Z),
-                            $interp_point,
+                            &moved_point,
                             &interp_indices,
                             $variation_threshold_for_linear,
                             $order
                         ),
                     ),
-                    wrapped_point,
+                    moved_point,
                 ))
             }
             GridPointQuery3::Outside => GridPointQuery3::Outside,
@@ -530,41 +546,54 @@ macro_rules! interp_vector_field {
     }};
 }
 
+macro_rules! interp_scalar_field {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_grid_cell($interp_point);
+        interp_scalar_field_from_grid_point_query!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_extrap_scalar_field {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_closest_grid_cell($interp_point);
+        interp_scalar_field_from_grid_point_query!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_vector_field {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_grid_cell($interp_point);
+        interp_vector_field_from_grid_point_query!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
 macro_rules! interp_extrap_vector_field {
     ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
-        let grid = $field.grid();
-        let interp_indices = grid.find_closest_grid_cell($interp_point);
-        Vec3::new(
-            interp!(
-                grid,
-                &$field.coords(X),
-                $field.locations(X),
-                &$field.values(X),
-                $interp_point,
-                &interp_indices,
-                $variation_threshold_for_linear,
-                $order
-            ),
-            interp!(
-                grid,
-                &$field.coords(X),
-                $field.locations(Y),
-                &$field.values(X),
-                $interp_point,
-                &interp_indices,
-                $variation_threshold_for_linear,
-                $order
-            ),
-            interp!(
-                grid,
-                &$field.coords(X),
-                $field.locations(Z),
-                &$field.values(X),
-                $interp_point,
-                &interp_indices,
-                $variation_threshold_for_linear,
-                $order
-            ),
+        let grid_point_query = $field.grid().find_closest_grid_cell($interp_point);
+        interp_vector_field_from_grid_point_query!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
         )
     }};
 }
@@ -623,7 +652,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         &self,
         field: &ScalarField3<F, G>,
         interp_point: &Point3<F>,
-    ) -> F
+    ) -> GridPointQuery3<F, F>
     where
         F: BFloat,
         G: Grid3<F>,
@@ -677,7 +706,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         &self,
         field: &VectorField3<F, G>,
         interp_point: &Point3<F>,
-    ) -> Vec3<F>
+    ) -> GridPointQuery3<F, Vec3<F>>
     where
         F: BFloat,
         G: Grid3<F>,
