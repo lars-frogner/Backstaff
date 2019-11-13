@@ -126,7 +126,7 @@ def colors_from_values(values, norm, cmap, alpha=1.0, relative_alpha=True):
     return colors
 
 
-def add_2d_colorbar(fig, ax, mappeable, pad=0.05, label=None):
+def add_2d_colorbar(fig, ax, mappeable, pad=0.05, label=''):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=pad)
     fig.colorbar(mappeable, cax=cax, label=label)
@@ -137,7 +137,7 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
                                        norm,
                                        cmap,
                                        pad=0.05,
-                                       label=None):
+                                       label=''):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=pad)
     sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
@@ -145,7 +145,7 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
     fig.colorbar(sm, cax=cax, label=label)
 
 
-def add_3d_colorbar(fig, norm, cmap, label=None):
+def add_3d_colorbar(fig, norm, cmap, label=''):
     sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
     fig.colorbar(sm, label=label)
