@@ -34,7 +34,7 @@ pub enum GridType {
 #[derive(Clone, Debug, PartialEq)]
 pub enum GridPointQuery3<F: BFloat, T> {
     Inside(T),
-    WrappedInside((T, Point3<F>)),
+    MovedInside((T, Point3<F>)),
     Outside,
 }
 
@@ -46,7 +46,7 @@ pub enum GridPointQuery3<F: BFloat, T> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum GridPointQuery2<F: BFloat, T> {
     Inside(T),
-    WrappedInside((T, Point2<F>)),
+    MovedInside((T, Point2<F>)),
     Outside,
 }
 
@@ -207,7 +207,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         );
 
         if wrapped {
-            GridPointQuery3::WrappedInside((indices, point))
+            GridPointQuery3::MovedInside((indices, point))
         } else {
             GridPointQuery3::Inside(indices)
         }
@@ -217,7 +217,10 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// wrapping around any periodic boundaries,
     /// or the index of the closest grid cell if the coordinate is outside
     /// a non-periodic boundary.
-    fn find_closest_grid_cell(&self, point: &Point3<F>) -> Idx3<usize> {
+    ///
+    /// The result is returned as a `GridPointQuery3` which is guaranteed not
+    /// to be `Outside`.
+    fn find_closest_grid_cell(&self, point: &Point3<F>) -> GridPointQuery3<F, Idx3<usize>> {
         let lower_edges = self.lower_edges();
         let lower_bounds = self.lower_bounds();
         let upper_bounds = self.upper_bounds();
@@ -226,31 +229,40 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 
         let mut point = point.clone();
         let mut indices = Idx3::origin();
+        let mut wrapped = false;
+
         for &dim in &Dim3::slice() {
             if self.is_periodic(dim) {
                 if point[dim] < lower_bounds[dim] {
                     point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
                 } else if point[dim] >= upper_bounds[dim] {
                     point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
                 };
                 indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
                     .expect("Coordinate index search failed.");
+            } else if point[dim] < lower_bounds[dim] {
+                indices[dim] = 0;
+                point[dim] = lower_bounds[dim];
+            } else if point[dim] >= upper_bounds[dim] {
+                indices[dim] = shape[dim] - 1;
+                point[dim] = upper_bounds[dim].prev();
             } else {
-                indices[dim] = if point[dim] < lower_bounds[dim] {
-                    0
-                } else if point[dim] >= upper_bounds[dim] {
-                    shape[dim] - 1
-                } else {
-                    search_idx_of_coord(&lower_edges[dim], point[dim])
-                        .expect("Coordinate index search failed.")
-                };
+                indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
+                    .expect("Coordinate index search failed.");
             }
         }
         debug_assert!(
             self.indices_are_inside(&indices),
             "Found inside index is actually on the outside."
         );
-        indices
+
+        if wrapped {
+            GridPointQuery3::MovedInside((indices, point))
+        } else {
+            GridPointQuery3::Inside(indices)
+        }
     }
 
     /// Given a point that may be outside the grid boundaries, returns a new point
@@ -530,7 +542,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
         );
 
         if wrapped {
-            GridPointQuery2::WrappedInside((indices, point))
+            GridPointQuery2::MovedInside((indices, point))
         } else {
             GridPointQuery2::Inside(indices)
         }
@@ -608,12 +620,12 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
 }
 
 impl<F: BFloat, T> GridPointQuery3<F, T> {
-    /// Returns the query result if the grid point was inside the grid, otherwise panics.
+    /// Returns the query result if the grid point was already inside the grid, otherwise panics.
     pub fn expect_inside(self) -> T {
         match self {
             GridPointQuery3::Inside(result) => result,
-            GridPointQuery3::WrappedInside(_) => {
-                panic!("Grid point query was wrapped when expected to be inside.")
+            GridPointQuery3::MovedInside(_) => {
+                panic!("Grid point query was moved when expected to already be inside.")
             }
             GridPointQuery3::Outside => {
                 panic!("Grid point query was outside when expected to be inside.")
@@ -621,25 +633,25 @@ impl<F: BFloat, T> GridPointQuery3<F, T> {
         }
     }
 
-    /// Returns the query result if the grid point was inside the grid or wrapped around
-    /// a periodic boundary, otherwise panics.
-    pub fn expect_inside_or_wrapped(self) -> T {
+    /// Returns the query result if the grid point was already inside the grid or was moved inside,
+    /// otherwise panics.
+    pub fn expect_inside_or_moved(self) -> T {
         match self {
             GridPointQuery3::Inside(result) => result,
-            GridPointQuery3::WrappedInside((result, _)) => result,
+            GridPointQuery3::MovedInside((result, _)) => result,
             GridPointQuery3::Outside => {
                 panic!("Grid point query was outside when expected to be inside.")
             }
         }
     }
 
-    /// Returns the query result, and updates the given position with the possibly wrapped position.
-    /// Panics if the grid point was outside a non-periodic boundary.
+    /// Returns the query result, and updates the given position with the possibly moved position.
+    /// Panics if the grid point was outside a non-periodic boundary and not moved inside.
     pub fn unwrap_and_update_position<P: BFloat>(self, position: &mut Point3<P>) -> T {
         match self {
             GridPointQuery3::Inside(result) => result,
-            GridPointQuery3::WrappedInside((result, wrapped_position)) => {
-                *position = Point3::from(&wrapped_position);
+            GridPointQuery3::MovedInside((result, moved_position)) => {
+                *position = Point3::from(&moved_position);
                 result
             }
             GridPointQuery3::Outside => {
@@ -650,12 +662,12 @@ impl<F: BFloat, T> GridPointQuery3<F, T> {
 }
 
 impl<F: BFloat, T> GridPointQuery2<F, T> {
-    /// Returns the query result if the grid point was inside the grid, otherwise panics.
+    /// Returns the query result if the grid point was already inside the grid, otherwise panics.
     pub fn expect_inside(self) -> T {
         match self {
             GridPointQuery2::Inside(result) => result,
-            GridPointQuery2::WrappedInside(_) => {
-                panic!("Grid point query was wrapped when expected to be inside.")
+            GridPointQuery2::MovedInside(_) => {
+                panic!("Grid point query was moved when expected to already be inside.")
             }
             GridPointQuery2::Outside => {
                 panic!("Grid point query was outside when expected to be inside.")
@@ -663,25 +675,25 @@ impl<F: BFloat, T> GridPointQuery2<F, T> {
         }
     }
 
-    /// Returns the query result if the grid point was inside the grid or wrapped around
-    /// a periodic boundary, otherwise panics.
-    pub fn expect_inside_or_wrapped(self) -> T {
+    /// Returns the query result if the grid point was already inside the grid or was moved inside,
+    /// otherwise panics.
+    pub fn expect_inside_or_moved(self) -> T {
         match self {
             GridPointQuery2::Inside(result) => result,
-            GridPointQuery2::WrappedInside((result, _)) => result,
+            GridPointQuery2::MovedInside((result, _)) => result,
             GridPointQuery2::Outside => {
                 panic!("Grid point query was outside when expected to be inside.")
             }
         }
     }
 
-    /// Returns the query result, and updates the given position with the possibly wrapped position.
-    /// Panics if the grid point was outside a non-periodic boundary.
+    /// Returns the query result, and updates the given position with the possibly moved position.
+    /// Panics if the grid point was outside a non-periodic boundary and not moved inside.
     pub fn unwrap_and_update_position<P: BFloat>(self, position: &mut Point2<P>) -> T {
         match self {
             GridPointQuery2::Inside(result) => result,
-            GridPointQuery2::WrappedInside((result, wrapped_position)) => {
-                *position = Point2::from(&wrapped_position);
+            GridPointQuery2::MovedInside((result, moved_position)) => {
+                *position = Point2::from(&moved_position);
                 result
             }
             GridPointQuery2::Outside => {
