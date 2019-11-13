@@ -344,7 +344,7 @@ trait RKFStepper3 {
                     ))
                 }
             }
-            GridPointQuery3::WrappedInside((field_vector, wrapped_position)) => {
+            GridPointQuery3::MovedInside((field_vector, wrapped_position)) => {
                 if field_vector.is_zero() {
                     StepperResult::Stopped(StoppingCause::Null)
                 } else {
