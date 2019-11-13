@@ -22,7 +22,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// A `GridPointQuery3<F, F>` which is either:
     ///
     /// - `Inside`: Contains the interpolated field value.
-    /// - `WrappedInside`: Contains the interpolated field value and a wrapped version of the
+    /// - `MovedInside`: Contains the interpolated field value and a wrapped version of the
     /// interpolation point located on the inside of the grid.
     /// - `Outside`: The interpolation point was outside a non-periodic boundary.
     ///
@@ -51,7 +51,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// The interpolated or extrapolated field value.
+    /// A `GridPointQuery3<F, F>` which is either:
+    ///
+    /// - `Inside`: Contains the interpolated/extrapolated field value.
+    /// - `MovedInside`: Contains the interpolated/extrapolated field value and a wrapped/truncated
+    /// version of the interpolation point located on the inside of the grid.
     ///
     /// # Type parameters
     ///
@@ -61,7 +65,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         &self,
         field: &ScalarField3<F, G>,
         interp_point: &Point3<F>,
-    ) -> F
+    ) -> GridPointQuery3<F, F>
     where
         F: BFloat,
         G: Grid3<F>;
@@ -79,7 +83,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// A `GridPointQuery3<F, Vec3<F>>` which is either:
     ///
     /// - `Inside`: Contains the interpolated field vector.
-    /// - `WrappedInside`: Contains the interpolated field vector and a wrapped version of the
+    /// - `MovedInside`: Contains the interpolated field vector and a wrapped version of the
     /// interpolation point located on the inside of the grid.
     /// - `Outside`: The interpolation point was outside a non-periodic boundary.
     ///
@@ -108,7 +112,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// The interpolated or extrapolated field vector.
+    /// A `GridPointQuery3<F, Vec3<F>>` which is either:
+    ///
+    /// - `Inside`: Contains the interpolated/extrapolated field vector.
+    /// - `MovedInside`: Contains the interpolated/extrapolated field vector and a wrapped/truncated
+    /// version of the interpolation point located on the inside of the grid.
     ///
     /// # Type parameters
     ///
@@ -118,7 +126,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         &self,
         field: &VectorField3<F, G>,
         interp_point: &Point3<F>,
-    ) -> Vec3<F>
+    ) -> GridPointQuery3<F, Vec3<F>>
     where
         F: BFloat,
         G: Grid3<F>;
