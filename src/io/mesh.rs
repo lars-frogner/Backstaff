@@ -156,6 +156,48 @@ where
 
         is_uniform[dim] = uniform_up;
 
+        if !center_coords
+            .iter()
+            .zip(center_coords.iter().skip(1))
+            .all(|(&lower, &upper)| upper >= lower)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Center {}-coordinates in mesh file do not increase monotonically",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        if !lower_coords
+            .iter()
+            .zip(lower_coords.iter().skip(1))
+            .all(|(&lower, &upper)| upper >= lower)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Lower edge {}-coordinates in mesh file do not increase monotonically",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        if !lower_coords
+            .iter()
+            .zip(center_coords.iter())
+            .all(|(&lower, &upper)| upper > lower)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Found grid cell where center {}-coordinate is not larger than lower edge coordinate",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
         center_coord_vecs.push_back(center_coords);
         lower_coord_vecs.push_back(lower_coords);
         up_derivative_vecs.push_back(up_derivatives);
