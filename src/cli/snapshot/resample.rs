@@ -14,7 +14,9 @@ use crate::interpolation::Interpolator3;
 use crate::io::mesh;
 use crate::io::snapshot::{self, fdt, SnapshotReader3};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::path::PathBuf;
+use regex::Regex;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 use Dim3::{X, Y, Z};
@@ -67,6 +69,12 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .short("a")
                 .long("include-aux")
                 .help("Also resample the auxiliary quantity fields associated with the snapshot"),
+        )
+        .arg(
+            Arg::with_name("generate-param-file")
+                .short("p")
+                .long("generate-param-file")
+                .help("Generate a parameter file for the resampled snapshot based on the original one"),
         )
         .arg(
             Arg::with_name("verbose")
@@ -125,16 +133,27 @@ fn run_resampling<G, I>(
     G: Grid3<fdt>,
     I: Interpolator3,
 {
-    let mesh_file_path = root_arguments
-        .value_of("mesh-path")
-        .expect("No value for required argument.");
+    let mesh_file_path = PathBuf::from_str(
+        root_arguments
+            .value_of("mesh-path")
+            .expect("No value for required argument."),
+    )
+    .unwrap_or_else(|err| panic!("Could not interpret mesh-path: {}", err))
+    .with_extension("mesh");
 
     let output_file_path = PathBuf::from_str(
         root_arguments
             .value_of("output-path")
             .expect("No value for required argument."),
     )
-    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
+    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err))
+    .with_extension("snap");
+
+    let output_file_name = output_file_path.file_name().unwrap().to_string_lossy();
+    let snap_num_regex = Regex::new(r"(.+?)_(\d\d\d)\.snap").unwrap();
+    let snap_info = snap_num_regex
+        .captures(&output_file_name)
+        .map(|caps| (caps[1].to_string(), caps[2].parse::<u32>().unwrap()));
 
     let grid_type = match root_arguments.value_of("resampled-grid-type") {
         None => G::TYPE,
@@ -144,6 +163,7 @@ fn run_resampling<G, I>(
     };
 
     let include_aux = root_arguments.is_present("include-aux");
+    let generate_param_file = root_arguments.is_present("generate-param-file");
 
     let is_verbose = root_arguments.is_present("verbose");
 
@@ -160,8 +180,11 @@ fn run_resampling<G, I>(
                 println!("Constructing new grid");
             }
             let new_grid = Arc::new(
-                mesh::create_grid_from_mesh_file::<_, $grid_type>(mesh_file_path, is_periodic)
-                    .unwrap_or_else(|err| panic!("Could not create resampling grid: {}", err)),
+                mesh::create_grid_from_mesh_file::<_, $grid_type>(
+                    mesh_file_path.as_path(),
+                    is_periodic,
+                )
+                .unwrap_or_else(|err| panic!("Could not create resampling grid: {}", err)),
             );
             let variable_value_producer = |name: &str| {
                 let field = reader.read_scalar_field(name).unwrap_or_else(|err| {
@@ -188,7 +211,7 @@ fn run_resampling<G, I>(
                 resampled_field.into_values()
             };
             snapshot::write_3d_snapfile(
-                output_file_path.with_extension("snap"),
+                output_file_path.as_path(),
                 reader.primary_variable_names(),
                 &variable_value_producer,
                 reader.endianness(),
@@ -210,6 +233,25 @@ fn run_resampling<G, I>(
                     panic!("Could not write aux file for resampled snapshot: {}", err)
                 });
             }
+
+            if generate_param_file {
+                if is_verbose {
+                    println!("Generating parameter file");
+                }
+                generate_new_param_file(
+                    reader,
+                    mesh_file_path.as_path(),
+                    output_file_path.as_path(),
+                    snap_info,
+                    new_grid.as_ref(),
+                )
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Could not write parameter file for resampled snapshot: {}",
+                        err
+                    )
+                });
+            }
         }};
     }
 
@@ -221,4 +263,58 @@ fn run_resampling<G, I>(
             resample_snapshot_for_grid_type!(RegularGrid3<fdt>);
         }
     }
+}
+
+fn generate_new_param_file<G, H, P>(
+    reader: &SnapshotReader3<G>,
+    mesh_file_path: P,
+    output_file_path: P,
+    snap_info: Option<(String, u32)>,
+    new_grid: &H,
+) -> io::Result<()>
+where
+    G: Grid3<fdt>,
+    H: Grid3<fdt>,
+    P: AsRef<Path>,
+{
+    let mut new_parameter_file = reader.parameter_file().clone();
+
+    let new_shape = new_grid.shape();
+    let new_extent = new_grid.extents();
+
+    new_parameter_file.replace_parameter_value("mx", &format!("{}", new_shape[X]));
+    new_parameter_file.replace_parameter_value("my", &format!("{}", new_shape[Y]));
+    new_parameter_file.replace_parameter_value("mz", &format!("{}", new_shape[Z]));
+    new_parameter_file.replace_parameter_value(
+        "meshfile",
+        &format!(
+            "\"{}\"",
+            mesh_file_path
+                .as_ref()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+        ),
+    );
+    new_parameter_file.replace_parameter_value(
+        "dx",
+        &format!("{:8.3E}", new_extent[X] / (new_shape[X] as f32)),
+    );
+    new_parameter_file.replace_parameter_value(
+        "dy",
+        &format!("{:8.3E}", new_extent[Y] / (new_shape[Y] as f32)),
+    );
+    new_parameter_file.replace_parameter_value(
+        "dz",
+        &format!("{:8.3E}", new_extent[Z] / (new_shape[Z] as f32)),
+    );
+
+    if let Some((snapname, isnap)) = snap_info {
+        new_parameter_file.replace_parameter_value("snapname", &format!("\"{}\"", snapname));
+        new_parameter_file.replace_parameter_value("isnap", &format!("{}", isnap));
+    } else {
+        println!("Unable to determine snap number from output path: snapname and isnap will not be modified");
+    }
+
+    new_parameter_file.write(output_file_path.as_ref().with_extension("idl"))
 }
