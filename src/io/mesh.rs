@@ -33,6 +33,8 @@ where
     P: AsRef<Path>,
     G: Grid3<fdt>,
 {
+    const NONUNIFORMITY_THRESHOLD: fdt = 5e-3;
+
     let file = utils::open_file_and_map_err(mesh_path)?;
     let mut lines = io::BufReader::new(file).lines();
     let coord_names = ["x", "y", "z"];
@@ -139,10 +141,10 @@ where
 
         let uniform_up = up_derivatives
             .iter()
-            .all(|&element| fdt::abs(element - up_derivatives[0]) < 5e-3);
+            .all(|&element| fdt::abs(element - up_derivatives[0]) < NONUNIFORMITY_THRESHOLD);
         let uniform_down = down_derivatives
             .iter()
-            .all(|&element| fdt::abs(element - down_derivatives[0]) < 5e-3);
+            .all(|&element| fdt::abs(element - down_derivatives[0]) < NONUNIFORMITY_THRESHOLD);
 
         if uniform_up != uniform_down {
             return Err(io::Error::new(
