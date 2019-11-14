@@ -8,6 +8,8 @@ use crate::grid::{CoordLocation, Grid3};
 use ndarray::prelude::*;
 use num;
 use regex;
+use regex::{Captures, Regex};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -24,7 +26,7 @@ pub type fdt = f32;
 #[derive(Clone, Debug)]
 pub struct SnapshotReaderConfig {
     /// Path to the parameter (.idl) file.
-    params_path: PathBuf,
+    param_file_path: PathBuf,
     /// Order of bytes in the binary data files.
     endianness: Endianness,
     /// Whether to print status messages while reading fields.
@@ -37,7 +39,8 @@ pub struct SnapshotReader3<G: Grid3<fdt>> {
     config: SnapshotReaderConfig,
     snap_path: PathBuf,
     aux_path: PathBuf,
-    params: Params,
+    parameter_file: ParameterFile,
+    parameter_set: ParameterSet,
     grid: Arc<G>,
     primary_variable_names: Vec<&'static str>,
     auxiliary_variable_names: Vec<String>,
@@ -56,33 +59,34 @@ pub struct SnapshotCacher3<G: Grid3<fdt>> {
 impl<G: Grid3<fdt>> SnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: SnapshotReaderConfig) -> io::Result<Self> {
-        let params = Params::new(&config.params_path)?;
-        let snap_num: u32 = params.get_numerical_param("isnap")?;
+        let parameter_file = ParameterFile::new(&config.param_file_path)?;
+        let parameter_set = parameter_file.parse();
+        let snap_num: u32 = parameter_set.get_numerical_param("isnap")?;
         let mesh_path = config
-            .params_path
-            .with_file_name(params.get_str_param("meshfile")?);
-        let snap_path = config.params_path.with_file_name(format!(
+            .param_file_path
+            .with_file_name(parameter_set.get_str_param("meshfile")?);
+        let snap_path = config.param_file_path.with_file_name(format!(
             "{}_{:03}.snap",
-            params.get_str_param("snapname")?,
+            parameter_set.get_str_param("snapname")?,
             snap_num
         ));
         let aux_path = snap_path.with_extension("aux");
 
         let is_periodic = In3D::new(
-            params.get_numerical_param::<u8>("periodic_x")? == 1,
-            params.get_numerical_param::<u8>("periodic_y")? == 1,
-            params.get_numerical_param::<u8>("periodic_z")? == 1,
+            parameter_set.get_numerical_param::<u8>("periodic_x")? == 1,
+            parameter_set.get_numerical_param::<u8>("periodic_y")? == 1,
+            parameter_set.get_numerical_param::<u8>("periodic_z")? == 1,
         );
         let grid = Arc::new(mesh::create_grid_from_mesh_file(&mesh_path, is_periodic)?);
 
-        let is_mhd = params.get_numerical_param::<u8>("do_mhd")? > 0;
+        let is_mhd = parameter_set.get_numerical_param::<u8>("do_mhd")? > 0;
 
         let primary_variable_names = if is_mhd {
             vec!["r", "px", "py", "pz", "e", "bx", "by", "bz"]
         } else {
             vec!["r", "px", "py", "pz", "e"]
         };
-        let auxiliary_variable_names = Self::get_auxiliary_variable_names(&params)?;
+        let auxiliary_variable_names = Self::get_auxiliary_variable_names(&parameter_set)?;
 
         let mut variable_descriptors = HashMap::new();
         Self::insert_primary_variable_descriptors(is_mhd, &mut variable_descriptors);
@@ -95,12 +99,18 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             config,
             snap_path,
             aux_path,
-            params,
+            parameter_file,
+            parameter_set,
             grid,
             primary_variable_names,
             auxiliary_variable_names,
             variable_descriptors,
         })
+    }
+
+    /// Returns a reference to the parameter file.
+    pub fn parameter_file(&self) -> &ParameterFile {
+        &self.parameter_file
     }
 
     /// Wraps the reader in a snapshot cacher structure.
@@ -181,7 +191,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
 
     /// Provides the string value of a parameter from the parameter file.
     pub fn get_str_param<'a, 'b>(&'a self, name: &'b str) -> io::Result<&'a str> {
-        self.params.get_str_param(name)
+        self.parameter_set.get_str_param(name)
     }
 
     /// Provides the numerical value of a parameter from the parameter file.
@@ -190,7 +200,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         T: num::Num + str::FromStr,
         T::Err: string::ToString,
     {
-        self.params.get_numerical_param(name)
+        self.parameter_set.get_numerical_param(name)
     }
 
     /// Tries to read the given parameter from the parameter file.
@@ -293,8 +303,8 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         }
     }
 
-    fn get_auxiliary_variable_names(params: &Params) -> io::Result<Vec<String>> {
-        Ok(params
+    fn get_auxiliary_variable_names(parameter_set: &ParameterSet) -> io::Result<Vec<String>> {
+        Ok(parameter_set
             .get_str_param("aux")?
             .split_whitespace()
             .map(|name| name.to_string())
@@ -354,9 +364,13 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
 
 impl SnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new<P: AsRef<Path>>(params_path: P, endianness: Endianness, verbose: Verbose) -> Self {
+    pub fn new<P: AsRef<Path>>(
+        param_file_path: P,
+        endianness: Endianness,
+        verbose: Verbose,
+    ) -> Self {
         SnapshotReaderConfig {
-            params_path: params_path.as_ref().to_path_buf(),
+            param_file_path: param_file_path.as_ref().to_path_buf(),
             endianness,
             verbose,
         }
@@ -462,6 +476,95 @@ impl<G: Grid3<fdt>> SnapshotCacher3<G> {
     }
 }
 
+/// Representation of a parameter file.
+#[derive(Clone, Debug)]
+pub struct ParameterFile {
+    text: String,
+}
+
+/// Set of parameter names and values associated with a parameter file.
+#[derive(Clone, Debug)]
+pub struct ParameterSet {
+    values: HashMap<String, String>,
+}
+
+impl ParameterFile {
+    /// Reads the parameter file at the given path.
+    pub fn new<P: AsRef<Path>>(param_file_path: P) -> io::Result<Self> {
+        let text = utils::read_text_file(param_file_path)?;
+        Ok(Self::from_text(text))
+    }
+
+    /// Parses the parameter file and returns the corresponding parameter set.
+    pub fn parse(&self) -> ParameterSet {
+        let regex = Regex::new(r"(?m)^\s*([_\w]+)\s*=\s*(.+?)\s*$").unwrap();
+        ParameterSet {
+            values: regex
+                .captures_iter(&self.text)
+                .map(|captures| (captures[1].to_string(), captures[2].to_string()))
+                .collect(),
+        }
+    }
+
+    /// Replaces the value of the given parameter with the given new value.
+    ///
+    /// This does not modify the original file.
+    pub fn replace_parameter_value(&mut self, name: &str, new_value: &str) {
+        let regex = Regex::new(&format!(
+            r"(?m)(^\s*{}\s*=\s*)(.+?)(\s*$)",
+            regex::escape(name)
+        ))
+        .unwrap();
+        if let Cow::Owned(new_text) = regex.replace_all(&self.text, |caps: &Captures| {
+            format!("{}{}{}", &caps[1], new_value, &caps[3])
+        }) {
+            self.text = new_text;
+        }
+    }
+
+    /// Writes the current text of the parameter file to the given path.
+    pub fn write<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+        utils::write_text_file(&self.text, output_file_path)
+    }
+
+    fn from_text(text: String) -> Self {
+        Self { text }
+    }
+}
+
+impl ParameterSet {
+    /// Returns the value of the string parameter with the given name.
+    pub fn get_str_param<'a, 'b>(&'a self, name: &'b str) -> io::Result<&'a str> {
+        match self.values.get(name) {
+            Some(value) => Ok(value.trim_matches('"')),
+            None => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Parameter `{}` not found in parameter file", name),
+            )),
+        }
+    }
+
+    /// Returns the value of the numerical parameter with the given name.
+    pub fn get_numerical_param<T>(&self, name: &str) -> io::Result<T>
+    where
+        T: num::Num + str::FromStr,
+        T::Err: string::ToString,
+    {
+        let str_value = self.get_str_param(name)?;
+        match str_value.parse::<T>() {
+            Ok(value) => Ok(value),
+            Err(err) => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Failed parsing string `{}` in parameter file: {}",
+                    str_value,
+                    err.to_string()
+                ),
+            )),
+        }
+    }
+}
+
 /// Writes arrays of variable values sequentially into a binary file.
 ///
 /// # Parameters
@@ -555,55 +658,6 @@ struct VariableDescriptor {
     index: usize,
 }
 
-#[derive(Clone, Debug)]
-struct Params {
-    params_map: HashMap<String, String>,
-}
-
-impl Params {
-    fn new<P: AsRef<Path>>(params_path: P) -> io::Result<Self> {
-        let params_text = utils::read_text_file(params_path)?;
-        let params_map = Self::parse_params_text(&params_text);
-        Ok(Params { params_map })
-    }
-
-    fn parse_params_text(text: &str) -> HashMap<String, String> {
-        let re = regex::Regex::new(r"(?m)^\s*([_\w]+)\s*=\s*(.+?)\s*$").unwrap();
-        re.captures_iter(&text)
-            .map(|captures| (captures[1].to_string(), captures[2].to_string()))
-            .collect()
-    }
-
-    fn get_str_param<'a, 'b>(&'a self, name: &'b str) -> io::Result<&'a str> {
-        match self.params_map.get(name) {
-            Some(value) => Ok(value.trim_matches('"')),
-            None => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Parameter `{}` not found in parameter file", name),
-            )),
-        }
-    }
-
-    fn get_numerical_param<T>(&self, name: &str) -> io::Result<T>
-    where
-        T: num::Num + str::FromStr,
-        T::Err: string::ToString,
-    {
-        let str_value = self.get_str_param(name)?;
-        match str_value.parse::<T>() {
-            Ok(value) => Ok(value),
-            Err(err) => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Failed parsing string `{}` in parameter file: {}",
-                    str_value,
-                    err.to_string()
-                ),
-            )),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -615,11 +669,9 @@ mod tests {
         #![allow(clippy::float_cmp)]
         let text =
             "int = 12 \n file_str=\"file.ext\"\nfloat =  -1.02E-07\ninvalid = number\n;comment";
-        let params = Params {
-            params_map: Params::parse_params_text(text),
-        };
+        let parameter_set = ParameterFile::from_text(text.to_owned()).parse();
 
-        let correct_params: HashMap<_, _> = vec![
+        let correct_values: HashMap<_, _> = vec![
             ("int".to_string(), "12".to_string()),
             ("file_str".to_string(), "\"file.ext\"".to_string()),
             ("float".to_string(), "-1.02E-07".to_string()),
@@ -627,15 +679,15 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        assert_eq!(params.params_map, correct_params);
+        assert_eq!(parameter_set.values, correct_values);
 
-        assert_eq!(params.get_str_param("file_str").unwrap(), "file.ext");
-        assert_eq!(params.get_numerical_param::<u32>("int").unwrap(), 12);
+        assert_eq!(parameter_set.get_str_param("file_str").unwrap(), "file.ext");
+        assert_eq!(parameter_set.get_numerical_param::<u32>("int").unwrap(), 12);
         assert_eq!(
-            params.get_numerical_param::<f32>("float").unwrap(),
+            parameter_set.get_numerical_param::<f32>("float").unwrap(),
             -1.02e-7
         );
-        assert!(params.get_numerical_param::<f32>("invalid").is_err());
+        assert!(parameter_set.get_numerical_param::<f32>("invalid").is_err());
     }
 
     #[test]
