@@ -101,7 +101,7 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
         .value_of("axis")
         .expect("No value for required argument.");
 
-    let coord = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "COORD");
+    let coord = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "coord");
 
     let mut output_file_path = PathBuf::from_str(
         arguments
