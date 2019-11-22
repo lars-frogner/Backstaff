@@ -95,11 +95,14 @@ class FieldLineSet3:
                                 aggregator,
                                 do_conversion=True,
                                 included_field_lines_finder=None,
-                                included_points_finder=None):
+                                included_points_finder=None,
+                                result_if_empty=np.nan):
         values = self.get_scalar_values(
             value_name,
             included_field_lines_finder=included_field_lines_finder,
             included_points_finder=included_points_finder)
+        if values is None:
+            return result_if_empty
         values = self._convert_values(value_name, values, do_conversion)
         return aggregator(values)
 
@@ -431,13 +434,12 @@ class FieldLineSet3:
             values = list(
                 map(
                     lambda v, field_line_idx: v[included_points_finder(
-                        self.varying_scalar_values, field_line_idx)],
-                        values,
-                        range(self.number_of_field_lines())
-                        if included_field_line_indices is None else
-                        included_field_line_indices))
+                        self.varying_scalar_values, field_line_idx)], values,
+                    range(self.number_of_field_lines())
+                    if included_field_line_indices is None else
+                    included_field_line_indices))
 
-        return np.concatenate(values)
+        return None if len(values) == 0 else np.concatenate(values)
 
     def get_varying_vector_values(self, value_name):
         return self.varying_vector_values[value_name]
