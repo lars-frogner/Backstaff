@@ -90,11 +90,24 @@ class FieldLineSet3:
             print('Parameters:\n    {}'.format('\n    '.join(
                 self.params.keys())))
 
+    def compute_aggregate_value(self,
+                                value_name,
+                                aggregator,
+                                do_conversion=True,
+                                included_field_lines_finder=None,
+                                included_points_finder=None):
+        values = self.get_scalar_values(
+            value_name,
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
+        values = self._convert_values(value_name, values, do_conversion)
+        return aggregator(values)
+
     def add_values_to_3d_plot(self,
                               ax,
                               value_name,
                               do_conversion=True,
-                              included_indices_finder=None,
+                              included_field_lines_finder=None,
                               log=False,
                               vmin=None,
                               vmax=None,
@@ -114,7 +127,7 @@ class FieldLineSet3:
         values, x, y, z = self.get_scalar_values(
             value_name,
             *[dim + suffix for dim in ['x', 'y', 'z']],
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         values = self._convert_values(value_name, values, do_conversion)
 
@@ -154,7 +167,7 @@ class FieldLineSet3:
     def add_to_3d_plot_with_single_color(self,
                                          ax,
                                          do_conversion=True,
-                                         included_indices_finder=None,
+                                         included_field_lines_finder=None,
                                          scatter=False,
                                          c='k',
                                          lw=1.0,
@@ -165,7 +178,10 @@ class FieldLineSet3:
                                          alpha=1.0):
         if scatter:
             x, y, z = self.get_scalar_values(
-                'x', 'y', 'z', included_indices_finder=included_indices_finder)
+                'x',
+                'y',
+                'z',
+                included_field_lines_finder=included_field_lines_finder)
             ax.scatter(self._convert_values('x', x, do_conversion),
                        self._convert_values('y', y, do_conversion),
                        self._convert_values('z', z, do_conversion),
@@ -197,14 +213,14 @@ class FieldLineSet3:
                                        value_name_y,
                                        value_name_color=None,
                                        do_conversion=True,
-                                       included_indices_finder=None,
+                                       included_field_lines_finder=None,
                                        **kwargs):
 
         values_x, values_y, values_color = self.get_scalar_values(
             value_name_x,
             value_name_y,
             value_name_color,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -220,13 +236,13 @@ class FieldLineSet3:
                                      value_name,
                                      value_name_weights=None,
                                      do_conversion=True,
-                                     included_indices_finder=None,
+                                     included_field_lines_finder=None,
                                      **kwargs):
 
         values, weights = self.get_scalar_values(
             value_name,
             value_name_weights,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         values = self._convert_values(value_name, values, do_conversion)
         if weights is not None:
@@ -235,13 +251,14 @@ class FieldLineSet3:
 
         self.__add_values_as_line_histogram(ax, values, weights, **kwargs)
 
-    def add_values_as_line_histogram_difference(self,
-                                                ax,
-                                                value_names,
-                                                value_names_weights=None,
-                                                do_conversion=True,
-                                                included_indices_finder=None,
-                                                **kwargs):
+    def add_values_as_line_histogram_difference(
+            self,
+            ax,
+            value_names,
+            value_names_weights=None,
+            do_conversion=True,
+            included_field_lines_finder=None,
+            **kwargs):
 
         left_value_name, right_value_name = value_names
         left_value_name_weights, right_value_name_weights = value_names_weights
@@ -249,12 +266,12 @@ class FieldLineSet3:
         left_values, left_weights = self.get_scalar_values(
             left_value_name,
             left_value_name_weights,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         right_values, right_weights = self.get_scalar_values(
             right_value_name,
             right_value_name_weights,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         left_values = self._convert_values(left_value_name, left_values,
                                            do_conversion)
@@ -278,14 +295,14 @@ class FieldLineSet3:
                                          value_name_y,
                                          value_name_weights=None,
                                          do_conversion=True,
-                                         included_indices_finder=None,
+                                         included_field_lines_finder=None,
                                          **kwargs):
 
         values_x, values_y, weights = self.get_scalar_values(
             value_name_x,
             value_name_y,
             value_name_weights,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -302,14 +319,14 @@ class FieldLineSet3:
                                            value_name_y,
                                            value_name_weights=None,
                                            do_conversion=True,
-                                           included_indices_finder=None,
+                                           included_field_lines_finder=None,
                                            **kwargs):
 
         values_x, values_y, weights = self.get_scalar_values(
             value_name_x,
             value_name_y,
             value_name_weights,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -327,7 +344,7 @@ class FieldLineSet3:
             value_names_y,
             value_names_weights=(None, None),
             do_conversion=True,
-            included_indices_finder=None,
+            included_field_lines_finder=None,
             **kwargs):
 
         left_value_name_x, right_value_name_x = value_names_x
@@ -338,13 +355,13 @@ class FieldLineSet3:
             left_value_name_x,
             left_value_name_y,
             left_value_name_weights,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         right_values_x, right_values_y, right_weights = self.get_scalar_values(
             right_value_name_x,
             right_value_name_y,
             right_value_name_weights,
-            included_indices_finder=included_indices_finder)
+            included_field_lines_finder=included_field_lines_finder)
 
         left_values_x = self._convert_values(left_value_name_x, left_values_x,
                                              do_conversion)
@@ -379,11 +396,16 @@ class FieldLineSet3:
     def get_number_of_field_lines(self):
         return self.number_of_field_lines
 
-    def get_fixed_scalar_values(self, value_name, included_indices=None):
-        if included_indices is None:
+    def get_fixed_scalar_values(self,
+                                value_name,
+                                included_field_line_indices=None,
+                                included_points_finder=None):
+        assert included_points_finder is None
+        if included_field_line_indices is None:
             values = self.fixed_scalar_values[value_name]
         else:
-            values = self.fixed_scalar_values[value_name][included_indices]
+            values = self.fixed_scalar_values[value_name][
+                included_field_line_indices]
         return values
 
     def get_fixed_vector_values(self, value_name):
@@ -392,26 +414,41 @@ class FieldLineSet3:
     def get_varying_scalar_values(self, value_name):
         return self.varying_scalar_values[value_name]
 
-    def get_concatenated_varying_scalar_values(self,
-                                               value_name,
-                                               included_indices=None):
-        if included_indices is None:
+    def get_concatenated_varying_scalar_values(
+            self,
+            value_name,
+            included_field_line_indices=None,
+            included_points_finder=None):
+        if included_field_line_indices is None:
             values = self.varying_scalar_values[value_name]
         else:
             values = [
                 self.varying_scalar_values[value_name][i]
-                for i in included_indices
+                for i in included_field_line_indices
             ]
+
+        if included_points_finder is not None:
+            values = list(
+                map(
+                    lambda v, field_line_idx: v[included_points_finder(
+                        self.varying_scalar_values, field_line_idx)],
+                        values,
+                        range(self.number_of_field_lines())
+                        if included_field_line_indices is None else
+                        included_field_line_indices))
 
         return np.concatenate(values)
 
     def get_varying_vector_values(self, value_name):
         return self.varying_vector_values[value_name]
 
-    def get_scalar_values(self, *value_names, included_indices_finder=None):
+    def get_scalar_values(self,
+                          *value_names,
+                          included_field_lines_finder=None,
+                          included_points_finder=None):
         assert len(value_names) > 0 and value_names[0] is not None
 
-        included_indices = None if included_indices_finder is None else included_indices_finder(
+        included_field_line_indices = None if included_field_lines_finder is None else included_field_lines_finder(
             self.fixed_scalar_values, self.varying_scalar_values)
 
         value_name = value_names[0]
@@ -425,7 +462,9 @@ class FieldLineSet3:
             getter = self.get_concatenated_varying_scalar_values
 
         return tuple([(None if value_name is None else getter(
-            value_name, included_indices=included_indices))
+            value_name,
+            included_field_line_indices=included_field_line_indices,
+            included_points_finder=included_points_finder))
                       for value_name in value_names])
 
     def has_param(self, param_name):
@@ -742,6 +781,24 @@ def find_field_lines_passing_near_point(point, max_distance,
         if np.any((x - point[0])**2 + (y - point[1])**2 +
                   (z - point[2])**2 <= max_distance**2)
     ]
+
+
+def find_field_line_points_below_depth(min_depth, varying_scalar_values,
+                                       field_line_idx):
+    return varying_scalar_values['z'][field_line_idx] > min_depth
+
+
+def find_field_line_points_above_density(min_density, varying_scalar_values,
+                                         field_line_idx):
+    return varying_scalar_values['r'][field_line_idx] > min_density/units.U_R
+
+
+def find_field_line_point_at_max_depth(varying_scalar_values, field_line_idx):
+    return np.argmax(varying_scalar_values['z'][field_line_idx])
+
+
+def find_last_field_line_point(_varying_scalar_values, _field_line_idx):
+    return slice(-1, None, None)
 
 
 def plot_field_lines(field_line_set,
