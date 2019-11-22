@@ -97,7 +97,7 @@ class FieldLineSet3:
                                 included_field_lines_finder=None,
                                 included_points_finder=None,
                                 result_if_empty=np.nan):
-        values = self.get_scalar_values(
+        values, = self.get_scalar_values(
             value_name,
             included_field_lines_finder=included_field_lines_finder,
             included_points_finder=included_points_finder)
