@@ -50,6 +50,8 @@ class ScalarField2:
 
     def add_to_plot(self,
                     ax,
+                    invert_horizontal_lims=False,
+                    invert_vertical_lims=False,
                     log=False,
                     vmin=None,
                     vmax=None,
@@ -63,8 +65,10 @@ class ScalarField2:
                          cmap=plotting.get_cmap(cmap_name),
                          interpolation='none',
                          extent=[
-                             *self.get_horizontal_bounds(),
-                             *self.get_vertical_bounds()
+                             *(self.get_horizontal_bounds()
+                               [::-1 if invert_horizontal_lims else 1]),
+                             *(self.get_vertical_bounds()
+                               [::-1 if invert_vertical_lims else 1])
                          ],
                          aspect='auto')
 
@@ -85,8 +89,12 @@ def plot_2d_scalar_field(field,
 
     im = field.add_to_plot(ax, **kwargs)
 
-    plotting.set_2d_plot_extent(ax, *field.get_horizontal_bounds(),
-                                *field.get_vertical_bounds())
+    plotting.set_2d_plot_extent(
+        ax,
+        field.get_horizontal_bounds()
+        [::-1 if kwargs.get('invert_horizontal_lims', False) else 1],
+        field.get_vertical_bounds()
+        [::-1 if kwargs.get('invert_vertical_lims', False) else 1])
     plotting.set_2d_axis_labels(ax, xlabel, ylabel)
     plotting.add_2d_colorbar(
         fig,
