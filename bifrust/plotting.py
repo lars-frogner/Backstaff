@@ -1,10 +1,6 @@
 import numpy as np
 import matplotlib as mpl
-mpl.use('agg')
-try:
-    mpl.style.use('default')
-except:
-    pass
+#mpl.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import matplotlib.cm as mpl_cm
@@ -450,54 +446,13 @@ def compute_2d_histogram_difference(values_x, values_y, weights, vmin_x,
     left_values_y, right_values_y = values_y
     left_weights, right_weights = weights
 
-    left_min_value_x = np.nanmin(left_values_x) if vmin_x is None else vmin_x
-    left_max_value_x = np.nanmax(left_values_x) if vmax_x is None else vmax_x
-    left_min_value_y = np.nanmin(left_values_y) if vmin_y is None else vmin_y
-    left_max_value_y = np.nanmax(left_values_y) if vmax_y is None else vmax_y
+    left_hist, bin_edges_x, bin_edges_y = compute_2d_histogram(
+        left_values_x, left_values_y, left_weights, vmin_x, vmax_x, vmin_y,
+        vmax_y, log_x, log_y, bins_x, bins_y, False)
 
-    right_min_value_x = np.nanmin(right_values_x) if vmin_x is None else vmin_x
-    right_max_value_x = np.nanmax(right_values_x) if vmax_x is None else vmax_x
-    right_min_value_y = np.nanmin(right_values_y) if vmin_y is None else vmin_y
-    right_max_value_y = np.nanmax(right_values_y) if vmax_y is None else vmax_y
-
-    min_value_x = min(left_min_value_x, right_min_value_x)
-    max_value_x = max(left_max_value_x, right_max_value_x)
-    min_value_y = min(left_min_value_y, right_min_value_y)
-    max_value_y = max(left_max_value_y, right_max_value_y)
-
-    if vmin_x is not None and vmin_x > min_value_x:
-        min_value_x = vmin_x
-    if vmax_x is not None and vmax_x < max_value_x:
-        max_value_x = vmax_x
-    if vmin_y is not None and vmin_y > min_value_y:
-        min_value_y = vmin_y
-    if vmax_y is not None and vmax_y < max_value_y:
-        max_value_y = vmax_y
-
-    if log_x:
-        left_values_x = np.log10(left_values_x)
-        right_values_x = np.log10(right_values_x)
-        min_value_x = np.log10(min_value_x)
-        max_value_x = np.log10(max_value_x)
-    if log_y:
-        left_values_y = np.log10(left_values_y)
-        right_values_y = np.log10(right_values_y)
-        min_value_y = np.log10(min_value_y)
-        max_value_y = np.log10(max_value_y)
-
-    left_hist, bin_edges_x, bin_edges_y = np.histogram2d(
-        left_values_x,
-        left_values_y,
-        bins=[bins_x, bins_y],
-        range=[[min_value_x, max_value_x], [min_value_y, max_value_y]],
-        weights=left_weights)
-
-    right_hist, _, _ = np.histogram2d(right_values_x,
-                                      right_values_y,
-                                      bins=[bin_edges_x, bin_edges_y],
-                                      range=[[min_value_x, max_value_x],
-                                             [min_value_y, max_value_y]],
-                                      weights=right_weights)
+    right_hist, _, _ = compute_2d_histogram(
+        right_values_x, right_values_y, right_weights, vmin_x, vmax_x, vmin_y,
+        vmax_y, log_x, log_y, bins_x, bins_y, False)
 
     return left_hist - right_hist, bin_edges_x, bin_edges_y
 
