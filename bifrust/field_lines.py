@@ -297,6 +297,7 @@ class FieldLineSet3:
                                          value_name_x,
                                          value_name_y,
                                          value_name_weights=None,
+                                         weight_scale=None,
                                          do_conversion=True,
                                          included_field_lines_finder=None,
                                          **kwargs):
@@ -312,6 +313,8 @@ class FieldLineSet3:
         if weights is not None:
             weights = self._convert_values(value_name_weights, weights,
                                            do_conversion)
+            if weight_scale is not None:
+                weights *= weight_scale
 
         return self.__add_values_as_2d_histogram_image(ax, values_x, values_y,
                                                        weights, **kwargs)
@@ -346,6 +349,7 @@ class FieldLineSet3:
             value_names_x,
             value_names_y,
             value_names_weights=(None, None),
+            weight_scale=None,
             do_conversion=True,
             included_field_lines_finder=None,
             **kwargs):
@@ -373,6 +377,8 @@ class FieldLineSet3:
         if left_weights is not None:
             left_weights = self._convert_values(left_value_name_weights,
                                                 left_weights, do_conversion)
+            if weight_scale is not None:
+                left_weights *= weight_scale
 
         right_values_x = self._convert_values(right_value_name_x,
                                               right_values_x, do_conversion)
@@ -381,6 +387,8 @@ class FieldLineSet3:
         if right_weights is not None:
             right_weights = self._convert_values(right_value_name_weights,
                                                  right_weights, do_conversion)
+            if weight_scale is not None:
+                right_weights *= weight_scale
 
         return self.__add_values_as_2d_histogram_difference_image(
             ax, (left_values_x, right_values_x),
@@ -409,7 +417,7 @@ class FieldLineSet3:
         else:
             values = self.fixed_scalar_values[value_name][
                 included_field_line_indices]
-        return values
+        return values if len(values) > 0 else None
 
     def get_fixed_vector_values(self, value_name):
         return self.fixed_vector_values[value_name]
@@ -439,7 +447,7 @@ class FieldLineSet3:
                     if included_field_line_indices is None else
                     included_field_line_indices))
 
-        return None if len(values) == 0 else np.concatenate(values)
+        return np.concatenate(values) if len(values) > 0 else None
 
     def get_varying_vector_values(self, value_name):
         return self.varying_vector_values[value_name]
@@ -1029,6 +1037,7 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        ax=None,
                                        invert_xaxis=False,
                                        invert_yaxis=False,
+                                       aspect='auto',
                                        value_description_x=None,
                                        value_description_y=None,
                                        value_description_weights=None,
@@ -1038,6 +1047,7 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        log_x=False,
                                        log_y=False,
                                        contour_kwargs={},
+                                       extra_artists=None,
                                        **kwargs):
 
     if fig is None or ax is None:
@@ -1048,6 +1058,7 @@ def plot_field_line_value_2d_histogram(field_line_set,
         value_name_x,
         value_name_y,
         value_name_weights=value_name_weights,
+        weight_scale=kwargs.pop('weight_scale', None),
         do_conversion=kwargs.pop('do_conversion', True),
         log_x=log_x,
         log_y=log_y,
@@ -1062,10 +1073,16 @@ def plot_field_line_value_2d_histogram(field_line_set,
         contour_field_line_set.add_values_as_2d_histogram_contour(
             ax, contour_value_name_x, contour_value_name_y, **contour_kwargs)
 
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
+
     if invert_xaxis:
         ax.invert_xaxis()
     if invert_yaxis:
         ax.invert_yaxis()
+
+    ax.set_aspect(aspect)
 
     plotting.set_2d_axis_labels(
         ax, '{}{}'.format(
@@ -1100,6 +1117,7 @@ def plot_field_line_value_2d_histogram_difference(
         ax=None,
         invert_xaxis=False,
         invert_yaxis=False,
+        aspect='auto',
         value_description_x=None,
         value_description_y=None,
         value_description_weights=None,
@@ -1109,6 +1127,7 @@ def plot_field_line_value_2d_histogram_difference(
         log_x=False,
         log_y=False,
         contour_kwargs={},
+        extra_artists=None,
         **kwargs):
 
     if fig is None or ax is None:
@@ -1119,6 +1138,7 @@ def plot_field_line_value_2d_histogram_difference(
         value_names_x,
         value_names_y,
         value_names_weights=value_names_weights,
+        weight_scale=kwargs.pop('weight_scale', None),
         do_conversion=kwargs.pop('do_conversion', True),
         log_x=log_x,
         log_y=log_y,
@@ -1135,10 +1155,16 @@ def plot_field_line_value_2d_histogram_difference(
         contour_field_line_set.add_values_as_2d_histogram_contour(
             ax, contour_value_name_x, contour_value_name_y, **contour_kwargs)
 
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
+
     if invert_xaxis:
         ax.invert_xaxis()
     if invert_yaxis:
         ax.invert_yaxis()
+
+    ax.set_aspect(aspect)
 
     plotting.set_2d_axis_labels(
         ax, '{}{}'.format(
