@@ -443,7 +443,7 @@ class FieldLineSet3:
                 map(
                     lambda v, field_line_idx: v[included_points_finder(
                         self.varying_scalar_values, field_line_idx)], values,
-                    range(self.number_of_field_lines())
+                    range(self.get_number_of_field_lines())
                     if included_field_line_indices is None else
                     included_field_line_indices))
 
@@ -793,6 +793,16 @@ def find_field_lines_passing_near_point(point, max_distance,
     ]
 
 
+def find_field_lines_starting_in_coords(x_coords, y_coords, z_coords, fixed_scalar_values, max_distance=1e-5):
+    return [
+        i for i, (x, y, z) in enumerate(
+            zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
+                fixed_scalar_values['z0']))
+        if np.any((x - x_coords)**2 + (y - y_coords)**2 +
+                  (z - z_coords)**2 <= max_distance**2)
+    ]
+
+
 def find_field_line_points_below_depth(min_depth, varying_scalar_values,
                                        field_line_idx):
     return varying_scalar_values['z'][field_line_idx] > min_depth
@@ -873,6 +883,7 @@ def plot_field_line_properties(field_line_set,
                                vmax_x=None,
                                vmin_y=None,
                                vmax_y=None,
+                               extra_artists=None,
                                **kwargs):
 
     if fig is None or ax is None:
@@ -885,6 +896,10 @@ def plot_field_line_properties(field_line_set,
         value_name_color=value_name_color,
         do_conversion=kwargs.pop('do_conversion', True),
         **kwargs)
+
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
 
     if log_x:
         ax.set_xscale('log')
