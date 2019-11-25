@@ -138,6 +138,8 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
 
     let simple_reconnection_site_detector_subcommand =
         super::detection::simple::create_simple_reconnection_site_detector_subcommand();
+    let manual_reconnection_site_detector_subcommand =
+        super::detection::manual::create_manual_reconnection_site_detector_subcommand();
     let power_law_distribution_subcommand =
         super::distribution::power_law::create_power_law_distribution_subcommand();
     let simple_power_law_accelerator_subcommand =
@@ -167,8 +169,15 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
         .subcommand(dc_power_law_accelerator_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
+    let manual_reconnection_site_detector_subcommand = manual_reconnection_site_detector_subcommand
+        .subcommand(power_law_distribution_subcommand.clone())
+        .subcommand(simple_power_law_accelerator_subcommand.clone())
+        .subcommand(dc_power_law_accelerator_subcommand.clone())
+        .subcommand(poly_fit_interpolator_subcommand.clone())
+        .subcommand(rkf_stepper_subcommand.clone());
 
     app.subcommand(simple_reconnection_site_detector_subcommand)
+        .subcommand(manual_reconnection_site_detector_subcommand)
         .subcommand(power_law_distribution_subcommand)
         .subcommand(simple_power_law_accelerator_subcommand)
         .subcommand(dc_power_law_accelerator_subcommand)
@@ -188,27 +197,37 @@ fn run_with_selected_detector<G>(arguments: &ArgMatches, snapshot: &mut Snapshot
 where
     G: Grid3<fdt>,
 {
-    let (detector_config, detector_arguments) = if let Some(detector_arguments) =
-        arguments.subcommand_matches("simple_detector")
-    {
-        (super::detection::simple::construct_simple_reconnection_site_detector_config_from_options(
-            detector_arguments,
-            snapshot.reader(),
-        ), detector_arguments)
+    if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
+        let detector =
+            super::detection::manual::construct_manual_reconnection_site_detector_from_options(
+                detector_arguments,
+            );
+        run_with_selected_accelerator(arguments, detector_arguments, snapshot, detector);
     } else {
-        (
-            SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(snapshot.reader()),
-            arguments,
-        )
-    };
+        let (detector_config, detector_arguments) = if let Some(detector_arguments) =
+            arguments.subcommand_matches("simple_detector")
+        {
+            (super::detection::simple::construct_simple_reconnection_site_detector_config_from_options(
+                detector_arguments,
+                snapshot.reader(),
+            ), detector_arguments)
+        } else {
+            (
+                SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(
+                    snapshot.reader(),
+                ),
+                arguments,
+            )
+        };
 
-    if arguments.is_present("print-parameter-values") {
-        println!("{:#?}", detector_config);
+        if arguments.is_present("print-parameter-values") {
+            println!("{:#?}", detector_config);
+        }
+
+        let detector = SimpleReconnectionSiteDetector::new(detector_config);
+
+        run_with_selected_accelerator(arguments, detector_arguments, snapshot, detector);
     }
-
-    let detector = SimpleReconnectionSiteDetector::new(detector_config);
-
-    run_with_selected_accelerator(arguments, detector_arguments, snapshot, detector);
 }
 
 fn run_with_selected_accelerator<G, D>(

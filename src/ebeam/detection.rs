@@ -1,5 +1,6 @@
 //! Detection of reconnection sites.
 
+pub mod manual;
 pub mod simple;
 
 use crate::grid::Grid3;
