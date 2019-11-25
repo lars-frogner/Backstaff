@@ -45,32 +45,36 @@ class ScalarField2:
     def get_horizontal_bounds(self):
         return (self.coords.x[0], self.coords.x[-1])
 
-    def get_vertical_bounds(self):
-        return (self.coords.y[0], self.coords.y[-1])
+    def get_vertical_bounds(self, negate=False):
+        return (-self.coords.y[-1],
+                -self.coords.y[0]) if negate else (self.coords.y[0],
+                                                   self.coords.y[-1])
 
     def add_to_plot(self,
                     ax,
                     invert_horizontal_lims=False,
                     invert_vertical_lims=False,
+                    negate_vertical_coords=False,
                     log=False,
                     vmin=None,
                     vmax=None,
                     cmap_name='viridis'):
 
         values = self.get_values()
-        return ax.imshow(values.T,
-                         norm=plotting.get_normalizer(vmin, vmax, log=log),
-                         vmin=vmin,
-                         vmax=vmax,
-                         cmap=plotting.get_cmap(cmap_name),
-                         interpolation='none',
-                         extent=[
-                             *(self.get_horizontal_bounds()
-                               [::-1 if invert_horizontal_lims else 1]),
-                             *(self.get_vertical_bounds()
-                               [::-1 if invert_vertical_lims else 1])
-                         ],
-                         aspect='auto')
+        return ax.imshow(
+            values.T,
+            norm=plotting.get_normalizer(vmin, vmax, log=log),
+            vmin=vmin,
+            vmax=vmax,
+            cmap=plotting.get_cmap(cmap_name),
+            interpolation='none',
+            extent=[
+                *(self.get_horizontal_bounds()
+                  [::-1 if invert_horizontal_lims else 1]),
+                *(self.get_vertical_bounds(negate=negate_vertical_coords)
+                  [::-1 if invert_vertical_lims else 1])
+            ],
+            aspect='auto')
 
 
 def plot_2d_scalar_field(field,
@@ -93,7 +97,8 @@ def plot_2d_scalar_field(field,
         ax,
         field.get_horizontal_bounds()
         [::-1 if kwargs.get('invert_horizontal_lims', False) else 1],
-        field.get_vertical_bounds()
+        field.get_vertical_bounds(
+            negate=kwargs.get('negate_vertical_coords', False))
         [::-1 if kwargs.get('invert_vertical_lims', False) else 1])
     plotting.set_2d_axis_labels(ax, xlabel, ylabel)
     plotting.add_2d_colorbar(
