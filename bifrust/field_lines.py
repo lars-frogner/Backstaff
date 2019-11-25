@@ -69,6 +69,7 @@ class FieldLineSet3:
         assert isinstance(derived_quantities, list)
         assert isinstance(params, dict)
         self.bounds_x, self.bounds_y, self.bounds_z = tuple(domain_bounds)
+        self.bounds_z = (-self.bounds_z[1], -self.bounds_z[0]) # Use height instead of depth
         self.number_of_field_lines = number_of_field_lines
         self.fixed_scalar_values = fixed_scalar_values
         self.fixed_vector_values = fixed_vector_values

@@ -17,7 +17,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     VALUE_DESCRIPTIONS = {
         'x': r'$x$ [Mm]',
         'y': r'$y$ [Mm]',
-        'z': r'$z$ [Mm]',
+        'z': 'Height [Mm]',
         'total_power_density': r'Total power density [erg/(cm$^3\;$s)]',
         'lower_cutoff_energy': 'Lower cut-off energy [keV]',
         'estimated_depletion_distance': 'Estimated depletion distance [Mm]',
@@ -41,6 +41,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'r': lambda f: f*units.U_R,
         'qspitz': lambda f: f*units.U_E,
         'r0': lambda f: f*units.U_R,
+        'z': lambda f: -f,
+        'z0': lambda f: -f,
     }
 
     @staticmethod
