@@ -109,27 +109,32 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
     let poly_fit_interpolator_subcommand =
         cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand();
     let slice_seeder_subcommand = cli::tracing::seeding::slice::create_slice_seeder_subcommand();
+    let manual_seeder_subcommand = cli::tracing::seeding::manual::create_manual_seeder_subcommand();
 
     let poly_fit_interpolator_subcommand = poly_fit_interpolator_subcommand
         .setting(AppSettings::SubcommandRequired)
-        .subcommand(slice_seeder_subcommand.clone());
+        .subcommand(slice_seeder_subcommand.clone())
+        .subcommand(manual_seeder_subcommand.clone());
 
     let rkf_stepper_subcommand = rkf_stepper_subcommand
         .setting(AppSettings::SubcommandRequired)
         .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(slice_seeder_subcommand.clone());
+        .subcommand(slice_seeder_subcommand.clone())
+        .subcommand(manual_seeder_subcommand.clone());
 
     let basic_field_line_tracer_subcommand = basic_field_line_tracer_subcommand
         .setting(AppSettings::SubcommandRequired)
         .subcommand(rkf_stepper_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(slice_seeder_subcommand.clone());
+        .subcommand(slice_seeder_subcommand.clone())
+        .subcommand(manual_seeder_subcommand.clone());
 
     app.setting(AppSettings::SubcommandRequired)
         .subcommand(basic_field_line_tracer_subcommand)
         .subcommand(rkf_stepper_subcommand)
         .subcommand(poly_fit_interpolator_subcommand)
         .subcommand(slice_seeder_subcommand)
+        .subcommand(manual_seeder_subcommand)
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
@@ -267,24 +272,34 @@ fn run_with_selected_seeder<G, Tr, StF, I>(
     StF: StepperFactory3 + Sync,
     I: Interpolator3,
 {
-    let seeder = if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
-        cli::tracing::seeding::slice::create_slice_seeder_from_arguments(
+    if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
+        let seeder = cli::tracing::seeding::slice::create_slice_seeder_from_arguments(
             seeder_arguments,
             snapshot,
             &interpolator,
-        )
+        );
+        run_tracing(
+            root_arguments,
+            snapshot,
+            tracer,
+            stepper_factory,
+            interpolator,
+            seeder,
+        );
+    } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
+        let seeder =
+            cli::tracing::seeding::manual::create_manual_seeder_from_arguments(seeder_arguments);
+        run_tracing(
+            root_arguments,
+            snapshot,
+            tracer,
+            stepper_factory,
+            interpolator,
+            seeder,
+        );
     } else {
         panic!("No seeder specified.")
     };
-
-    run_tracing(
-        root_arguments,
-        snapshot,
-        tracer,
-        stepper_factory,
-        interpolator,
-        seeder,
-    );
 }
 
 fn run_tracing<G, Tr, StF, I, Sd>(

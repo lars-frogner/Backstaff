@@ -80,11 +80,6 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
         .subcommand(pdf::create_slice_pdf_seeder_subcommand())
 }
 
-/// Adds arguments for parameters used by a slice seeder.
-pub fn add_slice_seeder_options_to_subcommand<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
-    app
-}
-
 /// Creates a slice seeder based on the provided arguments.
 pub fn create_slice_seeder_from_arguments<G, I>(
     arguments: &ArgMatches,
