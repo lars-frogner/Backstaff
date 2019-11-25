@@ -3,7 +3,7 @@
 use super::super::ftr;
 use super::Seeder3;
 use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Dim2, Dim3, In2D, Point2, Point3, Vec3};
+use crate::geometry::{Dim2, Dim3, Idx3, In2D, Point2, Point3, Vec3};
 use crate::grid::{CoordLocation, Grid2, Grid3};
 use crate::interpolation::Interpolator3;
 use crate::num::BFloat;
@@ -427,5 +427,13 @@ impl Seeder3 for SliceSeeder3 {
         P: FnMut(&Point3<ftr>) -> bool,
     {
         self.seed_points.retain(predicate);
+    }
+
+    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+    {
+        self.seed_points.to_index_seeder(grid)
     }
 }

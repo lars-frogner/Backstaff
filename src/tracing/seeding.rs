@@ -1,6 +1,7 @@
 //! Generation of seed points for field line tracing.
 
 pub mod criterion;
+pub mod manual;
 pub mod slice;
 
 use super::ftr;
@@ -20,6 +21,13 @@ pub trait Seeder3:
     fn retain_points<P>(&mut self, predicate: P)
     where
         P: FnMut(&Point3<ftr>) -> bool;
+
+    /// Creates a list of seed indices from the seed points by looking up the grid cells
+    /// of the given grid containing the seed points.
+    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
+    where
+        F: BFloat,
+        G: Grid3<F>;
 }
 
 /// Defines the properties of a 3D seed index generator.
@@ -53,6 +61,19 @@ impl Seeder3 for Vec<Point3<ftr>> {
         P: FnMut(&Point3<ftr>) -> bool,
     {
         self.retain(predicate);
+    }
+
+    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+    {
+        self.iter()
+            .map(|point| {
+                grid.find_closest_grid_cell(&Point3::from(point))
+                    .expect_inside_or_moved()
+            })
+            .collect()
     }
 }
 
