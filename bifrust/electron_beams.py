@@ -39,7 +39,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
     VALUE_UNIT_CONVERTERS = {
         'r': lambda f: f*units.U_R,
-        'qspitz': lambda f: f*units.U_E,
+        'qspitz': lambda f: f*units.U_E/units.U_T,
         'r0': lambda f: f*units.U_R,
         'z': lambda f: -f,
         'z0': lambda f: -f,
