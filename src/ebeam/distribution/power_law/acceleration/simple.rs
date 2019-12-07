@@ -7,7 +7,7 @@ use super::super::{
     PitchAngleDistribution, PowerLawDistribution, PowerLawDistributionConfig,
     PowerLawDistributionData,
 };
-use crate::constants::{KBOLTZMANN, KEV_TO_ERG, MC2_ELECTRON};
+use crate::constants::{KBOLTZMANN, KEV_TO_ERG, MC2_ELECTRON, PI};
 use crate::geometry::{Dim3, Idx3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
@@ -16,7 +16,6 @@ use crate::io::utils;
 use crate::io::Verbose;
 use crate::tracing::stepping::{StepperFactory3, SteppingSense};
 use crate::units::solar::{U_E, U_L, U_R, U_T};
-use nrfind;
 use rayon::prelude::*;
 use serde::Serialize;
 use std::io;
@@ -173,30 +172,44 @@ impl SimplePowerLawAccelerator {
             return None;
         }
         let beta = KEV_TO_ERG / (KBOLTZMANN * temperature); // [1/keV]
-        let thermal_fraction = KEV_TO_ERG * (3.0 / 2.0) * electron_density * feb::sqrt(beta)
+        let thermal_fraction = KEV_TO_ERG * 3.0 * electron_density * feb::sqrt(beta / PI)
             / (total_energy_density * (self.config.power_law_delta - 1.0)); // [1/keV^(3/2)]
         let ln_thermal_fraction = feb::ln(thermal_fraction);
 
-        let difference = |energy| ln_thermal_fraction + feb::ln(energy) - beta * energy;
-        let derivative = |energy| 1.0 / energy - beta;
+        // Make sure the initial guess satisfies E > 3/(2*beta), so that we find the solution
+        // on the correct side
+        let minimum_energy = 1.5 / beta + 1e-4;
+        let mut energy = feb::max(minimum_energy, self.config.initial_cutoff_energy_guess);
 
-        // Make sure the initial guess never results in a positive initial derivative
-        let initial_guess = feb::max(0.9 / beta, self.config.initial_cutoff_energy_guess);
+        let mut number_of_iterations = 0;
 
-        let intersection_energy = match nrfind::find_root(
-            &difference,
-            &derivative,
-            initial_guess,
-            self.config.acceptable_root_finding_error,
-            self.config.max_root_finding_iterations,
-        ) {
-            Ok(energy) => energy,
-            Err(err) => {
-                println!("Cut-off energy estimation failed: {}", err);
+        loop {
+            let difference = ln_thermal_fraction + 1.5 * feb::ln(energy) - beta * energy;
+
+            // Stop when the difference between the distributions is sufficiently close to zero
+            if feb::abs(difference) < self.config.acceptable_root_finding_error {
+                break;
+            }
+
+            energy -= difference / (1.5 / energy - beta);
+
+            // If we reach the wrong side of the thermal distribution peak there is no solution
+            if energy < minimum_energy {
                 return None;
             }
-        };
-        let lower_cutoff_energy = intersection_energy * KEV_TO_ERG / MC2_ELECTRON;
+
+            number_of_iterations += 1;
+
+            if number_of_iterations > self.config.max_root_finding_iterations {
+                println!(
+                    "Cut-off energy estimation reached maximum number of iterations with error {}",
+                    difference
+                );
+                return None;
+            }
+        }
+
+        let lower_cutoff_energy = energy * KEV_TO_ERG / MC2_ELECTRON;
         Some(lower_cutoff_energy)
     }
 
@@ -744,7 +757,7 @@ impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
     pub const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
     pub const DEFAULT_MAX_ACCELERATION_ANGLE: feb = 70.0; // [deg]
-    pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 4.0; // [keV]
+    pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 2.0; // [keV]
     pub const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
     pub const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
 
