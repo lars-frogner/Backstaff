@@ -245,16 +245,22 @@ impl PowerLawDistribution {
     }
 
     fn compute_electron_coulomb_logarithm(electron_density: feb, electron_energy: feb) -> feb {
-        Self::ELECTRON_COULOMB_OFFSET
-            + 0.5
-                * feb::ln(
-                    feb::powi(electron_energy * (electron_energy + 2.0), 2) / electron_density,
-                )
+        feb::max(
+            0.0,
+            Self::ELECTRON_COULOMB_OFFSET
+                + 0.5
+                    * feb::ln(
+                        feb::powi(electron_energy * (electron_energy + 2.0), 2) / electron_density,
+                    ),
+        )
     }
 
     fn compute_neutral_hydrogen_coulomb_logarithm(electron_energy: feb) -> feb {
-        Self::NEUTRAL_HYDROGEN_COULOMB_OFFSET
-            + 0.5 * feb::ln(electron_energy * electron_energy * (electron_energy + 2.0))
+        feb::max(
+            0.0,
+            Self::NEUTRAL_HYDROGEN_COULOMB_OFFSET
+                + 0.5 * feb::ln(electron_energy * electron_energy * (electron_energy + 2.0)),
+        )
     }
 }
 
