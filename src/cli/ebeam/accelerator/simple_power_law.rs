@@ -71,6 +71,17 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("min-lower-cutoff-energy")
+                .long("min-lower-cutoff-energy")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Distributions with lower cut-off energies lower than this value\n\
+                     are discarded [keV] [default: from param file]",
+                )
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("min-depletion-distance")
                 .long("min-depletion-distance")
                 .require_equals(true)
@@ -179,6 +190,15 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_TOTAL_POWER_DENSITY,
     );
 
+    let min_lower_cutoff_energy = cli::get_value_from_param_file_argument_with_default(
+        reader,
+        arguments,
+        "min-lower-cutoff-energy",
+        "min_cutoff_en",
+        &|min_cutoff_en| min_cutoff_en,
+        SimplePowerLawAccelerationConfig::DEFAULT_MIN_LOWER_CUTOFF_ENERGY,
+    );
+
     let min_estimated_depletion_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
@@ -205,6 +225,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         power_law_delta,
         pitch_angle_distribution,
         min_total_power_density,
+        min_lower_cutoff_energy,
         min_estimated_depletion_distance,
         max_acceleration_angle,
         initial_cutoff_energy_guess,
