@@ -71,6 +71,13 @@ impl DCPowerLawAccelerator {
         self.config.particle_energy_fraction * joule_heating
     }
 
+    fn determine_electron_density<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
+    where
+        G: Grid3<fdt>,
+    {
+        feb::from(snapshot.cached_scalar_field("nel").value(indices)) // [1/cm^3]
+    }
+
     fn determine_mass_density<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
     where
         G: Grid3<fdt>,
@@ -154,6 +161,7 @@ impl Accelerator for DCPowerLawAccelerator {
             println!("Extracting reconnection site properties");
         }
         snapshot.cache_scalar_field("qjoule")?;
+        snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("r")?;
         let properties: Vec<_> = seeder
             .into_par_iter()
@@ -162,14 +170,27 @@ impl Accelerator for DCPowerLawAccelerator {
                 if total_power_density < self.config.min_total_power_density {
                     None
                 } else {
-                    let mass_density = Self::determine_mass_density(snapshot, &indices);
-                    let electron_density =
-                        PowerLawDistribution::compute_electron_density(mass_density);
+                    let electron_density = Self::determine_electron_density(snapshot, &indices);
                     assert!(
                         electron_density > 0.0,
                         "Electron density must be larger than zero."
                     );
-                    Some((indices, total_power_density, mass_density, electron_density))
+                    let mass_density = Self::determine_mass_density(snapshot, &indices);
+                    let neutral_hydrogen_density =
+                        PowerLawDistribution::compute_neutral_hydrogen_density(
+                            mass_density,
+                            electron_density,
+                        );
+                    assert!(
+                        neutral_hydrogen_density > 0.0,
+                        "Neutral hydrogen density must be larger than zero."
+                    );
+                    Some((
+                        indices,
+                        total_power_density,
+                        electron_density,
+                        neutral_hydrogen_density,
+                    ))
                 }
             })
             .collect();
@@ -183,7 +204,7 @@ impl Accelerator for DCPowerLawAccelerator {
         let properties: Vec<_> = properties
             .into_par_iter()
             .filter_map(
-                |(indices, total_power_density, mass_density, electron_density)| {
+                |(indices, total_power_density, electron_density, neutral_hydrogen_density)| {
                     let start_position =
                         Point3::from(&snapshot.reader().grid().centers().point(&indices));
                     if let Some(acceleration_region_data) = self.acceleration_region_tracer.trace(
@@ -196,8 +217,8 @@ impl Accelerator for DCPowerLawAccelerator {
                         Some((
                             acceleration_region_data,
                             total_power_density,
-                            mass_density,
                             electron_density,
+                            neutral_hydrogen_density,
                         ))
                     } else {
                         None
@@ -217,8 +238,8 @@ impl Accelerator for DCPowerLawAccelerator {
                     |(
                         acceleration_region_data,
                         total_power_density,
-                        mass_density,
                         electron_density,
+                        neutral_hydrogen_density,
                     )| {
                         let lower_cutoff_energy = Self::compute_lower_cutoff_energy(
                             acceleration_region_data.average_parallel_electric_field_strength(),
@@ -232,6 +253,7 @@ impl Accelerator for DCPowerLawAccelerator {
                         let estimated_depletion_distance =
                             PowerLawDistribution::estimate_depletion_distance(
                                 electron_density,
+                                neutral_hydrogen_density,
                                 self.config.power_law_delta,
                                 self.pitch_angle_factor,
                                 total_power_density,
@@ -259,7 +281,6 @@ impl Accelerator for DCPowerLawAccelerator {
                                 estimated_depletion_distance,
                                 acceleration_position,
                                 propagation_sense,
-                                mass_density,
                             };
                             Some((
                                 acceleration_region_data,
@@ -287,7 +308,7 @@ impl Accelerator for DCPowerLawAccelerator {
                     .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
                 interpolator,
             );
-            if !["r", "bx", "by", "bz"].contains(&name.as_str()) {
+            if !["nel", "r", "bx", "by", "bz"].contains(&name.as_str()) {
                 snapshot.drop_scalar_field(name);
             }
         }

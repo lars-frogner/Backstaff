@@ -49,8 +49,6 @@ pub struct PowerLawDistributionData {
     acceleration_position: Point3<fdt>,
     /// Direction of propagation of the electrons relative to the magnetic field direction.
     propagation_sense: SteppingSense,
-    /// Total mass density at the acceleration site [g/cm^3].
-    mass_density: feb,
 }
 
 /// Exposed properties of a power-law distribution.
@@ -92,17 +90,20 @@ impl PowerLawDistribution {
     /// Fraction of a mass of plasma assumed to be made up of hydrogen.
     const HYDROGEN_MASS_FRACTION: feb = 0.735;
 
-    /// Conversion factor from mass density [g] to electron density [1/cm^3],
+    /// Conversion factor from mass density [g/cm^3] to electron density [1/cm^3],
     /// assuming a fully ionized plasma with no metals and the hard-coded value for
     /// the hydrogen mass fraction.
-    const MASS_DENSITY_TO_ELECTRON_DENSITY: feb =
+    const MASS_DENSITY_TO_IONIZED_ELECTRON_DENSITY: feb =
         (1.0 + Self::HYDROGEN_MASS_FRACTION) / (2.0 * AMU);
 
     /// 2*pi*(classical electron radius)^2 [cm^2]
     const COLLISION_SCALE: feb = 4.989_344e-25;
 
     /// 1/2*ln( (2*pi*me*c/h)^3/(pi*alpha) [1/cm^3] )
-    const COULOMB_OFFSET: feb = 37.853_791;
+    const ELECTRON_COULOMB_OFFSET: feb = 37.853_791;
+
+    /// -ln( I_H [m_e*c^2] )
+    const NEUTRAL_HYDROGEN_COULOMB_OFFSET: feb = 10.53422;
 
     /// Returns the exponent of the inverse power-law.
     pub fn delta(&self) -> feb {
@@ -155,12 +156,22 @@ impl PowerLawDistribution {
         }
     }
 
-    fn compute_electron_density(mass_density: feb) -> feb {
-        mass_density * Self::MASS_DENSITY_TO_ELECTRON_DENSITY
+    fn compute_ionized_electron_density(mass_density: feb) -> feb {
+        mass_density * Self::MASS_DENSITY_TO_IONIZED_ELECTRON_DENSITY
     }
 
+    fn compute_neutral_hydrogen_density(mass_density: feb, electron_density: feb) -> feb {
+        // If we assume helium to be always fully ionized, the number of neutral hydrogen
+        // atoms corresponds to the difference between the actual number of electrons and
+        // the number of electrons we would have if all hydrogen was ionized.
+        let ionized_electron_density = Self::compute_ionized_electron_density(mass_density);
+        feb::max(0.0, ionized_electron_density - electron_density)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn estimate_depletion_distance(
         electron_density: feb,
+        neutral_hydrogen_density: feb,
         delta: feb,
         pitch_angle_factor: feb,
         total_power_density: feb,
@@ -173,7 +184,12 @@ impl PowerLawDistribution {
                 depletion_power_density / total_power_density,
                 2.0 / (2.0 - delta),
             ) - 1.0)
-            / (pitch_angle_factor * Self::compute_collisional_coef(electron_density, mean_energy))
+            / (pitch_angle_factor
+                * Self::compute_collisional_coef(
+                    electron_density,
+                    neutral_hydrogen_density,
+                    mean_energy,
+                ))
     }
 
     fn compute_mean_energy(delta: feb, lower_cutoff_energy: feb) -> feb {
@@ -189,12 +205,17 @@ impl PowerLawDistribution {
 
     fn compute_collisional_depth_increase(
         electron_density: feb,
+        neutral_hydrogen_density: feb,
         pitch_angle_factor: feb,
         mean_energy: feb,
         step_length: feb,
     ) -> feb {
         pitch_angle_factor
-            * Self::compute_collisional_coef(electron_density, mean_energy)
+            * Self::compute_collisional_coef(
+                electron_density,
+                neutral_hydrogen_density,
+                mean_energy,
+            )
             * step_length
     }
 
@@ -211,18 +232,29 @@ impl PowerLawDistribution {
             )
     }
 
-    fn compute_collisional_coef(electron_density: feb, electron_energy: feb) -> feb {
+    fn compute_collisional_coef(
+        electron_density: feb,
+        neutral_hydrogen_density: feb,
+        electron_energy: feb,
+    ) -> feb {
         Self::COLLISION_SCALE
-            * electron_density
-            * Self::compute_coulomb_logarithm(electron_density, electron_energy)
+            * (electron_density
+                * Self::compute_electron_coulomb_logarithm(electron_density, electron_energy)
+                + neutral_hydrogen_density
+                    * Self::compute_neutral_hydrogen_coulomb_logarithm(electron_energy))
     }
 
-    fn compute_coulomb_logarithm(particle_density: feb, electron_energy: feb) -> feb {
-        Self::COULOMB_OFFSET
+    fn compute_electron_coulomb_logarithm(electron_density: feb, electron_energy: feb) -> feb {
+        Self::ELECTRON_COULOMB_OFFSET
             + 0.5
                 * feb::ln(
-                    feb::powi(electron_energy * (electron_energy + 2.0), 2) / particle_density,
+                    feb::powi(electron_energy * (electron_energy + 2.0), 2) / electron_density,
                 )
+    }
+
+    fn compute_neutral_hydrogen_coulomb_logarithm(electron_energy: feb) -> feb {
+        Self::NEUTRAL_HYDROGEN_COULOMB_OFFSET
+            + 0.5 * feb::ln(electron_energy * electron_energy * (electron_energy + 2.0))
     }
 }
 
@@ -308,18 +340,28 @@ impl Distribution for PowerLawDistribution {
         I: Interpolator3,
     {
         let mut deposition_position = new_position - displacement * 0.5;
+        let electron_density_field = snapshot.cached_scalar_field("nel");
         let mass_density_field = snapshot.cached_scalar_field("r");
+
+        let electron_density = interpolator
+            .interp_scalar_field(electron_density_field, &Point3::from(&deposition_position))
+            .unwrap_and_update_position(&mut deposition_position)
+            as feb;
 
         let mass_density = interpolator
             .interp_scalar_field(mass_density_field, &Point3::from(&deposition_position))
-            .unwrap_and_update_position(&mut deposition_position);
+            .expect_inside() as feb
+            * U_R;
 
-        let electron_density = Self::compute_electron_density(feb::from(mass_density) * U_R); // [electrons/cm^3]
+        let neutral_hydrogen_density =
+            Self::compute_neutral_hydrogen_density(mass_density, electron_density);
+
         let step_length = displacement.length() * U_L; // [cm]
 
         let collisional_depth_increase = if electron_density > std::f64::EPSILON {
             Self::compute_collisional_depth_increase(
                 electron_density,
+                neutral_hydrogen_density,
                 self.data.pitch_angle_factor,
                 self.data.mean_energy,
                 step_length,

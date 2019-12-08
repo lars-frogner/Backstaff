@@ -54,6 +54,8 @@ pub struct SimplePowerLawAccelerationConfig {
     /// Distributions with total power densities smaller than this value
     /// are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
+    /// Distributions with lower cut-off energies lower than this value are discarded [keV].
+    pub min_lower_cutoff_energy: feb,
     /// Distributions with an initial estimated depletion distance smaller
     /// than this value are discarded [cm].
     pub min_estimated_depletion_distance: feb,
@@ -115,7 +117,7 @@ impl ParallelExtend<RejectionCauseCode> for RejectionCauseCodeCollection {
 impl SimplePowerLawAccelerator {
     /// How many adjacent grid cells in each direction to include when
     /// computing the average electric field around the acceleration site.
-    const ELECTRIC_FIELD_PROBING_SPAN: isize = 2;
+    const ELECTRIC_FIELD_PROBING_SPAN: isize = 0;
 
     fn determine_total_power_density<G>(
         &self,
@@ -143,6 +145,13 @@ impl SimplePowerLawAccelerator {
         let temperature = feb::from(snapshot.cached_scalar_field("tg").value(indices));
         assert!(temperature > 0.0, "Temperature must be larger than zero.");
         temperature
+    }
+
+    fn determine_electron_density<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
+    where
+        G: Grid3<fdt>,
+    {
+        feb::from(snapshot.cached_scalar_field("nel").value(indices)) // [1/cm^3]
     }
 
     fn determine_mass_density<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
@@ -209,8 +218,12 @@ impl SimplePowerLawAccelerator {
             }
         }
 
-        let lower_cutoff_energy = energy * KEV_TO_ERG / MC2_ELECTRON;
-        Some(lower_cutoff_energy)
+        if energy >= self.config.min_lower_cutoff_energy {
+            let lower_cutoff_energy = energy * KEV_TO_ERG / MC2_ELECTRON;
+            Some(lower_cutoff_energy)
+        } else {
+            None
+        }
     }
 
     fn determine_acceleration_position<G>(
@@ -371,16 +384,27 @@ impl SimplePowerLawAccelerator {
         if verbose.is_yes() {
             println!("Computing lower cutoff energies and estimating depletion distances");
         }
+        snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("r")?;
         snapshot.cache_scalar_field("tg")?;
         let properties: Vec<_> = properties
             .into_par_iter()
             .filter_map(|(indices, total_power_density)| {
-                let mass_density = Self::determine_mass_density(snapshot, &indices);
-                let electron_density = PowerLawDistribution::compute_electron_density(mass_density);
+                let electron_density = Self::determine_electron_density(snapshot, &indices);
                 assert!(
                     electron_density > 0.0,
                     "Electron density must be larger than zero."
+                );
+
+                let mass_density = Self::determine_mass_density(snapshot, &indices);
+                let neutral_hydrogen_density =
+                    PowerLawDistribution::compute_neutral_hydrogen_density(
+                        mass_density,
+                        electron_density,
+                    );
+                assert!(
+                    neutral_hydrogen_density > 0.0,
+                    "Neutral hydrogen density must be larger than zero."
                 );
 
                 let temperature = Self::determine_temperature(snapshot, &indices);
@@ -402,6 +426,7 @@ impl SimplePowerLawAccelerator {
                 let estimated_depletion_distance =
                     PowerLawDistribution::estimate_depletion_distance(
                         electron_density,
+                        neutral_hydrogen_density,
                         self.config.power_law_delta,
                         self.pitch_angle_factor,
                         total_power_density,
@@ -415,7 +440,6 @@ impl SimplePowerLawAccelerator {
                     Some((
                         indices,
                         total_power_density,
-                        mass_density,
                         lower_cutoff_energy,
                         mean_energy,
                         estimated_depletion_distance,
@@ -435,7 +459,6 @@ impl SimplePowerLawAccelerator {
                 |(
                     indices,
                     total_power_density,
-                    mass_density,
                     lower_cutoff_energy,
                     mean_energy,
                     estimated_depletion_distance,
@@ -447,7 +470,6 @@ impl SimplePowerLawAccelerator {
                             (
                                 indices,
                                 total_power_density,
-                                mass_density,
                                 lower_cutoff_energy,
                                 mean_energy,
                                 estimated_depletion_distance,
@@ -471,7 +493,6 @@ impl SimplePowerLawAccelerator {
                 |(
                     _,
                     total_power_density,
-                    mass_density,
                     lower_cutoff_energy,
                     mean_energy,
                     estimated_depletion_distance,
@@ -504,7 +525,6 @@ impl SimplePowerLawAccelerator {
                             estimated_depletion_distance,
                             acceleration_position,
                             propagation_sense,
-                            mass_density,
                         };
                         Some(PowerLawDistribution::new(
                             self.distribution_config.clone(),
@@ -550,16 +570,26 @@ impl SimplePowerLawAccelerator {
         if verbose.is_yes() {
             println!("Computing lower cutoff energies and estimating depletion distances");
         }
-        snapshot.cache_scalar_field("r")?;
+        snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("tg")?;
         let properties: Vec<_> = properties
             .into_par_iter()
             .filter_map(|(mut rejection_cause_code, indices, total_power_density)| {
-                let mass_density = Self::determine_mass_density(snapshot, &indices);
-                let electron_density = PowerLawDistribution::compute_electron_density(mass_density);
+                let electron_density = Self::determine_electron_density(snapshot, &indices);
                 assert!(
                     electron_density > 0.0,
                     "Electron density must be larger than zero."
+                );
+
+                let mass_density = Self::determine_mass_density(snapshot, &indices);
+                let neutral_hydrogen_density =
+                    PowerLawDistribution::compute_neutral_hydrogen_density(
+                        mass_density,
+                        electron_density,
+                    );
+                assert!(
+                    neutral_hydrogen_density > 0.0,
+                    "Neutral hydrogen density must be larger than zero."
                 );
 
                 let temperature = Self::determine_temperature(snapshot, &indices);
@@ -581,6 +611,7 @@ impl SimplePowerLawAccelerator {
                 let estimated_depletion_distance =
                     PowerLawDistribution::estimate_depletion_distance(
                         electron_density,
+                        neutral_hydrogen_density,
                         self.config.power_law_delta,
                         self.pitch_angle_factor,
                         total_power_density,
@@ -595,7 +626,6 @@ impl SimplePowerLawAccelerator {
                     rejection_cause_code,
                     indices,
                     total_power_density,
-                    mass_density,
                     lower_cutoff_energy,
                     mean_energy,
                     estimated_depletion_distance,
@@ -615,7 +645,6 @@ impl SimplePowerLawAccelerator {
                     rejection_cause_code,
                     indices,
                     total_power_density,
-                    mass_density,
                     lower_cutoff_energy,
                     mean_energy,
                     estimated_depletion_distance,
@@ -628,7 +657,6 @@ impl SimplePowerLawAccelerator {
                                 rejection_cause_code,
                                 indices,
                                 total_power_density,
-                                mass_density,
                                 lower_cutoff_energy,
                                 mean_energy,
                                 estimated_depletion_distance,
@@ -654,7 +682,6 @@ impl SimplePowerLawAccelerator {
                         mut rejection_cause_code,
                         _,
                         total_power_density,
-                        mass_density,
                         lower_cutoff_energy,
                         mean_energy,
                         estimated_depletion_distance,
@@ -689,7 +716,6 @@ impl SimplePowerLawAccelerator {
                             estimated_depletion_distance,
                             acceleration_position,
                             propagation_sense,
-                            mass_density,
                         };
                         (
                             rejection_cause_code,
@@ -755,6 +781,7 @@ impl SimplePowerLawAccelerationConfig {
         PitchAngleDistribution::Peaked;
     pub const DEFAULT_IGNORE_REJECTION: bool = false;
     pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
+    pub const DEFAULT_MIN_LOWER_CUTOFF_ENERGY: feb = 0.1; // [keV]
     pub const DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE: feb = 3e7; // [cm]
     pub const DEFAULT_MAX_ACCELERATION_ANGLE: feb = 70.0; // [deg]
     pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 2.0; // [keV]
@@ -793,6 +820,13 @@ impl SimplePowerLawAccelerationConfig {
                 &|min_beam_en: feb| min_beam_en * U_E / U_T,
                 Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             );
+        let min_lower_cutoff_energy = reader
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "min_lower_cutoff_energy",
+                "min_cutoff_en",
+                &|min_cutoff_en| min_cutoff_en,
+                Self::DEFAULT_MIN_LOWER_CUTOFF_ENERGY,
+            );
         let min_estimated_depletion_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "min_estimated_depletion_distance",
@@ -805,6 +839,7 @@ impl SimplePowerLawAccelerationConfig {
             particle_energy_fraction,
             power_law_delta,
             min_total_power_density,
+            min_lower_cutoff_energy,
             min_estimated_depletion_distance,
             ..Self::default()
         }
@@ -827,6 +862,10 @@ impl SimplePowerLawAccelerationConfig {
         assert!(
             self.min_total_power_density >= 0.0,
             "Minimum total power density must be larger than or equal to zero."
+        );
+        assert!(
+            self.min_lower_cutoff_energy >= 0.0,
+            "Minimum lower cut-off energy must be larger than or equal to zero."
         );
         assert!(
             self.min_estimated_depletion_distance >= 0.0,
@@ -860,6 +899,7 @@ impl Default for SimplePowerLawAccelerationConfig {
             pitch_angle_distribution: Self::DEFAULT_PITCH_ANGLE_DISTRIBUTION,
             ignore_rejection: Self::DEFAULT_IGNORE_REJECTION,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
+            min_lower_cutoff_energy: Self::DEFAULT_MIN_LOWER_CUTOFF_ENERGY,
             min_estimated_depletion_distance: Self::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
             max_acceleration_angle: Self::DEFAULT_MAX_ACCELERATION_ANGLE,
             initial_cutoff_energy_guess: Self::DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS,
