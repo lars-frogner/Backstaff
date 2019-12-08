@@ -7,20 +7,10 @@ use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
 use crate::io::Verbose;
 use crate::tracing::seeding::criterion::CriterionSeeder3;
 use crate::tracing::seeding::IndexSeeder3;
-use std::fmt;
-
-/// Whether to use the standard or normalized reconnection factor.
-#[derive(Clone, Debug)]
-pub enum ReconnectionFactorType {
-    Standard,
-    Normalized,
-}
 
 /// Configuration parameters for the simple reconnection site detection method.
 #[derive(Clone, Debug)]
 pub struct SimpleReconnectionSiteDetectorConfig {
-    /// Whether to use a standard or normalized version of the reconnection factor.
-    pub reconnection_factor_type: ReconnectionFactorType,
     /// Reconnection sites will be detected where the reconnection factor value is larger than this.
     pub reconnection_factor_threshold: fdt,
     /// Smallest depth at which reconnection sites will be detected [Mm].
@@ -52,13 +42,8 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
         snapshot: &mut SnapshotCacher3<G>,
         verbose: Verbose,
     ) -> Self::Seeder {
-        let reconnection_factor_variable = match self.config.reconnection_factor_type {
-            ReconnectionFactorType::Standard => "krec",
-            ReconnectionFactorType::Normalized => "krec_norm",
-        };
-        let reconnection_factor_field = snapshot
-            .obtain_scalar_field(reconnection_factor_variable)
-            .unwrap_or_else(|err| {
+        let reconnection_factor_field =
+            snapshot.obtain_scalar_field("krec").unwrap_or_else(|err| {
                 panic!(
                     "Could not read reconnection factor field from snapshot: {}",
                     err
@@ -73,7 +58,7 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
             },
         );
 
-        snapshot.drop_scalar_field(reconnection_factor_variable);
+        snapshot.drop_scalar_field("krec");
 
         if verbose.is_yes() {
             println!("Found {} acceleration sites", seeder.number_of_indices());
@@ -83,8 +68,6 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
 }
 
 impl SimpleReconnectionSiteDetectorConfig {
-    pub const DEFAULT_RECONNECTION_FACTOR_TYPE: ReconnectionFactorType =
-        ReconnectionFactorType::Standard;
     pub const DEFAULT_RECONNECTION_FACTOR_THRESHOLD: fdt = 1e-3;
     pub const DEFAULT_MIN_DETECTION_DEPTH: fdt = -13.0; // [Mm]
     pub const DEFAULT_MAX_DETECTION_DEPTH: fdt = 0.0; // [Mm]
@@ -93,19 +76,6 @@ impl SimpleReconnectionSiteDetectorConfig {
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
-        let reconnection_factor_type = reader
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "reconnection_factor_type",
-                "norm_krec",
-                &|norm_krec: u8| {
-                    if norm_krec > 0 {
-                        ReconnectionFactorType::Normalized
-                    } else {
-                        ReconnectionFactorType::Standard
-                    }
-                },
-                Self::DEFAULT_RECONNECTION_FACTOR_TYPE,
-            );
         let reconnection_factor_threshold = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "reconnection_factor_threshold",
@@ -129,7 +99,6 @@ impl SimpleReconnectionSiteDetectorConfig {
             );
 
         SimpleReconnectionSiteDetectorConfig {
-            reconnection_factor_type,
             reconnection_factor_threshold,
             min_detection_depth,
             max_detection_depth,
@@ -152,20 +121,9 @@ impl SimpleReconnectionSiteDetectorConfig {
 impl Default for SimpleReconnectionSiteDetectorConfig {
     fn default() -> Self {
         SimpleReconnectionSiteDetectorConfig {
-            reconnection_factor_type: Self::DEFAULT_RECONNECTION_FACTOR_TYPE,
             reconnection_factor_threshold: Self::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
             min_detection_depth: Self::DEFAULT_MIN_DETECTION_DEPTH,
             max_detection_depth: Self::DEFAULT_MAX_DETECTION_DEPTH,
         }
-    }
-}
-
-impl fmt::Display for ReconnectionFactorType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let type_str = match self {
-            Self::Standard => "standard",
-            Self::Normalized => "normalized",
-        };
-        write!(f, "{}", type_str)
     }
 }

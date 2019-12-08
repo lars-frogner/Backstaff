@@ -1,9 +1,7 @@
 //! Command line interface for the simple reconnection site detector.
 
 use crate::cli;
-use crate::ebeam::detection::simple::{
-    ReconnectionFactorType, SimpleReconnectionSiteDetectorConfig,
-};
+use crate::ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig;
 use crate::grid::Grid3;
 use crate::io::snapshot::{fdt, SnapshotReader3};
 use clap::{App, Arg, ArgMatches, SubCommand};
@@ -19,18 +17,6 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
              indicates changes in the magnetic topology and is described by Biskamp (2005).",
         )
         .help_message("Print help information")
-        .arg(
-            Arg::with_name("reconnection-factor-type")
-                .long("reconnection-factor-type")
-                .require_equals(true)
-                .value_name("TYPE")
-                .help(
-                    "Which version of the reconnection factor to use for seeding\n \
-                     [default: from param file]",
-                )
-                .takes_value(true)
-                .possible_values(&["standard", "normalized"]),
-        )
         .arg(
             Arg::with_name("reconnection-factor-threshold")
                 .long("reconnection-factor-threshold")
@@ -63,23 +49,6 @@ pub fn construct_simple_reconnection_site_detector_config_from_options<G: Grid3<
     arguments: &ArgMatches,
     reader: &SnapshotReader3<G>,
 ) -> SimpleReconnectionSiteDetectorConfig {
-    let reconnection_factor_type = match arguments.value_of("reconnection-factor-type") {
-        Some("normalized") => ReconnectionFactorType::Normalized,
-        Some("standard") => ReconnectionFactorType::Standard,
-        None => reader.get_converted_numerical_param_or_fallback_to_default_with_warning(
-            "reconnection-factor-type",
-            "norm_krec",
-            &|norm_krec: u8| {
-                if norm_krec > 0 {
-                    ReconnectionFactorType::Normalized
-                } else {
-                    ReconnectionFactorType::Standard
-                }
-            },
-            SimpleReconnectionSiteDetectorConfig::DEFAULT_RECONNECTION_FACTOR_TYPE,
-        ),
-        Some(invalid) => panic!("Invalid reconnection-factor-type: {}", invalid),
-    };
     let reconnection_factor_threshold = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
@@ -100,7 +69,6 @@ pub fn construct_simple_reconnection_site_detector_config_from_options<G: Grid3<
         ],
     );
     SimpleReconnectionSiteDetectorConfig {
-        reconnection_factor_type,
         reconnection_factor_threshold,
         min_detection_depth: detection_depth_limits[0],
         max_detection_depth: detection_depth_limits[1],
