@@ -68,7 +68,7 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
 }
 
 impl SimpleReconnectionSiteDetectorConfig {
-    pub const DEFAULT_RECONNECTION_FACTOR_THRESHOLD: fdt = 1e-3;
+    pub const DEFAULT_RECONNECTION_FACTOR_THRESHOLD: fdt = 5e-4;
     pub const DEFAULT_MIN_DETECTION_DEPTH: fdt = -13.0; // [Mm]
     pub const DEFAULT_MAX_DETECTION_DEPTH: fdt = 0.0; // [Mm]
 
