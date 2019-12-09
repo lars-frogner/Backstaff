@@ -411,7 +411,7 @@ impl Distribution for PowerLawDistribution {
 
 impl PowerLawDistributionConfig {
     pub const DEFAULT_MIN_REMAINING_POWER_DENSITY: feb = 1e-6; // [erg/(cm^3 s)]
-    pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = std::f64::INFINITY; // [MM]
+    pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
 
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
@@ -424,9 +424,16 @@ impl PowerLawDistributionConfig {
                 &|min_stop_en: feb| min_stop_en * U_E / U_T,
                 Self::DEFAULT_MIN_REMAINING_POWER_DENSITY,
             );
+        let max_propagation_distance = reader
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "max_propagation_distance",
+                "max_dist",
+                &|max_dist| max_dist,
+                Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
+            );
         PowerLawDistributionConfig {
             min_remaining_power_density,
-            max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
+            max_propagation_distance,
         }
     }
 
