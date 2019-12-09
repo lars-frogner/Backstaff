@@ -22,8 +22,11 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'lower_cutoff_energy': 'Lower cut-off energy [keV]',
         'estimated_depletion_distance': 'Estimated depletion distance [Mm]',
         'total_propagation_distance': 'Total propagation distance [Mm]',
+        'acceleration_height': 'Acceleration site height [Mm]',
+        'depletion_height': 'Depletion height [Mm]',
         'beam_electron_fraction': 'Beam electrons relative to total electrons',
         'return_current_speed_fraction': 'Speed relative to speed of light',
+        'estimated_electron_density': r'Electron density [electrons/cm$^3$]',
         'deposited_power_density':
         r'Deposited power density [erg/(cm$^3\;$s)]',
         'power_density_change': r'Power density change [erg/(cm$^3\;$s)]',
@@ -31,6 +34,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         r'Remaining power density [erg/(cm$^3\;$s)]',
         'r': r'Mass density [g/cm$^3$]',
         'tg': 'Temperature [K]',
+        'nel': r'Electron density [electrons/cm$^3$]',
         'krec': 'Reconnection factor [Bifrost units]',
         'qspitz': r'Power density change [erg/(cm$^3\;$s)]',
         'r0': r'Mass density [g/cm$^3$]',
@@ -185,6 +189,14 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         if 'mean_electron_energy' in derived_quantities:
             self._obtain_mean_electron_energies()
 
+        if 'acceleration_height' in derived_quantities:
+            self.fixed_scalar_values['acceleration_height'] = np.asfarray(
+                [-z[0] for z in self.get_varying_scalar_values('z')])
+
+        if 'depletion_height' in derived_quantities:
+            self.fixed_scalar_values['depletion_height'] = np.asfarray(
+                [-z[-1] for z in self.get_varying_scalar_values('z')])
+
         if 'acceleration_site_electron_density' in derived_quantities:
             self._obtain_acceleration_site_electron_densities()
 
@@ -212,9 +224,9 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                         self.get_fixed_scalar_values('z0') -
                         self.bounds_z[0])/(self.bounds_z[1] - self.bounds_z[0])
 
-        if 'electron_density' in derived_quantities:
+        if 'estimated_electron_density' in derived_quantities:
             assert self.has_varying_scalar_values('r')
-            self.varying_scalar_values['electron_density'] = [
+            self.varying_scalar_values['estimated_electron_density'] = [
                 self.varying_scalar_values['r'][i]*units.U_R*
                 units.MASS_DENSITY_TO_ELECTRON_DENSITY
                 for i in range(self.get_number_of_beams())
