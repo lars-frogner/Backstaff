@@ -319,15 +319,11 @@ def compute_histogram(values,
                       vmin=None,
                       vmax=None,
                       decide_bins_in_log_space=False,
-                      weighted_average=False):
+                      weighted_average=False,
+                      density=False):
 
-    min_value = np.nanmin(values)
-    max_value = np.nanmax(values)
-
-    if vmin is not None and vmin > min_value:
-        min_value = vmin
-    if vmax is not None and vmax < max_value:
-        max_value = vmax
+    min_value = np.nanmin(values) if vmin is None else vmin
+    max_value = np.nanmax(values) if vmax is None else vmax
 
     if decide_bins_in_log_space:
         values = np.log10(values)
@@ -337,7 +333,8 @@ def compute_histogram(values,
     hist, bin_edges = np.histogram(values,
                                    bins=bins,
                                    range=(min_value, max_value),
-                                   weights=weights)
+                                   weights=weights,
+                                   density=density)
 
     if weights is not None and weighted_average:
         unweighted_hist, _ = np.histogram(values,
@@ -360,13 +357,8 @@ def compute_histogram_difference(values, weights, vmin, vmax, bins,
     left_values, right_values = values
     left_weights, right_weights = weights
 
-    min_value = min(np.nanmin(left_values), np.nanmin(right_values))
-    max_value = max(np.nanmax(left_values), np.nanmax(right_values))
-
-    if vmin is not None and vmin > min_value:
-        min_value = vmin
-    if vmax is not None and vmax < max_value:
-        max_value = vmax
+    min_value = min(np.nanmin(left_values), np.nanmin(right_values)) if vmin is None else vmin
+    max_value = max(np.nanmax(left_values), np.nanmax(right_values)) if vmax is None else vmax
 
     if decide_bins_in_log_space:
         left_values = np.log10(left_values)
