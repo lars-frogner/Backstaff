@@ -253,7 +253,7 @@ class FieldLineSet3:
             weights = self._convert_values(value_name_weights, weights,
                                            do_conversion)
 
-        self.__add_values_as_line_histogram(ax, values, weights, **kwargs)
+        return self.__add_values_as_line_histogram(ax, values, weights, **kwargs)
 
     def add_values_as_line_histogram_difference(
             self,
@@ -585,28 +585,39 @@ class FieldLineSet3:
                                        ax,
                                        values,
                                        weights,
+                                       bins='auto',
                                        vmin=None,
                                        vmax=None,
                                        weighted_average=False,
                                        decide_bins_in_log_space=False,
+                                       density=False,
                                        scatter=False,
                                        c='k',
                                        lw=1.0,
-                                       s=1.0):
+                                       s=1.0,
+                                       alpha=1.0,
+                                       legend_label=None):
 
         hist, bin_edges, bin_centers = plotting.compute_histogram(
             values,
             weights=weights,
-            bins='auto',
+            bins=bins,
             vmin=vmin,
             vmax=vmax,
             decide_bins_in_log_space=decide_bins_in_log_space,
-            weighted_average=weighted_average)
+            weighted_average=weighted_average,
+            density=density)
 
         if scatter:
-            ax.scatter(bin_centers, hist, c=c, s=s)
+            return ax.scatter(bin_centers, hist, c=c, s=s, alpha=alpha)
         else:
-            ax.step(bin_edges[:-1], hist, where='pre', c=c, lw=lw)
+            return ax.step(bin_edges[:-1],
+                    hist,
+                    where='pre',
+                    c=c,
+                    lw=lw,
+                    alpha=alpha,
+                    label=legend_label)[0]
 
     def __add_values_as_line_histogram_difference(
             self,
@@ -617,21 +628,30 @@ class FieldLineSet3:
             vmin=None,
             vmax=None,
             decide_bins_in_log_space=False,
-            scatter=True,
+            scatter=False,
             c='k',
             lw=1.0,
-            s=1.0):
+            s=1.0,
+            alpha=1.0,
+            legend_label=None):
 
         hist, bin_edges, bin_centers = plotting.compute_histogram_difference(
             values, weights, vmin, vmax, bins, decide_bins_in_log_space)
 
         if scatter:
-            ax.scatter(bin_centers, hist, c=c, s=s)
+            sc = ax.scatter(bin_centers, hist, c=c, s=s, alpha=alpha)
             if decide_bins_in_log_space:
                 plotting.set_2d_plot_extent(ax, bin_centers[0],
                                             bin_centers[-1])
+            return sc
         else:
-            ax.step(bin_edges[:-1], hist, where='pre', c=c, lw=lw)
+            return ax.step(bin_edges[:-1],
+                           hist,
+                           where='pre',
+                           c=c,
+                           lw=lw,
+                           alpha=alpha,
+                           label=legend_label)[0]
 
     def __add_values_as_2d_histogram_image(self,
                                            ax,
@@ -949,17 +969,23 @@ def plot_field_line_value_histogram(field_line_set,
                                     invert_yaxis=False,
                                     value_description=None,
                                     value_description_weights=None,
+                                    legend_loc=None,
                                     title=None,
                                     render=True,
                                     output_path=None,
                                     log_x=False,
                                     log_y=False,
+                                    vmin_x=None,
+                                    vmax_x=None,
+                                    vmin_y=None,
+                                    vmax_y=None,
+                                    extra_artists=None,
                                     **kwargs):
 
     if fig is None or ax is None:
         fig, ax = plotting.create_2d_subplots()
 
-    field_line_set.add_values_as_line_histogram(
+    handle = field_line_set.add_values_as_line_histogram(
         ax,
         value_name,
         value_name_weights=value_name_weights,
@@ -967,10 +993,16 @@ def plot_field_line_value_histogram(field_line_set,
         decide_bins_in_log_space=log_x,
         **kwargs)
 
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
+
     if log_x:
         ax.set_xscale('log')
     if log_y:
         ax.set_yscale('log')
+
+    plotting.set_2d_plot_extent(ax, (vmin_x, vmax_x), (vmin_y, vmax_y))
 
     if invert_xaxis:
         ax.invert_xaxis()
@@ -981,9 +1013,18 @@ def plot_field_line_value_histogram(field_line_set,
         ax,
         field_line_set.process_value_description(value_name,
                                                  value_description),
-        'Number of values' if value_name_weights is None
+        ('Probability density' if kwargs.get('density', False) else
+         'Number of values') if value_name_weights is None
         else field_line_set.process_value_description(
             value_name_weights, value_description_weights))
+
+    if legend_loc is not None:
+        if extra_artists is None:
+            ax.legend(loc=legend_loc)
+        else:
+            ax.legend([handle] + extra_artists, [handle.get_label()] +
+                      [artist.get_label() for artist in extra_artists],
+                      loc=legend_loc)
 
     if title is not None:
         ax.set_title(title)
@@ -1001,18 +1042,24 @@ def plot_field_line_value_histogram_difference(field_line_set,
                                                invert_yaxis=False,
                                                value_description=None,
                                                value_description_weights=None,
+                                               legend_loc=None,
                                                title=None,
                                                render=True,
                                                output_path=None,
                                                log_x=False,
                                                symlog_y=False,
                                                linethresh_y=np.inf,
+                                               vmin_x=None,
+                                               vmax_x=None,
+                                               vmin_y=None,
+                                               vmax_y=None,
+                                               extra_artists=None,
                                                **kwargs):
 
     if fig is None or ax is None:
         fig, ax = plotting.create_2d_subplots()
 
-    field_line_set.add_values_as_line_histogram_difference(
+    handle = field_line_set.add_values_as_line_histogram_difference(
         ax,
         value_names,
         value_names_weights=value_names_weights,
@@ -1024,6 +1071,8 @@ def plot_field_line_value_histogram_difference(field_line_set,
         ax.set_xscale('log')
     if symlog_y:
         ax.set_yscale('symlog', linthreshy=linethresh_y)
+
+    plotting.set_2d_plot_extent(ax, (vmin_x, vmax_x), (vmin_y, vmax_y))
 
     if invert_xaxis:
         ax.invert_xaxis()
@@ -1037,6 +1086,14 @@ def plot_field_line_value_histogram_difference(field_line_set,
         'Number of values' if value_names_weights[0] is None
         else field_line_set.process_value_description(
             value_names_weights[0], value_description_weights))
+
+    if legend_loc is not None:
+        if extra_artists is None:
+            ax.legend(loc=legend_loc)
+        else:
+            ax.legend([handle] + extra_artists, [handle.get_label()] +
+                      [artist.get_label() for artist in extra_artists],
+                      loc=legend_loc)
 
     if title is not None:
         ax.set_title(title)
