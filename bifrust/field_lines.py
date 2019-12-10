@@ -803,15 +803,22 @@ class FieldLineSet3:
                                                     bad_color=cmap_bad_color))
 
 
-def find_field_lines_passing_near_point(point, max_distance,
-                                        varying_scalar_values):
-    return [
+def find_field_lines_passing_near_point(point, max_distance, initial_position_bounds,
+                                        fixed_scalar_values, varying_scalar_values):
+    x_lims, y_lims, z_lims = initial_position_bounds
+    return list(set([
         i for i, (x, y, z) in enumerate(
             zip(varying_scalar_values['x'], varying_scalar_values['y'],
                 varying_scalar_values['z']))
         if np.any((x - point[0])**2 + (y - point[1])**2 +
                   (z - point[2])**2 <= max_distance**2)
-    ]
+    ]).intersection([
+        i for i, (x, y, z) in enumerate(
+            zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
+                fixed_scalar_values['z0']))
+        if x >= x_lims[0] and x <= x_lims[1] and y >= y_lims[0]
+        and y <= y_lims[1] and z >= z_lims[0] and z <= z_lims[1]
+    ]))
 
 
 def find_field_lines_starting_in_coords(x_coords, y_coords, z_coords, fixed_scalar_values, max_distance=1e-5):
