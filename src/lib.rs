@@ -7,6 +7,7 @@ pub mod grid;
 pub mod interpolation;
 pub mod io;
 pub mod num;
+pub mod plasma;
 pub mod random;
 pub mod units;
 
