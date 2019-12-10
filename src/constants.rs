@@ -41,6 +41,8 @@ pub const EH2DISS: fcn = 4.478;
 pub const PIE2_MEC: fcn = 0.02654;
 /// Electron rest energy [erg].
 pub const MC2_ELECTRON: fcn = M_ELECTRON * CLIGHT * CLIGHT;
+/// Ionization energy of an hydrogen atom [eV].
+pub const XI_H: fcn = 13.595;
 
 // Unit conversion factors
 
