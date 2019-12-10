@@ -71,6 +71,13 @@ impl DCPowerLawAccelerator {
         self.config.particle_energy_fraction * joule_heating
     }
 
+    fn determine_temperature<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
+    where
+        G: Grid3<fdt>,
+    {
+        feb::from(snapshot.cached_scalar_field("tg").value(indices))
+    }
+
     fn determine_electron_density<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
     where
         G: Grid3<fdt>,
@@ -163,6 +170,7 @@ impl Accelerator for DCPowerLawAccelerator {
         snapshot.cache_scalar_field("qjoule")?;
         snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("r")?;
+        snapshot.cache_scalar_field("tg")?;
         let properties: Vec<_> = seeder
             .into_par_iter()
             .filter_map(|indices| {
@@ -175,10 +183,16 @@ impl Accelerator for DCPowerLawAccelerator {
                         electron_density > 0.0,
                         "Electron density must be larger than zero."
                     );
+
                     let mass_density = Self::determine_mass_density(snapshot, &indices);
+
+                    let temperature = Self::determine_temperature(snapshot, &indices);
+                    assert!(temperature > 0.0, "Temperature must be larger than zero.");
+
                     let neutral_hydrogen_density =
                         PowerLawDistribution::compute_neutral_hydrogen_density(
                             mass_density,
+                            temperature,
                             electron_density,
                         );
                     assert!(
@@ -308,7 +322,7 @@ impl Accelerator for DCPowerLawAccelerator {
                     .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
                 interpolator,
             );
-            if !["nel", "r", "bx", "by", "bz"].contains(&name.as_str()) {
+            if !["r", "bx", "by", "bz", "tg", "nel"].contains(&name.as_str()) {
                 snapshot.drop_scalar_field(name);
             }
         }

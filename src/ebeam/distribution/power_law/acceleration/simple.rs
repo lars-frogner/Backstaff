@@ -142,9 +142,7 @@ impl SimplePowerLawAccelerator {
     where
         G: Grid3<fdt>,
     {
-        let temperature = feb::from(snapshot.cached_scalar_field("tg").value(indices));
-        assert!(temperature > 0.0, "Temperature must be larger than zero.");
-        temperature
+        feb::from(snapshot.cached_scalar_field("tg").value(indices))
     }
 
     fn determine_electron_density<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
@@ -397,18 +395,20 @@ impl SimplePowerLawAccelerator {
                 );
 
                 let mass_density = Self::determine_mass_density(snapshot, &indices);
+
+                let temperature = Self::determine_temperature(snapshot, &indices);
+                assert!(temperature > 0.0, "Temperature must be larger than zero.");
+
                 let neutral_hydrogen_density =
                     PowerLawDistribution::compute_neutral_hydrogen_density(
                         mass_density,
+                        temperature,
                         electron_density,
                     );
                 assert!(
                     neutral_hydrogen_density > 0.0,
                     "Neutral hydrogen density must be larger than zero."
                 );
-
-                let temperature = Self::determine_temperature(snapshot, &indices);
-                assert!(temperature > 0.0, "Temperature must be larger than zero.");
 
                 let lower_cutoff_energy = match self.compute_lower_cutoff_energy(
                     temperature,
@@ -447,7 +447,6 @@ impl SimplePowerLawAccelerator {
                 }
             })
             .collect();
-        snapshot.drop_scalar_field("tg");
 
         if verbose.is_yes() {
             println!("Computing acceleration directions");
@@ -582,18 +581,20 @@ impl SimplePowerLawAccelerator {
                 );
 
                 let mass_density = Self::determine_mass_density(snapshot, &indices);
+
+                let temperature = Self::determine_temperature(snapshot, &indices);
+                assert!(temperature > 0.0, "Temperature must be larger than zero.");
+
                 let neutral_hydrogen_density =
                     PowerLawDistribution::compute_neutral_hydrogen_density(
                         mass_density,
+                        temperature,
                         electron_density,
                     );
                 assert!(
                     neutral_hydrogen_density > 0.0,
                     "Neutral hydrogen density must be larger than zero."
                 );
-
-                let temperature = Self::determine_temperature(snapshot, &indices);
-                assert!(temperature > 0.0, "Temperature must be larger than zero.");
 
                 let lower_cutoff_energy = match self.compute_lower_cutoff_energy(
                     temperature,
@@ -632,7 +633,6 @@ impl SimplePowerLawAccelerator {
                 ))
             })
             .collect();
-        snapshot.drop_scalar_field("tg");
 
         if verbose.is_yes() {
             println!("Computing acceleration directions");

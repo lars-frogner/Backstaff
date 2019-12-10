@@ -4,11 +4,12 @@ pub mod acceleration;
 
 use super::super::{feb, BeamPropertiesCollection, FixedBeamScalarValues, FixedBeamVectorValues};
 use super::{DepletionStatus, Distribution, PropagationResult};
-use crate::constants::{AMU, KEV_TO_ERG, MC2_ELECTRON};
+use crate::constants::{KEV_TO_ERG, MC2_ELECTRON};
 use crate::geometry::{Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
 use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
+use crate::plasma::ionization;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
 use crate::units::solar::{U_E, U_L, U_R, U_T};
@@ -90,12 +91,6 @@ impl PowerLawDistribution {
     /// Fraction of a mass of plasma assumed to be made up of hydrogen.
     const HYDROGEN_MASS_FRACTION: feb = 0.735;
 
-    /// Conversion factor from mass density [g/cm^3] to electron density [1/cm^3],
-    /// assuming a fully ionized plasma with no metals and the hard-coded value for
-    /// the hydrogen mass fraction.
-    const MASS_DENSITY_TO_IONIZED_ELECTRON_DENSITY: feb =
-        (1.0 + Self::HYDROGEN_MASS_FRACTION) / (2.0 * AMU);
-
     /// 2*pi*(classical electron radius)^2 [cm^2]
     const COLLISION_SCALE: feb = 4.989_344e-25;
 
@@ -156,16 +151,17 @@ impl PowerLawDistribution {
         }
     }
 
-    fn compute_ionized_electron_density(mass_density: feb) -> feb {
-        mass_density * Self::MASS_DENSITY_TO_IONIZED_ELECTRON_DENSITY
-    }
-
-    fn compute_neutral_hydrogen_density(mass_density: feb, electron_density: feb) -> feb {
-        // If we assume helium to be always fully ionized, the number of neutral hydrogen
-        // atoms corresponds to the difference between the actual number of electrons and
-        // the number of electrons we would have if all hydrogen was ionized.
-        let ionized_electron_density = Self::compute_ionized_electron_density(mass_density);
-        feb::max(0.0, ionized_electron_density - electron_density)
+    fn compute_neutral_hydrogen_density(
+        mass_density: feb,
+        temperature: feb,
+        electron_density: feb,
+    ) -> feb {
+        ionization::compute_equilibrium_neutral_hydrogen_density(
+            Self::HYDROGEN_MASS_FRACTION,
+            mass_density,
+            temperature,
+            electron_density,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -346,8 +342,10 @@ impl Distribution for PowerLawDistribution {
         I: Interpolator3,
     {
         let mut deposition_position = new_position - displacement * 0.5;
+
         let electron_density_field = snapshot.cached_scalar_field("nel");
         let mass_density_field = snapshot.cached_scalar_field("r");
+        let temperature_field = snapshot.cached_scalar_field("tg");
 
         let electron_density = interpolator
             .interp_scalar_field(electron_density_field, &Point3::from(&deposition_position))
@@ -359,8 +357,12 @@ impl Distribution for PowerLawDistribution {
             .expect_inside() as feb
             * U_R;
 
+        let temperature = interpolator
+            .interp_scalar_field(temperature_field, &Point3::from(&deposition_position))
+            .expect_inside() as feb;
+
         let neutral_hydrogen_density =
-            Self::compute_neutral_hydrogen_density(mass_density, electron_density);
+            Self::compute_neutral_hydrogen_density(mass_density, temperature, electron_density);
 
         let step_length = displacement.length() * U_L; // [cm]
 
