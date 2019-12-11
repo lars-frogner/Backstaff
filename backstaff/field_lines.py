@@ -2,8 +2,8 @@ import numpy as np
 import scipy.ndimage as ndimage
 from pathlib import Path
 try:
-    import bifrust.units as units
-    import bifrust.plotting as plotting
+    import backstaff.units as units
+    import backstaff.plotting as plotting
 except ModuleNotFoundError:
     import units
     import plotting
@@ -28,7 +28,7 @@ class FieldLineSet3:
 
     @staticmethod
     def from_file(file_path, params={}, derived_quantities=[], verbose=False):
-        import bifrust.reading as reading
+        import backstaff.reading as reading
         file_path = Path(file_path)
         extension = file_path.suffix
         if extension == '.pickle':

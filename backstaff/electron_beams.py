@@ -3,9 +3,9 @@ import functools
 import numpy as np
 from pathlib import Path
 try:
-    import bifrust.units as units
-    import bifrust.plotting as plotting
-    import bifrust.field_lines as field_lines
+    import backstaff.units as units
+    import backstaff.plotting as plotting
+    import backstaff.field_lines as field_lines
 except ModuleNotFoundError:
     import units
     import plotting
@@ -55,7 +55,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                   params={},
                   derived_quantities=[],
                   verbose=False):
-        import bifrust.reading as reading
+        import backstaff.reading as reading
         file_path = Path(file_path)
         extension = file_path.suffix
         if extension == '.pickle':

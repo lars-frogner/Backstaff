@@ -1,6 +1,6 @@
 import numpy as np
 try:
-    import bifrust.plotting as plotting
+    import backstaff.plotting as plotting
 except ModuleNotFoundError:
     import plotting
 
@@ -27,7 +27,7 @@ class Coords2:
 class ScalarField2:
     @staticmethod
     def from_pickle_file(file_path):
-        import bifrust.reading as reading
+        import backstaff.reading as reading
         return reading.read_2d_scalar_field(file_path)
 
     def __init__(self, coords, values):

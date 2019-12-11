@@ -2,9 +2,9 @@ import os
 import pickle
 import numpy as np
 try:
-    import bifrust.fields as fields
-    import bifrust.field_lines as field_lines
-    import bifrust.electron_beams as electron_beams
+    import backstaff.fields as fields
+    import backstaff.field_lines as field_lines
+    import backstaff.electron_beams as electron_beams
 except ModuleNotFoundError:
     import fields
     import field_lines
