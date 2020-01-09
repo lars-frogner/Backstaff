@@ -62,6 +62,15 @@ pub trait AccelerationDataCollection: Serialize + Sync {
     fn write_into<W: io::Write>(self, format_hint: &str, writer: &mut W) -> io::Result<()>;
 }
 
+impl AccelerationDataCollection for () {
+    fn write<W: io::Write>(&self, _format_hint: &str, _writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+    fn write_into<W: io::Write>(self, _format_hint: &str, _writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 /// A set of non-thermal electron beams.
 #[derive(Clone, Debug)]
 pub struct ElectronBeamSwarm<A: Accelerator> {
@@ -90,7 +99,7 @@ struct PropagatedElectronBeam<D: Distribution> {
     trajectory: BeamTrajectory,
     distribution_properties: <D::PropertiesCollectionType as BeamPropertiesCollection>::Item,
     total_propagation_distance: feb,
-    deposited_power_densities: Vec<feb>,
+    deposited_powers: Vec<feb>,
 }
 
 impl ElectronBeamSwarmProperties {
@@ -186,10 +195,7 @@ where
                         beam.trajectory.2,
                         (
                             beam.distribution_properties,
-                            (
-                                beam.total_propagation_distance,
-                                beam.deposited_power_densities,
-                            ),
+                            (beam.total_propagation_distance, beam.deposited_powers),
                         ),
                     ),
                 ),
@@ -208,7 +214,7 @@ where
         let (distribution_properties, nested_tuples): (D::PropertiesCollectionType, Vec<_>) =
             nested_tuples.into_par_iter().unzip();
 
-        let (total_propagation_distances, deposited_power_densities): (Vec<_>, Vec<_>) =
+        let (total_propagation_distances, deposited_powers): (Vec<_>, Vec<_>) =
             nested_tuples.into_par_iter().unzip();
 
         let number_of_beams = trajectories_x.len();
@@ -249,10 +255,7 @@ where
         varying_scalar_values.insert("x".to_string(), trajectories_x);
         varying_scalar_values.insert("y".to_string(), trajectories_y);
         varying_scalar_values.insert("z".to_string(), trajectories_z);
-        varying_scalar_values.insert(
-            "deposited_power_density".to_string(),
-            deposited_power_densities,
-        );
+        varying_scalar_values.insert("deposited_power".to_string(), deposited_powers);
 
         ElectronBeamSwarmProperties {
             number_of_beams,
@@ -679,12 +682,16 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
         I: Interpolator3,
         S: Stepper3,
     {
-        let mut trajectory = (Vec::new(), Vec::new(), Vec::new());
-        let mut deposited_power_densities = Vec::new();
-        let mut total_propagation_distance = 0.0;
-
         let magnetic_field = snapshot.cached_vector_field("b");
         let start_position = Point3::from(distribution.acceleration_position());
+
+        let mut trajectory = (
+            vec![start_position[X]],
+            vec![start_position[Y]],
+            vec![start_position[Z]],
+        );
+        let mut deposited_powers = vec![0.0];
+        let mut total_propagation_distance = 0.0;
 
         let tracer_result = tracing::trace_3d_field_line_dense(
             magnetic_field,
@@ -693,9 +700,11 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             &start_position,
             distribution.propagation_sense(),
             &mut |displacement, _, position, distance| {
-                if distance <= distribution.max_propagation_distance() {
+                if distance > distribution.max_propagation_distance() {
+                    StepperInstruction::Terminate
+                } else if distance > 0.0 {
                     let PropagationResult {
-                        deposited_power_density,
+                        deposited_power,
                         deposition_position,
                         depletion_status,
                     } = distribution.propagate(snapshot, interpolator, displacement, position);
@@ -703,7 +712,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                     trajectory.0.push(deposition_position[X]);
                     trajectory.1.push(deposition_position[Y]);
                     trajectory.2.push(deposition_position[Z]);
-                    deposited_power_densities.push(deposited_power_density);
+                    deposited_powers.push(deposited_power);
                     total_propagation_distance = distance;
 
                     match depletion_status {
@@ -711,7 +720,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                         DepletionStatus::Depleted => StepperInstruction::Terminate,
                     }
                 } else {
-                    StepperInstruction::Terminate
+                    StepperInstruction::Continue
                 }
             },
         );
@@ -723,7 +732,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                 trajectory,
                 distribution_properties,
                 total_propagation_distance,
-                deposited_power_densities,
+                deposited_powers,
             }),
             TracerResult::Void => None,
         }
