@@ -577,7 +577,8 @@ class FieldLineSet3:
                    c=c,
                    s=s,
                    marker=marker,
-                   edgecolors=edgecolors)
+                   edgecolors=edgecolors,
+                   alpha=alpha)
 
         return (None, None) if values_color is None else (norm, cmap)
 
@@ -951,14 +952,10 @@ def plot_field_line_properties(field_line_set,
                 value_name_color, value_description_color))
 
     plotting.set_2d_axis_labels(
-        ax, '{}{}'.format(
-            r'$\log_{10}$ ' if log_x else '',
-            field_line_set.process_value_description(value_name_x,
-                                                     value_description_x)),
-        '{}{}'.format(
-            r'$\log_{10}$ ' if log_y else '',
-            field_line_set.process_value_description(value_name_y,
-                                                     value_description_y)))
+        ax, field_line_set.process_value_description(value_name_x,
+                                                     value_description_x),
+        field_line_set.process_value_description(value_name_y,
+                                                     value_description_y))
 
     if title is not None:
         ax.set_title(title)
