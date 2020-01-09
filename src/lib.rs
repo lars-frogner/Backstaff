@@ -6,6 +6,7 @@ pub mod geometry;
 pub mod grid;
 pub mod interpolation;
 pub mod io;
+pub mod math;
 pub mod num;
 pub mod plasma;
 pub mod random;
