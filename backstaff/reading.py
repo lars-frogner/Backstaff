@@ -47,16 +47,18 @@ def read_3d_field_line_set_from_custom_binary_file(file_path, **kwargs):
     return field_line_set
 
 
-def read_electron_beam_swarm_from_single_pickle(
-        file_path, acceleration_data_type='rejection_cause_codes', **kwargs):
+def read_electron_beam_swarm_from_single_pickle(file_path,
+                                                acceleration_data_type=None,
+                                                **kwargs):
     with open(file_path, mode='rb') as f:
         data = pickle.load(f)
     return __parse_electronbeamswarm_pickle(data, acceleration_data_type,
                                             **kwargs)
 
 
-def read_electron_beam_swarm_from_combined_pickles(
-        file_path, acceleration_data_type='rejection_cause_codes', **kwargs):
+def read_electron_beam_swarm_from_combined_pickles(file_path,
+                                                   acceleration_data_type=None,
+                                                   **kwargs):
     data = {}
     with open(file_path, mode='rb') as f:
         data['lower_bounds'] = pickle.load(f)
@@ -66,13 +68,14 @@ def read_electron_beam_swarm_from_combined_pickles(
         data['fixed_vector_values'] = pickle.load(f)
         data['varying_scalar_values'] = pickle.load(f)
         data['varying_vector_values'] = pickle.load(f)
-        data['acceleration_data'] = pickle.load(f)
+        if acceleration_data_type is not None:
+            data['acceleration_data'] = pickle.load(f)
     return __parse_electronbeamswarm_pickle(data, acceleration_data_type,
                                             **kwargs)
 
 
 def read_electron_beam_swarm_from_custom_binary_file(
-        file_path, acceleration_data_type='rejection_cause_codes', **kwargs):
+        file_path, acceleration_data_type=None, **kwargs):
     with open(file_path, 'rb') as f:
         electron_beam_swarm = electron_beams.ElectronBeamSwarm(
             *__parse_custom_electron_beam_binary_file(
@@ -186,9 +189,8 @@ def __parse_custom_electron_beam_binary_file(f, acceleration_data_type):
         varying_scalar_values, \
         varying_vector_values = __parse_custom_field_line_binary_file(f)
 
-    if acceleration_data_type == 'rejection_cause_codes':
-        acceleration_data = __parse_electronbeamswarm_acceleration_data_pickle(
-            pickle.load(f), acceleration_data_type)
+    if acceleration_data_type is None:
+        acceleration_data = {}
     elif acceleration_data_type == 'acceleration_sites':
         acceleration_data = electron_beams.AccelerationSites(
             *__parse_custom_field_line_binary_file(f))
@@ -249,12 +251,8 @@ def __parse_electronbeamswarm_pickle(data, acceleration_data_type, **kwargs):
 
 def __parse_electronbeamswarm_acceleration_data_pickle(acceleration_data,
                                                        acceleration_data_type):
-    if acceleration_data_type == 'rejection_cause_codes':
-        acceleration_data = {
-            acceleration_data_type:
-            np.array(acceleration_data['rejection_cause_codes'],
-                     dtype=np.ubyte)
-        }
+    if acceleration_data_type is None:
+        acceleration_data = {}
     elif acceleration_data_type == 'acceleration_sites':
         acceleration_data = {
             acceleration_data_type:
