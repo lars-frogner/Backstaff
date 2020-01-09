@@ -128,6 +128,12 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         upper_corner - lower_corner
     }
 
+    /// Returns the volume of the grid cell at the given 3D index.
+    fn grid_cell_volume(&self, indices: &Idx3<usize>) -> F {
+        let grid_cell_extents = self.grid_cell_extents(indices);
+        grid_cell_extents[X] * grid_cell_extents[Y] * grid_cell_extents[Z]
+    }
+
     /// Creates a vector of points corresponding to grid cell centers or lower edges,
     /// collapsed with the inner dimension varying the fastest.
     fn create_point_list(&self, location: CoordLocation) -> Vec<Point3<F>> {
