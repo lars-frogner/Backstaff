@@ -4,7 +4,6 @@ use crate::cli;
 use crate::ebeam::distribution::power_law::PowerLawDistributionConfig;
 use crate::grid::Grid3;
 use crate::io::snapshot::{fdt, SnapshotReader3};
-use crate::units::solar::{U_E, U_T};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the power-law distribution.
@@ -15,17 +14,18 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
             "Use the power-law distribution.\n\
              The distribution of non-thermal electrons is assumed to follow a power-law\n\
              described by a total power density, lower cut-off energy and a power-law\n\
-             index.",
+             index. The transport method follows Hawley & Fisher (1994).",
         )
         .help_message("Print help information")
         .arg(
-            Arg::with_name("min-remaining-power-density")
-                .long("min-remaining-power-density")
+            Arg::with_name("max-stopping-length-traversals")
+                .long("max-stopping-length-traversals")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions with remaining power densities smaller than this\n\
-                     value are discarded [erg/(cm^3 s)] [default: from param file]",
+                    "Distributions are considered thermalized when they have traversed the stopping\n\
+                     column depth of a cut-off energy electron more times than this\n\
+                     [default: from param file]",
                 )
                 .takes_value(true),
         )
@@ -40,6 +40,11 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 )
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("continue-thermalized-beams")
+                .long("continue-thermalized-beams")
+                .help("Keep propagating beams even after they are considered thermalized"),
+        )
 }
 
 /// Determines power-law distribution parameters based on
@@ -48,13 +53,13 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     reader: &SnapshotReader3<G>,
 ) -> PowerLawDistributionConfig {
-    let min_remaining_power_density = cli::get_value_from_param_file_argument_with_default(
+    let max_stopping_length_traversals = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "min-remaining-power-density",
-        "min_stop_en",
-        &|min_stop_en| min_stop_en * U_E / U_T,
-        PowerLawDistributionConfig::DEFAULT_MIN_REMAINING_POWER_DENSITY,
+        "max-stopping-length-traversals",
+        "max_stop_lens",
+        &|max_stop_lens| max_stop_lens,
+        PowerLawDistributionConfig::DEFAULT_MAX_STOPPING_LENGTH_TRAVERSALS,
     );
     let max_propagation_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
@@ -64,8 +69,11 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
         &|max_dist| max_dist,
         PowerLawDistributionConfig::DEFAULT_MAX_PROPAGATION_DISTANCE,
     );
+    let continue_thermalized_beams = arguments.is_present("continue-thermalized-beams");
+
     PowerLawDistributionConfig {
-        min_remaining_power_density,
+        max_stopping_length_traversals,
         max_propagation_distance,
+        continue_thermalized_beams,
     }
 }

@@ -20,8 +20,8 @@ pub enum DepletionStatus {
 /// Holds the result of propagating the electron distribution.
 #[derive(Clone, Debug)]
 pub struct PropagationResult {
-    /// Total power density deposited during propagation.
-    pub deposited_power_density: feb,
+    /// Total power deposited during propagation.
+    pub deposited_power: feb,
     /// Average position where the power density was deposited.
     pub deposition_position: Point3<ftr>,
     /// Whether or not the distribution is now depleted.

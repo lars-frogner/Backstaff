@@ -19,6 +19,7 @@ pub struct AccelerationRegionData {
     total_length: ftr,
     parallel_electric_field_strengths: Vec<feb>,
     average_parallel_electric_field_strength: feb,
+    average_electric_magnetic_angle_cosine: feb,
 }
 
 /// Configuration parameters for acceleration region tracer.
@@ -90,6 +91,8 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
         let magnetic_field = snapshot.cached_vector_field("b");
         let electric_field = snapshot.cached_vector_field("e");
 
+        let mut average_electric_magnetic_angle_cosine = 0.0;
+
         let mut backward_path = (VecDeque::new(), VecDeque::new(), VecDeque::new());
         let mut backward_length = 0.0;
         let mut backward_parallel_electric_field_strengths = VecDeque::new();
@@ -113,6 +116,8 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
                     backward_length = distance;
                     backward_parallel_electric_field_strengths
                         .push_front(parallel_electric_field_strength);
+                    average_electric_magnetic_angle_cosine += parallel_electric_field_strength
+                        / (electric_field_vector.length() * (*U_EL));
                     StepperInstruction::Continue
                 } else {
                     StepperInstruction::Terminate
@@ -161,6 +166,8 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
                 forward_path.2.push(position[Z]);
                 forward_length = distance;
                 forward_parallel_electric_field_strengths.push(parallel_electric_field_strength);
+                average_electric_magnetic_angle_cosine +=
+                    parallel_electric_field_strength / (electric_field_vector.length() * (*U_EL));
                 StepperInstruction::Continue
             } else {
                 StepperInstruction::Terminate
@@ -183,6 +190,10 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
         if total_length < self.config.min_length {
             return None;
         }
+
+        average_electric_magnetic_angle_cosine /= (backward_parallel_electric_field_strengths.len()
+            + forward_parallel_electric_field_strengths.len())
+            as feb;
 
         let mut path = (
             Vec::from(backward_path.0),
@@ -208,6 +219,7 @@ impl FieldLineTracer3 for AccelerationRegionTracer {
             total_length,
             parallel_electric_field_strengths,
             average_parallel_electric_field_strength,
+            average_electric_magnetic_angle_cosine,
         })
     }
 }
@@ -220,8 +232,14 @@ impl AccelerationRegionData {
 
     /// Returns the average value of the component of the electric field parallel
     /// to the magnetic field in the acceleration region [statV/cm].
-    pub fn average_parallel_electric_field_strength(&self) -> ftr {
+    pub fn average_parallel_electric_field_strength(&self) -> feb {
         self.average_parallel_electric_field_strength
+    }
+
+    /// Returns the average cosine of the angle between the electric and magnetic
+    /// field in the acceleration region.
+    pub fn average_electric_magnetic_angle_cosine(&self) -> feb {
+        self.average_electric_magnetic_angle_cosine
     }
 
     /// Returns the position where the accelerated electrons will exit the
@@ -260,7 +278,10 @@ impl ParallelExtend<AccelerationRegionData> for FieldLineSetProperties3 {
                             field_line.total_length,
                             (
                                 field_line.parallel_electric_field_strengths,
-                                field_line.average_parallel_electric_field_strength,
+                                (
+                                    field_line.average_parallel_electric_field_strength,
+                                    field_line.average_electric_magnetic_angle_cosine,
+                                ),
                             ),
                         ),
                     ),
@@ -273,8 +294,14 @@ impl ParallelExtend<AccelerationRegionData> for FieldLineSetProperties3 {
 
         let (
             total_lengths,
-            (parallel_electric_field_strengths, average_parallel_electric_field_strengths),
-        ): (Vec<_>, (Vec<_>, Vec<_>)) = nested_tuples.into_par_iter().unzip();
+            (
+                parallel_electric_field_strengths,
+                (
+                    average_parallel_electric_field_strengths,
+                    average_electric_magnetic_angle_cosines,
+                ),
+            ),
+        ): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = nested_tuples.into_par_iter().unzip();
 
         self.number_of_field_lines += paths_x.len();
 
@@ -302,6 +329,11 @@ impl ParallelExtend<AccelerationRegionData> for FieldLineSetProperties3 {
             .entry("average_parallel_electric_field_strength".to_string())
             .or_insert_with(Vec::new)
             .par_extend(average_parallel_electric_field_strengths.into_par_iter());
+
+        self.fixed_scalar_values
+            .entry("average_electric_magnetic_angle_cosine".to_string())
+            .or_insert_with(Vec::new)
+            .par_extend(average_electric_magnetic_angle_cosines.into_par_iter());
 
         self.varying_scalar_values
             .entry("x".to_string())

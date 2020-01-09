@@ -5,10 +5,9 @@ use crate::ebeam::distribution::power_law::acceleration::dc::acceleration_region
     AccelerationRegionTracer, AccelerationRegionTracerConfig,
 };
 use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerationConfig;
-use crate::ebeam::distribution::power_law::PitchAngleDistribution;
 use crate::grid::Grid3;
 use crate::io::snapshot::{fdt, SnapshotReader3};
-use crate::units::solar::{U_E, U_L, U_T};
+use crate::units::solar::{U_E, U_T};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the DC power-law distribution accelerator.
@@ -54,16 +53,6 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("pitch-angle-distribution")
-                .long("pitch-angle-distribution")
-                .require_equals(true)
-                .value_name("TYPE")
-                .help("Type of pitch angle distribution of the non-thermal electrons\n")
-                .takes_value(true)
-                .possible_values(&["peaked", "isotropic"])
-                .default_value("peaked"),
-        )
-        .arg(
             Arg::with_name("min-total-power-density")
                 .long("min-total-power-density")
                 .require_equals(true)
@@ -75,13 +64,13 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-depletion-distance")
-                .long("min-depletion-distance")
+            Arg::with_name("min-thermalization-distance")
+                .long("min-thermalization-distance")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions with an initial estimated depletion distance smaller\n\
-                     than this value are discarded [cm] [default: from param file]",
+                    "Distributions with an estimated thermalization distance smaller\n\
+                     than this value are discarded [Mm] [default: from param file]",
                 )
                 .takes_value(true),
         )
@@ -169,16 +158,6 @@ pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
         DCPowerLawAccelerationConfig::DEFAULT_POWER_LAW_DELTA,
     );
 
-    let pitch_angle_distribution = cli::get_value_from_required_constrained_argument(
-        arguments,
-        "pitch-angle-distribution",
-        &["peaked", "isotropic"],
-        &[
-            PitchAngleDistribution::Peaked,
-            PitchAngleDistribution::Isotropic,
-        ],
-    );
-
     let min_total_power_density = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
@@ -188,13 +167,13 @@ pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
         DCPowerLawAccelerationConfig::DEFAULT_MIN_TOTAL_POWER_DENSITY,
     );
 
-    let min_estimated_depletion_distance = cli::get_value_from_param_file_argument_with_default(
+    let min_thermalization_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "min-depletion-distance",
+        "min-thermalization-distance",
         "min_stop_dist",
-        &|min_stop_dist| min_stop_dist * U_L,
-        DCPowerLawAccelerationConfig::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
+        &|min_stop_dist| min_stop_dist,
+        DCPowerLawAccelerationConfig::DEFAULT_MIN_THERMALIZATION_DISTANCE,
     );
 
     let min_parallel_electric_field_strength = cli::get_value_from_required_parseable_argument(
@@ -220,9 +199,8 @@ pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
             acceleration_duration,
             particle_energy_fraction,
             power_law_delta,
-            pitch_angle_distribution,
             min_total_power_density,
-            min_estimated_depletion_distance,
+            min_thermalization_distance,
         },
         AccelerationRegionTracer::new(
             AccelerationRegionTracerConfig {

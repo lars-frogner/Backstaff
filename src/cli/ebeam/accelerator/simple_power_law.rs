@@ -2,10 +2,9 @@
 
 use crate::cli;
 use crate::ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig;
-use crate::ebeam::distribution::power_law::PitchAngleDistribution;
 use crate::grid::Grid3;
 use crate::io::snapshot::{fdt, SnapshotReader3};
-use crate::units::solar::{U_E, U_L, U_T};
+use crate::units::solar::{U_E, U_T};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the simple power-law distribution accelerator.
@@ -50,16 +49,6 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("pitch-angle-distribution")
-                .long("pitch-angle-distribution")
-                .require_equals(true)
-                .value_name("TYPE")
-                .help("Type of pitch angle distribution of the non-thermal electrons\n")
-                .takes_value(true)
-                .possible_values(&["peaked", "isotropic"])
-                .default_value("peaked"),
-        )
-        .arg(
             Arg::with_name("min-total-power-density")
                 .long("min-total-power-density")
                 .require_equals(true)
@@ -82,19 +71,19 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-depletion-distance")
-                .long("min-depletion-distance")
+            Arg::with_name("min-thermalization-distance")
+                .long("min-thermalization-distance")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions with an initial estimated depletion distance smaller\n\
-                     than this value are discarded [cm] [default: from param file]",
+                    "Distributions with an estimated thermalization distance smaller\n\
+                     than this value are discarded [Mm] [default: from param file]",
                 )
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("max-acceleration-angle")
-                .long("max-acceleration-angle")
+            Arg::with_name("max-pitch-angle")
+                .long("max-pitch-angle")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
@@ -131,11 +120,6 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true)
                 .default_value("100"),
         )
-        .arg(
-            Arg::with_name("ignore-rejection")
-                .long("ignore-rejection")
-                .help("Generate beams even when they meet a rejection condition"),
-        )
 }
 
 /// Determines simple power-law distribution accelerator parameters
@@ -171,16 +155,6 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_POWER_LAW_DELTA,
     );
 
-    let pitch_angle_distribution = cli::get_value_from_required_constrained_argument(
-        arguments,
-        "pitch-angle-distribution",
-        &["peaked", "isotropic"],
-        &[
-            PitchAngleDistribution::Peaked,
-            PitchAngleDistribution::Isotropic,
-        ],
-    );
-
     let min_total_power_density = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
@@ -199,17 +173,17 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_LOWER_CUTOFF_ENERGY,
     );
 
-    let min_estimated_depletion_distance = cli::get_value_from_param_file_argument_with_default(
+    let min_thermalization_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "min-depletion-distance",
+        "min-thermalization-distance",
         "min_stop_dist",
-        &|min_stop_dist| min_stop_dist * U_L,
-        SimplePowerLawAccelerationConfig::DEFAULT_MIN_ESTIMATED_DEPLETION_DISTANCE,
+        &|min_stop_dist| min_stop_dist,
+        SimplePowerLawAccelerationConfig::DEFAULT_MIN_THERMALIZATION_DISTANCE,
     );
 
-    let max_acceleration_angle =
-        cli::get_value_from_required_parseable_argument(arguments, "max-acceleration-angle");
+    let max_pitch_angle =
+        cli::get_value_from_required_parseable_argument(arguments, "max-pitch-angle");
     let initial_cutoff_energy_guess =
         cli::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
     let acceptable_root_finding_error =
@@ -217,20 +191,16 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
     let max_root_finding_iterations =
         cli::get_value_from_required_parseable_argument(arguments, "root-finding-iterations");
 
-    let ignore_rejection = arguments.is_present("ignore-rejection");
-
     SimplePowerLawAccelerationConfig {
         acceleration_duration,
         particle_energy_fraction,
         power_law_delta,
-        pitch_angle_distribution,
         min_total_power_density,
         min_lower_cutoff_energy,
-        min_estimated_depletion_distance,
-        max_acceleration_angle,
+        min_thermalization_distance,
+        max_pitch_angle,
         initial_cutoff_energy_guess,
         acceptable_root_finding_error,
         max_root_finding_iterations,
-        ignore_rejection,
     }
 }
