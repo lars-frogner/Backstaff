@@ -436,25 +436,20 @@ macro_rules! interp {
 
 macro_rules! interp_scalar_field_from_grid_point_query {
     ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
-        let grid = $field.grid();
         match $grid_point_query {
-            GridPointQuery3::Inside(interp_indices) => GridPointQuery3::Inside(interp!(
-                grid,
-                &$field.coords(),
-                $field.locations(),
-                $field.values(),
-                $interp_point,
-                &interp_indices,
-                $variation_threshold_for_linear,
-                $order
-            )),
+            GridPointQuery3::Inside(interp_indices) => {
+                GridPointQuery3::Inside(interp_scalar_field_in_known_grid_cell!(
+                    $field,
+                    $interp_point,
+                    &interp_indices,
+                    $variation_threshold_for_linear,
+                    $order
+                ))
+            }
             GridPointQuery3::MovedInside((interp_indices, moved_point)) => {
                 GridPointQuery3::MovedInside((
-                    interp!(
-                        grid,
-                        &$field.coords(),
-                        $field.locations(),
-                        $field.values(),
+                    interp_scalar_field_in_known_grid_cell!(
+                        $field,
                         &moved_point,
                         &interp_indices,
                         $variation_threshold_for_linear,
@@ -468,81 +463,85 @@ macro_rules! interp_scalar_field_from_grid_point_query {
     }};
 }
 
+macro_rules! interp_scalar_field_in_known_grid_cell {
+    ($field:expr, $interp_point:expr, $interp_indices:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        interp!(
+            $field.grid(),
+            &$field.coords(),
+            $field.locations(),
+            $field.values(),
+            $interp_point,
+            $interp_indices,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
 macro_rules! interp_vector_field_from_grid_point_query {
     ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
-        let grid = $field.grid();
         match $grid_point_query {
-            GridPointQuery3::Inside(interp_indices) => GridPointQuery3::Inside(Vec3::new(
-                interp!(
-                    grid,
-                    &$field.coords(X),
-                    $field.locations(X),
-                    &$field.values(X),
+            GridPointQuery3::Inside(interp_indices) => {
+                GridPointQuery3::Inside(interp_vector_field_in_known_grid_cell!(
+                    $field,
                     $interp_point,
                     &interp_indices,
                     $variation_threshold_for_linear,
                     $order
-                ),
-                interp!(
-                    grid,
-                    &$field.coords(Y),
-                    $field.locations(Y),
-                    &$field.values(Y),
-                    $interp_point,
-                    &interp_indices,
-                    $variation_threshold_for_linear,
-                    $order
-                ),
-                interp!(
-                    grid,
-                    &$field.coords(Z),
-                    $field.locations(Z),
-                    &$field.values(Z),
-                    $interp_point,
-                    &interp_indices,
-                    $variation_threshold_for_linear,
-                    $order
-                ),
-            )),
+                ))
+            }
             GridPointQuery3::MovedInside((interp_indices, moved_point)) => {
                 GridPointQuery3::MovedInside((
-                    Vec3::new(
-                        interp!(
-                            grid,
-                            &$field.coords(X),
-                            $field.locations(X),
-                            &$field.values(X),
-                            &moved_point,
-                            &interp_indices,
-                            $variation_threshold_for_linear,
-                            $order
-                        ),
-                        interp!(
-                            grid,
-                            &$field.coords(Y),
-                            $field.locations(Y),
-                            &$field.values(Y),
-                            &moved_point,
-                            &interp_indices,
-                            $variation_threshold_for_linear,
-                            $order
-                        ),
-                        interp!(
-                            grid,
-                            &$field.coords(Z),
-                            $field.locations(Z),
-                            &$field.values(Z),
-                            &moved_point,
-                            &interp_indices,
-                            $variation_threshold_for_linear,
-                            $order
-                        ),
+                    interp_vector_field_in_known_grid_cell!(
+                        $field,
+                        &moved_point,
+                        &interp_indices,
+                        $variation_threshold_for_linear,
+                        $order
                     ),
                     moved_point,
                 ))
             }
             GridPointQuery3::Outside => GridPointQuery3::Outside,
         }
+    }};
+}
+
+macro_rules! interp_vector_field_in_known_grid_cell {
+    ($field:expr, $interp_point:expr, $interp_indices:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid = $field.grid();
+        Vec3::new(
+            interp!(
+                grid,
+                &$field.coords(X),
+                $field.locations(X),
+                &$field.values(X),
+                $interp_point,
+                $interp_indices,
+                $variation_threshold_for_linear,
+                $order
+            ),
+            interp!(
+                grid,
+                &$field.coords(Y),
+                $field.locations(Y),
+                &$field.values(Y),
+                $interp_point,
+                $interp_indices,
+                $variation_threshold_for_linear,
+                $order
+            ),
+            interp!(
+                grid,
+                &$field.coords(Z),
+                $field.locations(Z),
+                &$field.values(Z),
+                $interp_point,
+                $interp_indices,
+                $variation_threshold_for_linear,
+                $order
+            ),
+        )
     }};
 }
 
@@ -648,6 +647,63 @@ impl Interpolator3 for PolyFitInterpolator3 {
     }
 
     #[allow(clippy::cognitive_complexity)]
+    fn interp_scalar_field_known_cell<F, G>(
+        &self,
+        field: &ScalarField3<F, G>,
+        interp_point: &Point3<F>,
+        interp_indices: &Idx3<usize>,
+    ) -> F
+    where
+        F: BFloat,
+        G: Grid3<F>,
+    {
+        assert!(field
+            .grid()
+            .point_is_inside_cell(interp_point, interp_indices));
+
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            1 => interp_scalar_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                1
+            ),
+            2 => interp_scalar_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                2
+            ),
+            3 => interp_scalar_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                3
+            ),
+            4 => interp_scalar_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                4
+            ),
+            5 => interp_scalar_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                5
+            ),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField3<F, G>,
@@ -697,6 +753,63 @@ impl Interpolator3 for PolyFitInterpolator3 {
             3 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 3),
             4 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 4),
             5 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 5),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_vector_field_known_cell<F, G>(
+        &self,
+        field: &VectorField3<F, G>,
+        interp_point: &Point3<F>,
+        interp_indices: &Idx3<usize>,
+    ) -> Vec3<F>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+    {
+        assert!(field
+            .grid()
+            .point_is_inside_cell(interp_point, interp_indices));
+
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            1 => interp_vector_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                1
+            ),
+            2 => interp_vector_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                2
+            ),
+            3 => interp_vector_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                3
+            ),
+            4 => interp_vector_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                4
+            ),
+            5 => interp_vector_field_in_known_grid_cell!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                5
+            ),
             order => panic!("Invalid interpolation order: {}", order),
         }
     }

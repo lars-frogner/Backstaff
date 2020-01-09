@@ -3,7 +3,7 @@
 pub mod poly_fit;
 
 use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Point3, Vec3};
+use crate::geometry::{Idx3, Point3, Vec3};
 use crate::grid::{Grid3, GridPointQuery3};
 use crate::num::BFloat;
 
@@ -35,6 +35,37 @@ pub trait Interpolator3: Clone + Sync + Send {
         field: &ScalarField3<F, G>,
         interp_point: &Point3<F>,
     ) -> GridPointQuery3<F, F>
+    where
+        F: BFloat,
+        G: Grid3<F>;
+
+    /// Computes the interpolated value of a scalar field at the given coordinate
+    /// known to lie inside the grid cell with the given indices.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Scalar field to interpolate.
+    /// - `interp_point`: Coordinate where the interpolated value should be computed.
+    /// - `interp_indices`: Indices of the grid cell containing the interpolation coordinate.
+    ///
+    /// # Returns
+    ///
+    /// The interpolated field value.
+    ///
+    /// # Type parameters
+    ///
+    /// - `F`: Floating point type of the field data.
+    /// - `G`: Type of grid.
+    ///
+    /// # Panics
+    ///
+    /// If the interpolation coordinate does not lie within the specified grid cell.
+    fn interp_scalar_field_known_cell<F, G>(
+        &self,
+        field: &ScalarField3<F, G>,
+        interp_point: &Point3<F>,
+        interp_indices: &Idx3<usize>,
+    ) -> F
     where
         F: BFloat,
         G: Grid3<F>;
@@ -96,6 +127,37 @@ pub trait Interpolator3: Clone + Sync + Send {
         field: &VectorField3<F, G>,
         interp_point: &Point3<F>,
     ) -> GridPointQuery3<F, Vec3<F>>
+    where
+        F: BFloat,
+        G: Grid3<F>;
+
+    /// Computes the interpolated vector of a vector field at the given coordinate
+    /// known to lie inside the grid cell with the given indices.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: Vector field to interpolate.
+    /// - `interp_point`: Coordinate where the interpolated vector should be computed.
+    /// - `interp_indices`: Indices of the grid cell containing the interpolation coordinate.
+    ///
+    /// # Returns
+    ///
+    /// The interpolated field vector.
+    ///
+    /// # Type parameters
+    ///
+    /// - `F`: Floating point type of the field data.
+    /// - `G`: Type of grid.
+    ///
+    /// # Panics
+    ///
+    /// If the interpolation coordinate does not lie within the specified grid cell.
+    fn interp_vector_field_known_cell<F, G>(
+        &self,
+        field: &VectorField3<F, G>,
+        interp_point: &Point3<F>,
+        interp_indices: &Idx3<usize>,
+    ) -> Vec3<F>
     where
         F: BFloat,
         G: Grid3<F>;
