@@ -30,6 +30,8 @@ EH2DISS = 4.478
 PIE2_MEC = 0.02654
 # Electron rest energy [erg].
 MC2_ELECTRON = M_ELECTRON*CLIGHT*CLIGHT
+# Ionization energy of an hydrogen atom [eV].
+XI_H = 13.595
 
 # Conversion factor from electron volts to ergs.
 EV_TO_ERG = 1.602_177_33e-12
