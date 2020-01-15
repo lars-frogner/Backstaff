@@ -88,10 +88,9 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("VALUE")
                 .help(
                     "Distributions with acceleration directions angled more than this\n\
-                     away from the magnetic field axis are discarded [deg]",
+                     away from the magnetic field axis are discarded [deg] [default: from param file]",
                 )
-                .takes_value(true)
-                .default_value("70.0"),
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("cutoff-energy-guess")
@@ -182,8 +181,15 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_THERMALIZATION_DISTANCE,
     );
 
-    let max_pitch_angle =
-        cli::get_value_from_required_parseable_argument(arguments, "max-pitch-angle");
+    let max_pitch_angle = cli::get_value_from_param_file_argument_with_default(
+        reader,
+        arguments,
+        "max-pitch-angle",
+        "max_pitch_angle",
+        &|max_pitch_angle| max_pitch_angle,
+        SimplePowerLawAccelerationConfig::DEFAULT_MAX_PITCH_ANGLE,
+    );
+
     let initial_cutoff_energy_guess =
         cli::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
     let acceptable_root_finding_error =
