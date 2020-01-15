@@ -22,6 +22,8 @@ pub enum DepletionStatus {
 pub struct PropagationResult {
     /// Total power deposited during propagation.
     pub deposited_power: feb,
+    /// Total power density deposited during propagation.
+    pub deposited_power_density: feb,
     /// Average position where the power density was deposited.
     pub deposition_position: Point3<ftr>,
     /// Whether or not the distribution is now depleted.

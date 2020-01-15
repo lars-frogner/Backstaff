@@ -13,7 +13,7 @@ use crate::math;
 use crate::plasma::ionization;
 use crate::tracing::ftr;
 use crate::tracing::stepping::SteppingSense;
-use crate::units::solar::{U_L, U_R};
+use crate::units::solar::{U_L, U_L3, U_R};
 use rayon::prelude::*;
 
 /// Configuration parameters for power-law distributions.
@@ -95,8 +95,6 @@ pub struct PowerLawDistribution {
     hydrogen_column_depth: feb,
     /// Equivalent ionized column depth (Hawley & Fisher, 1994) traversed by the distribution [hydrogen/cm^2].
     equivalent_ionized_column_depth: feb,
-    /// Current remaining beam power [erg/s].
-    remaining_power: feb,
 }
 
 impl PowerLawDistribution {
@@ -118,14 +116,12 @@ impl PowerLawDistribution {
     fn new(config: PowerLawDistributionConfig, data: PowerLawDistributionData) -> Self {
         let hydrogen_column_depth = 0.0;
         let equivalent_ionized_column_depth = 0.0;
-        let remaining_power = data.total_power;
 
         PowerLawDistribution {
             config,
             data,
             hydrogen_column_depth,
             equivalent_ionized_column_depth,
-            remaining_power,
         }
     }
 
@@ -361,8 +357,6 @@ impl Distribution for PowerLawDistribution {
             )
             * step_length;
 
-        let new_remaining_power = self.remaining_power - deposited_power;
-
         let depletion_status = if self.config.continue_thermalized_beams
             || equivalent_ionized_column_depth_ratio < self.config.max_stopping_length_traversals
         {
@@ -373,10 +367,18 @@ impl Distribution for PowerLawDistribution {
 
         self.hydrogen_column_depth = new_hydrogen_column_depth;
         self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
-        self.remaining_power = new_remaining_power;
+
+        let volume = feb::from(
+            snapshot
+                .reader()
+                .grid()
+                .grid_cell_volume(&deposition_indices),
+        ) * U_L3;
+        let deposited_power_density = deposited_power / volume;
 
         PropagationResult {
             deposited_power,
+            deposited_power_density,
             deposition_position,
             depletion_status,
         }
