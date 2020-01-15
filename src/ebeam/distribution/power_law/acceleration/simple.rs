@@ -184,11 +184,11 @@ impl SimplePowerLawAccelerator {
     /// determining where the power-law intersects the thermal Maxwell-Boltzmann
     /// distribution.
     ///
-    /// More precisely, the method determines the cut-off energy `E_cut` such that
-    /// `e_therm*P_MB(E_cut) = e_acc*P_PL(E_cut)`,
-    /// where `e_therm = 3*ne/(2*beta)` is the energy density of thermal electrons,
-    /// `e_acc` is the energy density of non-thermal electrons and `P_MB` and `P_PL`
-    /// are respectively the Maxwell-Boltzmann and power-law probability distributions.
+    /// More precisely, the method determines the cut-off energy `Ec` such that
+    /// `ne*P_MB(Ec) = n_acc(Ec)*P_PL(Ec)`, where `n_acc(Ec) = e_acc/(Ec*(delta - 1)/(delta - 2))`
+    /// is the number density of non-thermal electrons, `e_acc` is their energy density and
+    /// `P_MB` and `P_PL` are respectively the Maxwell-Boltzmann and power-law probability
+    /// distributions.
     fn compute_lower_cutoff_energy(
         &self,
         temperature: feb,
@@ -200,26 +200,27 @@ impl SimplePowerLawAccelerator {
             return None;
         }
         let beta = KEV_TO_ERG / (KBOLTZMANN * temperature); // [1/keV]
-        let thermal_fraction = KEV_TO_ERG * 3.0 * electron_density * feb::sqrt(beta / PI)
-            / (total_energy_density * (self.config.power_law_delta - 1.0)); // [1/keV^(3/2)]
+        let thermal_fraction =
+            KEV_TO_ERG * electron_density * feb::sqrt(4.0 * feb::powi(beta, 3) / PI)
+                / (total_energy_density * (self.config.power_law_delta - 2.0)); // [1/keV^(5/2)]
         let ln_thermal_fraction = feb::ln(thermal_fraction);
 
-        // Make sure the initial guess satisfies E > 3/(2*beta), so that we find the solution
+        // Make sure the initial guess satisfies E > 5/(2*beta), so that we find the solution
         // on the correct side
-        let minimum_energy = 1.5 / beta + 1e-4;
+        let minimum_energy = 2.5 / beta + 1e-4;
         let mut energy = feb::max(minimum_energy, self.config.initial_cutoff_energy_guess);
 
         let mut number_of_iterations = 0;
 
         loop {
-            let difference = ln_thermal_fraction + 1.5 * feb::ln(energy) - beta * energy;
+            let difference = ln_thermal_fraction + 2.5 * feb::ln(energy) - beta * energy;
 
             // Stop when the difference between the distributions is sufficiently close to zero
             if feb::abs(difference) < self.config.acceptable_root_finding_error {
                 break;
             }
 
-            energy -= difference / (1.5 / energy - beta);
+            energy -= difference / (2.5 / energy - beta);
 
             // If we reach the wrong side of the thermal distribution peak there is no solution
             if energy < minimum_energy {
@@ -561,6 +562,13 @@ impl SimplePowerLawAccelerationConfig {
                 &|min_stop_dist: feb| min_stop_dist,
                 Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
             );
+        let max_pitch_angle = reader
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "max_pitch_angle",
+                "max_pitch_angle",
+                &|max_pitch_angle: feb| max_pitch_angle,
+                Self::DEFAULT_MAX_PITCH_ANGLE,
+            );
         SimplePowerLawAccelerationConfig {
             acceleration_duration,
             particle_energy_fraction,
@@ -568,6 +576,7 @@ impl SimplePowerLawAccelerationConfig {
             min_total_power_density,
             min_lower_cutoff_energy,
             min_thermalization_distance,
+            max_pitch_angle,
             ..Self::default()
         }
     }
