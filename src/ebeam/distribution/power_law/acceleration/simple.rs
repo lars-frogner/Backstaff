@@ -4,7 +4,7 @@ use super::super::super::super::accelerator::Accelerator;
 use super::super::super::super::detection::ReconnectionSiteDetector;
 use super::super::super::super::feb;
 use super::super::{PowerLawDistribution, PowerLawDistributionConfig, PowerLawDistributionData};
-use crate::constants::{KBOLTZMANN, KEV_TO_ERG, MC2_ELECTRON, PI};
+use crate::constants::{KBOLTZMANN, KEV_TO_ERG, PI};
 use crate::geometry::{Dim3, Idx3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
@@ -239,8 +239,7 @@ impl SimplePowerLawAccelerator {
         }
 
         if energy >= self.config.min_lower_cutoff_energy {
-            let lower_cutoff_energy = energy * KEV_TO_ERG / MC2_ELECTRON;
-            Some(lower_cutoff_energy)
+            Some(energy)
         } else {
             None
         }

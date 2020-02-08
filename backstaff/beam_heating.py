@@ -12,15 +12,13 @@ SAHA_SCALE = (units.HPLANCK*units.HPLANCK/
 # Fraction of a mass of plasma assumed to be made up of hydrogen.
 HYDROGEN_MASS_FRACTION = 0.735
 
-# 2*pi*(electron charge [esu])^4/(electron rest energy [erg])^2
 COLLISION_SCALE = 2.0*np.pi*(units.Q_ELECTRON*units.Q_ELECTRON/
-                             units.MC2_ELECTRON)**2
+                             units.KEV_TO_ERG)**2
 
-# 1/2*ln( (2*pi*me*c/h)^3/(pi*alpha) [1/cm^3] )
-ELECTRON_COULOMB_OFFSET = 37.853_791
+ELECTRON_COULOMB_OFFSET = 0.5*np.log(units.KEV_TO_ERG**3/
+                                     (2*np.pi*units.Q_ELECTRON**6))
 
-# -ln( I_H [m_e*c^2] )
-NEUTRAL_HYDROGEN_COULOMB_OFFSET = 10.53422
+NEUTRAL_HYDROGEN_COULOMB_OFFSET = np.log(2/(1.105*units.XI_H*1e-3))
 
 
 # Evaluates the beta function B(a, b) = int t^(a-1)*(1-t)^(b-1) dt from t=0 to t=1.
@@ -64,14 +62,13 @@ def compute_total_hydrogen_density(mass_density):
 
 def compute_electron_coulomb_logarithm(electron_density, electron_energy):
     return np.maximum(
-        0.0, ELECTRON_COULOMB_OFFSET + 0.5*np.log(
-            (electron_energy*(electron_energy + 2.0))**2/electron_density))
+        0.0, ELECTRON_COULOMB_OFFSET +
+        0.5*np.log(electron_energy**3/electron_density))
 
 
 def compute_neutral_hydrogen_coulomb_logarithm(electron_energy):
     return np.maximum(
-        0.0, NEUTRAL_HYDROGEN_COULOMB_OFFSET +
-        0.5*np.log(electron_energy*electron_energy*(electron_energy + 2.0)))
+        0.0, NEUTRAL_HYDROGEN_COULOMB_OFFSET + np.log(electron_energy))
 
 
 def compute_effective_coulomb_logarithm(
@@ -96,10 +93,10 @@ def compute_heating_scale(
         total_power,
         delta,
         pitch_angle_cosine,
-        lower_cutoff_energy_mec2,
+        lower_cutoff_energy,
 ):
     return COLLISION_SCALE * total_power * (delta - 2.0) \
-        / (2.0 * np.abs(pitch_angle_cosine) * lower_cutoff_energy_mec2**2)
+        / (2.0 * np.abs(pitch_angle_cosine) * lower_cutoff_energy**2)
 
 
 def compute_cumulative_integral_over_distance(distances, values, initial=0):
@@ -135,8 +132,11 @@ def compute_collisional_depth_derivative_SFP(
 def compute_beam_heating_SFP(delta, total_power, lower_cutoff_energy,
                              collisional_depth, collisional_depth_derivative):
     return total_power*collisional_depth_derivative*(
-        (delta - 2.0)/(2*lower_cutoff_energy**2))*(
-            1.0 + collisional_depth/lower_cutoff_energy**2)**(-0.5*delta)
+        (delta - 2.0)/
+        (2*(lower_cutoff_energy*units.KEV_TO_ERG/units.MC2_ELECTRON)**2)
+    )*(1.0 + collisional_depth/
+       (lower_cutoff_energy*units.KEV_TO_ERG/units.MC2_ELECTRON)**2)**(-0.5*
+                                                                       delta)
 
 
 def compute_remaining_power_SFP(
@@ -145,8 +145,9 @@ def compute_remaining_power_SFP(
         lower_cutoff_energy,
         collisional_depth,
 ):
-    return total_power*(1.0 + collisional_depth/lower_cutoff_energy**2)**(
-        1.0 - 0.5*delta)
+    return total_power*(1.0 + collisional_depth/
+                        (lower_cutoff_energy*units.KEV_TO_ERG/
+                         units.MC2_ELECTRON)**2)**(1.0 - 0.5*delta)
 
 
 class Atmosphere:
@@ -294,20 +295,9 @@ class Distribution:
     def lower_cutoff_energy(self):
         return self.__lower_cutoff_energy
 
-    @property
-    def lower_cutoff_energy_mec2(self):
-        return self.__lower_cutoff_energy_mec2
-
-    @property
-    def mean_energy_mec2(self):
-        return self.__mean_energy_mec2
-
     @lower_cutoff_energy.setter
     def lower_cutoff_energy(self, lower_cutoff_energy):
         self.__lower_cutoff_energy = lower_cutoff_energy
-        self.__lower_cutoff_energy_mec2 = lower_cutoff_energy*units.KEV_TO_ERG/units.MC2_ELECTRON
-        self.__mean_energy_mec2 = compute_mean_energy(
-            self.__delta, self.__lower_cutoff_energy_mec2)
 
     @property
     def delta(self):
@@ -316,8 +306,6 @@ class Distribution:
     @delta.setter
     def delta(self, delta):
         self.__delta = delta
-        self.__mean_energy_mec2 = compute_mean_energy(
-            self.__delta, self.__lower_cutoff_energy_mec2)
 
 
 class HeatedAtmosphere(Atmosphere):
@@ -329,18 +317,16 @@ class HeatedAtmosphere(Atmosphere):
                          atmosphere.full_electron_densities,
                          start_depth=atmosphere.start_depth)
 
-        global_electron_energy = 2.0*units.KEV_TO_ERG/units.MC2_ELECTRON
+        global_electron_energy = 2.0
 
         self.electron_coulomb_logarithm = compute_electron_coulomb_logarithm(
-            self.electron_densities[0],
-            global_electron_energy)  #distribution.mean_energy_mec2)
+            self.electron_densities[0], global_electron_energy)
 
         self.neutral_hydrogen_coulomb_logarithm = compute_neutral_hydrogen_coulomb_logarithm(
             global_electron_energy)
 
         self.stopping_ionized_column_depth = compute_stopping_column_depth(
-            distribution.pitch_angle_cosine,
-            distribution.lower_cutoff_energy_mec2,
+            distribution.pitch_angle_cosine, distribution.lower_cutoff_energy,
             self.electron_coulomb_logarithm)
 
         self.total_hydrogen_densities = compute_total_hydrogen_density(
@@ -376,10 +362,10 @@ class HeatedAtmosphere(Atmosphere):
 
         self.equivalent_ionized_column_depth_ratios = self.equivalent_ionized_column_depths/self.stopping_ionized_column_depth
 
-        heating_scale = compute_heating_scale(
-            distribution.total_power, distribution.delta,
-            distribution.pitch_angle_cosine,
-            distribution.lower_cutoff_energy_mec2)
+        heating_scale = compute_heating_scale(distribution.total_power,
+                                              distribution.delta,
+                                              distribution.pitch_angle_cosine,
+                                              distribution.lower_cutoff_energy)
 
         self.beam_heating = heating_scale \
             * self.betas \
@@ -402,7 +388,7 @@ class HeatedAtmosphereSFP(Atmosphere):
                          atmosphere.full_electron_densities,
                          start_depth=atmosphere.start_depth)
 
-        global_electron_energy = 2.0*units.KEV_TO_ERG/units.MC2_ELECTRON
+        global_electron_energy = 2.0
 
         self.neutral_hydrogen_densities = compute_equilibrium_neutral_hydrogen_density(
             self.mass_densities, self.temperatures, self.electron_densities)
@@ -415,9 +401,9 @@ class HeatedAtmosphereSFP(Atmosphere):
 
         self.beam_heating = compute_beam_heating_SFP(
             distribution.delta, distribution.total_power,
-            distribution.lower_cutoff_energy_mec2, self.collisional_depths,
+            distribution.lower_cutoff_energy, self.collisional_depths,
             self.collisional_depth_derivatives)
 
         self.remaining_beam_powers = compute_remaining_power_SFP(
             distribution.delta, distribution.total_power,
-            distribution.lower_cutoff_energy_mec2, self.collisional_depths)
+            distribution.lower_cutoff_energy, self.collisional_depths)

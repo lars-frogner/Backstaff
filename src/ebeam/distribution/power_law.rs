@@ -4,7 +4,7 @@ pub mod acceleration;
 
 use super::super::{feb, BeamPropertiesCollection, FixedBeamScalarValues, FixedBeamVectorValues};
 use super::{DepletionStatus, Distribution, PropagationResult};
-use crate::constants::{KEV_TO_ERG, MC2_ELECTRON, M_H, PI, Q_ELECTRON};
+use crate::constants::{KEV_TO_ERG, M_H, PI, Q_ELECTRON};
 use crate::geometry::{Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
@@ -39,7 +39,7 @@ pub struct PowerLawDistributionData {
     total_power: feb,
     /// Total energy injected into the distribution per volume and time [erg/(cm^3 s)].
     total_power_density: feb,
-    /// Lower cut-off energy [units of electron rest energy].
+    /// Lower cut-off energy [keV].
     lower_cutoff_energy: feb,
     /// Position where the distribution originates [Mm].
     acceleration_position: Point3<fdt>,
@@ -101,17 +101,15 @@ impl PowerLawDistribution {
     /// Fraction of a mass of plasma assumed to be made up of hydrogen.
     const HYDROGEN_MASS_FRACTION: feb = 0.735;
 
-    /// 2*pi*(electron charge [esu])^4/(electron rest energy [erg])^2
-    const COLLISION_SCALE: feb = 2.0
-        * PI
-        * (Q_ELECTRON * Q_ELECTRON / MC2_ELECTRON)
-        * (Q_ELECTRON * Q_ELECTRON / MC2_ELECTRON);
+    /// `2*pi*(electron charge [esu])^4/(1 keV [erg])^2`
+    const COLLISION_SCALE: feb =
+        2.0 * PI * Q_ELECTRON * Q_ELECTRON * (Q_ELECTRON / KEV_TO_ERG) * (Q_ELECTRON / KEV_TO_ERG);
 
-    /// 1/2*ln( (2*pi*me*c/h)^3/(pi*alpha) [1/cm^3] )
-    const ELECTRON_COULOMB_OFFSET: feb = 37.853_791;
+    /// `1/2*ln((1 keV [erg])^3/(2*pi*(electron charge [esu])^6))`
+    const ELECTRON_COULOMB_OFFSET: feb = 33.073;
 
-    /// -ln( I_H [m_e*c^2] )
-    const NEUTRAL_HYDROGEN_COULOMB_OFFSET: feb = 10.53422;
+    /// `ln(2/(1.105*(hydrogen ionization potential [keV])))`
+    const NEUTRAL_HYDROGEN_COULOMB_OFFSET: feb = 4.891;
 
     fn new(config: PowerLawDistributionConfig, data: PowerLawDistributionData) -> Self {
         let hydrogen_column_depth = 0.0;
@@ -141,18 +139,14 @@ impl PowerLawDistribution {
         feb::max(
             0.0,
             Self::ELECTRON_COULOMB_OFFSET
-                + 0.5
-                    * feb::ln(
-                        feb::powi(electron_energy * (electron_energy + 2.0), 2) / electron_density,
-                    ),
+                + 0.5 * feb::ln(feb::powi(electron_energy, 3) / electron_density),
         )
     }
 
     fn compute_neutral_hydrogen_coulomb_logarithm(electron_energy: feb) -> feb {
         feb::max(
             0.0,
-            Self::NEUTRAL_HYDROGEN_COULOMB_OFFSET
-                + 0.5 * feb::ln(electron_energy * electron_energy * (electron_energy + 2.0)),
+            Self::NEUTRAL_HYDROGEN_COULOMB_OFFSET + feb::ln(electron_energy),
         )
     }
 
@@ -266,7 +260,7 @@ impl Distribution for PowerLawDistribution {
     fn properties(&self) -> <Self::PropertiesCollectionType as BeamPropertiesCollection>::Item {
         PowerLawDistributionProperties {
             total_power: self.data.total_power,
-            lower_cutoff_energy: self.data.lower_cutoff_energy * MC2_ELECTRON / KEV_TO_ERG,
+            lower_cutoff_energy: self.data.lower_cutoff_energy,
             acceleration_volume: self.data.acceleration_volume,
             estimated_thermalization_distance: self.data.estimated_thermalization_distance / U_L,
         }

@@ -7,7 +7,7 @@ use super::super::super::super::accelerator::Accelerator;
 use super::super::super::super::detection::ReconnectionSiteDetector;
 use super::super::super::super::{feb, AccelerationDataCollection};
 use super::super::{PowerLawDistribution, PowerLawDistributionConfig, PowerLawDistributionData};
-use crate::constants::{MC2_ELECTRON, Q_ELECTRON};
+use crate::constants::{KEV_TO_ERG, Q_ELECTRON};
 use crate::geometry::{Idx3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
@@ -102,7 +102,7 @@ impl DCPowerLawAccelerator {
         average_parallel_electric_field_strength: feb,
         acceleration_distance: feb,
     ) -> feb {
-        average_parallel_electric_field_strength * acceleration_distance * Q_ELECTRON / MC2_ELECTRON
+        average_parallel_electric_field_strength * acceleration_distance * Q_ELECTRON / KEV_TO_ERG
     }
 
     fn compute_initial_pitch_angle_cosine(average_electric_magnetic_angle_cosine: feb) -> feb {
