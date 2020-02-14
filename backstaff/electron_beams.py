@@ -1,6 +1,7 @@
 import collections
 import functools
 import numpy as np
+import scipy.signal as signal
 from pathlib import Path
 try:
     import backstaff.units as units
@@ -19,8 +20,11 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'y': r'$y$ [Mm]',
         'z': 'Height [Mm]',
         's': 'Distance [Mm]',
+        'initial_pitch_angle_cosine': 'Pitch angle cosine',
+        'initial_pitch_angle': 'Pitch angle [deg]',
         'total_power': 'Total power [erg/s]',
-        'total_power_density': r'Total power density [erg/(cm$^3\;$s)]',
+        'total_power_density': r'Total power density [erg/s/cm$^3$]',
+        'total_energy_density': r'Total energy density [erg/cm$^3$]',
         'lower_cutoff_energy': 'Lower cut-off energy [keV]',
         'acceleration_volume': r'Acceleration site volume [cm$^3$]',
         'estimated_thermalization_distance':
@@ -33,22 +37,29 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'estimated_electron_density': r'Electron density [electrons/cm$^3$]',
         'deposited_power': 'Deposited power [erg/s]',
         'power_change': 'Power change [erg/s]',
+        'power_density_change': r'Power density change [erg/s/cm$^3$]',
+        'beam_flux': r'Energy flux [erg/s/cm$^2$]',
+        'conduction_flux': r'Energy flux [erg/s/cm$^2$]',
         'remaining_power': 'Remaining power [erg/s]',
         'r': r'Mass density [g/cm$^3$]',
         'tg': 'Temperature [K]',
         'nel': r'Electron density [electrons/cm$^3$]',
         'krec': 'Reconnection factor [Bifrost units]',
-        'qspitz': r'Power density change [erg/(cm$^3\;$s)]',
+        'qspitz': r'Power density change [erg/s/cm$^3$]',
         'r0': r'Mass density [g/cm$^3$]',
         'tg0': 'Temperature [K]',
     }
 
     VALUE_UNIT_CONVERTERS = {
         'r': lambda f: f*units.U_R,
-        'qspitz': lambda f: f*units.U_E/units.U_T,
+        'qspitz': lambda f: f*(-units.U_E/units.U_T),
         'r0': lambda f: f*units.U_R,
         'z': lambda f: -f,
         'z0': lambda f: -f,
+        'bx': lambda f: f*units.U_B,
+        'by': lambda f: f*units.U_B,
+        'bz': lambda f: f*units.U_B,
+        'b': lambda f: f*units.U_B,
     }
 
     @staticmethod
@@ -130,11 +141,32 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 for values in self.get_varying_scalar_values(value_name[:-1])
             ])
 
+        if 'initial_pitch_angle' in derived_quantities:
+            self.fixed_scalar_values['initial_pitch_angle'] = np.arccos(
+                self.get_fixed_scalar_values(
+                    'initial_pitch_angle_cosine'))*180.0/np.pi
+
         if 'total_power_density' in derived_quantities:
             self.fixed_scalar_values[
                 'total_power_density'] = self.get_fixed_scalar_values(
-                    'total_power')*self.get_fixed_scalar_values(
+                    'total_power')/self.get_fixed_scalar_values(
                         'acceleration_volume')
+
+        if 'total_energy_density' in derived_quantities:
+            self.fixed_scalar_values[
+                'total_energy_density'] = self.get_fixed_scalar_values(
+                    'total_power')*self.get_param(
+                        'acceleration_duration')/self.get_fixed_scalar_values(
+                            'acceleration_volume')
+
+        if 'non_thermal_energy_per_thermal_electron' in derived_quantities:
+            self.fixed_scalar_values[
+                'non_thermal_energy_per_thermal_electron'] = (
+                    self.get_fixed_scalar_values('total_power')*
+                    self.get_param('acceleration_duration')/
+                    self.get_fixed_scalar_values('acceleration_volume')
+                )/self.get_fixed_scalar_values(
+                    'nel0' if self.has_fixed_scalar_values('nel0') else 'nel')
 
         if 'mean_electron_energy' in derived_quantities:
             self._obtain_mean_electron_energies()
@@ -178,6 +210,14 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 for x in self.get_varying_scalar_values('x')
             ]
 
+        if 'b' in derived_quantities:
+            self.varying_scalar_values['b'] = [
+                np.sqrt(bx*bx + by*by + bz*bz)
+                for bx, by, bz in zip(self.get_varying_scalar_values('bx'),
+                                      self.get_varying_scalar_values('by'),
+                                      self.get_varying_scalar_values('bz'))
+            ]
+
         if 'power_change' in derived_quantities:
             self.varying_scalar_values['power_change'] = [
                 arr.copy()
@@ -186,6 +226,39 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             for i in range(self.get_number_of_beams()):
                 self.varying_scalar_values['power_change'][i][
                     0] -= self.fixed_scalar_values['total_power'][i]
+
+        if 'power_density_change' in derived_quantities:
+            self.varying_scalar_values['power_density_change'] = [
+                arr.copy() for arr in
+                self.varying_scalar_values['deposited_power_density']
+            ]
+            for i in range(self.get_number_of_beams()):
+                self.varying_scalar_values['power_density_change'][i][
+                    0] -= self.get_fixed_scalar_values(
+                        'total_power')[i]/self.get_fixed_scalar_values(
+                            'acceleration_volume')[i]
+
+        if 'beam_flux' in derived_quantities:
+            self.varying_scalar_values['beam_flux'] = [
+                arr.copy() for arr in
+                self.varying_scalar_values['deposited_power_density']
+            ]
+            for i in range(self.get_number_of_beams()):
+                self.varying_scalar_values['beam_flux'][i][
+                    0] -= self.get_fixed_scalar_values(
+                        'total_power')[i]/self.get_fixed_scalar_values(
+                            'acceleration_volume')[i]
+                self.varying_scalar_values['beam_flux'][i] *= self.get_param(
+                    'dense_step_length')*units.U_L
+
+        if 'conduction_flux' in derived_quantities:
+            self.varying_scalar_values['conduction_flux'] = [
+                arr.copy() for arr in self.varying_scalar_values['qspitz']
+            ]
+            for i in range(self.get_number_of_beams()):
+                self.varying_scalar_values['conduction_flux'][
+                    i] *= -self.get_param(
+                        'dense_step_length')*units.U_L*units.U_E/units.U_T
 
         if 'remaining_power' in derived_quantities:
             self.varying_scalar_values['remaining_power'] = [
@@ -283,6 +356,23 @@ def find_beams_propagating_longer_than_distance(min_distance,
         np.nonzero(
             fixed_scalar_values['total_propagation_distance'] > min_distance)
         [0])
+
+
+def find_beams_in_temperature_height_region(height_lims, tg_lims,
+                                            varying_scalar_values):
+    return [
+        i for i, (z, tg) in enumerate(
+            zip(varying_scalar_values['z'], varying_scalar_values['tg']))
+        if np.any((z > -height_lims[1])*(z < -height_lims[0])*
+                  (tg > tg_lims[0])*(tg < tg_lims[1]))
+    ]
+
+
+def find_peak_deposition_point(varying_scalar_values, field_line_idx):
+    deposited_power = varying_scalar_values['deposited_power'][field_line_idx]
+    indices, _ = signal.find_peaks(deposited_power/np.mean(deposited_power),
+                                   prominence=2)
+    return slice(np.max(indices) if indices.size > 0 else -1, None, None)
 
 
 def plot_electron_beams(*args, **kwargs):
