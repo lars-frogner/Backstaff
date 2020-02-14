@@ -33,12 +33,12 @@ pub struct PowerLawDistributionConfig {
 pub struct PowerLawDistributionData {
     /// Exponent of the inverse power-law.
     delta: feb,
-    /// Cosine of the initial pitch angle of the electrons.
-    initial_pitch_angle_cosine: feb,
     /// Total energy injected into the distribution per time [erg/s].
     total_power: feb,
     /// Total energy injected into the distribution per volume and time [erg/(cm^3 s)].
     total_power_density: feb,
+    /// Cosine of the initial pitch angle of the electrons.
+    initial_pitch_angle_cosine: feb,
     /// Lower cut-off energy [keV].
     lower_cutoff_energy: feb,
     /// Position where the distribution originates [Mm].
@@ -64,6 +64,8 @@ pub struct PowerLawDistributionData {
 pub struct PowerLawDistributionProperties {
     /// Total energy injected into the distribution per time [erg/s].
     total_power: feb,
+    /// Cosine of the initial pitch angle of the electrons.
+    initial_pitch_angle_cosine: feb,
     /// Lower cut-off energy [keV].
     lower_cutoff_energy: feb,
     /// Volume of the grid cell where the distribution originates [cm^3].
@@ -76,6 +78,7 @@ pub struct PowerLawDistributionProperties {
 #[derive(Clone, Default, Debug)]
 pub struct PowerLawDistributionPropertiesCollection {
     total_powers: Vec<feb>,
+    initial_pitch_angle_cosines: Vec<feb>,
     lower_cutoff_energies: Vec<feb>,
     acceleration_volumes: Vec<feb>,
     estimated_thermalization_distances: Vec<feb>,
@@ -200,6 +203,10 @@ impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
     ) {
         scalar_values.insert("total_power".to_string(), self.total_powers);
         scalar_values.insert(
+            "initial_pitch_angle_cosine".to_string(),
+            self.initial_pitch_angle_cosines,
+        );
+        scalar_values.insert(
             "lower_cutoff_energy".to_string(),
             self.lower_cutoff_energies,
         );
@@ -220,21 +227,31 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
             (
                 data.total_power,
                 (
-                    data.lower_cutoff_energy,
+                    data.initial_pitch_angle_cosine,
                     (
-                        data.acceleration_volume,
-                        data.estimated_thermalization_distance,
+                        data.lower_cutoff_energy,
+                        (
+                            data.acceleration_volume,
+                            data.estimated_thermalization_distance,
+                        ),
                     ),
                 ),
             )
         });
 
-        let (
-            total_powers,
-            (lower_cutoff_energies, (acceleration_volumes, estimated_thermalization_distances)),
-        ): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = nested_tuples_iter.unzip();
+        let (total_powers, (initial_pitch_angle_cosines, nested_tuples)): (
+            Vec<_>,
+            (Vec<_>, Vec<_>),
+        ) = nested_tuples_iter.unzip();
+
+        let (lower_cutoff_energies, (acceleration_volumes, estimated_thermalization_distances)): (
+            Vec<_>,
+            (Vec<_>, Vec<_>),
+        ) = nested_tuples.into_par_iter().unzip();
 
         self.total_powers.par_extend(total_powers);
+        self.initial_pitch_angle_cosines
+            .par_extend(initial_pitch_angle_cosines);
         self.lower_cutoff_energies.par_extend(lower_cutoff_energies);
         self.acceleration_volumes.par_extend(acceleration_volumes);
         self.estimated_thermalization_distances
@@ -260,6 +277,7 @@ impl Distribution for PowerLawDistribution {
     fn properties(&self) -> <Self::PropertiesCollectionType as BeamPropertiesCollection>::Item {
         PowerLawDistributionProperties {
             total_power: self.data.total_power,
+            initial_pitch_angle_cosine: self.data.initial_pitch_angle_cosine,
             lower_cutoff_energy: self.data.lower_cutoff_energy,
             acceleration_volume: self.data.acceleration_volume,
             estimated_thermalization_distance: self.data.estimated_thermalization_distance / U_L,
