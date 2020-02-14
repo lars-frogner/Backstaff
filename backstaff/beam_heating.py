@@ -103,9 +103,8 @@ def compute_cumulative_integral_over_distance(distances, values, initial=0):
     return integrate.cumtrapz(values, x=distances, initial=initial)
 
 
-def compute_remaining_beam_power(total_power, distances, beam_heating):
-    return total_power - compute_cumulative_integral_over_distance(
-        distances, beam_heating)
+def compute_cumulative_energy_deposition(distances, beam_heating):
+    return compute_cumulative_integral_over_distance(distances, beam_heating)
 
 
 def compute_collisional_coef_SFP(
@@ -317,6 +316,11 @@ class HeatedAtmosphere(Atmosphere):
                          atmosphere.full_electron_densities,
                          start_depth=atmosphere.start_depth)
 
+        self.compute_beam_heating(distribution)
+        self.compute_conductive_heating()
+
+    def compute_beam_heating(self, distribution):
+
         global_electron_energy = 2.0
 
         self.electron_coulomb_logarithm = compute_electron_coulomb_logarithm(
@@ -375,8 +379,22 @@ class HeatedAtmosphere(Atmosphere):
 
         self.beam_heating[0] = 0.0
 
-        self.remaining_beam_powers = compute_remaining_beam_power(
-            distribution.total_power, self.distances, self.beam_heating)
+        self.cumulative_energy_deposition = compute_cumulative_energy_deposition(
+            self.distances, self.beam_heating)
+
+        self.remaining_beam_powers = distribution.total_power - self.cumulative_energy_deposition
+
+    def compute_conductive_heating(self):
+
+        kappa_0 = 4.6e13*1e8**(-5.0/2.0)*(40.0/self.electron_coulomb_logarithm)
+
+        self.dT_ds = np.gradient(self.temperatures, self.distances)
+        self.d2T_ds2 = np.gradient(self.dT_ds, self.distances)
+        self.conductive_heating_gradient_term = kappa_0*self.temperatures**(
+            5.0/2.0)*5*self.dT_ds**2/(2*self.temperatures)
+        self.conductive_heating_curvature_term = kappa_0*self.temperatures**(
+            5.0/2.0)*self.d2T_ds2
+        self.conductive_heating = self.conductive_heating_gradient_term + self.conductive_heating_curvature_term
 
 
 class HeatedAtmosphereSFP(Atmosphere):
