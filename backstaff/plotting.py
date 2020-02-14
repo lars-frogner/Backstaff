@@ -128,11 +128,7 @@ def add_2d_colorbar(fig, ax, mappeable, pad=0.05, label=''):
     fig.colorbar(mappeable, cax=cax, label=label)
 
 
-def add_2d_colorbar_from_cmap_and_norm(fig,
-                                       ax,
-                                       norm,
-                                       cmap,
-                                       pad=0.05,
+def add_2d_colorbar_from_cmap_and_norm(fig, ax, norm, cmap, pad=0.05,
                                        label=''):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes('right', size='5%', pad=pad)
@@ -357,8 +353,10 @@ def compute_histogram_difference(values, weights, vmin, vmax, bins,
     left_values, right_values = values
     left_weights, right_weights = weights
 
-    min_value = min(np.nanmin(left_values), np.nanmin(right_values)) if vmin is None else vmin
-    max_value = max(np.nanmax(left_values), np.nanmax(right_values)) if vmax is None else vmax
+    min_value = min(np.nanmin(left_values),
+                    np.nanmin(right_values)) if vmin is None else vmin
+    max_value = max(np.nanmax(left_values),
+                    np.nanmax(right_values)) if vmax is None else vmax
 
     if decide_bins_in_log_space:
         left_values = np.log10(left_values)
@@ -442,9 +440,10 @@ def compute_2d_histogram_difference(values_x, values_y, weights, vmin_x,
         left_values_x, left_values_y, left_weights, vmin_x, vmax_x, vmin_y,
         vmax_y, log_x, log_y, bins_x, bins_y, False)
 
-    right_hist, _, _ = compute_2d_histogram(
-        right_values_x, right_values_y, right_weights, vmin_x, vmax_x, vmin_y,
-        vmax_y, log_x, log_y, bins_x, bins_y, False)
+    right_hist, _, _ = compute_2d_histogram(right_values_x, right_values_y,
+                                            right_weights, vmin_x, vmax_x,
+                                            vmin_y, vmax_y, log_x, log_y,
+                                            bins_x, bins_y, False)
 
     return left_hist - right_hist, bin_edges_x, bin_edges_y
 
@@ -460,29 +459,47 @@ CUSTOM_COLORMAPS = {
         bad_color='white',
         N=257),
     'afternoon':
-        define_linear_segmented_colormap('', ['#8C0004','#C8000A','#E8A735','#E2C499']),
+    define_linear_segmented_colormap(
+        '', ['#8C0004', '#C8000A', '#E8A735', '#E2C499']),
     'timeless':
-        define_linear_segmented_colormap('', ['#16253D','#002C54','#EFB509','#CD7213']),
+    define_linear_segmented_colormap(
+        '', ['#16253D', '#002C54', '#EFB509', '#CD7213']),
     'arctic':
-        define_linear_segmented_colormap('', ['#006C84','#6EB5C0','#E2E8E4','#FFCCBB']),
+    define_linear_segmented_colormap(
+        '', ['#006C84', '#6EB5C0', '#E2E8E4', '#FFCCBB']),
     'sunkissed':
-        define_linear_segmented_colormap('', ['#D24136','#EB8A3E','#EBB582','#785A46']),
+    define_linear_segmented_colormap(
+        '', ['#D24136', '#EB8A3E', '#EBB582', '#785A46']),
     'berry':
-        define_linear_segmented_colormap('', ['#D0E1F9','#4D648D','#283655','#1E1F26']),
+    define_linear_segmented_colormap(
+        '', ['#D0E1F9', '#4D648D', '#283655', '#1E1F26']),
     'sunset':
-        define_linear_segmented_colormap('', ['#363237','#2D4262','#73605B','#D09683']),
+    define_linear_segmented_colormap(
+        '', ['#363237', '#2D4262', '#73605B', '#D09683']),
     'watery':
-        define_linear_segmented_colormap('', ['#021C1E','#004445','#2C7873','#6FB98F']),
+    define_linear_segmented_colormap(
+        '', ['#021C1E', '#004445', '#2C7873', '#6FB98F']),
     'bright':
-        define_linear_segmented_colormap('', ['#061283','#FD3C3C','#FFB74C','#138D90']),
+    define_linear_segmented_colormap(
+        '', ['#061283', '#FD3C3C', '#FFB74C', '#138D90']),
     'school':
-        define_linear_segmented_colormap('', ['#81715E','#FAAE3D','#E38533','#E4535E']),
+    define_linear_segmented_colormap(
+        '', ['#81715E', '#FAAE3D', '#E38533', '#E4535E']),
     'golden':
-        define_linear_segmented_colormap('', ['#323030','#CDBEA7','#C29545','#882426']),
+    define_linear_segmented_colormap(
+        '', ['#323030', '#CDBEA7', '#C29545', '#882426']),
     'misty':
-        define_linear_segmented_colormap('', ['#04202C','#2C493F','#5B7065','#C9D1C8']),
+    define_linear_segmented_colormap(
+        '', ['#04202C', '#2C493F', '#5B7065', '#C9D1C8']),
     'coolblues':
-        define_linear_segmented_colormap('', ['#003B46','#07575B','#66A5AD','#C4DFE6']),
+    define_linear_segmented_colormap(
+        '', ['#003B46', '#07575B', '#66A5AD', '#C4DFE6']),
     'candy':
-        define_linear_segmented_colormap('', ['#AD1457','#D81B60','#FFA000','#FDD835','#FFEE58'])
+    define_linear_segmented_colormap(
+        '', ['#AD1457', '#D81B60', '#FFA000', '#FDD835', '#FFEE58'])
 }
+
+CB_COLOR_CYCLE = [
+    '#984ea3', '#377eb8', '#ff7f00', '#4daf4a', '#a65628', '#f781bf',
+    '#999999', '#e41a1c', '#dede00'
+]
