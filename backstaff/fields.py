@@ -55,18 +55,28 @@ class ScalarField2:
                     invert_horizontal_lims=False,
                     invert_vertical_lims=False,
                     negate_vertical_coords=False,
-                    log=False,
                     vmin=None,
                     vmax=None,
-                    cmap_name='viridis'):
+                    log=False,
+                    symlog=False,
+                    linthresh=np.inf,
+                    linscale=1.0,
+                    cmap_name='viridis',
+                    cmap_bad_color='w'):
+
+        if symlog:
+            norm = plotting.get_symlog_normalizer(vmin,
+                                                  vmax,
+                                                  linthresh,
+                                                  linscale=linscale)
+        else:
+            norm = plotting.get_normalizer(vmin, vmax, log=log)
 
         values = self.get_values()
         return ax.imshow(
             values.T,
-            norm=plotting.get_normalizer(vmin, vmax, log=log),
-            vmin=vmin,
-            vmax=vmax,
-            cmap=plotting.get_cmap(cmap_name),
+            norm=norm,
+            cmap=plotting.get_cmap(cmap_name, bad_color=cmap_bad_color),
             interpolation='none',
             extent=[
                 *(self.get_horizontal_bounds()
