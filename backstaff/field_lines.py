@@ -69,7 +69,8 @@ class FieldLineSet3:
         assert isinstance(derived_quantities, list)
         assert isinstance(params, dict)
         self.bounds_x, self.bounds_y, self.bounds_z = tuple(domain_bounds)
-        self.bounds_z = (-self.bounds_z[1], -self.bounds_z[0]) # Use height instead of depth
+        self.bounds_z = (-self.bounds_z[1], -self.bounds_z[0]
+                         )  # Use height instead of depth
         self.number_of_field_lines = number_of_field_lines
         self.fixed_scalar_values = fixed_scalar_values
         self.fixed_vector_values = fixed_vector_values
@@ -112,6 +113,7 @@ class FieldLineSet3:
                               value_name,
                               do_conversion=True,
                               included_field_lines_finder=None,
+                              included_points_finder=None,
                               log=False,
                               vmin=None,
                               vmax=None,
@@ -131,7 +133,8 @@ class FieldLineSet3:
         values, x, y, z = self.get_scalar_values(
             value_name,
             *[dim + suffix for dim in ['x', 'y', 'z']],
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         values = self._convert_values(value_name, values, do_conversion)
 
@@ -172,6 +175,7 @@ class FieldLineSet3:
                                          ax,
                                          do_conversion=True,
                                          included_field_lines_finder=None,
+                                         included_points_finder=None,
                                          scatter=False,
                                          c='k',
                                          lw=1.0,
@@ -185,7 +189,8 @@ class FieldLineSet3:
                 'x',
                 'y',
                 'z',
-                included_field_lines_finder=included_field_lines_finder)
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder)
             ax.scatter(self._convert_values('x', x, do_conversion),
                        self._convert_values('y', y, do_conversion),
                        self._convert_values('z', z, do_conversion),
@@ -218,13 +223,15 @@ class FieldLineSet3:
                                        value_name_color=None,
                                        do_conversion=True,
                                        included_field_lines_finder=None,
+                                       included_points_finder=None,
                                        **kwargs):
 
         values_x, values_y, values_color = self.get_scalar_values(
             value_name_x,
             value_name_y,
             value_name_color,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -241,19 +248,22 @@ class FieldLineSet3:
                                      value_name_weights=None,
                                      do_conversion=True,
                                      included_field_lines_finder=None,
+                                     included_points_finder=None,
                                      **kwargs):
 
         values, weights = self.get_scalar_values(
             value_name,
             value_name_weights,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         values = self._convert_values(value_name, values, do_conversion)
         if weights is not None:
             weights = self._convert_values(value_name_weights, weights,
                                            do_conversion)
 
-        return self.__add_values_as_line_histogram(ax, values, weights, **kwargs)
+        return self.__add_values_as_line_histogram(ax, values, weights,
+                                                   **kwargs)
 
     def add_values_as_line_histogram_difference(
             self,
@@ -262,6 +272,7 @@ class FieldLineSet3:
             value_names_weights=None,
             do_conversion=True,
             included_field_lines_finder=None,
+            included_points_finder=None,
             **kwargs):
 
         left_value_name, right_value_name = value_names
@@ -270,12 +281,14 @@ class FieldLineSet3:
         left_values, left_weights = self.get_scalar_values(
             left_value_name,
             left_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         right_values, right_weights = self.get_scalar_values(
             right_value_name,
             right_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         left_values = self._convert_values(left_value_name, left_values,
                                            do_conversion)
@@ -301,13 +314,15 @@ class FieldLineSet3:
                                          weight_scale=None,
                                          do_conversion=True,
                                          included_field_lines_finder=None,
+                                         included_points_finder=None,
                                          **kwargs):
 
         values_x, values_y, weights = self.get_scalar_values(
             value_name_x,
             value_name_y,
             value_name_weights,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -327,13 +342,15 @@ class FieldLineSet3:
                                            value_name_weights=None,
                                            do_conversion=True,
                                            included_field_lines_finder=None,
+                                           included_points_finder=None,
                                            **kwargs):
 
         values_x, values_y, weights = self.get_scalar_values(
             value_name_x,
             value_name_y,
             value_name_weights,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -353,6 +370,7 @@ class FieldLineSet3:
             weight_scale=None,
             do_conversion=True,
             included_field_lines_finder=None,
+            included_points_finder=None,
             **kwargs):
 
         left_value_name_x, right_value_name_x = value_names_x
@@ -363,13 +381,15 @@ class FieldLineSet3:
             left_value_name_x,
             left_value_name_y,
             left_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         right_values_x, right_values_y, right_weights = self.get_scalar_values(
             right_value_name_x,
             right_value_name_y,
             right_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder)
+            included_field_lines_finder=included_field_lines_finder,
+            included_points_finder=included_points_finder)
 
         left_values_x = self._convert_values(left_value_name_x, left_values_x,
                                              do_conversion)
@@ -543,13 +563,16 @@ class FieldLineSet3:
                                          cmap_name='viridis',
                                          cmap_bad_color='w',
                                          s=1.0,
+                                         lw=1.0,
                                          marker='o',
                                          edgecolors='none',
                                          alpha=1.0,
                                          relative_alpha=True):
 
         if values_color is None:
-            c = color
+            ax.plot(values_x, values_y, c=color, lw=lw, alpha=alpha)
+            return (None, None)
+
         else:
             if vmin is None:
                 vmin = np.nanmin(values_color)
@@ -572,15 +595,15 @@ class FieldLineSet3:
                                             alpha=alpha,
                                             relative_alpha=relative_alpha)
 
-        ax.scatter(values_x,
-                   values_y,
-                   c=c,
-                   s=s,
-                   marker=marker,
-                   edgecolors=edgecolors,
-                   alpha=alpha)
+            ax.scatter(values_x,
+                       values_y,
+                       c=c,
+                       s=s,
+                       marker=marker,
+                       edgecolors=edgecolors,
+                       alpha=alpha)
 
-        return (None, None) if values_color is None else (norm, cmap)
+            return (norm, cmap)
 
     def __add_values_as_line_histogram(self,
                                        ax,
@@ -593,11 +616,14 @@ class FieldLineSet3:
                                        decide_bins_in_log_space=False,
                                        density=False,
                                        scatter=False,
+                                       ds='steps-pre',
                                        c='k',
                                        lw=1.0,
+                                       ls='-',
                                        s=1.0,
                                        alpha=1.0,
-                                       legend_label=None):
+                                       legend_label=None,
+                                       zorder=2):
 
         hist, bin_edges, bin_centers = plotting.compute_histogram(
             values,
@@ -610,15 +636,23 @@ class FieldLineSet3:
             density=density)
 
         if scatter:
-            return ax.scatter(bin_centers, hist, c=c, s=s, alpha=alpha)
+            return ax.scatter(bin_centers,
+                              hist,
+                              c=c,
+                              s=s,
+                              alpha=alpha,
+                              zorder=zorder)
         else:
-            return ax.step(bin_edges[:-1],
-                    hist,
-                    where='pre',
-                    c=c,
-                    lw=lw,
-                    alpha=alpha,
-                    label=legend_label)[0]
+            return ax.plot(
+                bin_edges[:-1] if ds == 'steps-pre' else bin_centers,
+                hist,
+                ds=ds,
+                c=c,
+                ls=ls,
+                lw=lw,
+                alpha=alpha,
+                label=legend_label,
+                zorder=zorder)[0]
 
     def __add_values_as_line_histogram_difference(
             self,
@@ -804,25 +838,32 @@ class FieldLineSet3:
                                                     bad_color=cmap_bad_color))
 
 
-def find_field_lines_passing_near_point(point, max_distance, initial_position_bounds,
-                                        fixed_scalar_values, varying_scalar_values):
+def find_field_lines_passing_near_point(point, max_distance,
+                                        initial_position_bounds,
+                                        fixed_scalar_values,
+                                        varying_scalar_values):
     x_lims, y_lims, z_lims = initial_position_bounds
-    return list(set([
-        i for i, (x, y, z) in enumerate(
-            zip(varying_scalar_values['x'], varying_scalar_values['y'],
-                varying_scalar_values['z']))
-        if np.any((x - point[0])**2 + (y - point[1])**2 +
-                  (z - point[2])**2 <= max_distance**2)
-    ]).intersection([
-        i for i, (x, y, z) in enumerate(
-            zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
-                fixed_scalar_values['z0']))
-        if x >= x_lims[0] and x <= x_lims[1] and y >= y_lims[0]
-        and y <= y_lims[1] and z >= z_lims[0] and z <= z_lims[1]
-    ]))
+    return list(
+        set([
+            i for i, (x, y, z) in enumerate(
+                zip(varying_scalar_values['x'], varying_scalar_values['y'],
+                    varying_scalar_values['z']))
+            if np.any((x - point[0])**2 + (y - point[1])**2 +
+                      (z - point[2])**2 <= max_distance**2)
+        ]).intersection([
+            i for i, (x, y, z) in enumerate(
+                zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
+                    fixed_scalar_values['z0']))
+            if x >= x_lims[0] and x <= x_lims[1] and y >= y_lims[0]
+            and y <= y_lims[1] and z >= z_lims[0] and z <= z_lims[1]
+        ]))
 
 
-def find_field_lines_starting_in_coords(x_coords, y_coords, z_coords, fixed_scalar_values, max_distance=1e-5):
+def find_field_lines_starting_in_coords(x_coords,
+                                        y_coords,
+                                        z_coords,
+                                        fixed_scalar_values,
+                                        max_distance=1e-5):
     return [
         i for i, (x, y, z) in enumerate(
             zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
@@ -832,14 +873,36 @@ def find_field_lines_starting_in_coords(x_coords, y_coords, z_coords, fixed_scal
     ]
 
 
+def find_field_lines_contained_in_box(x_lims, y_lims, z_lims,
+                                      varying_scalar_values):
+    return [
+        i for i, (x, y, z) in enumerate(
+            zip(varying_scalar_values['x'], varying_scalar_values['y'],
+                varying_scalar_values['z']))
+        if np.all((x >= x_lims[0])*(x <= x_lims[1])*(y >= y_lims[0])*
+                  (y <= y_lims[1])*(z >= z_lims[0])*(z <= z_lims[1]))
+    ]
+
+
 def find_field_line_points_below_depth(min_depth, varying_scalar_values,
                                        field_line_idx):
     return varying_scalar_values['z'][field_line_idx] > min_depth
 
 
+def find_field_line_points_after_distance(min_distance, varying_scalar_values,
+                                          field_line_idx):
+    return varying_scalar_values['s'][field_line_idx] > min_distance
+
+
 def find_field_line_points_above_density(min_density, varying_scalar_values,
                                          field_line_idx):
     return varying_scalar_values['r'][field_line_idx] > min_density/units.U_R
+
+
+def find_field_line_points_below_temperature(max_temperature,
+                                             varying_scalar_values,
+                                             field_line_idx):
+    return varying_scalar_values['tg'][field_line_idx] < max_temperature
 
 
 def find_field_line_point_at_max_depth(varying_scalar_values, field_line_idx):
@@ -952,10 +1015,11 @@ def plot_field_line_properties(field_line_set,
                 value_name_color, value_description_color))
 
     plotting.set_2d_axis_labels(
-        ax, field_line_set.process_value_description(value_name_x,
-                                                     value_description_x),
+        ax,
+        field_line_set.process_value_description(value_name_x,
+                                                 value_description_x),
         field_line_set.process_value_description(value_name_y,
-                                                     value_description_y))
+                                                 value_description_y))
 
     if title is not None:
         ax.set_title(title)
@@ -973,12 +1037,15 @@ def plot_field_line_value_histogram(field_line_set,
                                     invert_yaxis=False,
                                     value_description=None,
                                     value_description_weights=None,
+                                    set_axis_labels=True,
                                     legend_loc=None,
                                     title=None,
                                     render=True,
                                     output_path=None,
                                     log_x=False,
                                     log_y=False,
+                                    symlog_y=False,
+                                    linthresh_y=np.inf,
                                     vmin_x=None,
                                     vmax_x=None,
                                     vmin_y=None,
@@ -1006,6 +1073,9 @@ def plot_field_line_value_histogram(field_line_set,
     if log_y:
         ax.set_yscale('log')
 
+    if symlog_y:
+        ax.set_yscale('symlog', linthreshy=linthresh_y)
+
     plotting.set_2d_plot_extent(ax, (vmin_x, vmax_x), (vmin_y, vmax_y))
 
     if invert_xaxis:
@@ -1013,14 +1083,15 @@ def plot_field_line_value_histogram(field_line_set,
     if invert_yaxis:
         ax.invert_yaxis()
 
-    plotting.set_2d_axis_labels(
-        ax,
-        field_line_set.process_value_description(value_name,
-                                                 value_description),
-        ('Probability density' if kwargs.get('density', False) else
-         'Number of values') if value_name_weights is None
-        else field_line_set.process_value_description(
-            value_name_weights, value_description_weights))
+    if set_axis_labels:
+        plotting.set_2d_axis_labels(
+            ax,
+            field_line_set.process_value_description(value_name,
+                                                     value_description),
+            ('Probability density' if kwargs.get('density', False) else
+             'Number of values') if value_name_weights is None else
+            field_line_set.process_value_description(
+                value_name_weights, value_description_weights))
 
     if legend_loc is not None:
         if extra_artists is None:
@@ -1070,6 +1141,10 @@ def plot_field_line_value_histogram_difference(field_line_set,
         do_conversion=kwargs.pop('do_conversion', True),
         decide_bins_in_log_space=log_x,
         **kwargs)
+
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
 
     if log_x:
         ax.set_xscale('log')
