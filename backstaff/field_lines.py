@@ -553,6 +553,7 @@ class FieldLineSet3:
                                          values_x,
                                          values_y,
                                          values_color,
+                                         force_scatter=False,
                                          symlog=False,
                                          linthresh=np.inf,
                                          linscale=1.0,
@@ -569,31 +570,37 @@ class FieldLineSet3:
                                          alpha=1.0,
                                          relative_alpha=True):
 
-        if values_color is None:
+        if values_color is None and not force_scatter:
             ax.plot(values_x, values_y, c=color, lw=lw, alpha=alpha)
             return (None, None)
 
         else:
-            if vmin is None:
-                vmin = np.nanmin(values_color)
-            if vmax is None:
-                vmax = np.nanmax(values_color)
 
-            if symlog:
-                norm = plotting.get_symlog_normalizer(vmin,
-                                                      vmax,
-                                                      linthresh,
-                                                      linscale=linscale)
+            if values_color is None:
+                c = color
+                norm = None
+                cmap = None
             else:
-                norm = plotting.get_normalizer(vmin, vmax, log=log)
+                if vmin is None:
+                    vmin = np.nanmin(values_color)
+                if vmax is None:
+                    vmax = np.nanmax(values_color)
 
-            cmap = plotting.get_cmap(cmap_name, bad_color=cmap_bad_color)
+                if symlog:
+                    norm = plotting.get_symlog_normalizer(vmin,
+                                                          vmax,
+                                                          linthresh,
+                                                          linscale=linscale)
+                else:
+                    norm = plotting.get_normalizer(vmin, vmax, log=log)
 
-            c = plotting.colors_from_values(values_color,
-                                            norm,
-                                            cmap,
-                                            alpha=alpha,
-                                            relative_alpha=relative_alpha)
+                cmap = plotting.get_cmap(cmap_name, bad_color=cmap_bad_color)
+
+                c = plotting.colors_from_values(values_color,
+                                                norm,
+                                                cmap,
+                                                alpha=alpha,
+                                                relative_alpha=relative_alpha)
 
             ax.scatter(values_x,
                        values_y,
@@ -1005,7 +1012,7 @@ def plot_field_line_properties(field_line_set,
     if invert_yaxis:
         ax.invert_yaxis()
 
-    if value_name_color is not None:
+    if norm is not None and cmap is not None:
         plotting.add_2d_colorbar_from_cmap_and_norm(
             fig,
             ax,
