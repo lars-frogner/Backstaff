@@ -18,13 +18,13 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .help_message("Print help information")
         .arg(
-            Arg::with_name("max-stopping-length-traversals")
-                .long("max-stopping-length-traversals")
+            Arg::with_name("min-heating-fraction")
+                .long("min-heating-fraction")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions are considered thermalized when they have traversed the stopping\n\
-                     column depth of a cut-off energy electron more times than this\n\
+                    "Distributions are considered thermalized when the heating has been reduced to\n\
+                     this fraction of the initial heating.\n\
                      [default: from param file]",
                 )
                 .takes_value(true),
@@ -53,13 +53,13 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     reader: &SnapshotReader3<G>,
 ) -> PowerLawDistributionConfig {
-    let max_stopping_length_traversals = cli::get_value_from_param_file_argument_with_default(
+    let min_heating_fraction = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "max-stopping-length-traversals",
-        "max_stop_lens",
-        &|max_stop_lens| max_stop_lens,
-        PowerLawDistributionConfig::DEFAULT_MAX_STOPPING_LENGTH_TRAVERSALS,
+        "min-heating-fraction",
+        "min_heat_frac",
+        &|min_heat_frac| min_heat_frac,
+        PowerLawDistributionConfig::DEFAULT_MIN_HEATING_FRACTION,
     );
     let max_propagation_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
@@ -72,7 +72,7 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
     let continue_thermalized_beams = arguments.is_present("continue-thermalized-beams");
 
     PowerLawDistributionConfig {
-        max_stopping_length_traversals,
+        min_heating_fraction,
         max_propagation_distance,
         continue_thermalized_beams,
     }

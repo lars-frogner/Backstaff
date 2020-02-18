@@ -35,6 +35,9 @@ pub struct SimplePowerLawAccelerationConfig {
     pub min_thermalization_distance: feb,
     /// Distributions with initial absolute pitch angles larger than this are discarded [deg].
     pub max_pitch_angle: feb,
+    /// Distributions with electric field directions angled more than this away from
+    /// the magnetic field axis are discarded [deg].
+    pub max_electric_field_angle: feb,
     /// Initial guess to use when estimating lower cut-off energy [keV].
     pub initial_cutoff_energy_guess: feb,
     /// Target relative error when estimating lower cut-off energy.
@@ -49,6 +52,7 @@ pub struct SimplePowerLawAccelerator {
     distribution_config: PowerLawDistributionConfig,
     config: SimplePowerLawAccelerationConfig,
     pitch_angle_cosine_threshold: feb,
+    electric_field_angle_cosine_threshold: feb,
 }
 
 impl SimplePowerLawAccelerator {
@@ -92,7 +96,7 @@ impl SimplePowerLawAccelerator {
         snapshot.reader().grid().centers().point(indices)
     }
 
-    fn determine_acceleration_direction<G>(
+    fn determine_electric_field_direction<G>(
         snapshot: &SnapshotCacher3<G>,
         indices: &Idx3<usize>,
     ) -> Option<Vec3<fdt>>
@@ -135,8 +139,7 @@ impl SimplePowerLawAccelerator {
         let squared_total_electric_vector = total_electric_vector.squared_length();
 
         if squared_total_electric_vector > std::f32::EPSILON {
-            // Electrons are accelerated in the opposite direction as the electric field.
-            Some(total_electric_vector / (-fdt::sqrt(squared_total_electric_vector)))
+            Some(total_electric_vector / fdt::sqrt(squared_total_electric_vector))
         } else {
             None
         }
@@ -157,6 +160,22 @@ impl SimplePowerLawAccelerator {
             .expect_inside();
         magnetic_field_direction.normalize();
         magnetic_field_direction
+    }
+
+    fn compute_propagation_sense(
+        &self,
+        magnetic_field_direction: &Vec3<fdt>,
+        electric_field_direction: &Vec3<fdt>,
+    ) -> Option<(SteppingSense, feb)> {
+        let electric_field_angle_cosine =
+            feb::from(electric_field_direction.dot(magnetic_field_direction));
+        if feb::abs(electric_field_angle_cosine) < self.electric_field_angle_cosine_threshold {
+            None
+        } else if electric_field_angle_cosine > 0.0 {
+            Some((SteppingSense::Opposite, electric_field_angle_cosine))
+        } else {
+            Some((SteppingSense::Same, electric_field_angle_cosine))
+        }
     }
 
     fn determine_temperature<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
@@ -250,17 +269,25 @@ impl SimplePowerLawAccelerator {
     }
 
     fn compute_initial_pitch_angle_cosine(
-        magnetic_field_direction: &Vec3<fdt>,
-        acceleration_direction: &Vec3<fdt>,
-    ) -> feb {
-        feb::from(acceleration_direction.dot(magnetic_field_direction))
-    }
-
-    fn find_propagation_sense(pitch_angle_cosine: feb) -> SteppingSense {
-        if pitch_angle_cosine >= 0.0 {
-            SteppingSense::Same
+        &self,
+        temperature: feb,
+        delta: feb,
+        lower_cutoff_energy: feb,
+    ) -> Option<feb> {
+        let squared_perpendicular_fraction = (8.0 * KBOLTZMANN * temperature / PI)
+            / (feb::powi((2.0 * delta - 2.0) / (2.0 * delta - 3.0), 2)
+                * 2.0
+                * lower_cutoff_energy
+                * KEV_TO_ERG);
+        if squared_perpendicular_fraction <= 1.0 {
+            let pitch_angle_cosine = feb::sqrt(1.0 - squared_perpendicular_fraction);
+            if pitch_angle_cosine >= self.pitch_angle_cosine_threshold {
+                Some(pitch_angle_cosine)
+            } else {
+                None
+            }
         } else {
-            SteppingSense::Opposite
+            None
         }
     }
 }
@@ -284,11 +311,14 @@ impl SimplePowerLawAccelerator {
         config.validate();
 
         let pitch_angle_cosine_threshold = feb::cos(config.max_pitch_angle.to_radians());
+        let electric_field_angle_cosine_threshold =
+            feb::cos(config.max_electric_field_angle.to_radians());
 
         SimplePowerLawAccelerator {
             distribution_config,
             config,
             pitch_angle_cosine_threshold,
+            electric_field_angle_cosine_threshold,
         }
     }
 }
@@ -334,7 +364,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         snapshot.drop_scalar_field("qjoule");
 
         if verbose.is_yes() {
-            println!("Computing initial pitch angles");
+            println!("Computing propagation directions");
         }
         snapshot.cache_vector_field("b")?;
         snapshot.cache_vector_field("e")?;
@@ -343,30 +373,25 @@ impl Accelerator for SimplePowerLawAccelerator {
             .filter_map(|(indices, total_power_density)| {
                 let acceleration_position =
                     Self::determine_acceleration_position(snapshot, &indices);
-                match Self::determine_acceleration_direction(snapshot, &indices) {
-                    Some(acceleration_direction) => {
+                match Self::determine_electric_field_direction(snapshot, &indices) {
+                    Some(electric_field_direction) => {
                         let magnetic_field_direction = Self::determine_magnetic_field_direction(
                             snapshot,
                             interpolator,
                             &acceleration_position,
                         );
-                        let initial_pitch_angle_cosine = Self::compute_initial_pitch_angle_cosine(
+                        match self.compute_propagation_sense(
                             &magnetic_field_direction,
-                            &acceleration_direction,
-                        );
-                        if feb::abs(initial_pitch_angle_cosine) < self.pitch_angle_cosine_threshold
-                        {
-                            None
-                        } else {
-                            let propagation_sense =
-                                Self::find_propagation_sense(initial_pitch_angle_cosine);
-                            Some((
+                            &electric_field_direction,
+                        ) {
+                            Some((propagation_sense, electric_field_angle_cosine)) => Some((
                                 indices,
                                 total_power_density,
                                 acceleration_position,
-                                initial_pitch_angle_cosine,
                                 propagation_sense,
-                            ))
+                                electric_field_angle_cosine,
+                            )),
+                            None => None,
                         }
                     }
                     None => None,
@@ -388,8 +413,8 @@ impl Accelerator for SimplePowerLawAccelerator {
                     indices,
                     total_power_density,
                     acceleration_position,
-                    initial_pitch_angle_cosine,
                     propagation_sense,
+                    electric_field_angle_cosine,
                 )| {
                     let electron_density = Self::determine_electron_density(snapshot, &indices);
                     assert!(
@@ -412,6 +437,15 @@ impl Accelerator for SimplePowerLawAccelerator {
                         self.config.power_law_delta,
                         lower_cutoff_energy,
                     );
+
+                    let initial_pitch_angle_cosine = match self.compute_initial_pitch_angle_cosine(
+                        temperature,
+                        self.config.power_law_delta,
+                        lower_cutoff_energy,
+                    ) {
+                        Some(initial_pitch_angle_cosine) => initial_pitch_angle_cosine,
+                        None => return None,
+                    };
 
                     let electron_coulomb_logarithm =
                         PowerLawDistribution::compute_electron_coulomb_logarithm(
@@ -462,7 +496,8 @@ impl Accelerator for SimplePowerLawAccelerator {
 
                     let estimated_thermalization_distance =
                         PowerLawDistribution::estimate_depletion_distance(
-                            self.distribution_config.max_stopping_length_traversals,
+                            self.config.power_law_delta,
+                            self.distribution_config.min_heating_fraction,
                             total_hydrogen_density,
                             effective_coulomb_logarithm,
                             electron_coulomb_logarithm,
@@ -488,6 +523,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                             heating_scale,
                             stopping_ionized_column_depth,
                             estimated_thermalization_distance,
+                            electric_field_angle_cosine,
                         };
                         Some(PowerLawDistribution::new(
                             self.distribution_config.clone(),
@@ -511,6 +547,7 @@ impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_MIN_LOWER_CUTOFF_ENERGY: feb = 0.1; // [keV]
     pub const DEFAULT_MIN_THERMALIZATION_DISTANCE: feb = 0.3; // [Mm]
     pub const DEFAULT_MAX_PITCH_ANGLE: feb = 70.0; // [deg]
+    pub const DEFAULT_MAX_ELECTRIC_FIELD_ANGLE: feb = 70.0; // [deg]
     pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 2.0; // [keV]
     pub const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
     pub const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
@@ -564,8 +601,15 @@ impl SimplePowerLawAccelerationConfig {
         let max_pitch_angle = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "max_pitch_angle",
-                "max_pitch_angle",
-                &|max_pitch_angle: feb| max_pitch_angle,
+                "max_pitch_ang",
+                &|max_pitch_ang: feb| max_pitch_ang,
+                Self::DEFAULT_MAX_PITCH_ANGLE,
+            );
+        let max_electric_field_angle = reader
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "max_electric_field_angle",
+                "max_efield_ang",
+                &|max_efield_ang: feb| max_efield_ang,
                 Self::DEFAULT_MAX_PITCH_ANGLE,
             );
         SimplePowerLawAccelerationConfig {
@@ -576,6 +620,7 @@ impl SimplePowerLawAccelerationConfig {
             min_lower_cutoff_energy,
             min_thermalization_distance,
             max_pitch_angle,
+            max_electric_field_angle,
             ..Self::default()
         }
     }
@@ -607,8 +652,12 @@ impl SimplePowerLawAccelerationConfig {
             "Minimum stopping distance must be larger than or equal to zero."
         );
         assert!(
-            self.max_pitch_angle >= 0.0 && self.max_pitch_angle <= 90.0,
-            "Maximum pitch angle must be in the range [0, 90]."
+            self.max_pitch_angle >= 0.0 && self.max_pitch_angle < 90.0,
+            "Maximum pitch angle must be in the range [0, 90)."
+        );
+        assert!(
+            self.max_electric_field_angle >= 0.0 && self.max_electric_field_angle < 90.0,
+            "Maximum electric field angle must be in the range [0, 90)."
         );
         assert!(
             self.initial_cutoff_energy_guess > 0.0,
@@ -635,6 +684,7 @@ impl Default for SimplePowerLawAccelerationConfig {
             min_lower_cutoff_energy: Self::DEFAULT_MIN_LOWER_CUTOFF_ENERGY,
             min_thermalization_distance: Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
             max_pitch_angle: Self::DEFAULT_MAX_PITCH_ANGLE,
+            max_electric_field_angle: Self::DEFAULT_MAX_ELECTRIC_FIELD_ANGLE,
             initial_cutoff_energy_guess: Self::DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS,
             acceptable_root_finding_error: Self::DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR,
             max_root_finding_iterations: Self::DEFAULT_MAX_ROOT_FINDING_ITERATIONS,

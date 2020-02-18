@@ -87,7 +87,18 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions with acceleration directions angled more than this\n\
+                    "Distributions with initial absolute pitch angles larger than this are discarded\n\
+                    [deg] [default: from param file]",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("max-electric-field-angle")
+                .long("max-electric-field-angle")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Distributions with electric field directions angled more than this\n\
                      away from the magnetic field axis are discarded [deg] [default: from param file]",
                 )
                 .takes_value(true),
@@ -190,6 +201,15 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_MAX_PITCH_ANGLE,
     );
 
+    let max_electric_field_angle = cli::get_value_from_param_file_argument_with_default(
+        reader,
+        arguments,
+        "max-electric-field-angle",
+        "max_electric_field_angle",
+        &|max_electric_field_angle| max_electric_field_angle,
+        SimplePowerLawAccelerationConfig::DEFAULT_MAX_ELECTRIC_FIELD_ANGLE,
+    );
+
     let initial_cutoff_energy_guess =
         cli::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
     let acceptable_root_finding_error =
@@ -205,6 +225,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         min_lower_cutoff_energy,
         min_thermalization_distance,
         max_pitch_angle,
+        max_electric_field_angle,
         initial_cutoff_energy_guess,
         acceptable_root_finding_error,
         max_root_finding_iterations,

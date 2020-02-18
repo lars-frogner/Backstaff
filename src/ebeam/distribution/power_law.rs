@@ -19,9 +19,9 @@ use rayon::prelude::*;
 /// Configuration parameters for power-law distributions.
 #[derive(Clone, Debug)]
 pub struct PowerLawDistributionConfig {
-    /// Distributions are considered thermalized when they have traversed the stopping
-    /// column depth of cut-off energy electrons more times than this.
-    pub max_stopping_length_traversals: feb,
+    /// Distributions are considered thermalized when the heating has been reduced to
+    /// this fraction of the initial heating.
+    pub min_heating_fraction: feb,
     /// Maximum distance the distribution can propagate before propagation should be terminated [Mm].
     pub max_propagation_distance: ftr,
     /// Whether to keep propagating beams even after they are considered thermalized.
@@ -55,8 +55,10 @@ pub struct PowerLawDistributionData {
     heating_scale: feb,
     /// Equivalent ionized column depth where cut-off energy electrons will thermalize [hydrogen/cm^2].
     stopping_ionized_column_depth: feb,
-    /// estimated thermalization distance of the electrons in the distribution [cm].
+    /// Estimated thermalization distance of the electrons in the distribution [cm].
     estimated_thermalization_distance: feb,
+    /// Cosine of the angle between the electric and magnetic field.
+    electric_field_angle_cosine: feb,
 }
 
 /// Exposed properties of a power-law distribution.
@@ -70,8 +72,10 @@ pub struct PowerLawDistributionProperties {
     lower_cutoff_energy: feb,
     /// Volume of the grid cell where the distribution originates [cm^3].
     acceleration_volume: feb,
-    /// estimated thermalization distance of the electrons in the distribution [Mm].
+    /// Estimated thermalization distance of the electrons in the distribution [Mm].
     estimated_thermalization_distance: feb,
+    /// Cosine of the angle between the electric and magnetic field.
+    electric_field_angle_cosine: feb,
 }
 
 /// Property values of each individual distribution in a set of power-law distributions.
@@ -82,6 +86,7 @@ pub struct PowerLawDistributionPropertiesCollection {
     lower_cutoff_energies: Vec<feb>,
     acceleration_volumes: Vec<feb>,
     estimated_thermalization_distances: Vec<feb>,
+    electric_field_angle_cosines: Vec<feb>,
 }
 
 /// A non-thermal power-law distribution over electron energy,
@@ -182,13 +187,16 @@ impl PowerLawDistribution {
     }
 
     fn estimate_depletion_distance(
-        max_stopping_length_traversals: feb,
+        delta: feb,
+        min_heating_fraction: feb,
         total_hydrogen_density: feb,
         effective_coulomb_logarithm: feb,
         electron_coulomb_logarithm: feb,
         stopping_ionized_column_depth: feb,
     ) -> feb {
-        max_stopping_length_traversals * stopping_ionized_column_depth * electron_coulomb_logarithm
+        feb::powf(min_heating_fraction, -2.0 / delta)
+            * stopping_ionized_column_depth
+            * electron_coulomb_logarithm
             / (effective_coulomb_logarithm * total_hydrogen_density)
     }
 }
@@ -215,6 +223,10 @@ impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
             "estimated_thermalization_distance".to_string(),
             self.estimated_thermalization_distances,
         );
+        scalar_values.insert(
+            "electric_field_angle_cosine".to_string(),
+            self.electric_field_angle_cosines,
+        );
     }
 }
 
@@ -232,7 +244,10 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
                         data.lower_cutoff_energy,
                         (
                             data.acceleration_volume,
-                            data.estimated_thermalization_distance,
+                            (
+                                data.estimated_thermalization_distance,
+                                data.electric_field_angle_cosine,
+                            ),
                         ),
                     ),
                 ),
@@ -244,10 +259,13 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
             (Vec<_>, Vec<_>),
         ) = nested_tuples_iter.unzip();
 
-        let (lower_cutoff_energies, (acceleration_volumes, estimated_thermalization_distances)): (
-            Vec<_>,
-            (Vec<_>, Vec<_>),
-        ) = nested_tuples.into_par_iter().unzip();
+        let (
+            lower_cutoff_energies,
+            (
+                acceleration_volumes,
+                (estimated_thermalization_distances, electric_field_angle_cosines),
+            ),
+        ): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = nested_tuples.into_par_iter().unzip();
 
         self.total_powers.par_extend(total_powers);
         self.initial_pitch_angle_cosines
@@ -256,6 +274,8 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
         self.acceleration_volumes.par_extend(acceleration_volumes);
         self.estimated_thermalization_distances
             .par_extend(estimated_thermalization_distances);
+        self.electric_field_angle_cosines
+            .par_extend(electric_field_angle_cosines);
     }
 }
 
@@ -281,6 +301,7 @@ impl Distribution for PowerLawDistribution {
             lower_cutoff_energy: self.data.lower_cutoff_energy,
             acceleration_volume: self.data.acceleration_volume,
             estimated_thermalization_distance: self.data.estimated_thermalization_distance / U_L,
+            electric_field_angle_cosine: self.data.electric_field_angle_cosine,
         }
     }
 
@@ -358,19 +379,21 @@ impl Distribution for PowerLawDistribution {
         let equivalent_ionized_column_depth_ratio =
             new_equivalent_ionized_column_depth / self.data.stopping_ionized_column_depth;
 
+        let heating_fraction = feb::powf(
+            equivalent_ionized_column_depth_ratio,
+            -0.5 * self.data.delta,
+        );
+
         // Compute power deposited through the step [erg/s]
         let deposited_power = self.data.heating_scale
             * beta
             * total_hydrogen_density
             * effective_coulomb_logarithm
-            * feb::powf(
-                equivalent_ionized_column_depth_ratio,
-                -0.5 * self.data.delta,
-            )
+            * heating_fraction
             * step_length;
 
         let depletion_status = if self.config.continue_thermalized_beams
-            || equivalent_ionized_column_depth_ratio < self.config.max_stopping_length_traversals
+            || heating_fraction > self.config.min_heating_fraction
         {
             DepletionStatus::Undepleted
         } else {
@@ -398,7 +421,7 @@ impl Distribution for PowerLawDistribution {
 }
 
 impl PowerLawDistributionConfig {
-    pub const DEFAULT_MAX_STOPPING_LENGTH_TRAVERSALS: feb = 1e5;
+    pub const DEFAULT_MIN_HEATING_FRACTION: feb = 1e-10;
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
     pub const DEFAULT_CONTINUE_THERMALIZED_BEAMS: bool = false;
 
@@ -406,12 +429,12 @@ impl PowerLawDistributionConfig {
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
-        let max_stopping_length_traversals = reader
+        let min_heating_fraction = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "max_stopping_length_traversals",
-                "max_stop_lens",
-                &|max_stop_lens: feb| max_stop_lens,
-                Self::DEFAULT_MAX_STOPPING_LENGTH_TRAVERSALS,
+                "min_heating_fraction",
+                "min_heat_frac",
+                &|min_heat_frac: feb| min_heat_frac,
+                Self::DEFAULT_MIN_HEATING_FRACTION,
             );
         let max_propagation_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
@@ -421,7 +444,7 @@ impl PowerLawDistributionConfig {
                 Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             );
         PowerLawDistributionConfig {
-            max_stopping_length_traversals,
+            min_heating_fraction,
             max_propagation_distance,
             continue_thermalized_beams: Self::DEFAULT_CONTINUE_THERMALIZED_BEAMS,
         }
@@ -430,8 +453,8 @@ impl PowerLawDistributionConfig {
     /// Panics if any of the configuration parameter values are invalid.
     fn validate(&self) {
         assert!(
-            self.max_stopping_length_traversals >= 0.0,
-            "Maximum number of stopping lengths must be larger than or equal to zero."
+            self.min_heating_fraction >= 0.0,
+            "Minimum heating fraction must be larger than or equal to zero."
         );
         assert!(
             self.max_propagation_distance >= 0.0,
@@ -443,7 +466,7 @@ impl PowerLawDistributionConfig {
 impl Default for PowerLawDistributionConfig {
     fn default() -> Self {
         PowerLawDistributionConfig {
-            max_stopping_length_traversals: Self::DEFAULT_MAX_STOPPING_LENGTH_TRAVERSALS,
+            min_heating_fraction: Self::DEFAULT_MIN_HEATING_FRACTION,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             continue_thermalized_beams: Self::DEFAULT_CONTINUE_THERMALIZED_BEAMS,
         }
