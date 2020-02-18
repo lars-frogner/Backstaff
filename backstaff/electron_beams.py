@@ -22,6 +22,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         's': 'Distance [Mm]',
         'initial_pitch_angle_cosine': 'Pitch angle cosine',
         'initial_pitch_angle': 'Pitch angle [deg]',
+        'electric_field_angle_cosine': 'Electric field angle cosine',
         'total_power': 'Total power [erg/s]',
         'total_power_density': r'Total power density [erg/s/cm$^3$]',
         'total_energy_density': r'Total energy density [erg/cm$^3$]',
