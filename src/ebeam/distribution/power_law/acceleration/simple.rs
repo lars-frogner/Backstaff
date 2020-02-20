@@ -28,8 +28,6 @@ pub struct SimplePowerLawAccelerationConfig {
     pub power_law_delta: feb,
     /// Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
-    /// Distributions with lower cut-off energies lower than this value are discarded [keV].
-    pub min_lower_cutoff_energy: feb,
     /// Distributions with an estimated thermalization distance smaller than this value
     /// are discarded [Mm].
     pub min_thermalization_distance: feb,
@@ -59,6 +57,9 @@ impl SimplePowerLawAccelerator {
     /// How many adjacent grid cells in each direction to include when
     /// computing the average electric field around the acceleration site.
     const ELECTRIC_FIELD_PROBING_SPAN: isize = 0;
+
+    /// Smallest mean electron energy that will be used to compute Coulomb logarithms [keV].
+    const MIN_COULOMB_LOG_MEAN_ENERGY: feb = 0.1;
 
     fn determine_total_power_density<G>(
         &self,
@@ -257,11 +258,7 @@ impl SimplePowerLawAccelerator {
             }
         }
 
-        if energy >= self.config.min_lower_cutoff_energy {
-            Some(energy)
-        } else {
-            None
-        }
+        Some(energy)
     }
 
     fn compute_total_energy_density(&self, total_power_density: feb) -> feb {
@@ -447,14 +444,17 @@ impl Accelerator for SimplePowerLawAccelerator {
                         None => return None,
                     };
 
+                    let coulomb_logarithm_energy =
+                        feb::max(mean_energy, Self::MIN_COULOMB_LOG_MEAN_ENERGY);
+
                     let electron_coulomb_logarithm =
                         PowerLawDistribution::compute_electron_coulomb_logarithm(
                             electron_density,
-                            mean_energy,
+                            coulomb_logarithm_energy,
                         );
                     let neutral_hydrogen_coulomb_logarithm =
                         PowerLawDistribution::compute_neutral_hydrogen_coulomb_logarithm(
-                            mean_energy,
+                            coulomb_logarithm_energy,
                         );
 
                     let ionization_fraction =
@@ -544,7 +544,6 @@ impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
     pub const DEFAULT_IGNORE_REJECTION: bool = false;
     pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
-    pub const DEFAULT_MIN_LOWER_CUTOFF_ENERGY: feb = 0.1; // [keV]
     pub const DEFAULT_MIN_THERMALIZATION_DISTANCE: feb = 0.3; // [Mm]
     pub const DEFAULT_MAX_PITCH_ANGLE: feb = 70.0; // [deg]
     pub const DEFAULT_MAX_ELECTRIC_FIELD_ANGLE: feb = 70.0; // [deg]
@@ -584,13 +583,6 @@ impl SimplePowerLawAccelerationConfig {
                 &|min_beam_en: feb| min_beam_en * U_E / U_T,
                 Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             );
-        let min_lower_cutoff_energy = reader
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "min_lower_cutoff_energy",
-                "min_cutoff_en",
-                &|min_cutoff_en| min_cutoff_en,
-                Self::DEFAULT_MIN_LOWER_CUTOFF_ENERGY,
-            );
         let min_thermalization_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "min_thermalization_distance",
@@ -617,7 +609,6 @@ impl SimplePowerLawAccelerationConfig {
             particle_energy_fraction,
             power_law_delta,
             min_total_power_density,
-            min_lower_cutoff_energy,
             min_thermalization_distance,
             max_pitch_angle,
             max_electric_field_angle,
@@ -642,10 +633,6 @@ impl SimplePowerLawAccelerationConfig {
         assert!(
             self.min_total_power_density >= 0.0,
             "Minimum total power density must be larger than or equal to zero."
-        );
-        assert!(
-            self.min_lower_cutoff_energy >= 0.0,
-            "Minimum lower cut-off energy must be larger than or equal to zero."
         );
         assert!(
             self.min_thermalization_distance >= 0.0,
@@ -681,7 +668,6 @@ impl Default for SimplePowerLawAccelerationConfig {
             particle_energy_fraction: Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
             power_law_delta: Self::DEFAULT_POWER_LAW_DELTA,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
-            min_lower_cutoff_energy: Self::DEFAULT_MIN_LOWER_CUTOFF_ENERGY,
             min_thermalization_distance: Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
             max_pitch_angle: Self::DEFAULT_MAX_PITCH_ANGLE,
             max_electric_field_angle: Self::DEFAULT_MAX_ELECTRIC_FIELD_ANGLE,
