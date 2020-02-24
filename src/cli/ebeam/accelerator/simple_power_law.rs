@@ -93,6 +93,39 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("min-temperature")
+                .long("min-temperature")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Distributions exceeding the maximum mass density are discarded if they have a\n\
+                     temperature smaller than this value [K]",
+                )
+                .takes_value(true)
+                .default_value("0.0"),
+        )
+        .arg(
+            Arg::with_name("max-mass-density")
+                .long("max-mass-density")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Distributions below the minimum temperature are discarded if they have a mass\n\
+                     density higher than this value [g/cm^3]",
+                )
+                .takes_value(true)
+                .default_value("inf"),
+        )
+        .arg(
+            Arg::with_name("inclusion-probability")
+                .long("inclusion-probability")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help("Accepted distributions will be included with this probability")
+                .takes_value(true)
+                .default_value("1.0"),
+        )
+        .arg(
             Arg::with_name("cutoff-energy-guess")
                 .long("cutoff-energy-guess")
                 .require_equals(true)
@@ -190,6 +223,22 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_MAX_ELECTRIC_FIELD_ANGLE,
     );
 
+    let min_temperature =
+        cli::get_value_from_required_parseable_argument(arguments, "min-temperature");
+
+    let max_mass_density = match arguments
+        .value_of("max-mass-density")
+        .expect("No value for argument with default.")
+    {
+        "inf" => SimplePowerLawAccelerationConfig::DEFAULT_MAX_MASS_DENSITY,
+        mass_density_str => mass_density_str
+            .parse()
+            .unwrap_or_else(|err| panic!("Could not parse value of max-mass-density: {}", err)),
+    };
+
+    let inclusion_probability =
+        cli::get_value_from_required_parseable_argument(arguments, "inclusion-probability");
+
     let initial_cutoff_energy_guess =
         cli::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
     let acceptable_root_finding_error =
@@ -205,6 +254,9 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         min_thermalization_distance,
         max_pitch_angle,
         max_electric_field_angle,
+        min_temperature,
+        max_mass_density,
+        inclusion_probability,
         initial_cutoff_energy_guess,
         acceptable_root_finding_error,
         max_root_finding_iterations,

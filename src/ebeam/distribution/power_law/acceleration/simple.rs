@@ -4,7 +4,7 @@ use super::super::super::super::accelerator::Accelerator;
 use super::super::super::super::detection::ReconnectionSiteDetector;
 use super::super::super::super::feb;
 use super::super::{PowerLawDistribution, PowerLawDistributionConfig, PowerLawDistributionData};
-use crate::constants::{KBOLTZMANN, KEV_TO_ERG, PI};
+use crate::constants::{INFINITY, KBOLTZMANN, KEV_TO_ERG, PI};
 use crate::geometry::{Dim3, Idx3, Point3, Vec3};
 use crate::grid::Grid3;
 use crate::interpolation::Interpolator3;
@@ -13,6 +13,7 @@ use crate::io::Verbose;
 use crate::plasma::ionization;
 use crate::tracing::stepping::{StepperFactory3, SteppingSense};
 use crate::units::solar::{U_E, U_L, U_L3, U_R, U_T};
+use rand::{self, Rng};
 use rayon::prelude::*;
 use std::io;
 use Dim3::{X, Y, Z};
@@ -36,6 +37,14 @@ pub struct SimplePowerLawAccelerationConfig {
     /// Distributions with electric field directions angled more than this away from
     /// the magnetic field axis are discarded [deg].
     pub max_electric_field_angle: feb,
+    /// Distributions exceeding the maximum mass density are discarded if they have a
+    /// temperature smaller than this value [K].
+    pub min_temperature: feb,
+    /// Distributions below the minimum temperature are discarded if they have a mass
+    /// density higher than this value [g/cm^3].
+    pub max_mass_density: feb,
+    /// Accepted distributions will be included with this probability.
+    pub inclusion_probability: feb,
     /// Initial guess to use when estimating lower cut-off energy [keV].
     pub initial_cutoff_energy_guess: feb,
     /// Target relative error when estimating lower cut-off energy.
@@ -350,11 +359,18 @@ impl Accelerator for SimplePowerLawAccelerator {
         let properties: Vec<_> = seeder
             .into_par_iter()
             .filter_map(|indices| {
-                let total_power_density = self.determine_total_power_density(snapshot, &indices);
-                if total_power_density < self.config.min_total_power_density {
+                if self.config.inclusion_probability < 1.0
+                    && rand::thread_rng().gen::<feb>() >= self.config.inclusion_probability
+                {
                     None
                 } else {
-                    Some((indices, total_power_density))
+                    let total_power_density =
+                        self.determine_total_power_density(snapshot, &indices);
+                    if total_power_density < self.config.min_total_power_density {
+                        None
+                    } else {
+                        Some((indices, total_power_density))
+                    }
                 }
             })
             .collect();
@@ -504,8 +520,10 @@ impl Accelerator for SimplePowerLawAccelerator {
                             stopping_ionized_column_depth,
                         );
 
-                    if estimated_thermalization_distance
-                        < self.config.min_thermalization_distance * U_L
+                    if (temperature < self.config.min_temperature
+                        && mass_density > self.config.max_mass_density)
+                        || estimated_thermalization_distance
+                            < self.config.min_thermalization_distance * U_L
                     {
                         None
                     } else {
@@ -547,6 +565,9 @@ impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_MIN_THERMALIZATION_DISTANCE: feb = 0.3; // [Mm]
     pub const DEFAULT_MAX_PITCH_ANGLE: feb = 70.0; // [deg]
     pub const DEFAULT_MAX_ELECTRIC_FIELD_ANGLE: feb = 70.0; // [deg]
+    pub const DEFAULT_MIN_TEMPERATURE: feb = 0.0; // [K]
+    pub const DEFAULT_MAX_MASS_DENSITY: feb = INFINITY; // [g/cm^3]
+    pub const DEFAULT_INCLUSION_PROBABILITY: feb = 1.0;
     pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 2.0; // [keV]
     pub const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
     pub const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
@@ -647,6 +668,18 @@ impl SimplePowerLawAccelerationConfig {
             "Maximum electric field angle must be in the range [0, 90)."
         );
         assert!(
+            self.min_temperature >= 0.0,
+            "Minimum temperature must be larger than or equal to zero."
+        );
+        assert!(
+            self.max_mass_density >= 0.0,
+            "Maximum mass density must be larger than or equal to zero."
+        );
+        assert!(
+            self.inclusion_probability >= 0.0 && self.inclusion_probability <= 1.0,
+            "Inclusion probability must be in the range [0, 1]."
+        );
+        assert!(
             self.initial_cutoff_energy_guess > 0.0,
             "Initial cut-off energy guess must be larger than zero."
         );
@@ -671,6 +704,9 @@ impl Default for SimplePowerLawAccelerationConfig {
             min_thermalization_distance: Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
             max_pitch_angle: Self::DEFAULT_MAX_PITCH_ANGLE,
             max_electric_field_angle: Self::DEFAULT_MAX_ELECTRIC_FIELD_ANGLE,
+            min_temperature: Self::DEFAULT_MIN_TEMPERATURE,
+            max_mass_density: Self::DEFAULT_MAX_MASS_DENSITY,
+            inclusion_probability: Self::DEFAULT_INCLUSION_PROBABILITY,
             initial_cutoff_energy_guess: Self::DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS,
             acceptable_root_finding_error: Self::DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR,
             max_root_finding_iterations: Self::DEFAULT_MAX_ROOT_FINDING_ITERATIONS,
