@@ -62,7 +62,14 @@ class ScalarField2:
                     linthresh=np.inf,
                     linscale=1.0,
                     cmap_name='viridis',
-                    cmap_bad_color='w'):
+                    cmap_bad_color='w',
+                    contour_levels=None,
+                    contour_colors='r',
+                    contour_alpha=1.0,
+                    log_contour=False,
+                    vmin_contour=None,
+                    vmax_contour=None,
+                    contour_cmap_name='viridis'):
 
         if symlog:
             norm = plotting.get_symlog_normalizer(vmin,
@@ -73,23 +80,42 @@ class ScalarField2:
             norm = plotting.get_normalizer(vmin, vmax, log=log)
 
         values = self.get_values()
-        return ax.imshow(
-            values.T,
-            norm=norm,
-            cmap=plotting.get_cmap(cmap_name, bad_color=cmap_bad_color),
-            interpolation='none',
-            extent=[
-                *(self.get_horizontal_bounds()
-                  [::-1 if invert_horizontal_lims else 1]),
-                *(self.get_vertical_bounds(negate=negate_vertical_coords)
-                  [::-1 if invert_vertical_lims else 1])
-            ],
-            aspect='auto')
+
+        extent = [
+            *(self.get_horizontal_bounds()
+              [::-1 if invert_horizontal_lims else 1]),
+            *(self.get_vertical_bounds(negate=negate_vertical_coords)
+              [::-1 if invert_vertical_lims else 1])
+        ]
+
+        im = ax.imshow(values.T,
+                       norm=norm,
+                       cmap=plotting.get_cmap(cmap_name,
+                                              bad_color=cmap_bad_color),
+                       interpolation='none',
+                       extent=extent,
+                       aspect='equal')
+
+        if contour_levels is not None:
+            ax.contourf(
+                np.linspace(*extent[:2], values.shape[0]),
+                np.linspace(*extent[2:], values.shape[1]),
+                values[:, ::(-1 if negate_vertical_coords else 1)].T,
+                levels=contour_levels,
+                norm=plotting.get_normalizer(vmin_contour,
+                                             vmax_contour,
+                                             log=log_contour),
+                cmap=plotting.get_cmap(contour_cmap_name),
+                #colors=contour_colors,
+                alpha=contour_alpha)
+
+        return im
 
 
 def plot_2d_scalar_field(field,
                          fig=None,
                          ax=None,
+                         figsize=None,
                          xlabel=None,
                          ylabel=None,
                          value_description=None,
@@ -99,7 +125,7 @@ def plot_2d_scalar_field(field,
                          **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots()
+        fig, ax = plotting.create_2d_subplots(figsize=figsize)
 
     im = field.add_to_plot(ax, **kwargs)
 
