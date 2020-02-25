@@ -172,20 +172,39 @@ impl SimplePowerLawAccelerator {
         magnetic_field_direction
     }
 
-    fn compute_propagation_sense(
+    fn compute_electric_field_angle_cosine(
         &self,
         magnetic_field_direction: &Vec3<fdt>,
         electric_field_direction: &Vec3<fdt>,
-    ) -> Option<(SteppingSense, feb)> {
-        let electric_field_angle_cosine =
-            feb::from(electric_field_direction.dot(magnetic_field_direction));
-        if feb::abs(electric_field_angle_cosine) < self.electric_field_angle_cosine_threshold {
-            None
-        } else if electric_field_angle_cosine > 0.0 {
-            Some((SteppingSense::Opposite, electric_field_angle_cosine))
-        } else {
-            Some((SteppingSense::Same, electric_field_angle_cosine))
-        }
+    ) -> feb {
+        feb::from(electric_field_direction.dot(magnetic_field_direction))
+    }
+
+    fn compute_power_density_partition(
+        &self,
+        total_power_density: feb,
+        electric_field_angle_cosine: feb,
+    ) -> (Option<feb>, Option<feb>) {
+        (
+            {
+                let backward_power_density =
+                    0.5 * (1.0 + electric_field_angle_cosine) * total_power_density;
+                if backward_power_density >= self.config.min_total_power_density {
+                    Some(backward_power_density)
+                } else {
+                    None
+                }
+            },
+            {
+                let forward_power_density =
+                    0.5 * (1.0 - electric_field_angle_cosine) * total_power_density;
+                if forward_power_density >= self.config.min_total_power_density {
+                    Some(forward_power_density)
+                } else {
+                    None
+                }
+            },
+        )
     }
 
     fn determine_temperature<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
@@ -377,7 +396,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         snapshot.drop_scalar_field("qjoule");
 
         if verbose.is_yes() {
-            println!("Computing propagation directions");
+            println!("Computing magnetic and electric field directions");
         }
         snapshot.cache_vector_field("b")?;
         snapshot.cache_vector_field("e")?;
@@ -393,18 +412,24 @@ impl Accelerator for SimplePowerLawAccelerator {
                             interpolator,
                             &acceleration_position,
                         );
-                        match self.compute_propagation_sense(
+                        let electric_field_angle_cosine = self.compute_electric_field_angle_cosine(
                             &magnetic_field_direction,
                             &electric_field_direction,
-                        ) {
-                            Some((propagation_sense, electric_field_angle_cosine)) => Some((
+                        );
+                        let partitioned_power_densities = self.compute_power_density_partition(
+                            total_power_density,
+                            electric_field_angle_cosine,
+                        );
+                        if let (None, None) = partitioned_power_densities {
+                            None
+                        } else {
+                            Some((
                                 indices,
                                 total_power_density,
                                 acceleration_position,
-                                propagation_sense,
+                                partitioned_power_densities,
                                 electric_field_angle_cosine,
-                            )),
-                            None => None,
+                            ))
                         }
                     }
                     None => None,
@@ -426,7 +451,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                     indices,
                     total_power_density,
                     acceleration_position,
-                    propagation_sense,
+                    partitioned_power_densities,
                     electric_field_angle_cosine,
                 )| {
                     let electron_density = Self::determine_electron_density(snapshot, &indices);
@@ -491,18 +516,6 @@ impl Accelerator for SimplePowerLawAccelerator {
                     let acceleration_volume =
                         self.determine_acceleration_volume(snapshot, &indices);
 
-                    let total_power = PowerLawDistribution::compute_total_power(
-                        total_power_density,
-                        acceleration_volume,
-                    );
-
-                    let heating_scale = PowerLawDistribution::compute_heating_scale(
-                        total_power,
-                        self.config.power_law_delta,
-                        initial_pitch_angle_cosine,
-                        lower_cutoff_energy,
-                    );
-
                     let stopping_ionized_column_depth =
                         PowerLawDistribution::compute_stopping_column_depth(
                             initial_pitch_angle_cosine,
@@ -527,29 +540,78 @@ impl Accelerator for SimplePowerLawAccelerator {
                     {
                         None
                     } else {
-                        let distribution_data = PowerLawDistributionData {
-                            delta: self.config.power_law_delta,
-                            initial_pitch_angle_cosine,
-                            total_power,
-                            total_power_density,
-                            lower_cutoff_energy,
-                            acceleration_position,
-                            acceleration_volume,
-                            propagation_sense,
-                            electron_coulomb_logarithm,
-                            neutral_hydrogen_coulomb_logarithm,
-                            heating_scale,
-                            stopping_ionized_column_depth,
-                            estimated_thermalization_distance,
-                            electric_field_angle_cosine,
-                        };
-                        Some(PowerLawDistribution::new(
-                            self.distribution_config.clone(),
-                            distribution_data,
-                        ))
+                        let mut distributions = Vec::with_capacity(2);
+                        if let (Some(backward_power_density), _) = partitioned_power_densities {
+                            let backward_power = PowerLawDistribution::compute_total_power(
+                                backward_power_density,
+                                acceleration_volume,
+                            );
+
+                            let heating_scale = PowerLawDistribution::compute_heating_scale(
+                                backward_power,
+                                self.config.power_law_delta,
+                                initial_pitch_angle_cosine,
+                                lower_cutoff_energy,
+                            );
+                            let distribution_data = PowerLawDistributionData {
+                                delta: self.config.power_law_delta,
+                                initial_pitch_angle_cosine,
+                                total_power: backward_power,
+                                total_power_density: backward_power_density,
+                                lower_cutoff_energy,
+                                acceleration_position: acceleration_position.clone(),
+                                acceleration_volume,
+                                propagation_sense: SteppingSense::Opposite,
+                                electron_coulomb_logarithm,
+                                neutral_hydrogen_coulomb_logarithm,
+                                heating_scale,
+                                stopping_ionized_column_depth,
+                                estimated_thermalization_distance,
+                                electric_field_angle_cosine,
+                            };
+                            distributions.push(PowerLawDistribution::new(
+                                self.distribution_config.clone(),
+                                distribution_data,
+                            ));
+                        }
+                        if let (_, Some(forward_power_density)) = partitioned_power_densities {
+                            let forward_power = PowerLawDistribution::compute_total_power(
+                                forward_power_density,
+                                acceleration_volume,
+                            );
+
+                            let heating_scale = PowerLawDistribution::compute_heating_scale(
+                                forward_power,
+                                self.config.power_law_delta,
+                                initial_pitch_angle_cosine,
+                                lower_cutoff_energy,
+                            );
+                            let distribution_data = PowerLawDistributionData {
+                                delta: self.config.power_law_delta,
+                                initial_pitch_angle_cosine,
+                                total_power: forward_power,
+                                total_power_density: forward_power_density,
+                                lower_cutoff_energy,
+                                acceleration_position,
+                                acceleration_volume,
+                                propagation_sense: SteppingSense::Same,
+                                electron_coulomb_logarithm,
+                                neutral_hydrogen_coulomb_logarithm,
+                                heating_scale,
+                                stopping_ionized_column_depth,
+                                estimated_thermalization_distance,
+                                electric_field_angle_cosine,
+                            };
+                            distributions.push(PowerLawDistribution::new(
+                                self.distribution_config.clone(),
+                                distribution_data,
+                            ));
+                        }
+                        Some(distributions)
                     }
                 },
             )
+            .flatten()
             .collect();
 
         Ok((distributions, ()))
