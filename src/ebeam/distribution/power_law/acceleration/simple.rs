@@ -726,8 +726,8 @@ impl SimplePowerLawAccelerationConfig {
             "Maximum pitch angle must be in the range [0, 90)."
         );
         assert!(
-            self.max_electric_field_angle >= 0.0 && self.max_electric_field_angle < 90.0,
-            "Maximum electric field angle must be in the range [0, 90)."
+            self.max_electric_field_angle >= 0.0 && self.max_electric_field_angle <= 90.0,
+            "Maximum electric field angle must be in the range [0, 90]."
         );
         assert!(
             self.min_temperature >= 0.0,
