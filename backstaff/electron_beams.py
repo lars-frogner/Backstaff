@@ -19,6 +19,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'x': r'$x$ [Mm]',
         'y': r'$y$ [Mm]',
         'z': 'Height [Mm]',
+        'z0': 'Initial height [Mm]',
         's': 'Distance [Mm]',
         'initial_pitch_angle_cosine': 'Pitch angle cosine',
         'initial_pitch_angle': 'Pitch angle [deg]',
@@ -29,7 +30,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'lower_cutoff_energy': 'Lower cut-off energy [keV]',
         'acceleration_volume': r'Acceleration site volume [cm$^3$]',
         'estimated_thermalization_distance':
-        'estimated thermalization distance [Mm]',
+        'Estimated thermalization distance [Mm]',
         'total_propagation_distance': 'Total propagation distance [Mm]',
         'acceleration_height': 'Acceleration site height [Mm]',
         'depletion_height': 'Depletion height [Mm]',
