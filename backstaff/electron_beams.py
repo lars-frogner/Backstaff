@@ -125,6 +125,13 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     def get_number_of_beams(self):
         return self.number_of_beams
 
+    def compute_number_of_sites(self):
+        return np.unique(np.stack(
+            (self.fixed_scalar_values['x0'], self.fixed_scalar_values['y0'],
+             self.fixed_scalar_values['z0']),
+            axis=1),
+                         axis=0).shape[0]
+
     def get_acceleration_data(self, acceleration_data_type):
         return self.acceleration_data[acceleration_data_type]
 
@@ -350,6 +357,26 @@ class AccelerationSites(field_lines.FieldLineSet3):
 
     def get_number_of_sites(self):
         return self.number_of_sites
+
+
+def find_beams_starting_in_coords(x_coords,
+                                  y_coords,
+                                  z_coords,
+                                  propagation_senses,
+                                  fixed_scalar_values,
+                                  max_propagation_sense_diff=1e-6,
+                                  max_distance=1e-5):
+    return [
+        i for i, (x, y, z, s) in enumerate(
+            zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
+                fixed_scalar_values['z0'],
+                fixed_scalar_values['propagation_sense']))
+        if np.any(
+            np.logical_and(
+                (x - x_coords)**2 + (y - y_coords)**2 +
+                (z - z_coords)**2 <= max_distance**2,
+                np.abs(s - propagation_senses) < max_propagation_sense_diff))
+    ]
 
 
 def find_beams_propagating_longer_than_distance(min_distance,
