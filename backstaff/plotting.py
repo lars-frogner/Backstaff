@@ -454,10 +454,10 @@ CUSTOM_COLORMAPS = {
         '',
         np.vstack(
             (plt.get_cmap('Blues')(np.linspace(1, 0,
-                                               128)), [[1.0, 1.0, 1.0, 1.0]],
-             plt.get_cmap('Oranges')(np.linspace(0, 1, 128)))),
+                                               256)), [[1.0, 1.0, 1.0, 1.0]],
+             plt.get_cmap('Oranges')(np.linspace(0, 1, 256)))),
         bad_color='white',
-        N=257),
+        N=513),
     'afternoon':
     define_linear_segmented_colormap(
         '', ['#8C0004', '#C8000A', '#E8A735', '#E2C499']),
@@ -500,6 +500,6 @@ CUSTOM_COLORMAPS = {
 }
 
 CB_COLOR_CYCLE = [
-    '#984ea3', '#377eb8', '#ff7f00', '#4daf4a', '#a65628', '#f781bf',
-    '#999999', '#e41a1c', '#dede00'
+    '#dc143c', '#377eb8', '#ff7f00', '#4daf4a', '#984ea3', '#a65628',
+    '#f781bf', '#999999', '#dede00'
 ]
