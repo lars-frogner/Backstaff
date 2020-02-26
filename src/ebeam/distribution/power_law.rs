@@ -76,6 +76,8 @@ pub struct PowerLawDistributionProperties {
     estimated_thermalization_distance: feb,
     /// Cosine of the angle between the electric and magnetic field.
     electric_field_angle_cosine: feb,
+    /// Direction of propagation of the electrons relative to the magnetic field direction (+1 or -1).
+    propagation_sense: feb,
 }
 
 /// Property values of each individual distribution in a set of power-law distributions.
@@ -87,6 +89,7 @@ pub struct PowerLawDistributionPropertiesCollection {
     acceleration_volumes: Vec<feb>,
     estimated_thermalization_distances: Vec<feb>,
     electric_field_angle_cosines: Vec<feb>,
+    propagation_senses: Vec<feb>,
 }
 
 /// A non-thermal power-law distribution over electron energy,
@@ -246,7 +249,7 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
                             data.acceleration_volume,
                             (
                                 data.estimated_thermalization_distance,
-                                data.electric_field_angle_cosine,
+                                (data.electric_field_angle_cosine, data.propagation_sense),
                             ),
                         ),
                     ),
@@ -261,11 +264,11 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
 
         let (
             lower_cutoff_energies,
-            (
-                acceleration_volumes,
-                (estimated_thermalization_distances, electric_field_angle_cosines),
-            ),
+            (acceleration_volumes, (estimated_thermalization_distances, nested_tuples)),
         ): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = nested_tuples.into_par_iter().unzip();
+
+        let (electric_field_angle_cosines, propagation_senses): (Vec<_>, Vec<_>) =
+            nested_tuples.into_par_iter().unzip();
 
         self.total_powers.par_extend(total_powers);
         self.initial_pitch_angle_cosines
@@ -276,6 +279,7 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
             .par_extend(estimated_thermalization_distances);
         self.electric_field_angle_cosines
             .par_extend(electric_field_angle_cosines);
+        self.propagation_senses.par_extend(propagation_senses);
     }
 }
 
@@ -302,6 +306,10 @@ impl Distribution for PowerLawDistribution {
             acceleration_volume: self.data.acceleration_volume,
             estimated_thermalization_distance: self.data.estimated_thermalization_distance / U_L,
             electric_field_angle_cosine: self.data.electric_field_angle_cosine,
+            propagation_sense: match self.data.propagation_sense {
+                SteppingSense::Same => 1.0,
+                SteppingSense::Opposite => -1.0,
+            },
         }
     }
 
