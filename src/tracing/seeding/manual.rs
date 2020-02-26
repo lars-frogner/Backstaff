@@ -67,13 +67,13 @@ impl ManualSeeder3 {
                                     })
                                     .collect::<io::Result<Vec<ftr>>>()
                                     .map(|coords| {
-                                        if coords.len() == 3 {
+                                        if coords.len() >= 3 {
                                             Ok(Point3::new(coords[0], coords[1], coords[2]))
                                         } else {
                                             Err(io::Error::new(
                                                 io::ErrorKind::InvalidData,
                                                 format!(
-                                                    "Invalid number of coordinates in input file line: {}",
+                                                    "Too few coordinates in input file line: {}",
                                                     line
                                                 ),
                                             ))
