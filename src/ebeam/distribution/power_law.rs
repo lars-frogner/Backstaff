@@ -230,6 +230,7 @@ impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
             "electric_field_angle_cosine".to_string(),
             self.electric_field_angle_cosines,
         );
+        scalar_values.insert("propagation_sense".to_string(), self.propagation_senses);
     }
 }
 
