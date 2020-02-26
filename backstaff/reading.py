@@ -116,62 +116,71 @@ def __parse_custom_field_line_binary_file(f):
         for _ in range(number_of_varying_vector_quantities)
     ]
 
-    split_indices_of_field_line_elements = np.fromfile(
-        f, dtype=np.dtype('<u8'), count=number_of_field_lines, sep='')[1:]
+    if number_of_field_line_elements > 0:
+        split_indices_of_field_line_elements = np.fromfile(
+            f, dtype=np.dtype('<u8'), count=number_of_field_lines, sep='')[1:]
 
-    fixed_scalar_values_shape = (number_of_fixed_scalar_quantities,
-                                 number_of_field_lines)
-    fixed_scalar_values = np.fromfile(
-        f,
-        dtype=float_dtype,
-        count=np.product(fixed_scalar_values_shape, dtype=int),
-        sep='').reshape(fixed_scalar_values_shape)
+    if number_of_fixed_scalar_quantities > 0:
+        fixed_scalar_values_shape = (number_of_fixed_scalar_quantities,
+                                     number_of_field_lines)
+        fixed_scalar_values = np.fromfile(
+            f,
+            dtype=float_dtype,
+            count=np.product(fixed_scalar_values_shape, dtype=int),
+            sep='').reshape(fixed_scalar_values_shape)
 
-    fixed_vector_values_shape = (number_of_fixed_vector_quantities,
-                                 number_of_field_lines, 3)
-    fixed_vector_values = np.fromfile(
-        f,
-        dtype=float_dtype,
-        count=np.product(fixed_vector_values_shape, dtype=int),
-        sep='').reshape(fixed_vector_values_shape)
+    if number_of_fixed_vector_quantities > 0:
+        fixed_vector_values_shape = (number_of_fixed_vector_quantities,
+                                     number_of_field_lines, 3)
+        fixed_vector_values = np.fromfile(
+            f,
+            dtype=float_dtype,
+            count=np.product(fixed_vector_values_shape, dtype=int),
+            sep='').reshape(fixed_vector_values_shape)
 
-    varying_scalar_values_shape = (number_of_varying_scalar_quantities,
-                                   number_of_field_line_elements)
-    varying_scalar_values = np.fromfile(
-        f,
-        dtype=float_dtype,
-        count=np.product(varying_scalar_values_shape, dtype=int),
-        sep='').reshape(varying_scalar_values_shape)
+    if number_of_varying_scalar_quantities > 0:
+        varying_scalar_values_shape = (number_of_varying_scalar_quantities,
+                                       number_of_field_line_elements)
+        varying_scalar_values = np.fromfile(
+            f,
+            dtype=float_dtype,
+            count=np.product(varying_scalar_values_shape, dtype=int),
+            sep='').reshape(varying_scalar_values_shape)
 
-    varying_vector_values_shape = (number_of_varying_vector_quantities,
-                                   number_of_field_line_elements, 3)
-    varying_vector_values = np.fromfile(
-        f,
-        dtype=float_dtype,
-        count=np.product(varying_vector_values_shape, dtype=int),
-        sep='').reshape(varying_vector_values_shape)
+    if number_of_varying_vector_quantities > 0:
+        varying_vector_values_shape = (number_of_varying_vector_quantities,
+                                       number_of_field_line_elements, 3)
+        varying_vector_values = np.fromfile(
+            f,
+            dtype=float_dtype,
+            count=np.product(varying_vector_values_shape, dtype=int),
+            sep='').reshape(varying_vector_values_shape)
 
     fixed_scalar_values = dict(
         zip(fixed_scalar_names,
             (fixed_scalar_values[n, :]
-             for n in range(fixed_scalar_values.shape[0]))))
+             for n in range(fixed_scalar_values.shape[0])
+             ))) if number_of_fixed_scalar_quantities > 0 else {}
 
     fixed_vector_values = dict(
         zip(fixed_vector_names,
             (fixed_vector_values[n, :, :]
-             for n in range(fixed_vector_values.shape[0]))))
+             for n in range(fixed_vector_values.shape[0])
+             ))) if number_of_fixed_vector_quantities > 0 else {}
 
     varying_scalar_values = dict(
         zip(varying_scalar_names,
             (np.split(varying_scalar_values[n, :],
                       split_indices_of_field_line_elements)
-             for n in range(varying_scalar_values.shape[0]))))
+             for n in range(varying_scalar_values.shape[0])
+             ))) if number_of_varying_scalar_quantities > 0 else {}
 
     varying_vector_values = dict(
         zip(varying_vector_names,
             (np.split(varying_vector_values[n, :, :],
                       split_indices_of_field_line_elements,
-                      axis=0) for n in range(varying_vector_values.shape[0]))))
+                      axis=0) for n in range(varying_vector_values.shape[0])
+             ))) if number_of_varying_vector_quantities > 0 else {}
 
     return domain_bounds, \
         int(number_of_field_lines), \
