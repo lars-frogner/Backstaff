@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.special as special
 import scipy.integrate as integrate
+import scipy.interpolate as interpolate
 try:
     import backstaff.units as units
 except ModuleNotFoundError:
@@ -204,6 +205,62 @@ class Atmosphere:
                           temperatures,
                           electron_densities,
                           start_depth=start_depth)
+
+    @staticmethod
+    def from_VAL3C_atmosphere(atmosphere_path, number_of_points=500):
+
+        with open(atmosphere_path, 'r') as f:
+            names = f.readline().split()
+            _units = f.readline().split()
+            values_arr = np.loadtxt(f)
+
+        values = {name: values_arr[i, :] for i, name in enumerate(names)}
+
+        depths = -values['h']*1e5
+        mass_densities = values['sigma']
+        temperatures = values['T']
+        electron_densities = values['n_e']
+
+        resample = lambda arr: 10**interpolate.interp1d(
+            np.linspace(0, 1, arr.size), np.log10(arr), kind='linear')(
+                np.linspace(0, 1, number_of_points))
+
+        new_depths = resample(depths)
+
+        return Atmosphere(new_depths,
+                          new_depths - new_depths[0],
+                          resample(mass_densities),
+                          resample(temperatures),
+                          resample(electron_densities),
+                          start_depth=None)
+
+    @staticmethod
+    def from_FALC_atmosphere(atmosphere_path,
+                             number_of_points=500,
+                             atmosphere_start_depth=None):
+
+        with open(atmosphere_path, 'r') as f:
+            values_arr = np.loadtxt(f)
+
+        depths = -values_arr[:, 0]*1e5
+        mass_densities = values_arr[:, 10]
+        temperatures = values_arr[:, 3]
+        electron_densities = values_arr[:, 7]
+
+        new_depths = np.linspace(
+            depths[0] if atmosphere_start_depth is None else
+            atmosphere_start_depth*units.U_L, depths[-1], number_of_points)
+
+        resample = lambda arr: 10**interpolate.interp1d(
+            depths, np.log10(arr), kind='linear', fill_value='extrapolate')(
+                new_depths)
+
+        return Atmosphere(new_depths,
+                          new_depths - new_depths[0],
+                          resample(mass_densities),
+                          resample(temperatures),
+                          resample(electron_densities),
+                          start_depth=None)
 
     def __init__(self,
                  depths,
