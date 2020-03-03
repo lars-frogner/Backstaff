@@ -224,6 +224,7 @@ class FieldLineSet3:
                                        do_conversion=True,
                                        included_field_lines_finder=None,
                                        included_points_finder=None,
+                                       stride=1,
                                        **kwargs):
 
         values_x, values_y, values_color = self.get_scalar_values(
@@ -231,7 +232,8 @@ class FieldLineSet3:
             value_name_y,
             value_name_color,
             included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder)
+            included_points_finder=included_points_finder,
+            varying_stride=stride)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -450,9 +452,14 @@ class FieldLineSet3:
             self,
             value_name,
             included_field_line_indices=None,
-            included_points_finder=None):
+            included_points_finder=None,
+            stride=1):
         if included_field_line_indices is None:
-            values = self.varying_scalar_values[value_name]
+            values = self.varying_scalar_values[
+                value_name] if stride is 1 else [
+                    values[::stride]
+                    for values in self.varying_scalar_values[value_name]
+                ]
         else:
             values = [
                 self.varying_scalar_values[value_name][i]
@@ -476,7 +483,8 @@ class FieldLineSet3:
     def get_scalar_values(self,
                           *value_names,
                           included_field_lines_finder=None,
-                          included_points_finder=None):
+                          included_points_finder=None,
+                          varying_stride=1):
         assert len(value_names) > 0 and value_names[0] is not None
 
         included_field_line_indices = None if included_field_lines_finder is None else included_field_lines_finder(
@@ -490,12 +498,14 @@ class FieldLineSet3:
         else:
             assert self.has_varying_scalar_values(
                 value_name), 'No values for value name {}'.format(value_name)
-            getter = self.get_concatenated_varying_scalar_values
+            getter = lambda value_name, included_field_line_indices, included_points_finder: self.get_concatenated_varying_scalar_values(
+                value_name,
+                included_field_line_indices,
+                included_points_finder,
+                stride=varying_stride)
 
         return tuple([(None if value_name is None else getter(
-            value_name,
-            included_field_line_indices=included_field_line_indices,
-            included_points_finder=included_points_finder))
+            value_name, included_field_line_indices, included_points_finder))
                       for value_name in value_names])
 
     def has_param(self, param_name):
