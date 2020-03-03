@@ -20,18 +20,19 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'y': r'$y$ [Mm]',
         'z': 'Height [Mm]',
         'z0': 'Initial height [Mm]',
-        's': 'Distance [Mm]',
-        'initial_pitch_angle_cosine': 'Pitch angle cosine',
-        'initial_pitch_angle': 'Pitch angle [deg]',
+        's': r'$s$ [Mm]',
+        'initial_pitch_angle_cosine': r'$\mu_0$',
+        'initial_pitch_angle': r'$\beta_0$ [deg]',
         'electric_field_angle_cosine': 'Electric field angle cosine',
         'total_power': 'Total power [erg/s]',
         'total_power_density': r'Total power density [erg/s/cm$^3$]',
         'total_energy_density': r'Total energy density [erg/cm$^3$]',
-        'lower_cutoff_energy': 'Lower cut-off energy [keV]',
+        'lower_cutoff_energy': r'$E_\mathrm{{c}}$ [keV]',
         'acceleration_volume': r'Acceleration site volume [cm$^3$]',
         'estimated_thermalization_distance':
-        'Estimated thermalization distance [Mm]',
-        'total_propagation_distance': 'Total propagation distance [Mm]',
+        r'$\tilde{{s}}_\mathrm{{dep}}$ [Mm]',
+        'total_propagation_distance': r'$s_\mathrm{{dep}}$ [Mm]',
+        'residual_factor': r'$r$',
         'acceleration_height': 'Acceleration site height [Mm]',
         'depletion_height': 'Depletion height [Mm]',
         'beam_electron_fraction': 'Beam electrons relative to total electrons',
@@ -43,13 +44,14 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'beam_flux': r'Energy flux [erg/s/cm$^2$]',
         'conduction_flux': r'Energy flux [erg/s/cm$^2$]',
         'remaining_power': 'Remaining power [erg/s]',
-        'r': r'Mass density [g/cm$^3$]',
-        'tg': 'Temperature [K]',
-        'nel': r'Electron density [electrons/cm$^3$]',
-        'krec': 'Reconnection factor [Bifrost units]',
+        'relative_cumulative_power': r'$\mathcal{{E}}/P_\mathrm{{beam}}$',
+        'r': r'$\rho$ [g/cm$^3$]',
+        'tg': r'$T$ [K]',
+        'nel': r'$n_\mathrm{{e}}$ [electrons/cm$^3$]',
+        'krec': r'$K$ [Bifrost units]',
         'qspitz': r'Power density change [erg/s/cm$^3$]',
-        'r0': r'Mass density [g/cm$^3$]',
-        'tg0': 'Temperature [K]',
+        'r0': r'$\rho$ [g/cm$^3$]',
+        'tg0': r'$T$ [K]',
     }
 
     VALUE_UNIT_CONVERTERS = {
@@ -268,6 +270,19 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 self.varying_scalar_values['conduction_flux'][
                     i] *= -self.get_param(
                         'dense_step_length')*units.U_L*units.U_E/units.U_T
+
+        if 'cumulative_power' in derived_quantities:
+            self.varying_scalar_values['cumulative_power'] = [
+                np.cumsum(self.varying_scalar_values['deposited_power'][i])
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if 'relative_cumulative_power' in derived_quantities:
+            self.varying_scalar_values['relative_cumulative_power'] = [
+                np.cumsum(self.varying_scalar_values['deposited_power'][i])/
+                self.fixed_scalar_values['total_power'][i]
+                for i in range(self.get_number_of_beams())
+            ]
 
         if 'remaining_power' in derived_quantities:
             self.varying_scalar_values['remaining_power'] = [
