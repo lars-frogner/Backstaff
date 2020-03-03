@@ -21,7 +21,7 @@ use rayon::prelude::*;
 pub struct PowerLawDistributionConfig {
     /// Distributions are considered thermalized when the heating has been reduced to
     /// this fraction of the initial heating.
-    pub min_heating_fraction: feb,
+    pub min_residual_factor: feb,
     /// Maximum distance the distribution can propagate before propagation should be terminated [Mm].
     pub max_propagation_distance: ftr,
     /// Whether to keep propagating beams even after they are considered thermalized.
@@ -191,13 +191,13 @@ impl PowerLawDistribution {
 
     fn estimate_depletion_distance(
         delta: feb,
-        min_heating_fraction: feb,
+        min_residual_factor: feb,
         total_hydrogen_density: feb,
         effective_coulomb_logarithm: feb,
         electron_coulomb_logarithm: feb,
         stopping_ionized_column_depth: feb,
     ) -> feb {
-        feb::powf(min_heating_fraction, -2.0 / delta)
+        feb::powf(min_residual_factor, -2.0 / delta)
             * stopping_ionized_column_depth
             * electron_coulomb_logarithm
             / (effective_coulomb_logarithm * total_hydrogen_density)
@@ -388,7 +388,7 @@ impl Distribution for PowerLawDistribution {
         let equivalent_ionized_column_depth_ratio =
             new_equivalent_ionized_column_depth / self.data.stopping_ionized_column_depth;
 
-        let heating_fraction = feb::powf(
+        let residual_factor = feb::powf(
             equivalent_ionized_column_depth_ratio,
             -0.5 * self.data.delta,
         );
@@ -398,11 +398,11 @@ impl Distribution for PowerLawDistribution {
             * beta
             * total_hydrogen_density
             * effective_coulomb_logarithm
-            * heating_fraction
+            * residual_factor
             * step_length;
 
         let depletion_status = if self.config.continue_thermalized_beams
-            || heating_fraction > self.config.min_heating_fraction
+            || residual_factor > self.config.min_residual_factor
         {
             DepletionStatus::Undepleted
         } else {
@@ -421,6 +421,7 @@ impl Distribution for PowerLawDistribution {
         let deposited_power_density = deposited_power / volume;
 
         PropagationResult {
+            residual_factor,
             deposited_power,
             deposited_power_density,
             deposition_position,
@@ -430,7 +431,7 @@ impl Distribution for PowerLawDistribution {
 }
 
 impl PowerLawDistributionConfig {
-    pub const DEFAULT_MIN_HEATING_FRACTION: feb = 1e-10;
+    pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-10;
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
     pub const DEFAULT_CONTINUE_THERMALIZED_BEAMS: bool = false;
 
@@ -438,12 +439,12 @@ impl PowerLawDistributionConfig {
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
-        let min_heating_fraction = reader
+        let min_residual_factor = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "min_heating_fraction",
+                "min_residual_factor",
                 "min_heat_frac",
                 &|min_heat_frac: feb| min_heat_frac,
-                Self::DEFAULT_MIN_HEATING_FRACTION,
+                Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             );
         let max_propagation_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
@@ -453,7 +454,7 @@ impl PowerLawDistributionConfig {
                 Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             );
         PowerLawDistributionConfig {
-            min_heating_fraction,
+            min_residual_factor,
             max_propagation_distance,
             continue_thermalized_beams: Self::DEFAULT_CONTINUE_THERMALIZED_BEAMS,
         }
@@ -462,8 +463,8 @@ impl PowerLawDistributionConfig {
     /// Panics if any of the configuration parameter values are invalid.
     fn validate(&self) {
         assert!(
-            self.min_heating_fraction >= 0.0,
-            "Minimum heating fraction must be larger than or equal to zero."
+            self.min_residual_factor >= 0.0,
+            "Minimum residual factor must be larger than or equal to zero."
         );
         assert!(
             self.max_propagation_distance >= 0.0,
@@ -475,7 +476,7 @@ impl PowerLawDistributionConfig {
 impl Default for PowerLawDistributionConfig {
     fn default() -> Self {
         PowerLawDistributionConfig {
-            min_heating_fraction: Self::DEFAULT_MIN_HEATING_FRACTION,
+            min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             continue_thermalized_beams: Self::DEFAULT_CONTINUE_THERMALIZED_BEAMS,
         }

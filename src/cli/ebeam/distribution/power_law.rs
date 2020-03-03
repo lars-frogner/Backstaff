@@ -18,8 +18,8 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .help_message("Print help information")
         .arg(
-            Arg::with_name("min-heating-fraction")
-                .long("min-heating-fraction")
+            Arg::with_name("min-residual-factor")
+                .long("min-residual-factor")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
@@ -53,13 +53,13 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
     arguments: &ArgMatches,
     reader: &SnapshotReader3<G>,
 ) -> PowerLawDistributionConfig {
-    let min_heating_fraction = cli::get_value_from_param_file_argument_with_default(
+    let min_residual_factor = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "min-heating-fraction",
+        "min-residual-factor",
         "min_heat_frac",
         &|min_heat_frac| min_heat_frac,
-        PowerLawDistributionConfig::DEFAULT_MIN_HEATING_FRACTION,
+        PowerLawDistributionConfig::DEFAULT_MIN_RESIDUAL_FACTOR,
     );
     let max_propagation_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
@@ -72,7 +72,7 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
     let continue_thermalized_beams = arguments.is_present("continue-thermalized-beams");
 
     PowerLawDistributionConfig {
-        min_heating_fraction,
+        min_residual_factor,
         max_propagation_distance,
         continue_thermalized_beams,
     }

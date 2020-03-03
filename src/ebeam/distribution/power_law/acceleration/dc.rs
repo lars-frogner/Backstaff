@@ -293,7 +293,7 @@ impl Accelerator for DCPowerLawAccelerator {
                     let estimated_thermalization_distance =
                         PowerLawDistribution::estimate_depletion_distance(
                             self.config.power_law_delta,
-                            self.distribution_config.min_heating_fraction,
+                            self.distribution_config.min_residual_factor,
                             total_hydrogen_density,
                             effective_coulomb_logarithm,
                             electron_coulomb_logarithm,
