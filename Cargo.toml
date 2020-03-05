@@ -8,7 +8,7 @@ default-run = "backstaff"
 
 [features]
 default = ["cli"]
-cli = ["clap"]
+cli = ["chrono", "clap"]
 tracing = []
 ebeam = []
 
@@ -29,6 +29,7 @@ serde-pickle = "0.5.1"
 special = "0.8.1"
 
 # Dependencies for cli
+chrono = { version = "0.4.10", optional = true }
 clap = { version = "2.33.0", optional = true }
 
 [dev-dependencies]
