@@ -156,11 +156,13 @@ def add_textbox(ax, text, loc, pad=0.4):
     ax.add_artist(textbox)
 
 
-def render(fig, tight_layout=True, output_path=None):
+def render(fig, tight_layout=True, output_path=None, force_show=False):
     if tight_layout:
         fig.tight_layout()
     if output_path is not None:
         plt.savefig(output_path)
+        if force_show:
+            plt.show()
     else:
         plt.show()
 
