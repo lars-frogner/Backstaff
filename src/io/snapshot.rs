@@ -95,7 +95,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
             &mut variable_descriptors,
         )?;
 
-        Ok(SnapshotReader3 {
+        Ok(Self {
             config,
             snap_path,
             aux_path,
@@ -108,9 +108,29 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
         })
     }
 
+    /// Returns the path of the parameter (.idl) file.
+    pub fn parameter_file_path(&self) -> &Path {
+        self.config.param_file_path.as_path()
+    }
+
+    /// Returns the path of the primary variable (.snap) file.
+    pub fn primary_variable_file_path(&self) -> &Path {
+        self.snap_path.as_path()
+    }
+
+    /// Returns the path of the auxiliary variable (.aux) file.
+    pub fn auxiliary_variable_file_path(&self) -> &Path {
+        self.aux_path.as_path()
+    }
+
     /// Returns a reference to the parameter file.
     pub fn parameter_file(&self) -> &ParameterFile {
         &self.parameter_file
+    }
+
+    /// Returns whether the given variable is present in the snapshot.
+    pub fn has_variable(&self, name: &str) -> bool {
+        self.variable_descriptors.contains_key(name)
     }
 
     /// Wraps the reader in a snapshot cacher structure.
@@ -141,6 +161,32 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> {
     /// Returns the names of the auxiliary variables of the snapshot.
     pub fn auxiliary_variable_names(&self) -> &[String] {
         &self.auxiliary_variable_names
+    }
+
+    /// Updates the reader to reflect the current content of the files.
+    pub fn reread(&mut self) -> io::Result<()> {
+        let Self {
+            snap_path,
+            aux_path,
+            parameter_file,
+            parameter_set,
+            grid,
+            primary_variable_names,
+            auxiliary_variable_names,
+            variable_descriptors,
+            ..
+        } = Self::new(self.config.clone())?;
+
+        self.snap_path = snap_path;
+        self.aux_path = aux_path;
+        self.parameter_file = parameter_file;
+        self.parameter_set = parameter_set;
+        self.grid = grid;
+        self.primary_variable_names = primary_variable_names;
+        self.auxiliary_variable_names = auxiliary_variable_names;
+        self.variable_descriptors = variable_descriptors;
+
+        Ok(())
     }
 
     /// Reads the specified primary or auxiliary 3D variable from the output files.
