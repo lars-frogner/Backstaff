@@ -1,6 +1,7 @@
 //! Command line interface for actions related to snapshots.
 
 mod inspect;
+mod modify_aux;
 mod resample;
 mod slice;
 
@@ -58,7 +59,8 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(inspect::create_inspect_subcommand())
         .subcommand(slice::create_slice_subcommand())
-        .subcommand(resample::create_resample_subcommand());
+        .subcommand(resample::create_resample_subcommand())
+        .subcommand(modify_aux::create_modify_aux_subcommand());
 
     #[cfg(feature = "tracing")]
     let app = app.subcommand(crate::cli::tracing::create_trace_subcommand());
@@ -121,6 +123,9 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
             }
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
                 resample::run_resample_subcommand(resample_arguments, snapshot.reader());
+            }
+            if let Some(modify_aux_arguments) = arguments.subcommand_matches("modify_aux") {
+                modify_aux::run_modify_aux_subcommand(modify_aux_arguments, snapshot.reader_mut());
             }
             #[cfg(feature = "tracing")]
             {
