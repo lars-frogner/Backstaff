@@ -3,7 +3,6 @@
 use crate::field;
 use crate::grid::Grid3;
 use crate::io::snapshot::{self, fdt, SnapshotReader3};
-use crate::units::solar::U_L3;
 use clap::{App, Arg, ArgMatches, SubCommand};
 use ndarray::prelude::*;
 use rayon::prelude::*;
@@ -14,7 +13,11 @@ use std::path::Path;
 pub fn create_compute_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("compute")
         .about("Compute new auxiliary quantities")
-        .long_about("Compute new auxiliary quantities.")
+        .long_about(
+            "Compute new auxiliary quantities.\n\
+             Available quantities:\n\
+             ubeam - Volume integrated beam heating [energy/time in Bifrost units]",
+        )
         .arg(
             Arg::with_name("quantities")
                 .long("quantities")
@@ -115,7 +118,7 @@ fn compute_beam_power_change<G: Grid3<fdt>>(
         .enumerate()
         .for_each(|(idx, value)| {
             let indices = field::compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
-            *value *= grid.grid_cell_volume(&indices) * (U_L3 as fdt);
+            *value *= grid.grid_cell_volume(&indices);
         });
 
     ubeam_values
