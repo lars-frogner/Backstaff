@@ -660,16 +660,26 @@ class FieldLineSet3:
                               alpha=alpha,
                               zorder=zorder)
         else:
-            return ax.plot(
-                bin_edges[:-1] if ds == 'steps-pre' else bin_centers,
-                hist,
-                ds=ds,
-                c=c,
-                ls=ls,
-                lw=lw,
-                alpha=alpha,
-                label=legend_label,
-                zorder=zorder)[0]
+            if ds == 'steps-pre':
+                return ax.step(
+                    bin_edges[:-1],
+                    hist,
+                    c=c,
+                    ls=ls,
+                    lw=lw,
+                    alpha=alpha,
+                    label=legend_label,
+                    zorder=zorder)[0]
+            else:
+                return ax.plot(
+                    bin_centers,
+                    hist,
+                    c=c,
+                    ls=ls,
+                    lw=lw,
+                    alpha=alpha,
+                    label=legend_label,
+                    zorder=zorder)[0]
 
     def __add_values_as_line_histogram_difference(
             self,
