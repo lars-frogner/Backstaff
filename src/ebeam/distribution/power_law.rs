@@ -202,6 +202,79 @@ impl PowerLawDistribution {
             * electron_coulomb_logarithm
             / (effective_coulomb_logarithm * total_hydrogen_density)
     }
+
+    pub fn compute_uniform_plasma_heating_integral(
+        &self,
+        total_hydrogen_density: feb,
+        effective_coulomb_logarithm: feb,
+        step_length: feb,
+    ) -> (feb, feb, feb, feb) {
+        let coulomb_logarithm_ratio =
+            effective_coulomb_logarithm / self.data.electron_coulomb_logarithm;
+
+        let hydrogen_column_depth_increase = total_hydrogen_density * step_length;
+        let new_hydrogen_column_depth = self.hydrogen_column_depth + hydrogen_column_depth_increase;
+        let new_equivalent_ionized_column_depth = self.equivalent_ionized_column_depth
+            + hydrogen_column_depth_increase * coulomb_logarithm_ratio;
+
+        let stopping_column_depth =
+            self.data.stopping_ionized_column_depth / coulomb_logarithm_ratio;
+
+        let start_column_depth_ratio = self.hydrogen_column_depth / stopping_column_depth;
+        let start_ionized_column_depth_ratio =
+            self.equivalent_ionized_column_depth / self.data.stopping_ionized_column_depth;
+
+        let column_depth_ratio_increase = hydrogen_column_depth_increase / stopping_column_depth;
+
+        let end_column_depth_ratio = start_column_depth_ratio + column_depth_ratio_increase;
+        let end_ionized_column_depth_ratio =
+            start_ionized_column_depth_ratio + column_depth_ratio_increase;
+
+        let power = 0.5 * self.data.delta;
+        let residual_factor = feb::powf(end_ionized_column_depth_ratio, -power);
+
+        let constant_factor =
+            self.data.heating_scale * stopping_column_depth * effective_coulomb_logarithm;
+
+        let mut deposited_power = 0.0;
+
+        if start_column_depth_ratio < 1.0 {
+            let end_column_depth_ratio = feb::min(end_column_depth_ratio, 1.0);
+
+            let evaluate_integrand = |increase| {
+                math::incomplete_beta(start_column_depth_ratio + increase, power, 1.0 / 3.0)
+                    * feb::powf(start_ionized_column_depth_ratio + increase, -power)
+            };
+            deposited_power += constant_factor
+                * math::integrate_three_point_gauss_legendre(
+                    evaluate_integrand,
+                    0.0,
+                    end_column_depth_ratio - start_column_depth_ratio,
+                );
+        }
+
+        if end_column_depth_ratio > 1.0 {
+            let start_ionized_column_depth_ratio = if start_column_depth_ratio < 1.0 {
+                1.0 + start_ionized_column_depth_ratio - start_column_depth_ratio
+            } else {
+                start_ionized_column_depth_ratio
+            };
+
+            let shifted_power = power - 1.0;
+            deposited_power += constant_factor
+                * math::beta(power, 1.0 / 3.0)
+                * (feb::powf(start_ionized_column_depth_ratio, -shifted_power)
+                    - feb::powf(end_ionized_column_depth_ratio, -shifted_power))
+                / shifted_power;
+        }
+
+        (
+            deposited_power,
+            new_hydrogen_column_depth,
+            new_equivalent_ionized_column_depth,
+            residual_factor,
+        )
+    }
 }
 
 impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
@@ -367,39 +440,18 @@ impl Distribution for PowerLawDistribution {
             self.data.neutral_hydrogen_coulomb_logarithm,
         );
 
-        let coulomb_logarithm_ratio =
-            effective_coulomb_logarithm / self.data.electron_coulomb_logarithm;
-
         let step_length = displacement.length() * U_L; // [cm]
-        let hydrogen_column_depth_increase = total_hydrogen_density * step_length;
 
-        let new_hydrogen_column_depth = self.hydrogen_column_depth + hydrogen_column_depth_increase;
-        let new_equivalent_ionized_column_depth = self.equivalent_ionized_column_depth
-            + coulomb_logarithm_ratio * hydrogen_column_depth_increase;
-
-        let column_depth_ratio = new_hydrogen_column_depth * coulomb_logarithm_ratio
-            / self.data.stopping_ionized_column_depth;
-        let beta = if column_depth_ratio < 1.0 {
-            math::incomplete_beta(column_depth_ratio, 0.5 * self.data.delta, 1.0 / 3.0)
-        } else {
-            math::beta(0.5 * self.data.delta, 1.0 / 3.0)
-        };
-
-        let equivalent_ionized_column_depth_ratio =
-            new_equivalent_ionized_column_depth / self.data.stopping_ionized_column_depth;
-
-        let residual_factor = feb::powf(
-            equivalent_ionized_column_depth_ratio,
-            -0.5 * self.data.delta,
+        let (
+            deposited_power,
+            new_hydrogen_column_depth,
+            new_equivalent_ionized_column_depth,
+            residual_factor,
+        ) = self.compute_uniform_plasma_heating_integral(
+            total_hydrogen_density,
+            effective_coulomb_logarithm,
+            step_length,
         );
-
-        // Compute power deposited through the step [erg/s]
-        let deposited_power = self.data.heating_scale
-            * beta
-            * total_hydrogen_density
-            * effective_coulomb_logarithm
-            * residual_factor
-            * step_length;
 
         let depletion_status = if self.config.continue_thermalized_beams
             || residual_factor > self.config.min_residual_factor
