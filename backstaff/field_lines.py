@@ -993,6 +993,8 @@ def plot_field_line_properties(field_line_set,
                                value_description_x=None,
                                value_description_y=None,
                                value_description_color=None,
+                               colorbar_loc='right',
+                               colorbar_pad=0.05,
                                title=None,
                                render=True,
                                output_path=None,
@@ -1038,6 +1040,8 @@ def plot_field_line_properties(field_line_set,
             ax,
             norm,
             cmap,
+            loc=colorbar_loc,
+            pad=colorbar_pad,
             label=field_line_set.process_value_description(
                 value_name_color, value_description_color))
 

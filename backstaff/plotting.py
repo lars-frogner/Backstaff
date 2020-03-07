@@ -122,19 +122,34 @@ def colors_from_values(values, norm, cmap, alpha=1.0, relative_alpha=True):
     return colors
 
 
-def add_2d_colorbar(fig, ax, mappeable, pad=0.05, label=''):
+def add_2d_colorbar(fig, ax, mappeable, loc='right', pad=0.05, label=''):
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=pad)
-    fig.colorbar(mappeable, cax=cax, label=label)
+    cax = divider.append_axes(loc, size='5%', pad=pad)
+    fig.colorbar(
+        mappeable,
+        cax=cax,
+        label=label,
+        orientation=('vertical' if loc in ['left', 'right'] else 'horizontal'),
+        ticklocation=loc)
 
 
-def add_2d_colorbar_from_cmap_and_norm(fig, ax, norm, cmap, pad=0.05,
+def add_2d_colorbar_from_cmap_and_norm(fig,
+                                       ax,
+                                       norm,
+                                       cmap,
+                                       loc='right',
+                                       pad=0.05,
                                        label=''):
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes('right', size='5%', pad=pad)
+    cax = divider.append_axes(loc, size='5%', pad=pad)
     sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
-    fig.colorbar(sm, cax=cax, label=label)
+    fig.colorbar(
+        sm,
+        cax=cax,
+        label=label,
+        orientation=('vertical' if loc in ['left', 'right'] else 'horizontal'),
+        ticklocation=loc)
 
 
 def add_3d_colorbar(fig, norm, cmap, label=''):
