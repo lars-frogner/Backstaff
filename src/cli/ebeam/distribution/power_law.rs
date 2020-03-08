@@ -23,7 +23,7 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions are considered thermalized when the heating has been reduced to\n\
+                    "Distributions are considered depleted when the heating has been reduced to\n\
                      this fraction of the initial heating.\n\
                      [default: from param file]",
                 )
@@ -41,9 +41,9 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("continue-thermalized-beams")
-                .long("continue-thermalized-beams")
-                .help("Keep propagating beams even after they are considered thermalized"),
+            Arg::with_name("continue-depleted-beams")
+                .long("continue-depleted-beams")
+                .help("Keep propagating beams even after they are considered depleted"),
         )
 }
 
@@ -69,11 +69,11 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
         &|max_dist| max_dist,
         PowerLawDistributionConfig::DEFAULT_MAX_PROPAGATION_DISTANCE,
     );
-    let continue_thermalized_beams = arguments.is_present("continue-thermalized-beams");
+    let continue_depleted_beams = arguments.is_present("continue-depleted-beams");
 
     PowerLawDistributionConfig {
         min_residual_factor,
         max_propagation_distance,
-        continue_thermalized_beams,
+        continue_depleted_beams,
     }
 }

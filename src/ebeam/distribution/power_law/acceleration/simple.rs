@@ -29,9 +29,9 @@ pub struct SimplePowerLawAccelerationConfig {
     pub power_law_delta: feb,
     /// Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
-    /// Distributions with an estimated thermalization distance smaller than this value
+    /// Distributions with an estimated depletion distance smaller than this value
     /// are discarded [Mm].
-    pub min_thermalization_distance: feb,
+    pub min_depletion_distance: feb,
     /// Distributions with initial absolute pitch angles larger than this are discarded [deg].
     pub max_pitch_angle: feb,
     /// Distributions with electric field directions angled more than this away from
@@ -523,7 +523,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                             electron_coulomb_logarithm,
                         );
 
-                    let estimated_thermalization_distance =
+                    let estimated_depletion_distance =
                         PowerLawDistribution::estimate_depletion_distance(
                             self.config.power_law_delta,
                             self.distribution_config.min_residual_factor,
@@ -535,8 +535,7 @@ impl Accelerator for SimplePowerLawAccelerator {
 
                     if (temperature < self.config.min_temperature
                         && mass_density > self.config.max_mass_density)
-                        || estimated_thermalization_distance
-                            < self.config.min_thermalization_distance * U_L
+                        || estimated_depletion_distance < self.config.min_depletion_distance * U_L
                     {
                         None
                     } else {
@@ -566,7 +565,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                                 neutral_hydrogen_coulomb_logarithm,
                                 heating_scale,
                                 stopping_ionized_column_depth,
-                                estimated_thermalization_distance,
+                                estimated_depletion_distance,
                                 electric_field_angle_cosine,
                             };
                             distributions.push(PowerLawDistribution::new(
@@ -599,7 +598,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                                 neutral_hydrogen_coulomb_logarithm,
                                 heating_scale,
                                 stopping_ionized_column_depth,
-                                estimated_thermalization_distance,
+                                estimated_depletion_distance,
                                 electric_field_angle_cosine,
                             };
                             distributions.push(PowerLawDistribution::new(
@@ -620,13 +619,12 @@ impl Accelerator for SimplePowerLawAccelerator {
 
 impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_ACCELERATION_DURATION: feb = 1.0; // [s]
-    pub const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.5;
+    pub const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.2;
     pub const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
-    pub const DEFAULT_IGNORE_REJECTION: bool = false;
     pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
-    pub const DEFAULT_MIN_THERMALIZATION_DISTANCE: feb = 0.3; // [Mm]
+    pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
     pub const DEFAULT_MAX_PITCH_ANGLE: feb = 70.0; // [deg]
-    pub const DEFAULT_MAX_ELECTRIC_FIELD_ANGLE: feb = 70.0; // [deg]
+    pub const DEFAULT_MAX_ELECTRIC_FIELD_ANGLE: feb = 90.0; // [deg]
     pub const DEFAULT_MIN_TEMPERATURE: feb = 0.0; // [K]
     pub const DEFAULT_MAX_MASS_DENSITY: feb = INFINITY; // [g/cm^3]
     pub const DEFAULT_INCLUSION_PROBABILITY: feb = 1.0;
@@ -666,12 +664,12 @@ impl SimplePowerLawAccelerationConfig {
                 &|min_beam_en: feb| min_beam_en * U_E / U_T,
                 Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             );
-        let min_thermalization_distance = reader
+        let min_depletion_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "min_thermalization_distance",
+                "min_depletion_distance",
                 "min_stop_dist",
                 &|min_stop_dist: feb| min_stop_dist,
-                Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
+                Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             );
         let max_pitch_angle = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
@@ -692,7 +690,7 @@ impl SimplePowerLawAccelerationConfig {
             particle_energy_fraction,
             power_law_delta,
             min_total_power_density,
-            min_thermalization_distance,
+            min_depletion_distance,
             max_pitch_angle,
             max_electric_field_angle,
             ..Self::default()
@@ -718,7 +716,7 @@ impl SimplePowerLawAccelerationConfig {
             "Minimum total power density must be larger than or equal to zero."
         );
         assert!(
-            self.min_thermalization_distance >= 0.0,
+            self.min_depletion_distance >= 0.0,
             "Minimum stopping distance must be larger than or equal to zero."
         );
         assert!(
@@ -763,7 +761,7 @@ impl Default for SimplePowerLawAccelerationConfig {
             particle_energy_fraction: Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
             power_law_delta: Self::DEFAULT_POWER_LAW_DELTA,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
-            min_thermalization_distance: Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
+            min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             max_pitch_angle: Self::DEFAULT_MAX_PITCH_ANGLE,
             max_electric_field_angle: Self::DEFAULT_MAX_ELECTRIC_FIELD_ANGLE,
             min_temperature: Self::DEFAULT_MIN_TEMPERATURE,

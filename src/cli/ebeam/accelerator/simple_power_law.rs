@@ -60,12 +60,12 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-thermalization-distance")
-                .long("min-thermalization-distance")
+            Arg::with_name("min-depletion-distance")
+                .long("min-depletion-distance")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions with an estimated thermalization distance smaller\n\
+                    "Distributions with an estimated depletion distance smaller\n\
                      than this value are discarded [Mm] [default: from param file]",
                 )
                 .takes_value(true),
@@ -196,13 +196,13 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_TOTAL_POWER_DENSITY,
     );
 
-    let min_thermalization_distance = cli::get_value_from_param_file_argument_with_default(
+    let min_depletion_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "min-thermalization-distance",
+        "min-depletion-distance",
         "min_stop_dist",
         &|min_stop_dist| min_stop_dist,
-        SimplePowerLawAccelerationConfig::DEFAULT_MIN_THERMALIZATION_DISTANCE,
+        SimplePowerLawAccelerationConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
     let max_pitch_angle = cli::get_value_from_param_file_argument_with_default(
@@ -251,7 +251,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         particle_energy_fraction,
         power_law_delta,
         min_total_power_density,
-        min_thermalization_distance,
+        min_depletion_distance,
         max_pitch_angle,
         max_electric_field_angle,
         min_temperature,

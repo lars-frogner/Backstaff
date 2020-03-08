@@ -36,9 +36,9 @@ pub struct DCPowerLawAccelerationConfig {
     /// Distributions with total power densities smaller than this value
     /// are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
-    /// Distributions with an estimated thermalization distance smaller than this value
+    /// Distributions with an estimated depletion distance smaller than this value
     /// are discarded [Mm].
-    pub min_thermalization_distance: feb,
+    pub min_depletion_distance: feb,
 }
 
 // Static electric field (direct current) acceleration process producing
@@ -290,7 +290,7 @@ impl Accelerator for DCPowerLawAccelerator {
                             electron_coulomb_logarithm,
                         );
 
-                    let estimated_thermalization_distance =
+                    let estimated_depletion_distance =
                         PowerLawDistribution::estimate_depletion_distance(
                             self.config.power_law_delta,
                             self.distribution_config.min_residual_factor,
@@ -300,9 +300,7 @@ impl Accelerator for DCPowerLawAccelerator {
                             stopping_ionized_column_depth,
                         );
 
-                    if estimated_thermalization_distance
-                        < self.config.min_thermalization_distance * U_L
-                    {
+                    if estimated_depletion_distance < self.config.min_depletion_distance * U_L {
                         None
                     } else {
                         let acceleration_position = acceleration_region_data.exit_position();
@@ -323,7 +321,7 @@ impl Accelerator for DCPowerLawAccelerator {
                             neutral_hydrogen_coulomb_logarithm,
                             heating_scale,
                             stopping_ionized_column_depth,
-                            estimated_thermalization_distance,
+                            estimated_depletion_distance,
                             electric_field_angle_cosine: unimplemented!(),
                         };
                         Some((
@@ -391,10 +389,10 @@ impl AccelerationDataCollection for DCAccelerationRegions {
 
 impl DCPowerLawAccelerationConfig {
     pub const DEFAULT_ACCELERATION_DURATION: feb = 1.0; // [s]
-    pub const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.5;
+    pub const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.2;
     pub const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
     pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
-    pub const DEFAULT_MIN_THERMALIZATION_DISTANCE: feb = 0.3; // [Mm]
+    pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
 
     /// Creates a set of DC power law accelerator configuration parameters with
     /// values read from the specified parameter file when available, otherwise
@@ -428,19 +426,19 @@ impl DCPowerLawAccelerationConfig {
                 &|min_beam_en: feb| min_beam_en * U_E / U_T,
                 Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             );
-        let min_thermalization_distance = reader
+        let min_depletion_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "min_thermalization_distance",
+                "min_depletion_distance",
                 "min_stop_dist",
                 &|min_stop_dist: feb| min_stop_dist,
-                Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
+                Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             );
         DCPowerLawAccelerationConfig {
             acceleration_duration,
             particle_energy_fraction,
             power_law_delta,
             min_total_power_density,
-            min_thermalization_distance,
+            min_depletion_distance,
         }
     }
 
@@ -463,7 +461,7 @@ impl DCPowerLawAccelerationConfig {
             "Minimum total power density must be larger than or equal to zero."
         );
         assert!(
-            self.min_thermalization_distance >= 0.0,
+            self.min_depletion_distance >= 0.0,
             "Minimum stopping distance must be larger than or equal to zero."
         );
     }
@@ -476,7 +474,7 @@ impl Default for DCPowerLawAccelerationConfig {
             particle_energy_fraction: Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
             power_law_delta: Self::DEFAULT_POWER_LAW_DELTA,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
-            min_thermalization_distance: Self::DEFAULT_MIN_THERMALIZATION_DISTANCE,
+            min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
         }
     }
 }

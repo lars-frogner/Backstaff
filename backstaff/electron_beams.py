@@ -29,7 +29,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'total_energy_density': r'Total energy density [erg/cm$^3$]',
         'lower_cutoff_energy': r'$E_\mathrm{{c}}$ [keV]',
         'acceleration_volume': r'Acceleration site volume [cm$^3$]',
-        'estimated_thermalization_distance':
+        'estimated_depletion_distance':
         r'$\tilde{{s}}_\mathrm{{dep}}$ [Mm]',
         'total_propagation_distance': r'$s_\mathrm{{dep}}$ [Mm]',
         'residual_factor': r'$r$',

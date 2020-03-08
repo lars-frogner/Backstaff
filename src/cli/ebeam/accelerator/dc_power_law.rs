@@ -64,12 +64,12 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-thermalization-distance")
-                .long("min-thermalization-distance")
+            Arg::with_name("min-depletion-distance")
+                .long("min-depletion-distance")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions with an estimated thermalization distance smaller\n\
+                    "Distributions with an estimated depletion distance smaller\n\
                      than this value are discarded [Mm] [default: from param file]",
                 )
                 .takes_value(true),
@@ -167,13 +167,13 @@ pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
         DCPowerLawAccelerationConfig::DEFAULT_MIN_TOTAL_POWER_DENSITY,
     );
 
-    let min_thermalization_distance = cli::get_value_from_param_file_argument_with_default(
+    let min_depletion_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
-        "min-thermalization-distance",
+        "min-depletion-distance",
         "min_stop_dist",
         &|min_stop_dist| min_stop_dist,
-        DCPowerLawAccelerationConfig::DEFAULT_MIN_THERMALIZATION_DISTANCE,
+        DCPowerLawAccelerationConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
     let min_parallel_electric_field_strength = cli::get_value_from_required_parseable_argument(
@@ -200,7 +200,7 @@ pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
             particle_energy_fraction,
             power_law_delta,
             min_total_power_density,
-            min_thermalization_distance,
+            min_depletion_distance,
         },
         AccelerationRegionTracer::new(
             AccelerationRegionTracerConfig {

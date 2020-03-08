@@ -19,13 +19,13 @@ use rayon::prelude::*;
 /// Configuration parameters for power-law distributions.
 #[derive(Clone, Debug)]
 pub struct PowerLawDistributionConfig {
-    /// Distributions are considered thermalized when the heating has been reduced to
+    /// Distributions are considered depleted when the heating has been reduced to
     /// this fraction of the initial heating.
     pub min_residual_factor: feb,
     /// Maximum distance the distribution can propagate before propagation should be terminated [Mm].
     pub max_propagation_distance: ftr,
-    /// Whether to keep propagating beams even after they are considered thermalized.
-    pub continue_thermalized_beams: bool,
+    /// Whether to keep propagating beams even after they are considered depleted.
+    pub continue_depleted_beams: bool,
 }
 
 /// Data associated with a power-law distribution.
@@ -55,8 +55,8 @@ pub struct PowerLawDistributionData {
     heating_scale: feb,
     /// Equivalent ionized column depth where cut-off energy electrons will thermalize [hydrogen/cm^2].
     stopping_ionized_column_depth: feb,
-    /// Estimated thermalization distance of the electrons in the distribution [cm].
-    estimated_thermalization_distance: feb,
+    /// Estimated depletion distance of the electrons in the distribution [cm].
+    estimated_depletion_distance: feb,
     /// Cosine of the angle between the electric and magnetic field.
     electric_field_angle_cosine: feb,
 }
@@ -72,8 +72,8 @@ pub struct PowerLawDistributionProperties {
     lower_cutoff_energy: feb,
     /// Volume of the grid cell where the distribution originates [cm^3].
     acceleration_volume: feb,
-    /// Estimated thermalization distance of the electrons in the distribution [Mm].
-    estimated_thermalization_distance: feb,
+    /// Estimated depletion distance of the electrons in the distribution [Mm].
+    estimated_depletion_distance: feb,
     /// Cosine of the angle between the electric and magnetic field.
     electric_field_angle_cosine: feb,
     /// Direction of propagation of the electrons relative to the magnetic field direction (+1 or -1).
@@ -87,7 +87,7 @@ pub struct PowerLawDistributionPropertiesCollection {
     initial_pitch_angle_cosines: Vec<feb>,
     lower_cutoff_energies: Vec<feb>,
     acceleration_volumes: Vec<feb>,
-    estimated_thermalization_distances: Vec<feb>,
+    estimated_depletion_distances: Vec<feb>,
     electric_field_angle_cosines: Vec<feb>,
     propagation_senses: Vec<feb>,
 }
@@ -296,8 +296,8 @@ impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {
         );
         scalar_values.insert("acceleration_volume".to_string(), self.acceleration_volumes);
         scalar_values.insert(
-            "estimated_thermalization_distance".to_string(),
-            self.estimated_thermalization_distances,
+            "estimated_depletion_distance".to_string(),
+            self.estimated_depletion_distances,
         );
         scalar_values.insert(
             "electric_field_angle_cosine".to_string(),
@@ -322,7 +322,7 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
                         (
                             data.acceleration_volume,
                             (
-                                data.estimated_thermalization_distance,
+                                data.estimated_depletion_distance,
                                 (data.electric_field_angle_cosine, data.propagation_sense),
                             ),
                         ),
@@ -338,7 +338,7 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
 
         let (
             lower_cutoff_energies,
-            (acceleration_volumes, (estimated_thermalization_distances, nested_tuples)),
+            (acceleration_volumes, (estimated_depletion_distances, nested_tuples)),
         ): (Vec<_>, (Vec<_>, (Vec<_>, Vec<_>))) = nested_tuples.into_par_iter().unzip();
 
         let (electric_field_angle_cosines, propagation_senses): (Vec<_>, Vec<_>) =
@@ -349,8 +349,8 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
             .par_extend(initial_pitch_angle_cosines);
         self.lower_cutoff_energies.par_extend(lower_cutoff_energies);
         self.acceleration_volumes.par_extend(acceleration_volumes);
-        self.estimated_thermalization_distances
-            .par_extend(estimated_thermalization_distances);
+        self.estimated_depletion_distances
+            .par_extend(estimated_depletion_distances);
         self.electric_field_angle_cosines
             .par_extend(electric_field_angle_cosines);
         self.propagation_senses.par_extend(propagation_senses);
@@ -378,7 +378,7 @@ impl Distribution for PowerLawDistribution {
             initial_pitch_angle_cosine: self.data.initial_pitch_angle_cosine,
             lower_cutoff_energy: self.data.lower_cutoff_energy,
             acceleration_volume: self.data.acceleration_volume,
-            estimated_thermalization_distance: self.data.estimated_thermalization_distance / U_L,
+            estimated_depletion_distance: self.data.estimated_depletion_distance / U_L,
             electric_field_angle_cosine: self.data.electric_field_angle_cosine,
             propagation_sense: match self.data.propagation_sense {
                 SteppingSense::Same => 1.0,
@@ -453,7 +453,7 @@ impl Distribution for PowerLawDistribution {
             step_length,
         );
 
-        let depletion_status = if self.config.continue_thermalized_beams
+        let depletion_status = if self.config.continue_depleted_beams
             || residual_factor > self.config.min_residual_factor
         {
             DepletionStatus::Undepleted
@@ -485,7 +485,7 @@ impl Distribution for PowerLawDistribution {
 impl PowerLawDistributionConfig {
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-10;
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
-    pub const DEFAULT_CONTINUE_THERMALIZED_BEAMS: bool = false;
+    pub const DEFAULT_CONTINUE_DEPLETED_BEAMS: bool = false;
 
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
@@ -508,7 +508,7 @@ impl PowerLawDistributionConfig {
         PowerLawDistributionConfig {
             min_residual_factor,
             max_propagation_distance,
-            continue_thermalized_beams: Self::DEFAULT_CONTINUE_THERMALIZED_BEAMS,
+            continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
     }
 
@@ -530,7 +530,7 @@ impl Default for PowerLawDistributionConfig {
         PowerLawDistributionConfig {
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
-            continue_thermalized_beams: Self::DEFAULT_CONTINUE_THERMALIZED_BEAMS,
+            continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
     }
 }
