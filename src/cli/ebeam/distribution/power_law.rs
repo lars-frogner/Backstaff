@@ -23,9 +23,21 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions are considered depleted when the heating has been reduced to\n\
-                     this fraction of the initial heating.\n\
-                     [default: from param file]",
+                    "Distributions are considered depleted when the residual energy factor has\n\
+                     decreased below this limit, given that the deposited power density is smaller\n\
+                     than its lower limit [default: from param file]",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("min-deposited-power-density")
+                .long("min-deposited-power-density")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Distributions are considered depleted when the deposited power density has\n\
+                     decreased below this limit, given that the residual energy factor is smaller\n\
+                     than its lower limit [default: from param file]",
                 )
                 .takes_value(true),
         )
@@ -57,9 +69,17 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
         reader,
         arguments,
         "min-residual-factor",
-        "min_heat_frac",
-        &|min_heat_frac| min_heat_frac,
+        "min_residual",
+        &|min_residual| min_residual,
         PowerLawDistributionConfig::DEFAULT_MIN_RESIDUAL_FACTOR,
+    );
+    let min_deposited_power_density = cli::get_value_from_param_file_argument_with_default(
+        reader,
+        arguments,
+        "min-deposited-power-density",
+        "min_qbeam",
+        &|min_qbeam| min_qbeam,
+        PowerLawDistributionConfig::DEFAULT_MIN_DEPOSITED_POWER_DENSITY,
     );
     let max_propagation_distance = cli::get_value_from_param_file_argument_with_default(
         reader,
@@ -73,6 +93,7 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
 
     PowerLawDistributionConfig {
         min_residual_factor,
+        min_deposited_power_density,
         max_propagation_distance,
         continue_depleted_beams,
     }
