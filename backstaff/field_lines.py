@@ -988,6 +988,8 @@ def plot_field_line_properties(field_line_set,
                                value_name_color=None,
                                fig=None,
                                ax=None,
+                               figure_width=8.0,
+                               figure_aspect=4.0/3.0,
                                invert_xaxis=False,
                                invert_yaxis=False,
                                value_description_x=None,
@@ -1006,7 +1008,7 @@ def plot_field_line_properties(field_line_set,
                                **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots()
+        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
 
     norm, cmap = field_line_set.add_values_as_2d_property_plot(
         ax,
@@ -1060,6 +1062,8 @@ def plot_field_line_value_histogram(field_line_set,
                                     value_name_weights=None,
                                     fig=None,
                                     ax=None,
+                                    figure_width=8.0,
+                                    figure_aspect=4.0/3.0,
                                     invert_xaxis=False,
                                     invert_yaxis=False,
                                     value_description=None,
@@ -1081,7 +1085,7 @@ def plot_field_line_value_histogram(field_line_set,
                                     **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots()
+        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
 
     handle = field_line_set.add_values_as_line_histogram(
         ax,
@@ -1140,6 +1144,8 @@ def plot_field_line_value_histogram_difference(field_line_set,
                                                value_names_weights=None,
                                                fig=None,
                                                ax=None,
+                                               figure_width=8.0,
+                                               figure_aspect=4.0/3.0,
                                                invert_xaxis=False,
                                                invert_yaxis=False,
                                                value_description=None,
@@ -1159,7 +1165,7 @@ def plot_field_line_value_histogram_difference(field_line_set,
                                                **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots()
+        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
 
     handle = field_line_set.add_values_as_line_histogram_difference(
         ax,
@@ -1214,6 +1220,8 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        value_name_weights=None,
                                        fig=None,
                                        ax=None,
+                                       figure_width=8.0,
+                                       figure_aspect=4.0/3.0,
                                        invert_xaxis=False,
                                        invert_yaxis=False,
                                        aspect='auto',
@@ -1230,7 +1238,7 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots()
+        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
 
     im = field_line_set.add_values_as_2d_histogram_image(
         ax,
@@ -1294,6 +1302,8 @@ def plot_field_line_value_2d_histogram_difference(
         value_names_weights=None,
         fig=None,
         ax=None,
+        figure_width=8.0,
+        figure_aspect=4.0/3.0,
         invert_xaxis=False,
         invert_yaxis=False,
         aspect='auto',
@@ -1310,7 +1320,7 @@ def plot_field_line_value_2d_histogram_difference(
         **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots()
+        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
 
     im = field_line_set.add_values_as_2d_histogram_difference_image(
         ax,
