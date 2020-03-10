@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.ndimage as ndimage
+import scipy.interpolate as interpolate
 from pathlib import Path
 try:
     import backstaff.units as units
@@ -224,7 +225,7 @@ class FieldLineSet3:
                                        do_conversion=True,
                                        included_field_lines_finder=None,
                                        included_points_finder=None,
-                                       stride=1,
+                                       varying_points_processor=None,
                                        **kwargs):
 
         values_x, values_y, values_color = self.get_scalar_values(
@@ -233,7 +234,7 @@ class FieldLineSet3:
             value_name_color,
             included_field_lines_finder=included_field_lines_finder,
             included_points_finder=included_points_finder,
-            varying_stride=stride)
+            varying_points_processor=varying_points_processor)
 
         values_x = self._convert_values(value_name_x, values_x, do_conversion)
         values_y = self._convert_values(value_name_y, values_y, do_conversion)
@@ -453,13 +454,17 @@ class FieldLineSet3:
             value_name,
             included_field_line_indices=None,
             included_points_finder=None,
-            stride=1):
-        if included_field_line_indices is None:
-            values = self.varying_scalar_values[
-                value_name] if stride is 1 else [
-                    values[::stride]
-                    for values in self.varying_scalar_values[value_name]
-                ]
+            points_processor=None):
+        if points_processor is not None:
+            indices = range(
+                self.get_number_of_field_lines()
+            ) if included_field_line_indices is None else included_field_line_indices
+            values = [
+                points_processor(self.varying_scalar_values, value_name, i)
+                for i in indices
+            ]
+        elif included_field_line_indices is None:
+            values = self.varying_scalar_values[value_name]
         else:
             values = [
                 self.varying_scalar_values[value_name][i]
@@ -484,7 +489,7 @@ class FieldLineSet3:
                           *value_names,
                           included_field_lines_finder=None,
                           included_points_finder=None,
-                          varying_stride=1):
+                          varying_points_processor=None):
         assert len(value_names) > 0 and value_names[0] is not None
 
         included_field_line_indices = None if included_field_lines_finder is None else included_field_lines_finder(
@@ -502,7 +507,7 @@ class FieldLineSet3:
                 value_name,
                 included_field_line_indices,
                 included_points_finder,
-                stride=varying_stride)
+                points_processor=varying_points_processor)
 
         return tuple([(None if value_name is None else getter(
             value_name, included_field_line_indices, included_points_finder))
@@ -661,25 +666,23 @@ class FieldLineSet3:
                               zorder=zorder)
         else:
             if ds == 'steps-pre':
-                return ax.step(
-                    bin_edges[:-1],
-                    hist,
-                    c=c,
-                    ls=ls,
-                    lw=lw,
-                    alpha=alpha,
-                    label=legend_label,
-                    zorder=zorder)[0]
+                return ax.step(bin_edges[:-1],
+                               hist,
+                               c=c,
+                               ls=ls,
+                               lw=lw,
+                               alpha=alpha,
+                               label=legend_label,
+                               zorder=zorder)[0]
             else:
-                return ax.plot(
-                    bin_centers,
-                    hist,
-                    c=c,
-                    ls=ls,
-                    lw=lw,
-                    alpha=alpha,
-                    label=legend_label,
-                    zorder=zorder)[0]
+                return ax.plot(bin_centers,
+                               hist,
+                               c=c,
+                               ls=ls,
+                               lw=lw,
+                               alpha=alpha,
+                               label=legend_label,
+                               zorder=zorder)[0]
 
     def __add_values_as_line_histogram_difference(
             self,
@@ -940,6 +943,44 @@ def find_last_field_line_point(_varying_scalar_values, _field_line_idx):
     return slice(-1, None, None)
 
 
+def resample_varying_points(resample_coords,
+                            resample_coord_name,
+                            resample_val_names,
+                            varying_scalar_values,
+                            value_name,
+                            field_line_idx,
+                            log_x=False,
+                            log_y=False,
+                            start_idx_finder=lambda x: 0):
+    if value_name in resample_val_names:
+        x = varying_scalar_values[resample_coord_name][field_line_idx]
+        y = varying_scalar_values[value_name][field_line_idx]
+        if log_x:
+            x = np.log10(x)
+            coords = np.log10(resample_coords)
+        else:
+            coords = resample_coords
+        start_idx = start_idx_finder(x)
+        x = x[start_idx:]
+        y = y[start_idx:]
+        if hasattr(log_y, '__iter__'):
+            log_y = log_y[resample_val_names.index(value_name)]
+        if log_y:
+            y = np.log10(y)
+            vals = 10**interpolate.interp1d(x,
+                                            y,
+                                            bounds_error=False,
+                                            copy=False)(coords)
+        else:
+            vals = interpolate.interp1d(x, y, bounds_error=False,
+                                        copy=False)(coords)
+        return vals
+    elif value_name == resample_coord_name:
+        return resample_coords
+    else:
+        return varying_scalar_values[value_name][field_line_idx]
+
+
 def plot_field_lines(field_line_set,
                      value_name=None,
                      fig=None,
@@ -993,8 +1034,11 @@ def plot_field_line_properties(field_line_set,
                                value_description_x=None,
                                value_description_y=None,
                                value_description_color=None,
+                               xlabel_color='k',
+                               ylabel_color='k',
                                colorbar_loc='right',
                                colorbar_pad=0.05,
+                               no_colorbar=False,
                                title=None,
                                render=True,
                                output_path=None,
@@ -1034,7 +1078,7 @@ def plot_field_line_properties(field_line_set,
     if invert_yaxis:
         ax.invert_yaxis()
 
-    if norm is not None and cmap is not None:
+    if norm is not None and cmap is not None and not no_colorbar:
         plotting.add_2d_colorbar_from_cmap_and_norm(
             fig,
             ax,
@@ -1050,7 +1094,9 @@ def plot_field_line_properties(field_line_set,
         field_line_set.process_value_description(value_name_x,
                                                  value_description_x),
         field_line_set.process_value_description(value_name_y,
-                                                 value_description_y))
+                                                 value_description_y),
+        xcolor=xlabel_color,
+        ycolor=ylabel_color)
 
     if title is not None:
         ax.set_title(title)
