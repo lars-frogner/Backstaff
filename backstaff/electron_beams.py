@@ -39,6 +39,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'return_current_speed_fraction': 'Speed relative to speed of light',
         'estimated_electron_density': r'Electron density [electrons/cm$^3$]',
         'deposited_power': 'Deposited power [erg/s]',
+        'deposited_power_density': r'$Q$ [erg/s/cm$^3$]',
         'power_change': 'Power change [erg/s]',
         'power_density_change': r'Power density change [erg/s/cm$^3$]',
         'beam_flux': r'Energy flux [erg/s/cm$^2$]',
@@ -56,7 +57,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
     VALUE_UNIT_CONVERTERS = {
         'r': lambda f: f*units.U_R,
-        'qspitz': lambda f: f*(-units.U_E/units.U_T),
+        'qspitz': lambda f: f*(units.U_E/units.U_T),
         'r0': lambda f: f*units.U_R,
         'z': lambda f: -f,
         'z0': lambda f: -f,
@@ -268,7 +269,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             ]
             for i in range(self.get_number_of_beams()):
                 self.varying_scalar_values['conduction_flux'][
-                    i] *= -self.get_param(
+                    i] *= self.get_param(
                         'dense_step_length')*units.U_L*units.U_E/units.U_T
 
         if 'cumulative_power' in derived_quantities:
