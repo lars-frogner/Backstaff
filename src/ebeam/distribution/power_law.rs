@@ -20,13 +20,13 @@ use rayon::prelude::*;
 #[derive(Clone, Debug)]
 pub struct PowerLawDistributionConfig {
     /// Distributions are considered depleted when the residual energy factor has
-    /// decreased below this limit, given that the deposited power density is smaller
-    /// than its lower limit.
+    /// decreased below this limit, given that the deposited power per distance is
+    /// smaller than its lower limit.
     pub min_residual_factor: feb,
-    /// Distributions are considered depleted when the deposited power density
-    /// has decreased below this limit, given that the residual energy factor is smaller
-    /// than its lower limit.
-    pub min_deposited_power_density: feb,
+    /// Distributions are considered depleted when the deposited power per distance
+    /// [erg/s/cm] has decreased below this limit, given that the residual energy factor
+    /// is smaller than its lower limit.
+    pub min_deposited_power_per_distance: feb,
     /// Maximum distance the distribution can propagate before propagation should be terminated [Mm].
     pub max_propagation_distance: ftr,
     /// Whether to keep propagating beams even after they are considered depleted.
@@ -197,7 +197,7 @@ impl PowerLawDistribution {
     fn estimate_depletion_distance(
         delta: feb,
         min_residual_factor: feb,
-        min_deposited_power_density: feb,
+        min_deposited_power_per_distance: feb,
         total_hydrogen_density: feb,
         effective_coulomb_logarithm: feb,
         electron_coulomb_logarithm: feb,
@@ -210,7 +210,7 @@ impl PowerLawDistribution {
                 feb::max(
                     1.0 / min_residual_factor,
                     effective_hydrogen_density * heating_scale * math::beta(0.5 * delta, 1.0 / 3.0)
-                        / min_deposited_power_density,
+                        / min_deposited_power_per_distance,
                 ),
                 2.0 / delta,
             )
@@ -479,7 +479,7 @@ impl Distribution for PowerLawDistribution {
 
         let depletion_status = if self.config.continue_depleted_beams
             || residual_factor >= self.config.min_residual_factor
-            || deposited_power_density >= self.config.min_deposited_power_density
+            || deposited_power / step_length >= self.config.min_deposited_power_per_distance
         {
             DepletionStatus::Undepleted
         } else {
@@ -498,7 +498,7 @@ impl Distribution for PowerLawDistribution {
 
 impl PowerLawDistributionConfig {
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-5;
-    pub const DEFAULT_MIN_DEPOSITED_POWER_DENSITY: feb = 1e-9; // [erg/s/cm^3]
+    pub const DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE: feb = 1e5; // [erg/s/cm]
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
     pub const DEFAULT_CONTINUE_DEPLETED_BEAMS: bool = false;
 
@@ -513,12 +513,12 @@ impl PowerLawDistributionConfig {
                 &|min_residual: feb| min_residual,
                 Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             );
-        let min_deposited_power_density = reader
+        let min_deposited_power_per_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "min_deposited_power_density",
-                "min_qbeam",
-                &|min_qbeam: feb| min_qbeam,
-                Self::DEFAULT_MIN_DEPOSITED_POWER_DENSITY,
+                "min_deposited_power_per_distance",
+                "min_dep_en",
+                &|min_dep_en: feb| min_dep_en,
+                Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             );
         let max_propagation_distance = reader
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
@@ -529,7 +529,7 @@ impl PowerLawDistributionConfig {
             );
         PowerLawDistributionConfig {
             min_residual_factor,
-            min_deposited_power_density,
+            min_deposited_power_per_distance,
             max_propagation_distance,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
@@ -542,8 +542,8 @@ impl PowerLawDistributionConfig {
             "Minimum residual factor must be larger than or equal to zero."
         );
         assert!(
-            self.min_deposited_power_density >= 0.0,
-            "Minimum deposited power density must be larger than or equal to zero."
+            self.min_deposited_power_per_distance >= 0.0,
+            "Minimum deposited power per distance must be larger than or equal to zero."
         );
         assert!(
             self.max_propagation_distance >= 0.0,
@@ -556,7 +556,7 @@ impl Default for PowerLawDistributionConfig {
     fn default() -> Self {
         PowerLawDistributionConfig {
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
-            min_deposited_power_density: Self::DEFAULT_MIN_DEPOSITED_POWER_DENSITY,
+            min_deposited_power_per_distance: Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
