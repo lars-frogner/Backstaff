@@ -226,24 +226,41 @@ class FieldLineSet3:
                                        included_field_lines_finder=None,
                                        included_points_finder=None,
                                        varying_points_processor=None,
+                                       mode='instant',
+                                       save_path=None,
                                        **kwargs):
 
-        values_x, values_y, values_color = self.get_scalar_values(
-            value_name_x,
-            value_name_y,
-            value_name_color,
-            included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder,
-            varying_points_processor=varying_points_processor)
+        if mode == 'load':
+            data = np.load(save_path)
+            values_x = data['values_x']
+            values_y = data['values_y']
+            values_color = data.get('values_color', None)
+            print('Loaded {}'.format(save_path))
+        else:
+            values_x, values_y, values_color = self.get_scalar_values(
+                value_name_x,
+                value_name_y,
+                value_name_color,
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder,
+                varying_points_processor=varying_points_processor)
 
-        values_x = self._convert_values(value_name_x, values_x, do_conversion)
-        values_y = self._convert_values(value_name_y, values_y, do_conversion)
-        if values_color is not None:
-            values_color = self._convert_values(value_name_color, values_color,
-                                                do_conversion)
+            values_x = self._convert_values(value_name_x, values_x, do_conversion)
+            values_y = self._convert_values(value_name_y, values_y, do_conversion)
+            if values_color is not None:
+                values_color = self._convert_values(value_name_color, values_color,
+                                                    do_conversion)
 
-        return self.__add_values_as_2d_property_plot(ax, values_x, values_y,
-                                                     values_color, **kwargs)
+        if mode == 'save':
+            if values_color is None:
+                np.savez_compressed(save_path, values_x=values_x, values_y=values_y)
+            else:
+                np.savez_compressed(save_path, values_x=values_x, values_y=values_y, values_color=values_color)
+            print('Saved {}'.format(save_path))
+            return (None, None)
+        else:
+            return self.__add_values_as_2d_property_plot(ax, values_x, values_y,
+                                                        values_color, **kwargs)
 
     def add_values_as_line_histogram(self,
                                      ax,
@@ -252,21 +269,25 @@ class FieldLineSet3:
                                      do_conversion=True,
                                      included_field_lines_finder=None,
                                      included_points_finder=None,
+                                     mode='instant',
                                      **kwargs):
 
-        values, weights = self.get_scalar_values(
-            value_name,
-            value_name_weights,
-            included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder)
+        if mode == 'load':
+            values, weights = (None, None)
+        else:
+            values, weights = self.get_scalar_values(
+                value_name,
+                value_name_weights,
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder)
 
-        values = self._convert_values(value_name, values, do_conversion)
-        if weights is not None:
-            weights = self._convert_values(value_name_weights, weights,
-                                           do_conversion)
+            values = self._convert_values(value_name, values, do_conversion)
+            if weights is not None:
+                weights = self._convert_values(value_name_weights, weights,
+                                            do_conversion)
 
         return self.__add_values_as_line_histogram(ax, values, weights,
-                                                   **kwargs)
+                                                   mode=mode, **kwargs)
 
     def add_values_as_line_histogram_difference(
             self,
@@ -276,38 +297,42 @@ class FieldLineSet3:
             do_conversion=True,
             included_field_lines_finder=None,
             included_points_finder=None,
+            mode='instant',
             **kwargs):
 
-        left_value_name, right_value_name = value_names
-        left_value_name_weights, right_value_name_weights = value_names_weights
+        if mode == 'load':
+            left_values, right_values, left_weights, right_weights = (None, None, None, None)
+        else:
+            left_value_name, right_value_name = value_names
+            left_value_name_weights, right_value_name_weights = value_names_weights
 
-        left_values, left_weights = self.get_scalar_values(
-            left_value_name,
-            left_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder)
+            left_values, left_weights = self.get_scalar_values(
+                left_value_name,
+                left_value_name_weights,
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder)
 
-        right_values, right_weights = self.get_scalar_values(
-            right_value_name,
-            right_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder)
+            right_values, right_weights = self.get_scalar_values(
+                right_value_name,
+                right_value_name_weights,
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder)
 
-        left_values = self._convert_values(left_value_name, left_values,
-                                           do_conversion)
-        if left_weights is not None:
-            left_weights = self._convert_values(left_value_name_weights,
-                                                left_weights, do_conversion)
-
-        right_values = self._convert_values(right_value_name, right_values,
+            left_values = self._convert_values(left_value_name, left_values,
                                             do_conversion)
-        if right_weights is not None:
-            right_weights = self._convert_values(right_value_name_weights,
-                                                 right_weights, do_conversion)
+            if left_weights is not None:
+                left_weights = self._convert_values(left_value_name_weights,
+                                                    left_weights, do_conversion)
+
+            right_values = self._convert_values(right_value_name, right_values,
+                                                do_conversion)
+            if right_weights is not None:
+                right_weights = self._convert_values(right_value_name_weights,
+                                                    right_weights, do_conversion)
 
         return self.__add_values_as_line_histogram_difference(
             ax, (left_values, right_values), (left_weights, right_weights),
-            **kwargs)
+            mode=mode, **kwargs)
 
     def add_values_as_2d_histogram_image(self,
                                          ax,
@@ -318,25 +343,29 @@ class FieldLineSet3:
                                          do_conversion=True,
                                          included_field_lines_finder=None,
                                          included_points_finder=None,
+                                         mode='instant',
                                          **kwargs):
 
-        values_x, values_y, weights = self.get_scalar_values(
-            value_name_x,
-            value_name_y,
-            value_name_weights,
-            included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder)
+        if mode == 'load':
+            values_x, values_y, weights = (None, None, None)
+        else:
+            values_x, values_y, weights = self.get_scalar_values(
+                value_name_x,
+                value_name_y,
+                value_name_weights,
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder)
 
-        values_x = self._convert_values(value_name_x, values_x, do_conversion)
-        values_y = self._convert_values(value_name_y, values_y, do_conversion)
-        if weights is not None:
-            weights = self._convert_values(value_name_weights, weights,
-                                           do_conversion)
-            if weight_scale is not None:
-                weights *= weight_scale
+            values_x = self._convert_values(value_name_x, values_x, do_conversion)
+            values_y = self._convert_values(value_name_y, values_y, do_conversion)
+            if weights is not None:
+                weights = self._convert_values(value_name_weights, weights,
+                                            do_conversion)
+                if weight_scale is not None:
+                    weights *= weight_scale
 
         return self.__add_values_as_2d_histogram_image(ax, values_x, values_y,
-                                                       weights, **kwargs)
+                                                       weights, mode=mode, **kwargs)
 
     def add_values_as_2d_histogram_contour(self,
                                            ax,
@@ -374,50 +403,54 @@ class FieldLineSet3:
             do_conversion=True,
             included_field_lines_finder=None,
             included_points_finder=None,
+            mode='instant',
             **kwargs):
 
-        left_value_name_x, right_value_name_x = value_names_x
-        left_value_name_y, right_value_name_y = value_names_y
-        left_value_name_weights, right_value_name_weights = value_names_weights
+        if mode == 'load':
+            left_values_x, right_values_x, left_values_y, right_values_y, left_weights, right_weights = (None, None, None, None, None, None)
+        else:
+            left_value_name_x, right_value_name_x = value_names_x
+            left_value_name_y, right_value_name_y = value_names_y
+            left_value_name_weights, right_value_name_weights = value_names_weights
 
-        left_values_x, left_values_y, left_weights = self.get_scalar_values(
-            left_value_name_x,
-            left_value_name_y,
-            left_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder)
+            left_values_x, left_values_y, left_weights = self.get_scalar_values(
+                left_value_name_x,
+                left_value_name_y,
+                left_value_name_weights,
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder)
 
-        right_values_x, right_values_y, right_weights = self.get_scalar_values(
-            right_value_name_x,
-            right_value_name_y,
-            right_value_name_weights,
-            included_field_lines_finder=included_field_lines_finder,
-            included_points_finder=included_points_finder)
+            right_values_x, right_values_y, right_weights = self.get_scalar_values(
+                right_value_name_x,
+                right_value_name_y,
+                right_value_name_weights,
+                included_field_lines_finder=included_field_lines_finder,
+                included_points_finder=included_points_finder)
 
-        left_values_x = self._convert_values(left_value_name_x, left_values_x,
-                                             do_conversion)
-        left_values_y = self._convert_values(left_value_name_y, left_values_y,
-                                             do_conversion)
-        if left_weights is not None:
-            left_weights = self._convert_values(left_value_name_weights,
-                                                left_weights, do_conversion)
-            if weight_scale is not None:
-                left_weights *= weight_scale
+            left_values_x = self._convert_values(left_value_name_x, left_values_x,
+                                                do_conversion)
+            left_values_y = self._convert_values(left_value_name_y, left_values_y,
+                                                do_conversion)
+            if left_weights is not None:
+                left_weights = self._convert_values(left_value_name_weights,
+                                                    left_weights, do_conversion)
+                if weight_scale is not None:
+                    left_weights *= weight_scale
 
-        right_values_x = self._convert_values(right_value_name_x,
-                                              right_values_x, do_conversion)
-        right_values_y = self._convert_values(right_value_name_y,
-                                              right_values_y, do_conversion)
-        if right_weights is not None:
-            right_weights = self._convert_values(right_value_name_weights,
-                                                 right_weights, do_conversion)
-            if weight_scale is not None:
-                right_weights *= weight_scale
+            right_values_x = self._convert_values(right_value_name_x,
+                                                right_values_x, do_conversion)
+            right_values_y = self._convert_values(right_value_name_y,
+                                                right_values_y, do_conversion)
+            if right_weights is not None:
+                right_weights = self._convert_values(right_value_name_weights,
+                                                    right_weights, do_conversion)
+                if weight_scale is not None:
+                    right_weights *= weight_scale
 
         return self.__add_values_as_2d_histogram_difference_image(
             ax, (left_values_x, right_values_x),
             (left_values_y, right_values_y), (left_weights, right_weights),
-            **kwargs)
+            mode=mode, **kwargs)
 
     def has_fixed_scalar_values(self, value_name):
         return value_name in self.fixed_scalar_values
@@ -645,44 +678,58 @@ class FieldLineSet3:
                                        s=1.0,
                                        alpha=1.0,
                                        legend_label=None,
-                                       zorder=2):
+                                       zorder=2,
+                                       mode='instant',
+                                       save_path=None):
 
-        hist, bin_edges, bin_centers = plotting.compute_histogram(
-            values,
-            weights=weights,
-            bins=bins,
-            vmin=vmin,
-            vmax=vmax,
-            decide_bins_in_log_space=decide_bins_in_log_space,
-            weighted_average=weighted_average,
-            density=density)
-
-        if scatter:
-            return ax.scatter(bin_centers,
-                              hist,
-                              c=c,
-                              s=s,
-                              alpha=alpha,
-                              zorder=zorder)
+        if mode == 'load':
+            data = np.load(save_path)
+            hist = data['hist']
+            bin_edges = data['bin_edges']
+            bin_centers = data['bin_centers']
+            print('Loaded {}'.format(save_path))
         else:
-            if ds == 'steps-pre':
-                return ax.step(bin_edges[:-1],
-                               hist,
-                               c=c,
-                               ls=ls,
-                               lw=lw,
-                               alpha=alpha,
-                               label=legend_label,
-                               zorder=zorder)[0]
+            hist, bin_edges, bin_centers = plotting.compute_histogram(
+                values,
+                weights=weights,
+                bins=bins,
+                vmin=vmin,
+                vmax=vmax,
+                decide_bins_in_log_space=decide_bins_in_log_space,
+                weighted_average=weighted_average,
+                density=density)
+
+        if mode == 'save':
+            np.savez_compressed(save_path, hist=hist, bin_edges=bin_edges, bin_centers=bin_centers)
+            print('Saved {}'.format(save_path))
+            return None
+        else:
+            if scatter:
+                return ax.scatter(bin_centers,
+                                hist,
+                                c=c,
+                                s=s,
+                                alpha=alpha,
+                                zorder=zorder)
             else:
-                return ax.plot(bin_centers,
-                               hist,
-                               c=c,
-                               ls=ls,
-                               lw=lw,
-                               alpha=alpha,
-                               label=legend_label,
-                               zorder=zorder)[0]
+                if ds == 'steps-pre':
+                    return ax.step(bin_edges[:-1],
+                                hist,
+                                c=c,
+                                ls=ls,
+                                lw=lw,
+                                alpha=alpha,
+                                label=legend_label,
+                                zorder=zorder)[0]
+                else:
+                    return ax.plot(bin_centers,
+                                hist,
+                                c=c,
+                                ls=ls,
+                                lw=lw,
+                                alpha=alpha,
+                                label=legend_label,
+                                zorder=zorder)[0]
 
     def __add_values_as_line_histogram_difference(
             self,
@@ -698,25 +745,39 @@ class FieldLineSet3:
             lw=1.0,
             s=1.0,
             alpha=1.0,
-            legend_label=None):
+            legend_label=None,
+            mode='instant',
+            save_path=None):
 
-        hist, bin_edges, bin_centers = plotting.compute_histogram_difference(
-            values, weights, vmin, vmax, bins, decide_bins_in_log_space)
-
-        if scatter:
-            sc = ax.scatter(bin_centers, hist, c=c, s=s, alpha=alpha)
-            if decide_bins_in_log_space:
-                plotting.set_2d_plot_extent(ax, bin_centers[0],
-                                            bin_centers[-1])
-            return sc
+        if mode == 'load':
+            data = np.load(save_path)
+            hist = data['hist']
+            bin_edges = data['bin_edges']
+            bin_centers = data['bin_centers']
+            print('Loaded {}'.format(save_path))
         else:
-            return ax.step(bin_edges[:-1],
-                           hist,
-                           where='pre',
-                           c=c,
-                           lw=lw,
-                           alpha=alpha,
-                           label=legend_label)[0]
+            hist, bin_edges, bin_centers = plotting.compute_histogram_difference(
+                values, weights, vmin, vmax, bins, decide_bins_in_log_space)
+
+        if mode == 'save':
+            np.savez_compressed(save_path, hist=hist, bin_edges=bin_edges, bin_centers=bin_centers)
+            print('Saved {}'.format(save_path))
+            return None
+        else:
+            if scatter:
+                sc = ax.scatter(bin_centers, hist, c=c, s=s, alpha=alpha)
+                if decide_bins_in_log_space:
+                    plotting.set_2d_plot_extent(ax, bin_centers[0],
+                                                bin_centers[-1])
+                return sc
+            else:
+                return ax.step(bin_edges[:-1],
+                            hist,
+                            where='pre',
+                            c=c,
+                            lw=lw,
+                            alpha=alpha,
+                            label=legend_label)[0]
 
     def __add_values_as_2d_histogram_image(self,
                                            ax,
@@ -739,27 +800,41 @@ class FieldLineSet3:
                                            vmin=None,
                                            vmax=None,
                                            cmap_name='viridis',
-                                           cmap_bad_color='w'):
+                                           cmap_bad_color='w',
+                                           mode='instant',
+                                           save_path=None):
 
-        hist, bin_edges_x, bin_edges_y = plotting.compute_2d_histogram(
-            values_x, values_y, weights, vmin_x, vmax_x, vmin_y, vmax_y, log_x,
-            log_y, bins_x, bins_y, weighted_average)
-
-        if symlog:
-            norm = plotting.get_symlog_normalizer(vmin,
-                                                  vmax,
-                                                  linthresh,
-                                                  linscale=linscale)
+        if mode == 'load':
+            data = np.load(save_path)
+            hist = data['hist']
+            bin_edges_x = data['bin_edges_x']
+            bin_edges_y = data['bin_edges_y']
+            print('Loaded {}'.format(save_path))
         else:
-            norm = plotting.get_normalizer(vmin, vmax, log=log)
+            hist, bin_edges_x, bin_edges_y = plotting.compute_2d_histogram(
+                values_x, values_y, weights, vmin_x, vmax_x, vmin_y, vmax_y, log_x,
+                log_y, bins_x, bins_y, weighted_average)
 
-        return ax.pcolormesh(*np.meshgrid(bin_edges_x, bin_edges_y),
-                             hist.T,
-                             norm=norm,
-                             vmin=vmin,
-                             vmax=vmax,
-                             cmap=plotting.get_cmap(cmap_name,
-                                                    bad_color=cmap_bad_color))
+        if mode == 'save':
+            np.savez_compressed(save_path, hist=hist, bin_edges_x=bin_edges_x, bin_edges_y=bin_edges_y)
+            print('Saved {}'.format(save_path))
+            return None
+        else:
+            if symlog:
+                norm = plotting.get_symlog_normalizer(vmin,
+                                                    vmax,
+                                                    linthresh,
+                                                    linscale=linscale)
+            else:
+                norm = plotting.get_normalizer(vmin, vmax, log=log)
+
+            return ax.pcolormesh(*np.meshgrid(bin_edges_x, bin_edges_y),
+                                hist.T,
+                                norm=norm,
+                                vmin=vmin,
+                                vmax=vmax,
+                                cmap=plotting.get_cmap(cmap_name,
+                                                        bad_color=cmap_bad_color))
 
     def __add_values_as_2d_histogram_contour(self,
                                              ax,
@@ -845,27 +920,41 @@ class FieldLineSet3:
                                                       vmin=None,
                                                       vmax=None,
                                                       cmap_name='viridis',
-                                                      cmap_bad_color='w'):
+                                                      cmap_bad_color='w',
+                                                      mode='instant',
+                                                      save_path=None):
 
-        hist_diff, bin_edges_x, bin_edges_y = plotting.compute_2d_histogram_difference(
-            values_x, values_y, weights, vmin_x, vmax_x, vmin_y, vmax_y, log_x,
-            log_y, bins_x, bins_y)
-
-        if symlog:
-            norm = plotting.get_symlog_normalizer(vmin,
-                                                  vmax,
-                                                  linthresh,
-                                                  linscale=linscale)
+        if mode == 'load':
+            data = np.load(save_path)
+            hist_diff = data['hist_diff']
+            bin_edges_x = data['bin_edges_x']
+            bin_edges_y = data['bin_edges_y']
+            print('Loaded {}'.format(save_path))
         else:
-            norm = plotting.get_linear_normalizer(vmin, vmax)
+            hist_diff, bin_edges_x, bin_edges_y = plotting.compute_2d_histogram_difference(
+                values_x, values_y, weights, vmin_x, vmax_x, vmin_y, vmax_y, log_x,
+                log_y, bins_x, bins_y)
 
-        return ax.pcolormesh(*np.meshgrid(bin_edges_x, bin_edges_y),
-                             hist_diff.T,
-                             norm=norm,
-                             vmin=vmin,
-                             vmax=vmax,
-                             cmap=plotting.get_cmap(cmap_name,
-                                                    bad_color=cmap_bad_color))
+        if mode == 'save':
+            np.savez_compressed(save_path, hist_diff=hist_diff, bin_edges_x=bin_edges_x, bin_edges_y=bin_edges_y)
+            print('Saved {}'.format(save_path))
+            return None
+        else:
+            if symlog:
+                norm = plotting.get_symlog_normalizer(vmin,
+                                                    vmax,
+                                                    linthresh,
+                                                    linscale=linscale)
+            else:
+                norm = plotting.get_linear_normalizer(vmin, vmax)
+
+            return ax.pcolormesh(*np.meshgrid(bin_edges_x, bin_edges_y),
+                                hist_diff.T,
+                                norm=norm,
+                                vmin=vmin,
+                                vmax=vmax,
+                                cmap=plotting.get_cmap(cmap_name,
+                                                        bad_color=cmap_bad_color))
 
 
 def find_field_lines_passing_near_point(point, max_distance,
@@ -1051,18 +1140,27 @@ def plot_field_line_properties(field_line_set,
                                vmin_y=None,
                                vmax_y=None,
                                extra_artists=None,
+                               mode='instant',
+                               save_path=None,
                                **kwargs):
 
-    if fig is None or ax is None:
+    if (fig is None or ax is None) and mode != 'save':
         fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+
+    if mode != 'instant' and save_path is None and output_path is not None:
+        save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
 
     norm, cmap = field_line_set.add_values_as_2d_property_plot(
         ax,
         value_name_x,
         value_name_y,
         value_name_color=value_name_color,
-        do_conversion=kwargs.pop('do_conversion', True),
+        mode=mode,
+        save_path=save_path,
         **kwargs)
+
+    if mode == 'save':
+        return
 
     if extra_artists is not None:
         for artist in extra_artists:
@@ -1132,18 +1230,27 @@ def plot_field_line_value_histogram(field_line_set,
                                     vmin_y=None,
                                     vmax_y=None,
                                     extra_artists=None,
+                                    mode='instant',
+                                    save_path=None,
                                     **kwargs):
 
-    if fig is None or ax is None:
+    if (fig is None or ax is None) and mode != 'save':
         fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+
+    if mode != 'instant' and save_path is None and output_path is not None:
+        save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
 
     handle = field_line_set.add_values_as_line_histogram(
         ax,
         value_name,
         value_name_weights=value_name_weights,
-        do_conversion=kwargs.pop('do_conversion', True),
         decide_bins_in_log_space=log_x,
+        mode=mode,
+        save_path=save_path,
         **kwargs)
+
+    if mode == 'save':
+        return
 
     if extra_artists is not None:
         for artist in extra_artists:
@@ -1212,18 +1319,27 @@ def plot_field_line_value_histogram_difference(field_line_set,
                                                vmin_y=None,
                                                vmax_y=None,
                                                extra_artists=None,
+                                               mode='instant',
+                                               save_path=None,
                                                **kwargs):
 
-    if fig is None or ax is None:
+    if (fig is None or ax is None) and mode != 'save':
         fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+
+    if mode != 'instant' and save_path is None and output_path is not None:
+        save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
 
     handle = field_line_set.add_values_as_line_histogram_difference(
         ax,
         value_names,
         value_names_weights=value_names_weights,
-        do_conversion=kwargs.pop('do_conversion', True),
         decide_bins_in_log_space=log_x,
+        mode=mode,
+        save_path=save_path,
         **kwargs)
+
+    if mode == 'save':
+        return
 
     if extra_artists is not None:
         for artist in extra_artists:
@@ -1285,21 +1401,29 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        log_y=False,
                                        contour_kwargs={},
                                        extra_artists=None,
+                                       mode='instant',
+                                       save_path=None,
                                        **kwargs):
 
-    if fig is None or ax is None:
+    if (fig is None or ax is None) and mode != 'save':
         fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+
+    if mode != 'instant' and save_path is None and output_path is not None:
+        save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
 
     im = field_line_set.add_values_as_2d_histogram_image(
         ax,
         value_name_x,
         value_name_y,
         value_name_weights=value_name_weights,
-        weight_scale=kwargs.pop('weight_scale', None),
-        do_conversion=kwargs.pop('do_conversion', True),
         log_x=log_x,
         log_y=log_y,
+        mode=mode,
+        save_path=save_path,
         **kwargs)
+
+    if mode == 'save':
+        return
 
     if contour_kwargs:
         contour_field_line_set = contour_kwargs.pop('dataset', field_line_set)
@@ -1367,21 +1491,29 @@ def plot_field_line_value_2d_histogram_difference(
         log_y=False,
         contour_kwargs={},
         extra_artists=None,
+        mode='instant',
+        save_path=None,
         **kwargs):
 
-    if fig is None or ax is None:
+    if (fig is None or ax is None) and mode != 'save':
         fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+
+    if mode != 'instant' and save_path is None and output_path is not None:
+        save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
 
     im = field_line_set.add_values_as_2d_histogram_difference_image(
         ax,
         value_names_x,
         value_names_y,
         value_names_weights=value_names_weights,
-        weight_scale=kwargs.pop('weight_scale', None),
-        do_conversion=kwargs.pop('do_conversion', True),
         log_x=log_x,
         log_y=log_y,
+        mode=mode,
+        save_path=save_path,
         **kwargs)
+
+    if mode == 'save':
+        return
 
     if contour_kwargs:
         contour_field_line_set = contour_kwargs.pop('dataset', field_line_set)
