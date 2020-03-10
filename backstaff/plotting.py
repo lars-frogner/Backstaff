@@ -52,9 +52,9 @@ def set_3d_axes_equal(ax):
     set_axes_radius(ax, origin, radius)
 
 
-def set_2d_axis_labels(ax, xlabel, ylabel):
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+def set_2d_axis_labels(ax, xlabel, ylabel, xcolor='k', ycolor='k'):
+    ax.set_xlabel(xlabel, color=xcolor)
+    ax.set_ylabel(ylabel, color=ycolor)
 
 
 def set_3d_axis_labels(ax, xlabel, ylabel, zlabel):
@@ -122,9 +122,14 @@ def colors_from_values(values, norm, cmap, alpha=1.0, relative_alpha=True):
     return colors
 
 
-def add_2d_colorbar(fig, ax, mappeable, loc='right', pad=0.05, label=''):
+def create_colorbar_axis(ax, loc='right', pad=0.05):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes(loc, size='5%', pad=pad)
+    return cax
+
+
+def add_2d_colorbar(fig, ax, mappeable, loc='right', pad=0.05, label=''):
+    cax = create_colorbar_axis(ax, loc=loc, pad=pad)
     fig.colorbar(
         mappeable,
         cax=cax,
@@ -140,8 +145,7 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
                                        loc='right',
                                        pad=0.05,
                                        label=''):
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes(loc, size='5%', pad=pad)
+    cax = create_colorbar_axis(ax, loc=loc, pad=pad)
     sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
     fig.colorbar(
@@ -180,6 +184,45 @@ def render(fig, tight_layout=True, output_path=None, force_show=False):
             plt.show()
     else:
         plt.show()
+
+
+def plot_2d_field(hor_coords,
+                  vert_coords,
+                  values,
+                  vmin=None,
+                  vmax=None,
+                  log=False,
+                  symlog=False,
+                  linthresh=np.inf,
+                  linscale=1.0,
+                  cmap_name='viridis',
+                  cmap_bad_color='white',
+                  xlabel=None,
+                  ylabel=None,
+                  clabel='',
+                  output_path=None):
+    if symlog:
+        norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
+    else:
+        norm = get_normalizer(vmin, vmax, log=log)
+
+    fig, ax = create_2d_subplots()
+
+    im = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
+                       values.T,
+                       norm=norm,
+                       vmin=vmin,
+                       vmax=vmax,
+                       cmap=get_cmap(cmap_name, bad_color=cmap_bad_color))
+
+    set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
+                       (vert_coords[0], vert_coords[-1]))
+    set_2d_axis_labels(ax, xlabel, ylabel)
+    add_2d_colorbar(fig, ax, im, label=clabel)
+
+    ax.set_aspect('equal')
+
+    render(fig, output_path=output_path)
 
 
 def setup_line_animation(fig,
