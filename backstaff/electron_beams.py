@@ -29,8 +29,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'total_energy_density': r'Total energy density [erg/cm$^3$]',
         'lower_cutoff_energy': r'$E_\mathrm{{c}}$ [keV]',
         'acceleration_volume': r'Acceleration site volume [cm$^3$]',
-        'estimated_thermalization_distance':
-        r'$\tilde{{s}}_\mathrm{{dep}}$ [Mm]',
+        'estimated_depletion_distance': r'$\tilde{{s}}_\mathrm{{dep}}$ [Mm]',
         'total_propagation_distance': r'$s_\mathrm{{dep}}$ [Mm]',
         'residual_factor': r'$r$',
         'acceleration_height': 'Acceleration site height [Mm]',
@@ -41,6 +40,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'deposited_power': 'Deposited power [erg/s]',
         'deposited_power_per_dist':
         r'$\mathrm{{d}}\mathcal{{E}}/\mathrm{{d}}s$ [erg/s/cm]',
+        'deposited_power_density': r'$Q$ [erg/s/cm$^3$]',
         'power_change': 'Power change [erg/s]',
         'power_density_change': r'Power density change [erg/s/cm$^3$]',
         'beam_flux': r'Energy flux [erg/s/cm$^2$]',
@@ -58,7 +58,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
     VALUE_UNIT_CONVERTERS = {
         'r': lambda f: f*units.U_R,
-        'qspitz': lambda f: f*(-units.U_E/units.U_T),
+        'qspitz': lambda f: f*(units.U_E/units.U_T),
         'r0': lambda f: f*units.U_R,
         'z': lambda f: -f,
         'z0': lambda f: -f,
@@ -277,7 +277,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             ]
             for i in range(self.get_number_of_beams()):
                 self.varying_scalar_values['conduction_flux'][
-                    i] *= -self.get_param(
+                    i] *= self.get_param(
                         'dense_step_length')*units.U_L*units.U_E/units.U_T
 
         if 'cumulative_power' in derived_quantities:
