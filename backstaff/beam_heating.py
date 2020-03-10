@@ -93,12 +93,12 @@ def compute_stopping_column_depth(
 
 
 def compute_heating_scale(
-        total_flux,
+        total_power,
         delta,
         pitch_angle_cosine,
         lower_cutoff_energy,
 ):
-    return COLLISION_SCALE * total_flux * (delta - 2.0) \
+    return COLLISION_SCALE * total_power * (delta - 2.0) \
         / (2.0 * np.abs(pitch_angle_cosine) * lower_cutoff_energy**2)
 
 
@@ -106,7 +106,7 @@ def compute_cumulative_integral_over_distance(distances, values, initial=0):
     return integrate.cumtrapz(values, x=distances, initial=initial)
 
 
-def compute_cumulative_heat_flux(distances, beam_heating):
+def compute_cumulative_heat_power(distances, beam_heating):
     return compute_cumulative_integral_over_distance(distances, beam_heating)
 
 
@@ -131,9 +131,9 @@ def compute_collisional_depth_derivative_SFP(
         electron_density, neutral_hydrogen_density, mean_energy)
 
 
-def compute_beam_heating_SFP(delta, total_flux, lower_cutoff_energy,
+def compute_beam_heating_SFP(delta, total_power, lower_cutoff_energy,
                              collisional_depth, collisional_depth_derivative):
-    return total_flux*collisional_depth_derivative*(
+    return total_power*collisional_depth_derivative*(
         (delta - 2.0)/
         (2*(lower_cutoff_energy*units.KEV_TO_ERG/units.MC2_ELECTRON)**2)
     )*(1.0 + collisional_depth/
@@ -141,15 +141,15 @@ def compute_beam_heating_SFP(delta, total_flux, lower_cutoff_energy,
                                                                        delta)
 
 
-def compute_remaining_flux_SFP(
+def compute_remaining_power_SFP(
         delta,
-        total_flux,
+        total_power,
         lower_cutoff_energy,
         collisional_depth,
 ):
-    return total_flux*(1.0 + collisional_depth/
-                       (lower_cutoff_energy*units.KEV_TO_ERG/
-                        units.MC2_ELECTRON)**2)**(1.0 - 0.5*delta)
+    return total_power*(1.0 + collisional_depth/
+                        (lower_cutoff_energy*units.KEV_TO_ERG/
+                         units.MC2_ELECTRON)**2)**(1.0 - 0.5*delta)
 
 
 class Atmosphere:
@@ -330,8 +330,8 @@ class Atmosphere:
 
 
 class Distribution:
-    def __init__(self, total_flux, delta, pitch_angle, lower_cutoff_energy):
-        self.total_flux = total_flux
+    def __init__(self, total_power, delta, pitch_angle, lower_cutoff_energy):
+        self.total_power = total_power
         self.__delta = delta
         self.pitch_angle = pitch_angle
         self.lower_cutoff_energy = lower_cutoff_energy
@@ -426,7 +426,7 @@ class HeatedAtmosphere(Atmosphere):
 
         self.equivalent_ionized_column_depth_ratios = self.equivalent_ionized_column_depths/self.stopping_ionized_column_depth
 
-        heating_scale = compute_heating_scale(distribution.total_flux,
+        heating_scale = compute_heating_scale(distribution.total_power,
                                               distribution.delta,
                                               distribution.pitch_angle_cosine,
                                               distribution.lower_cutoff_energy)
@@ -442,10 +442,10 @@ class HeatedAtmosphere(Atmosphere):
 
         self.beam_heating[0] = 0.0
 
-        self.cumulative_heat_flux = compute_cumulative_heat_flux(
+        self.cumulative_heat_power = compute_cumulative_heat_power(
             self.distances, self.beam_heating)
 
-        self.remaining_beam_fluxes = distribution.total_flux - self.cumulative_heat_flux
+        self.remaining_beam_powers = distribution.total_power - self.cumulative_heat_power
 
     def compute_conductive_heating(self):
 
@@ -482,10 +482,10 @@ class HeatedAtmosphereSFP(Atmosphere):
             self.distances, self.collisional_depth_derivatives)
 
         self.beam_heating = compute_beam_heating_SFP(
-            distribution.delta, distribution.total_flux,
+            distribution.delta, distribution.total_power,
             distribution.lower_cutoff_energy, self.collisional_depths,
             self.collisional_depth_derivatives)
 
-        self.remaining_beam_fluxes = compute_remaining_flux_SFP(
-            distribution.delta, distribution.total_flux,
+        self.remaining_beam_powers = compute_remaining_power_SFP(
+            distribution.delta, distribution.total_power,
             distribution.lower_cutoff_energy, self.collisional_depths)
