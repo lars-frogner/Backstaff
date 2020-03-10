@@ -294,10 +294,12 @@ impl Accelerator for DCPowerLawAccelerator {
                         PowerLawDistribution::estimate_depletion_distance(
                             self.config.power_law_delta,
                             self.distribution_config.min_residual_factor,
+                            self.distribution_config.min_deposited_power_per_distance,
                             total_hydrogen_density,
                             effective_coulomb_logarithm,
                             electron_coulomb_logarithm,
                             stopping_ionized_column_depth,
+                            heating_scale,
                         );
 
                     if estimated_depletion_distance < self.config.min_depletion_distance * U_L {

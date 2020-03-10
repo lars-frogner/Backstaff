@@ -523,19 +523,8 @@ impl Accelerator for SimplePowerLawAccelerator {
                             electron_coulomb_logarithm,
                         );
 
-                    let estimated_depletion_distance =
-                        PowerLawDistribution::estimate_depletion_distance(
-                            self.config.power_law_delta,
-                            self.distribution_config.min_residual_factor,
-                            total_hydrogen_density,
-                            effective_coulomb_logarithm,
-                            electron_coulomb_logarithm,
-                            stopping_ionized_column_depth,
-                        );
-
-                    if (temperature < self.config.min_temperature
-                        && mass_density > self.config.max_mass_density)
-                        || estimated_depletion_distance < self.config.min_depletion_distance * U_L
+                    if temperature < self.config.min_temperature
+                        && mass_density > self.config.max_mass_density
                     {
                         None
                     } else {
@@ -545,68 +534,100 @@ impl Accelerator for SimplePowerLawAccelerator {
                                 backward_power_density,
                                 acceleration_volume,
                             );
-
                             let heating_scale = PowerLawDistribution::compute_heating_scale(
                                 backward_power,
                                 self.config.power_law_delta,
                                 initial_pitch_angle_cosine,
                                 lower_cutoff_energy,
                             );
-                            let distribution_data = PowerLawDistributionData {
-                                delta: self.config.power_law_delta,
-                                initial_pitch_angle_cosine,
-                                total_power: backward_power,
-                                total_power_density: backward_power_density,
-                                lower_cutoff_energy,
-                                acceleration_position: acceleration_position.clone(),
-                                acceleration_volume,
-                                propagation_sense: SteppingSense::Opposite,
-                                electron_coulomb_logarithm,
-                                neutral_hydrogen_coulomb_logarithm,
-                                heating_scale,
-                                stopping_ionized_column_depth,
-                                estimated_depletion_distance,
-                                electric_field_angle_cosine,
-                            };
-                            distributions.push(PowerLawDistribution::new(
-                                self.distribution_config.clone(),
-                                distribution_data,
-                            ));
+                            let estimated_depletion_distance =
+                                PowerLawDistribution::estimate_depletion_distance(
+                                    self.config.power_law_delta,
+                                    self.distribution_config.min_residual_factor,
+                                    self.distribution_config.min_deposited_power_per_distance,
+                                    total_hydrogen_density,
+                                    effective_coulomb_logarithm,
+                                    electron_coulomb_logarithm,
+                                    stopping_ionized_column_depth,
+                                    heating_scale,
+                                );
+                            if estimated_depletion_distance
+                                >= self.config.min_depletion_distance * U_L
+                            {
+                                let distribution_data = PowerLawDistributionData {
+                                    delta: self.config.power_law_delta,
+                                    initial_pitch_angle_cosine,
+                                    total_power: backward_power,
+                                    total_power_density: backward_power_density,
+                                    lower_cutoff_energy,
+                                    acceleration_position: acceleration_position.clone(),
+                                    acceleration_volume,
+                                    propagation_sense: SteppingSense::Opposite,
+                                    electron_coulomb_logarithm,
+                                    neutral_hydrogen_coulomb_logarithm,
+                                    heating_scale,
+                                    stopping_ionized_column_depth,
+                                    estimated_depletion_distance,
+                                    electric_field_angle_cosine,
+                                };
+                                distributions.push(PowerLawDistribution::new(
+                                    self.distribution_config.clone(),
+                                    distribution_data,
+                                ));
+                            }
                         }
                         if let (_, Some(forward_power_density)) = partitioned_power_densities {
                             let forward_power = PowerLawDistribution::compute_total_power(
                                 forward_power_density,
                                 acceleration_volume,
                             );
-
                             let heating_scale = PowerLawDistribution::compute_heating_scale(
                                 forward_power,
                                 self.config.power_law_delta,
                                 initial_pitch_angle_cosine,
                                 lower_cutoff_energy,
                             );
-                            let distribution_data = PowerLawDistributionData {
-                                delta: self.config.power_law_delta,
-                                initial_pitch_angle_cosine,
-                                total_power: forward_power,
-                                total_power_density: forward_power_density,
-                                lower_cutoff_energy,
-                                acceleration_position,
-                                acceleration_volume,
-                                propagation_sense: SteppingSense::Same,
-                                electron_coulomb_logarithm,
-                                neutral_hydrogen_coulomb_logarithm,
-                                heating_scale,
-                                stopping_ionized_column_depth,
-                                estimated_depletion_distance,
-                                electric_field_angle_cosine,
-                            };
-                            distributions.push(PowerLawDistribution::new(
-                                self.distribution_config.clone(),
-                                distribution_data,
-                            ));
+                            let estimated_depletion_distance =
+                                PowerLawDistribution::estimate_depletion_distance(
+                                    self.config.power_law_delta,
+                                    self.distribution_config.min_residual_factor,
+                                    self.distribution_config.min_deposited_power_per_distance,
+                                    total_hydrogen_density,
+                                    effective_coulomb_logarithm,
+                                    electron_coulomb_logarithm,
+                                    stopping_ionized_column_depth,
+                                    heating_scale,
+                                );
+                            if estimated_depletion_distance
+                                >= self.config.min_depletion_distance * U_L
+                            {
+                                let distribution_data = PowerLawDistributionData {
+                                    delta: self.config.power_law_delta,
+                                    initial_pitch_angle_cosine,
+                                    total_power: forward_power,
+                                    total_power_density: forward_power_density,
+                                    lower_cutoff_energy,
+                                    acceleration_position,
+                                    acceleration_volume,
+                                    propagation_sense: SteppingSense::Same,
+                                    electron_coulomb_logarithm,
+                                    neutral_hydrogen_coulomb_logarithm,
+                                    heating_scale,
+                                    stopping_ionized_column_depth,
+                                    estimated_depletion_distance,
+                                    electric_field_angle_cosine,
+                                };
+                                distributions.push(PowerLawDistribution::new(
+                                    self.distribution_config.clone(),
+                                    distribution_data,
+                                ));
+                            }
                         }
-                        Some(distributions)
+                        if distributions.is_empty() {
+                            None
+                        } else {
+                            Some(distributions)
+                        }
                     }
                 },
             )
