@@ -115,7 +115,8 @@ class ScalarField2:
 def plot_2d_scalar_field(field,
                          fig=None,
                          ax=None,
-                         figsize=None,
+                         figure_width=8.0,
+                         figure_aspect=4.0/3.0,
                          xlabel=None,
                          ylabel=None,
                          value_description=None,
@@ -125,7 +126,7 @@ def plot_2d_scalar_field(field,
                          **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots(figsize=figsize)
+        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
 
     im = field.add_to_plot(ax, **kwargs)
 
