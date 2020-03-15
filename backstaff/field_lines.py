@@ -234,7 +234,7 @@ class FieldLineSet3:
             data = np.load(save_path)
             values_x = data['values_x']
             values_y = data['values_y']
-            values_color = data.get('values_color', None)
+            values_color = data['values_color'] if 'values_color' in data.keys() else None
             print('Loaded {}'.format(save_path))
         else:
             values_x, values_y, values_color = self.get_scalar_values(
@@ -1118,7 +1118,7 @@ def plot_field_line_properties(field_line_set,
                                value_name_color=None,
                                fig=None,
                                ax=None,
-                               figure_width=8.0,
+                               figure_width=6.0,
                                figure_aspect=4.0/3.0,
                                invert_xaxis=False,
                                invert_yaxis=False,
@@ -1145,7 +1145,7 @@ def plot_field_line_properties(field_line_set,
                                **kwargs):
 
     if (fig is None or ax is None) and mode != 'save':
-        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+        fig, ax = plotting.create_2d_subplots(width=figure_width, aspect_ratio=figure_aspect)
 
     if mode != 'instant' and save_path is None and output_path is not None:
         save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
@@ -1210,7 +1210,7 @@ def plot_field_line_value_histogram(field_line_set,
                                     value_name_weights=None,
                                     fig=None,
                                     ax=None,
-                                    figure_width=8.0,
+                                    figure_width=6.0,
                                     figure_aspect=4.0/3.0,
                                     invert_xaxis=False,
                                     invert_yaxis=False,
@@ -1235,7 +1235,7 @@ def plot_field_line_value_histogram(field_line_set,
                                     **kwargs):
 
     if (fig is None or ax is None) and mode != 'save':
-        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+        fig, ax = plotting.create_2d_subplots(width=figure_width, aspect_ratio=figure_aspect)
 
     if mode != 'instant' and save_path is None and output_path is not None:
         save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
@@ -1301,7 +1301,7 @@ def plot_field_line_value_histogram_difference(field_line_set,
                                                value_names_weights=None,
                                                fig=None,
                                                ax=None,
-                                               figure_width=8.0,
+                                               figure_width=6.0,
                                                figure_aspect=4.0/3.0,
                                                invert_xaxis=False,
                                                invert_yaxis=False,
@@ -1324,7 +1324,7 @@ def plot_field_line_value_histogram_difference(field_line_set,
                                                **kwargs):
 
     if (fig is None or ax is None) and mode != 'save':
-        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+        fig, ax = plotting.create_2d_subplots(width=figure_width, aspect_ratio=figure_aspect)
 
     if mode != 'instant' and save_path is None and output_path is not None:
         save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
@@ -1386,7 +1386,7 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        value_name_weights=None,
                                        fig=None,
                                        ax=None,
-                                       figure_width=8.0,
+                                       figure_width=6.0,
                                        figure_aspect=4.0/3.0,
                                        invert_xaxis=False,
                                        invert_yaxis=False,
@@ -1406,7 +1406,7 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        **kwargs):
 
     if (fig is None or ax is None) and mode != 'save':
-        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+        fig, ax = plotting.create_2d_subplots(width=figure_width, aspect_ratio=figure_aspect)
 
     if mode != 'instant' and save_path is None and output_path is not None:
         save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))
@@ -1476,7 +1476,7 @@ def plot_field_line_value_2d_histogram_difference(
         value_names_weights=None,
         fig=None,
         ax=None,
-        figure_width=8.0,
+        figure_width=6.0,
         figure_aspect=4.0/3.0,
         invert_xaxis=False,
         invert_yaxis=False,
@@ -1496,7 +1496,7 @@ def plot_field_line_value_2d_histogram_difference(
         **kwargs):
 
     if (fig is None or ax is None) and mode != 'save':
-        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+        fig, ax = plotting.create_2d_subplots(width=figure_width, aspect_ratio=figure_aspect)
 
     if mode != 'instant' and save_path is None and output_path is not None:
         save_path = '{}.npz'.format('.'.join(output_path.split('.')[:-1]))

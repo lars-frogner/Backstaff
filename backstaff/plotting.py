@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib as mpl
-#mpl.use('agg')
+mpl.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import matplotlib.cm as mpl_cm
@@ -11,8 +11,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.offsetbox import AnchoredText
 
 
-def create_2d_subplots(dpi=200, **kwargs):
-    return plt.subplots(dpi=dpi, **kwargs)
+def create_2d_subplots(width=6.0, aspect_ratio=4.0/3.0, dpi=200, **kwargs):
+    return plt.subplots(figsize=kwargs.pop('figsize', (width, width/aspect_ratio)), dpi=dpi, **kwargs)
 
 
 def set_2d_plot_extent(ax, x_lims, y_lims):
@@ -189,6 +189,8 @@ def render(fig, tight_layout=True, output_path=None, force_show=False):
 def plot_2d_field(hor_coords,
                   vert_coords,
                   values,
+                  figure_width=6.0,
+                  figure_aspect=4.0/3.0,
                   vmin=None,
                   vmax=None,
                   log=False,
@@ -206,7 +208,7 @@ def plot_2d_field(hor_coords,
     else:
         norm = get_normalizer(vmin, vmax, log=log)
 
-    fig, ax = create_2d_subplots()
+    fig, ax = create_2d_subplots(width=figure_width, aspect_ratio=figure_aspect)
 
     im = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
                        values.T,
