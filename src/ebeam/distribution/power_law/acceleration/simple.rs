@@ -642,7 +642,7 @@ impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_ACCELERATION_DURATION: feb = 1.0; // [s]
     pub const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.2;
     pub const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
-    pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/(cm^3 s)]
+    pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/s/cm^3]
     pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
     pub const DEFAULT_MAX_PITCH_ANGLE: feb = 70.0; // [deg]
     pub const DEFAULT_MAX_ELECTRIC_FIELD_ANGLE: feb = 90.0; // [deg]
@@ -682,7 +682,7 @@ impl SimplePowerLawAccelerationConfig {
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "min_total_power_density",
                 "min_beam_en",
-                &|min_beam_en: feb| min_beam_en * U_E / U_T,
+                &|min_beam_en: feb| min_beam_en,
                 Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             );
         let min_depletion_distance = reader
@@ -692,28 +692,12 @@ impl SimplePowerLawAccelerationConfig {
                 &|min_stop_dist: feb| min_stop_dist,
                 Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             );
-        let max_pitch_angle = reader
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "max_pitch_angle",
-                "max_pitch_ang",
-                &|max_pitch_ang: feb| max_pitch_ang,
-                Self::DEFAULT_MAX_PITCH_ANGLE,
-            );
-        let max_electric_field_angle = reader
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                "max_electric_field_angle",
-                "max_efield_ang",
-                &|max_efield_ang: feb| max_efield_ang,
-                Self::DEFAULT_MAX_PITCH_ANGLE,
-            );
         SimplePowerLawAccelerationConfig {
             acceleration_duration,
             particle_energy_fraction,
             power_law_delta,
             min_total_power_density,
             min_depletion_distance,
-            max_pitch_angle,
-            max_electric_field_angle,
             ..Self::default()
         }
     }
