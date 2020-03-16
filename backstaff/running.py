@@ -23,7 +23,7 @@ def run_command(*args, return_immediately=False):
     return return_code
 
 
-def run_bifrust(*args, pre_cargo_args=[], features=['cli']):
+def run_backstaff(*args, pre_cargo_args=[], features=['cli']):
     args = pre_cargo_args + [
         'cargo', 'run', '--release', '--no-default-features', '--features',
         ' '.join(features), '--'
@@ -31,12 +31,12 @@ def run_bifrust(*args, pre_cargo_args=[], features=['cli']):
     return run_command(*args)
 
 
-def run_bifrust_remotely(destination_machine,
-                         destination_dir,
-                         *args,
-                         pre_ssh_args=[],
-                         pre_cargo_args=['nice'],
-                         features=['cli']):
+def run_backstaff_remotely(destination_machine,
+                           destination_dir,
+                           *args,
+                           pre_ssh_args=[],
+                           pre_cargo_args=['nice'],
+                           features=['cli']):
     run_command_args = pre_cargo_args + [
         'cargo', 'run', '--release', '--no-default-features', '--features',
         ' '.join(features), '--'
