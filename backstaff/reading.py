@@ -40,7 +40,9 @@ def read_3d_field_line_set_from_combined_pickles(file_path, **kwargs):
     return __parse_fieldlineset3_pickle(data, **kwargs)
 
 
-def read_3d_field_line_set_from_custom_binary_file(file_path, memmap=True, **kwargs):
+def read_3d_field_line_set_from_custom_binary_file(file_path,
+                                                   memmap=True,
+                                                   **kwargs):
     with open(file_path, 'rb') as f:
         field_line_set = field_lines.FieldLineSet3(
             *__parse_custom_field_line_binary_file(f, memmap=memmap), **kwargs)
@@ -84,7 +86,6 @@ def read_electron_beam_swarm_from_custom_binary_file(
 
 
 class _SplittedArray1D:
-
     def __init__(self, buffer, split_indices):
         self.buffer = buffer
         self.split_indices = split_indices
@@ -111,9 +112,12 @@ class _SplittedArray1D:
             if end < 0:
                 end = self.n_parts + end
         else:
-            raise TypeError('list indices must be integers or slices, not {}'.format(idx.__class__.__name__))
+            raise TypeError(
+                'list indices must be integers or slices, not {}'.format(
+                    idx.__class__.__name__))
 
-        return slice(self.split_indices[start], None if end == self.n_parts else self.split_indices[end])
+        return slice(self.split_indices[start],
+                     None if end == self.n_parts else self.split_indices[end])
 
 
 class _SplittedArray2D(_SplittedArray1D):
@@ -163,33 +167,42 @@ def __parse_custom_field_line_binary_file_memmap(f):
 
     def running_memmap(f, dtype, shape):
         byte_offset = f.tell()
-        m = np.memmap(f, dtype=dtype, mode='r', offset=byte_offset, shape=shape)
+        m = np.memmap(f,
+                      dtype=dtype,
+                      mode='r',
+                      offset=byte_offset,
+                      shape=shape)
         mapped_bytes = np.product(shape, dtype=int)*dtype.itemsize
         f.seek(byte_offset + mapped_bytes)
         return m
 
     if number_of_field_line_elements > 0:
-        split_indices_of_field_line_elements = running_memmap(f, np.dtype('<u8'), (number_of_field_lines,))
+        split_indices_of_field_line_elements = running_memmap(
+            f, np.dtype('<u8'), (number_of_field_lines, ))
 
     if number_of_fixed_scalar_quantities > 0:
         fixed_scalar_values_shape = (number_of_fixed_scalar_quantities,
                                      number_of_field_lines)
-        fixed_scalar_values = running_memmap(f, float_dtype, fixed_scalar_values_shape)
+        fixed_scalar_values = running_memmap(f, float_dtype,
+                                             fixed_scalar_values_shape)
 
     if number_of_fixed_vector_quantities > 0:
         fixed_vector_values_shape = (number_of_fixed_vector_quantities,
                                      number_of_field_lines, 3)
-        fixed_vector_values = running_memmap(f, float_dtype, fixed_vector_values_shape)
+        fixed_vector_values = running_memmap(f, float_dtype,
+                                             fixed_vector_values_shape)
 
     if number_of_varying_scalar_quantities > 0:
         varying_scalar_values_shape = (number_of_varying_scalar_quantities,
                                        number_of_field_line_elements)
-        varying_scalar_values = running_memmap(f, float_dtype, varying_scalar_values_shape)
+        varying_scalar_values = running_memmap(f, float_dtype,
+                                               varying_scalar_values_shape)
 
     if number_of_varying_vector_quantities > 0:
         varying_vector_values_shape = (number_of_varying_vector_quantities,
                                        number_of_field_line_elements, 3)
-        varying_vector_values = running_memmap(f, float_dtype, varying_vector_values_shape)
+        varying_vector_values = running_memmap(f, float_dtype,
+                                               varying_vector_values_shape)
 
     fixed_scalar_values = dict(
         zip(fixed_scalar_names,
@@ -205,13 +218,15 @@ def __parse_custom_field_line_binary_file_memmap(f):
 
     varying_scalar_values = dict(
         zip(varying_scalar_names,
-            (_SplittedArray1D(varying_scalar_values[n, :], split_indices_of_field_line_elements)
+            (_SplittedArray1D(varying_scalar_values[n, :],
+                              split_indices_of_field_line_elements)
              for n in range(varying_scalar_values.shape[0])
              ))) if number_of_varying_scalar_quantities > 0 else {}
 
     varying_vector_values = dict(
         zip(varying_vector_names,
-            (_SplittedArray2D(varying_vector_values[n, :, :], split_indices_of_field_line_elements)
+            (_SplittedArray2D(varying_vector_values[n, :, :],
+                              split_indices_of_field_line_elements)
              for n in range(varying_vector_values.shape[0])
              ))) if number_of_varying_vector_quantities > 0 else {}
 
@@ -330,7 +345,9 @@ def __parse_custom_field_line_binary_file_load_all(f):
         varying_vector_values
 
 
-def __parse_custom_electron_beam_binary_file(f, acceleration_data_type, memmap=True):
+def __parse_custom_electron_beam_binary_file(f,
+                                             acceleration_data_type,
+                                             memmap=True):
     domain_bounds, \
         number_of_beams, \
         fixed_scalar_values, \
