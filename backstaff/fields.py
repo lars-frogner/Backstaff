@@ -69,7 +69,8 @@ class ScalarField2:
                     log_contour=False,
                     vmin_contour=None,
                     vmax_contour=None,
-                    contour_cmap_name='viridis'):
+                    contour_cmap_name='viridis',
+                    rasterized=None):
 
         if symlog:
             norm = plotting.get_symlog_normalizer(vmin,
@@ -94,7 +95,8 @@ class ScalarField2:
                                               bad_color=cmap_bad_color),
                        interpolation='none',
                        extent=extent,
-                       aspect='equal')
+                       aspect='equal',
+                       rasterized=rasterized)
 
         if contour_levels is not None:
             ax.contourf(
@@ -107,7 +109,8 @@ class ScalarField2:
                                              log=log_contour),
                 cmap=plotting.get_cmap(contour_cmap_name),
                 #colors=contour_colors,
-                alpha=contour_alpha)
+                alpha=contour_alpha,
+                rasterized=rasterized)
 
         return im
 
@@ -126,7 +129,9 @@ def plot_2d_scalar_field(field,
                          **kwargs):
 
     if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots(figsize=(figure_width, figure_width/figure_aspect))
+        fig, ax = plotting.create_2d_subplots(figsize=(figure_width,
+                                                       figure_width/
+                                                       figure_aspect))
 
     im = field.add_to_plot(ax, **kwargs)
 

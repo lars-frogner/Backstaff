@@ -11,8 +11,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.offsetbox import AnchoredText
 
 
-def create_2d_subplots(width=6.0, aspect_ratio=4.0/3.0, dpi=200, **kwargs):
-    return plt.subplots(figsize=kwargs.pop('figsize', (width, width/aspect_ratio)), dpi=dpi, **kwargs)
+def create_2d_subplots(width=6.0, aspect_ratio=4.0/3.0, dpi=300, **kwargs):
+    return plt.subplots(figsize=kwargs.pop('figsize',
+                                           (width, width/aspect_ratio)),
+                        dpi=dpi,
+                        **kwargs)
 
 
 def set_2d_plot_extent(ax, x_lims, y_lims):
@@ -202,25 +205,28 @@ def plot_2d_field(hor_coords,
                   xlabel=None,
                   ylabel=None,
                   clabel='',
+                  rasterized=None,
                   output_path=None):
     if symlog:
         norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
     else:
         norm = get_normalizer(vmin, vmax, log=log)
 
-    fig, ax = create_2d_subplots(width=figure_width, aspect_ratio=figure_aspect)
+    fig, ax = create_2d_subplots(width=figure_width,
+                                 aspect_ratio=figure_aspect)
 
-    im = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
-                       values.T,
-                       norm=norm,
-                       vmin=vmin,
-                       vmax=vmax,
-                       cmap=get_cmap(cmap_name, bad_color=cmap_bad_color))
+    mesh = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
+                         values.T,
+                         norm=norm,
+                         vmin=vmin,
+                         vmax=vmax,
+                         cmap=get_cmap(cmap_name, bad_color=cmap_bad_color),
+                         rasterized=rasterized)
 
     set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
                        (vert_coords[0], vert_coords[-1]))
     set_2d_axis_labels(ax, xlabel, ylabel)
-    add_2d_colorbar(fig, ax, im, label=clabel)
+    add_2d_colorbar(fig, ax, mesh, label=clabel)
 
     ax.set_aspect('equal')
 

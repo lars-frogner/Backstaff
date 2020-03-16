@@ -98,6 +98,10 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
         return electron_beam_swarm
 
+    @staticmethod
+    def dummy(domain_bounds):
+        return ElectronBeamSwarm(domain_bounds, 0, {}, {}, {}, {}, {})
+
     def __init__(self,
                  domain_bounds,
                  number_of_beams,
