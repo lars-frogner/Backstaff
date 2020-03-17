@@ -15,7 +15,7 @@ class FieldLineSet3:
     VALUE_DESCRIPTIONS = {
         'x': r'$x$ [Mm]',
         'y': r'$y$ [Mm]',
-        'z': r'$z$ [Mm]',
+        'z': 'Height [Mm]',
         'r': r'Mass density [g/cm$^3$]',
         'tg': 'Temperature [K]',
         'r0': r'Mass density [g/cm$^3$]',
@@ -25,6 +25,11 @@ class FieldLineSet3:
     VALUE_UNIT_CONVERTERS = {
         'r': lambda f: f*units.U_R,
         'r0': lambda f: f*units.U_R,
+        'z': lambda f: -f,
+        'z0': lambda f: -f,
+        'bx': lambda f: f*units.U_B,
+        'by': lambda f: f*units.U_B,
+        'bz': lambda f: f*units.U_B,
     }
 
     @staticmethod
@@ -265,19 +270,16 @@ class FieldLineSet3:
                        depthshade=depthshade,
                        alpha=alpha)
         else:
-            paths_x = self._convert_values('x',
-                                           self.get_varying_scalar_values('x'),
-                                           do_conversion)
-            paths_y = self._convert_values('y',
-                                           self.get_varying_scalar_values('y'),
-                                           do_conversion)
-            paths_z = self._convert_values('z',
-                                           self.get_varying_scalar_values('z'),
-                                           do_conversion)
+            paths_x = self.get_varying_scalar_values('x')
+            paths_y = self.get_varying_scalar_values('y')
+            paths_z = self.get_varying_scalar_values('z')
             for field_line_idx in range(self.get_number_of_field_lines()):
                 for x, y, z in zip(*self.__find_nonwrapping_segments(
                         paths_x[field_line_idx], paths_y[field_line_idx],
                         paths_z[field_line_idx])):
+                    x = self._convert_values('x', x, do_conversion)
+                    y = self._convert_values('y', y, do_conversion)
+                    z = self._convert_values('z', z, do_conversion)
                     ax.plot(x, y, z, c=c, lw=lw, alpha=alpha)
 
     def add_values_as_2d_property_plot(self,
@@ -1225,7 +1227,6 @@ def plot_field_lines(field_line_set,
     plotting.set_3d_axis_labels(ax, field_line_set.VALUE_DESCRIPTIONS['x'],
                                 field_line_set.VALUE_DESCRIPTIONS['y'],
                                 field_line_set.VALUE_DESCRIPTIONS['z'])
-    ax.invert_zaxis()
     if hide_grid:
         ax.set_axis_off()
 
