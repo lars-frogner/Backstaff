@@ -5,6 +5,7 @@ mod weighted_cell_averaging;
 mod weighted_sample_averaging;
 
 use crate::cli;
+use crate::field::ResampledCoordLocation;
 use crate::geometry::{Dim3, In3D};
 use crate::grid::hor_regular::HorRegularGrid3;
 use crate::grid::regular::RegularGrid3;
@@ -63,6 +64,17 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
                 )
                 .takes_value(true)
                 .possible_values(&["horizontally-regular", "regular"]),
+        )
+        .arg(
+            Arg::with_name("sample-location")
+                .short("l")
+                .long("sample-location")
+                .require_equals(true)
+                .value_name("LOCATION")
+                .help("Location within the grid cell where resampled values should be specified\n")
+                .takes_value(true)
+                .possible_values(&["original", "center"])
+                .default_value("original"),
         )
         .arg(
             Arg::with_name("include-aux")
@@ -162,6 +174,15 @@ fn run_resampling<G, I>(
         Some(invalid) => panic!("Invalid grid type {}", invalid),
     };
 
+    let resampled_locations = match root_arguments
+        .value_of("sample-location")
+        .expect("No value for argument with default.")
+    {
+        "original" => In3D::same(ResampledCoordLocation::Original),
+        "center" => In3D::same(ResampledCoordLocation::center()),
+        invalid => panic!("Invalid sample-location: {}", invalid),
+    };
+
     let include_aux = root_arguments.is_present("include-aux");
     let generate_param_file = root_arguments.is_present("generate-param-file");
 
@@ -197,13 +218,17 @@ fn run_resampling<G, I>(
                     "weighted_sample_averaging" => field
                         .resampled_to_grid_with_weighted_sample_averaging(
                             Arc::clone(&new_grid),
+                            resampled_locations.clone(),
                             &interpolator,
                         ),
-                    "weighted_cell_averaging" => {
-                        field.resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&new_grid))
-                    }
+                    "weighted_cell_averaging" => field
+                        .resampled_to_grid_with_weighted_cell_averaging(
+                            Arc::clone(&new_grid),
+                            resampled_locations.clone(),
+                        ),
                     "direct_sampling" => field.resampled_to_grid_with_direct_sampling(
                         Arc::clone(&new_grid),
+                        resampled_locations.clone(),
                         &interpolator,
                     ),
                     invalid => panic!("Invalid mode {}", invalid),

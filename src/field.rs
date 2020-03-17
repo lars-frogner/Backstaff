@@ -17,19 +17,35 @@ use std::sync::Arc;
 use std::{io, iter};
 use Dim3::{X, Y, Z};
 
-/// Locations in the grid cell for resampled field values.
-#[derive(Clone, Debug)]
-pub enum ResampledCoordLocations {
+/// Location in the grid cell for resampled field values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ResampledCoordLocation {
     Original,
-    Equal(CoordLocation),
+    Specific(CoordLocation),
 }
 
-impl ResampledCoordLocations {
-    pub fn centers() -> Self {
-        ResampledCoordLocations::Equal(CoordLocation::Center)
+impl ResampledCoordLocation {
+    pub fn center() -> Self {
+        ResampledCoordLocation::Specific(CoordLocation::Center)
     }
-    pub fn lower_edges() -> Self {
-        ResampledCoordLocations::Equal(CoordLocation::LowerEdge)
+    pub fn lower_edge() -> Self {
+        ResampledCoordLocation::Specific(CoordLocation::LowerEdge)
+    }
+    pub fn into_location(self, original: CoordLocation) -> CoordLocation {
+        match self {
+            ResampledCoordLocation::Original => original,
+            ResampledCoordLocation::Specific(location) => location,
+        }
+    }
+    pub fn convert_to_locations_3d(
+        resampled: In3D<ResampledCoordLocation>,
+        original: &In3D<CoordLocation>,
+    ) -> In3D<CoordLocation> {
+        In3D::new(
+            resampled[X].into_location(original[X]),
+            resampled[Y].into_location(original[Y]),
+            resampled[Z].into_location(original[Z]),
+        )
     }
 }
 
@@ -192,27 +208,38 @@ where
     pub fn resampled_to_grid_with_weighted_sample_averaging<H, I>(
         &self,
         grid: Arc<H>,
+        resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<F>,
         I: Interpolator3,
     {
+        let underlying_locations = self.locations();
+        let underlying_lower_edges = self.grid().lower_edges();
+        let underlying_extents = self.grid().extents();
+
         let overlying_grid = grid;
+        let overlying_locations = ResampledCoordLocation::convert_to_locations_3d(
+            resampled_locations,
+            underlying_locations,
+        );
         let mut overlying_values =
             unsafe { Array3::uninitialized(overlying_grid.shape().to_tuple().f()) };
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
-        let underlying_lower_edges = self.grid().lower_edges();
-        let underlying_extents = self.grid().extents();
-
         overlying_values_buffer.par_iter_mut().enumerate().for_each(
             |(overlying_idx, overlying_value)| {
-                let (lower_overlying_corner, upper_overlying_corner) = self
-                    .compute_overlying_grid_cell_corners_for_resampling(
+                let (mut lower_overlying_corner, mut upper_overlying_corner) =
+                    Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
+                Self::shift_overlying_grid_cell_corners_for_weighted_sample_averaging(
+                    &overlying_locations,
+                    &mut lower_overlying_corner,
+                    &mut upper_overlying_corner,
+                );
 
                 let idx_range_lists = self.compute_underlying_grid_cell_idx_ranges_for_resampling(
                     &lower_overlying_corner,
@@ -283,7 +310,7 @@ where
         ScalarField3::new(
             self.name.clone(),
             overlying_grid,
-            self.locations.clone(),
+            overlying_locations,
             overlying_values,
         )
     }
@@ -298,22 +325,36 @@ where
     pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<F>>(
         &self,
         grid: Arc<H>,
+        resampled_locations: In3D<ResampledCoordLocation>,
     ) -> ScalarField3<F, H> {
+        let underlying_locations = self.locations();
+        let underlying_lower_edges = self.grid().lower_edges();
+        let underlying_extents = self.grid().extents();
+        let average_underlying_cell_extents = self.grid().average_grid_cell_extents();
+
         let overlying_grid = grid;
+        let overlying_locations = ResampledCoordLocation::convert_to_locations_3d(
+            resampled_locations,
+            underlying_locations,
+        );
         let mut overlying_values =
             unsafe { Array3::uninitialized(overlying_grid.shape().to_tuple().f()) };
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
-        let underlying_lower_edges = self.grid().lower_edges();
-        let underlying_extents = self.grid().extents();
-
         overlying_values_buffer.par_iter_mut().enumerate().for_each(
             |(overlying_idx, overlying_value)| {
-                let (lower_overlying_corner, upper_overlying_corner) = self
-                    .compute_overlying_grid_cell_corners_for_resampling(
+                let (mut lower_overlying_corner, mut upper_overlying_corner) =
+                    Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
+                Self::shift_overlying_grid_cell_corners_for_weighted_cell_averaging(
+                    underlying_locations,
+                    &overlying_locations,
+                    &average_underlying_cell_extents,
+                    &mut lower_overlying_corner,
+                    &mut upper_overlying_corner,
+                );
 
                 let idx_range_lists = self.compute_underlying_grid_cell_idx_ranges_for_resampling(
                     &lower_overlying_corner,
@@ -368,7 +409,7 @@ where
         ScalarField3::new(
             self.name.clone(),
             overlying_grid,
-            self.locations.clone(),
+            overlying_locations,
             overlying_values,
         )
     }
@@ -383,13 +424,16 @@ where
     pub fn resampled_to_grid_with_direct_sampling<H, I>(
         &self,
         grid: Arc<H>,
+        resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<F>,
         I: Interpolator3,
     {
-        let new_coords = self.coords_from_grid(grid.as_ref());
+        let locations =
+            ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
+        let new_coords = Self::coords_from_grid(grid.as_ref(), &locations);
 
         let grid_shape = grid.shape();
         let mut new_values = unsafe { Array3::uninitialized(grid_shape.to_tuple().f()) };
@@ -405,7 +449,7 @@ where
                     .interp_extrap_scalar_field(self, &point)
                     .expect_inside_or_moved();
             });
-        ScalarField3::new(self.name.clone(), grid, self.locations.clone(), new_values)
+        ScalarField3::new(self.name.clone(), grid, locations, new_values)
     }
 
     /// Returns a view of the 2D slice of the field located at the given index along the given axis.
@@ -418,7 +462,7 @@ where
         &self,
         interpolator: &I,
         x_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::XSliceGrid>
     where
         I: Interpolator3,
@@ -428,7 +472,7 @@ where
             Arc::new(slice_grid),
             interpolator,
             x_coord,
-            resampled_locations,
+            resampled_location,
         )
     }
 
@@ -437,7 +481,7 @@ where
         &self,
         interpolator: &I,
         y_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::YSliceGrid>
     where
         I: Interpolator3,
@@ -447,7 +491,7 @@ where
             Arc::new(slice_grid),
             interpolator,
             y_coord,
-            resampled_locations,
+            resampled_location,
         )
     }
 
@@ -456,7 +500,7 @@ where
         &self,
         interpolator: &I,
         z_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::ZSliceGrid>
     where
         I: Interpolator3,
@@ -466,7 +510,7 @@ where
             Arc::new(slice_grid),
             interpolator,
             z_coord,
-            resampled_locations,
+            resampled_location,
         )
     }
 
@@ -492,27 +536,54 @@ where
     }
 
     fn compute_overlying_grid_cell_corners_for_resampling<H: Grid3<F>>(
-        &self,
         overlying_grid: &H,
         overlying_grid_cell_idx: usize,
     ) -> (Point3<F>, Point3<F>) {
         let overlying_indices =
             compute_3d_array_indices_from_flat_idx(overlying_grid.shape(), overlying_grid_cell_idx);
-        let (mut lower_overlying_corner, mut upper_overlying_corner) =
-            overlying_grid.grid_cell_extremal_corners(&overlying_indices);
+        overlying_grid.grid_cell_extremal_corners(&overlying_indices)
+    }
 
-        // Shift the overlying grid cell to be centered around the location of the value
-        // to estimate.
+    fn shift_overlying_grid_cell_corners_for_weighted_sample_averaging(
+        overlying_locations: &In3D<CoordLocation>,
+        lower_overlying_corner: &mut Point3<F>,
+        upper_overlying_corner: &mut Point3<F>,
+    ) {
         for &dim in &Dim3::slice() {
-            if let CoordLocation::LowerEdge = self.locations[dim] {
-                let half_cell_shift = (upper_overlying_corner[dim] - lower_overlying_corner[dim])
+            if let CoordLocation::LowerEdge = overlying_locations[dim] {
+                // Shift the overlying grid cell half a cell down to be centered around the
+                // location of the value to estimate
+                let shift = -(upper_overlying_corner[dim] - lower_overlying_corner[dim])
                     * F::from_f32(0.5).unwrap();
-                lower_overlying_corner[dim] = lower_overlying_corner[dim] - half_cell_shift;
-                upper_overlying_corner[dim] = upper_overlying_corner[dim] - half_cell_shift;
+                lower_overlying_corner[dim] = lower_overlying_corner[dim] + shift;
+                upper_overlying_corner[dim] = upper_overlying_corner[dim] + shift;
             }
         }
+    }
 
-        (lower_overlying_corner, upper_overlying_corner)
+    fn shift_overlying_grid_cell_corners_for_weighted_cell_averaging(
+        underlying_locations: &In3D<CoordLocation>,
+        overlying_locations: &In3D<CoordLocation>,
+        average_underlying_cell_extents: &Vec3<F>,
+        lower_overlying_corner: &mut Point3<F>,
+        upper_overlying_corner: &mut Point3<F>,
+    ) {
+        for &dim in &Dim3::slice() {
+            let mut shift = F::zero();
+            if let CoordLocation::LowerEdge = underlying_locations[dim] {
+                // Shift overlying grid cell half an underlying grid cell up to compensate
+                // for downward bias due the underlying values being located on lower edges
+                shift = shift + average_underlying_cell_extents[dim];
+            }
+            if let CoordLocation::LowerEdge = overlying_locations[dim] {
+                // Shift the overlying grid cell half a cell down to be centered around the
+                // location of the value to estimate
+                shift = shift - (upper_overlying_corner[dim] - lower_overlying_corner[dim]);
+            }
+            shift = shift * F::from_f32(0.5).unwrap();
+            lower_overlying_corner[dim] = lower_overlying_corner[dim] + shift;
+            upper_overlying_corner[dim] = upper_overlying_corner[dim] + shift;
+        }
     }
 
     fn compute_underlying_grid_cell_idx_ranges_for_resampling(
@@ -548,11 +619,14 @@ where
         )
     }
 
-    fn coords_from_grid<'a, 'b, H: Grid3<F>>(&'a self, grid: &'b H) -> CoordRefs3<'b, F> {
+    fn coords_from_grid<'a, 'b, H: Grid3<F>>(
+        grid: &'a H,
+        locations: &'b In3D<CoordLocation>,
+    ) -> CoordRefs3<'a, F> {
         CoordRefs3::new(
-            &grid.coords_by_type(self.locations[X])[X],
-            &grid.coords_by_type(self.locations[Y])[Y],
-            &grid.coords_by_type(self.locations[Z])[Z],
+            &grid.coords_by_type(locations[X])[X],
+            &grid.coords_by_type(locations[Y])[Y],
+            &grid.coords_by_type(locations[Z])[Z],
         )
     }
 
@@ -573,14 +647,14 @@ where
         slice_grid: Arc<G::XSliceGrid>,
         interpolator: &I,
         x_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::XSliceGrid>
     where
         I: Interpolator3,
     {
-        let slice_locations = self.select_slice_locations([Y, Z], &resampled_locations);
+        let slice_locations = self.select_slice_locations([Y, Z], resampled_location);
         let slice_values =
-            self.compute_slice_values(interpolator, X, x_coord, resampled_locations, false);
+            self.compute_slice_values(interpolator, X, x_coord, resampled_location, false);
         ScalarField2::new(
             self.name.to_string(),
             slice_grid,
@@ -594,14 +668,14 @@ where
         slice_grid: Arc<G::YSliceGrid>,
         interpolator: &I,
         y_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::YSliceGrid>
     where
         I: Interpolator3,
     {
-        let slice_locations = self.select_slice_locations([X, Z], &resampled_locations);
+        let slice_locations = self.select_slice_locations([X, Z], resampled_location);
         let slice_values =
-            self.compute_slice_values(interpolator, Y, y_coord, resampled_locations, false);
+            self.compute_slice_values(interpolator, Y, y_coord, resampled_location, false);
         ScalarField2::new(
             self.name.to_string(),
             slice_grid,
@@ -615,14 +689,14 @@ where
         slice_grid: Arc<G::ZSliceGrid>,
         interpolator: &I,
         z_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::ZSliceGrid>
     where
         I: Interpolator3,
     {
-        let slice_locations = self.select_slice_locations([X, Y], &resampled_locations);
+        let slice_locations = self.select_slice_locations([X, Y], resampled_location);
         let slice_values =
-            self.compute_slice_values(interpolator, Z, z_coord, resampled_locations, false);
+            self.compute_slice_values(interpolator, Z, z_coord, resampled_location, false);
         ScalarField2::new(
             self.name.to_string(),
             slice_grid,
@@ -647,7 +721,7 @@ where
             interpolator,
             axis,
             coord,
-            ResampledCoordLocations::Equal(location),
+            ResampledCoordLocation::Specific(location),
             true,
         );
         ScalarField2::new(
@@ -668,31 +742,31 @@ where
     fn select_slice_locations(
         &self,
         axes: [Dim3; 2],
-        resampled_locations: &ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> In2D<CoordLocation> {
-        match *resampled_locations {
-            ResampledCoordLocations::Original => {
+        match resampled_location {
+            ResampledCoordLocation::Original => {
                 In2D::new(self.locations[axes[0]], self.locations[axes[1]])
             }
-            ResampledCoordLocations::Equal(location) => In2D::same(location),
+            ResampledCoordLocation::Specific(location) => In2D::same(location),
         }
     }
 
     fn select_slice_coords(
         &self,
         axes: [Dim3; 2],
-        resampled_locations: &ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> [&[F]; 2] {
-        match *resampled_locations {
-            ResampledCoordLocations::Original => {
+        match resampled_location {
+            ResampledCoordLocation::Original => {
                 let coords = self.coords();
                 [coords[axes[0]], coords[axes[1]]]
             }
-            ResampledCoordLocations::Equal(CoordLocation::Center) => {
+            ResampledCoordLocation::Specific(CoordLocation::Center) => {
                 let centers = self.grid.centers();
                 [&centers[axes[0]], &centers[axes[1]]]
             }
-            ResampledCoordLocations::Equal(CoordLocation::LowerEdge) => {
+            ResampledCoordLocation::Specific(CoordLocation::LowerEdge) => {
                 let lower_edges = self.grid.lower_edges();
                 [&lower_edges[axes[0]], &lower_edges[axes[1]]]
             }
@@ -717,7 +791,7 @@ where
         interpolator: &I,
         axis: Dim3,
         coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
         regular: bool,
     ) -> Array2<F>
     where
@@ -732,13 +806,13 @@ where
         let axes = Dim3::slice_except(axis);
 
         let coords = if regular {
-            if let ResampledCoordLocations::Equal(location) = resampled_locations {
+            if let ResampledCoordLocation::Specific(location) = resampled_location {
                 self.select_regular_slice_coords(axes, location)
             } else {
                 panic!("Original coord locations not supported for regular slice.")
             }
         } else {
-            self.select_slice_coords(axes, &resampled_locations)
+            self.select_slice_coords(axes, resampled_location)
         };
 
         self.interpolate_slice_values(interpolator, axes, &coords, coord)
@@ -891,12 +965,21 @@ where
         I: Interpolator3,
     {
         let components = In3D::new(
-            self.components[X]
-                .resampled_to_grid_with_weighted_sample_averaging(Arc::clone(&grid), interpolator),
-            self.components[Y]
-                .resampled_to_grid_with_weighted_sample_averaging(Arc::clone(&grid), interpolator),
-            self.components[Z]
-                .resampled_to_grid_with_weighted_sample_averaging(Arc::clone(&grid), interpolator),
+            self.components[X].resampled_to_grid_with_weighted_sample_averaging(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+                interpolator,
+            ),
+            self.components[Y].resampled_to_grid_with_weighted_sample_averaging(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+                interpolator,
+            ),
+            self.components[Z].resampled_to_grid_with_weighted_sample_averaging(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+                interpolator,
+            ),
         );
         VectorField3::new(self.name.clone(), grid, components)
     }
@@ -913,9 +996,18 @@ where
         grid: Arc<H>,
     ) -> VectorField3<F, H> {
         let components = In3D::new(
-            self.components[X].resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&grid)),
-            self.components[Y].resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&grid)),
-            self.components[Z].resampled_to_grid_with_weighted_cell_averaging(Arc::clone(&grid)),
+            self.components[X].resampled_to_grid_with_weighted_cell_averaging(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+            ),
+            self.components[Y].resampled_to_grid_with_weighted_cell_averaging(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+            ),
+            self.components[Z].resampled_to_grid_with_weighted_cell_averaging(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+            ),
         );
         VectorField3::new(self.name.clone(), grid, components)
     }
@@ -937,12 +1029,21 @@ where
         I: Interpolator3,
     {
         let components = In3D::new(
-            self.components[X]
-                .resampled_to_grid_with_direct_sampling(Arc::clone(&grid), interpolator),
-            self.components[Y]
-                .resampled_to_grid_with_direct_sampling(Arc::clone(&grid), interpolator),
-            self.components[Z]
-                .resampled_to_grid_with_direct_sampling(Arc::clone(&grid), interpolator),
+            self.components[X].resampled_to_grid_with_direct_sampling(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+                interpolator,
+            ),
+            self.components[Y].resampled_to_grid_with_direct_sampling(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+                interpolator,
+            ),
+            self.components[Z].resampled_to_grid_with_direct_sampling(
+                Arc::clone(&grid),
+                In3D::same(ResampledCoordLocation::Original),
+                interpolator,
+            ),
         );
         VectorField3::new(self.name.clone(), grid, components)
     }
@@ -962,7 +1063,7 @@ where
         &self,
         interpolator: &I,
         x_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F, G::XSliceGrid>
     where
         I: Interpolator3,
@@ -973,19 +1074,19 @@ where
                 Arc::clone(&slice_grid),
                 interpolator,
                 x_coord,
-                resampled_locations.clone(),
+                resampled_location,
             ),
             self.components[Y].create_slice_across_x(
                 Arc::clone(&slice_grid),
                 interpolator,
                 x_coord,
-                resampled_locations.clone(),
+                resampled_location,
             ),
             self.components[Z].create_slice_across_x(
                 Arc::clone(&slice_grid),
                 interpolator,
                 x_coord,
-                resampled_locations,
+                resampled_location,
             ),
         );
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_field_components)
@@ -996,7 +1097,7 @@ where
         &self,
         interpolator: &I,
         y_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F, G::YSliceGrid>
     where
         I: Interpolator3,
@@ -1007,19 +1108,19 @@ where
                 Arc::clone(&slice_grid),
                 interpolator,
                 y_coord,
-                resampled_locations.clone(),
+                resampled_location,
             ),
             self.components[Y].create_slice_across_y(
                 Arc::clone(&slice_grid),
                 interpolator,
                 y_coord,
-                resampled_locations.clone(),
+                resampled_location,
             ),
             self.components[Z].create_slice_across_y(
                 Arc::clone(&slice_grid),
                 interpolator,
                 y_coord,
-                resampled_locations,
+                resampled_location,
             ),
         );
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_field_components)
@@ -1030,7 +1131,7 @@ where
         &self,
         interpolator: &I,
         z_coord: F,
-        resampled_locations: ResampledCoordLocations,
+        resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F, G::ZSliceGrid>
     where
         I: Interpolator3,
@@ -1041,19 +1142,19 @@ where
                 Arc::clone(&slice_grid),
                 interpolator,
                 z_coord,
-                resampled_locations.clone(),
+                resampled_location,
             ),
             self.components[Y].create_slice_across_z(
                 Arc::clone(&slice_grid),
                 interpolator,
                 z_coord,
-                resampled_locations.clone(),
+                resampled_location,
             ),
             self.components[Z].create_slice_across_z(
                 Arc::clone(&slice_grid),
                 interpolator,
                 z_coord,
-                resampled_locations,
+                resampled_location,
             ),
         );
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_field_components)
