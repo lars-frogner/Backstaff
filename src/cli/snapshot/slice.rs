@@ -1,7 +1,7 @@
 //! Command line interface for extracting slices of snapshot quantity fields.
 
 use crate::cli;
-use crate::field::ResampledCoordLocations;
+use crate::field::ResampledCoordLocation;
 use crate::geometry::Dim3;
 use crate::grid::{CoordLocation, Grid3};
 use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
@@ -135,9 +135,9 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
 
     if arguments.is_present("allow-non-uniform") {
         let resampled_coord_locations = match sample_location {
-            "center" => ResampledCoordLocations::centers(),
-            "lower" => ResampledCoordLocations::lower_edges(),
-            "original" => ResampledCoordLocations::Original,
+            "center" => ResampledCoordLocation::center(),
+            "lower" => ResampledCoordLocation::lower_edge(),
+            "original" => ResampledCoordLocation::Original,
             invalid => panic!("Invalid sample-location: {}", invalid),
         };
 

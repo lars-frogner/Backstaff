@@ -877,7 +877,7 @@ impl Default for PolyFitInterpolatorConfig {
 mod tests {
 
     use super::*;
-    use crate::field::ResampledCoordLocations;
+    use crate::field::ResampledCoordLocation;
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::io::snapshot::{fdt, SnapshotReader3, SnapshotReaderConfig};
     use crate::io::{Endianness, Verbose};
@@ -900,7 +900,7 @@ mod tests {
         let slice_field_coord = field.slice_across_y(
             &interpolator,
             coords[Y][idx],
-            ResampledCoordLocations::Original,
+            ResampledCoordLocation::Original,
         );
         let slice_values_coord = slice_field_coord.values();
 
