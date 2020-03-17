@@ -130,6 +130,18 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             print('Acceleration data:\n    {}'.format('\n    '.join(
                 self.acceleration_data.keys())))
 
+    def get_subset(self,
+                   quantities,
+                   *args,
+                   included_field_lines_finder=None,
+                   **kwargs):
+        return super().get_subset(
+            quantities,
+            self.acceleration_data,
+            *args,
+            included_field_lines_finder=included_field_lines_finder,
+            **kwargs)
+
     def get_number_of_beams(self):
         return self.number_of_beams
 

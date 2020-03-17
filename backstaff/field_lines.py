@@ -93,6 +93,69 @@ class FieldLineSet3:
             print('Parameters:\n    {}'.format('\n    '.join(
                 self.params.keys())))
 
+    def get_subset(self,
+                   quantities,
+                   *args,
+                   included_field_lines_finder=None,
+                   **kwargs):
+        derived_quantities = list(quantities)
+        if included_field_lines_finder is None:
+            return self.__class__(
+                self.get_domain_bounds(),
+                self.get_number_of_field_lines(), {
+                    derived_quantities.pop(derived_quantities.index(k)): v
+                    for k, v in self.fixed_scalar_values.items()
+                    if k in derived_quantities
+                }, {
+                    derived_quantities.pop(derived_quantities.index(k)): v
+                    for k, v in self.fixed_vector_values.items()
+                    if k in derived_quantities
+                }, {
+                    derived_quantities.pop(derived_quantities.index(k)): v
+                    for k, v in self.varying_scalar_values.items()
+                    if k in derived_quantities
+                }, {
+                    derived_quantities.pop(derived_quantities.index(k)): v
+                    for k, v in self.varying_vector_values.items()
+                    if k in derived_quantities
+                },
+                *args,
+                params=self.params,
+                derived_quantities=derived_quantities,
+                verbose=self.verbose,
+                **kwargs)
+        else:
+            included_field_line_indices = included_field_lines_finder(
+                self.fixed_scalar_values, self.varying_scalar_values)
+            return self.__class__(
+                self.get_domain_bounds(),
+                len(included_field_line_indices), {
+                    derived_quantities.pop(derived_quantities.index(k)):
+                    v[included_field_line_indices]
+                    for k, v in self.fixed_scalar_values.items()
+                    if k in derived_quantities
+                }, {
+                    derived_quantities.pop(derived_quantities.index(k)):
+                    v[included_field_line_indices]
+                    for k, v in self.fixed_vector_values.items()
+                    if k in derived_quantities
+                }, {
+                    derived_quantities.pop(derived_quantities.index(k)):
+                    [v[i] for i in included_field_line_indices]
+                    for k, v in self.varying_scalar_values.items()
+                    if k in derived_quantities
+                }, {
+                    derived_quantities.pop(derived_quantities.index(k)):
+                    [v[i] for i in included_field_line_indices]
+                    for k, v in self.varying_vector_values.items()
+                    if k in derived_quantities
+                },
+                *args,
+                params=self.params,
+                derived_quantities=derived_quantities,
+                verbose=self.verbose,
+                **kwargs)
+
     def compute_aggregate_value(self,
                                 value_name,
                                 aggregator,
@@ -1072,6 +1135,14 @@ def find_field_lines_contained_in_box(x_lims, y_lims, z_lims,
 def find_field_line_points_below_depth(min_depth, varying_scalar_values,
                                        field_line_idx):
     return varying_scalar_values['z'][field_line_idx] > min_depth
+
+
+def find_field_line_points_between_depths(min_depth, max_depth,
+                                          varying_scalar_values,
+                                          field_line_idx):
+    return np.logical_and(
+        varying_scalar_values['z'][field_line_idx] >= min_depth,
+        varying_scalar_values['z'][field_line_idx] < max_depth)
 
 
 def find_field_line_points_after_distance(min_distance, varying_scalar_values,
