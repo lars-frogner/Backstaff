@@ -1,5 +1,8 @@
 //! Useful tools for working with Bifrost in Rust.
 
+#![allow(incomplete_features)]
+#![feature(const_generics, maybe_uninit_extra)]
+
 pub mod constants;
 pub mod field;
 pub mod geometry;
