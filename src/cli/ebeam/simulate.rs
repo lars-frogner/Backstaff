@@ -6,7 +6,7 @@ use crate::ebeam::detection::simple::{
     SimpleReconnectionSiteDetector, SimpleReconnectionSiteDetectorConfig,
 };
 use crate::ebeam::detection::ReconnectionSiteDetector;
-use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerator;
+// use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerator;
 use crate::ebeam::distribution::power_law::acceleration::simple::{
     SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
 };
@@ -144,8 +144,8 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
         super::distribution::power_law::create_power_law_distribution_subcommand();
     let simple_power_law_accelerator_subcommand =
         super::accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand();
-    let dc_power_law_accelerator_subcommand =
-        super::accelerator::dc_power_law::create_dc_power_law_accelerator_subcommand();
+    // let dc_power_law_accelerator_subcommand =
+    //     super::accelerator::dc_power_law::create_dc_power_law_accelerator_subcommand();
     let poly_fit_interpolator_subcommand =
         cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand();
     let rkf_stepper_subcommand = cli::tracing::stepping::rkf::create_rkf_stepper_subcommand();
@@ -155,24 +155,24 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
     let simple_power_law_accelerator_subcommand = simple_power_law_accelerator_subcommand
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
-    let dc_power_law_accelerator_subcommand = dc_power_law_accelerator_subcommand
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(rkf_stepper_subcommand.clone());
+    // let dc_power_law_accelerator_subcommand = dc_power_law_accelerator_subcommand
+    //     .subcommand(poly_fit_interpolator_subcommand.clone())
+    //     .subcommand(rkf_stepper_subcommand.clone());
     let power_law_distribution_subcommand = power_law_distribution_subcommand
         .subcommand(simple_power_law_accelerator_subcommand.clone())
-        .subcommand(dc_power_law_accelerator_subcommand.clone())
+        // .subcommand(dc_power_law_accelerator_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
     let simple_reconnection_site_detector_subcommand = simple_reconnection_site_detector_subcommand
         .subcommand(power_law_distribution_subcommand.clone())
         .subcommand(simple_power_law_accelerator_subcommand.clone())
-        .subcommand(dc_power_law_accelerator_subcommand.clone())
+        // .subcommand(dc_power_law_accelerator_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
     let manual_reconnection_site_detector_subcommand = manual_reconnection_site_detector_subcommand
         .subcommand(power_law_distribution_subcommand.clone())
         .subcommand(simple_power_law_accelerator_subcommand.clone())
-        .subcommand(dc_power_law_accelerator_subcommand.clone())
+        // .subcommand(dc_power_law_accelerator_subcommand.clone())
         .subcommand(poly_fit_interpolator_subcommand.clone())
         .subcommand(rkf_stepper_subcommand.clone());
 
@@ -180,7 +180,7 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
         .subcommand(manual_reconnection_site_detector_subcommand)
         .subcommand(power_law_distribution_subcommand)
         .subcommand(simple_power_law_accelerator_subcommand)
-        .subcommand(dc_power_law_accelerator_subcommand)
+        // .subcommand(dc_power_law_accelerator_subcommand)
         .subcommand(poly_fit_interpolator_subcommand)
         .subcommand(rkf_stepper_subcommand)
 }
@@ -260,26 +260,26 @@ fn run_with_selected_accelerator<G, D>(
         println!("{:#?}", distribution_config);
     }
 
-    if let Some(accelerator_arguments) =
+    if let Some(_accelerator_arguments) =
         distribution_arguments.subcommand_matches("dc_power_law_accelerator")
     {
-        let (accelerator_config, acceleration_region_tracer) = super::accelerator::dc_power_law::construct_dc_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
-        if root_arguments.is_present("print-parameter-values") {
-            println!("{:#?}", accelerator_config);
-            println!("{:#?}", acceleration_region_tracer.config());
-        }
-        let accelerator = DCPowerLawAccelerator::new(
-            distribution_config,
-            accelerator_config,
-            acceleration_region_tracer,
-        );
-        run_with_selected_interpolator(
-            root_arguments,
-            accelerator_arguments,
-            snapshot,
-            detector,
-            accelerator,
-        );
+        // let (accelerator_config, acceleration_region_tracer) = super::accelerator::dc_power_law::construct_dc_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
+        // if root_arguments.is_present("print-parameter-values") {
+        //     println!("{:#?}", accelerator_config);
+        //     println!("{:#?}", acceleration_region_tracer.config());
+        // }
+        // let accelerator = DCPowerLawAccelerator::new(
+        //     distribution_config,
+        //     accelerator_config,
+        //     acceleration_region_tracer,
+        // );
+        // run_with_selected_interpolator(
+        //     root_arguments,
+        //     accelerator_arguments,
+        //     snapshot,
+        //     detector,
+        //     accelerator,
+        // );
     } else if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("simple_power_law_accelerator")
     {
