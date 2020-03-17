@@ -201,6 +201,10 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     fn extents(&self) -> &Vec3<F> {
         &self.extents
     }
+
+    fn average_grid_cell_extents(&self) -> Vec3<F> {
+        self.cell_extents().clone()
+    }
 }
 
 /// A regular 2D grid.

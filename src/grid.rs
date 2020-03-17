@@ -128,6 +128,17 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         upper_corner - lower_corner
     }
 
+    /// Returns the average coordinate extents of the grid cells.
+    fn average_grid_cell_extents(&self) -> Vec3<F> {
+        let shape = self.shape();
+        let extents = self.extents();
+        Vec3::new(
+            extents[X] / F::from_usize(shape[X]).unwrap(),
+            extents[Y] / F::from_usize(shape[Y]).unwrap(),
+            extents[Y] / F::from_usize(shape[Y]).unwrap(),
+        )
+    }
+
     /// Returns the volume of the grid cell at the given 3D index.
     fn grid_cell_volume(&self, indices: &Idx3<usize>) -> F {
         let grid_cell_extents = self.grid_cell_extents(indices);
