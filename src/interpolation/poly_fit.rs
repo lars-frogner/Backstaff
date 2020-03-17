@@ -736,27 +736,27 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_scalar_field::<_, _, 1, 1, 1>(
+            1 => interp_scalar_field::<_, _, 2, 4, 8>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            2 => interp_scalar_field::<_, _, 2, 4, 8>(
+            2 => interp_scalar_field::<_, _, 3, 9, 27>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            3 => interp_scalar_field::<_, _, 3, 9, 27>(
+            3 => interp_scalar_field::<_, _, 4, 16, 64>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            4 => interp_scalar_field::<_, _, 4, 16, 64>(
+            4 => interp_scalar_field::<_, _, 5, 25, 125>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            5 => interp_scalar_field::<_, _, 5, 25, 125>(
+            5 => interp_scalar_field::<_, _, 6, 36, 216>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
@@ -782,31 +782,31 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_scalar_field_in_known_grid_cell::<_, _, 1, 1, 1>(
+            1 => interp_scalar_field_in_known_grid_cell::<_, _, 2, 4, 8>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            2 => interp_scalar_field_in_known_grid_cell::<_, _, 2, 4, 8>(
+            2 => interp_scalar_field_in_known_grid_cell::<_, _, 3, 9, 27>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            3 => interp_scalar_field_in_known_grid_cell::<_, _, 3, 9, 27>(
+            3 => interp_scalar_field_in_known_grid_cell::<_, _, 4, 16, 64>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            4 => interp_scalar_field_in_known_grid_cell::<_, _, 4, 16, 64>(
+            4 => interp_scalar_field_in_known_grid_cell::<_, _, 5, 25, 125>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            5 => interp_scalar_field_in_known_grid_cell::<_, _, 5, 25, 125>(
+            5 => interp_scalar_field_in_known_grid_cell::<_, _, 6, 36, 216>(
                 field,
                 interp_point,
                 interp_indices,
@@ -828,27 +828,27 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_extrap_scalar_field::<_, _, 1, 1, 1>(
+            1 => interp_extrap_scalar_field::<_, _, 2, 4, 8>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            2 => interp_extrap_scalar_field::<_, _, 2, 4, 8>(
+            2 => interp_extrap_scalar_field::<_, _, 3, 9, 27>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            3 => interp_extrap_scalar_field::<_, _, 3, 9, 27>(
+            3 => interp_extrap_scalar_field::<_, _, 4, 16, 64>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            4 => interp_extrap_scalar_field::<_, _, 4, 16, 64>(
+            4 => interp_extrap_scalar_field::<_, _, 5, 25, 125>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            5 => interp_extrap_scalar_field::<_, _, 5, 25, 125>(
+            5 => interp_extrap_scalar_field::<_, _, 6, 36, 216>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
@@ -869,27 +869,27 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_vector_field::<_, _, 1, 1, 1>(
+            1 => interp_vector_field::<_, _, 2, 4, 8>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            2 => interp_vector_field::<_, _, 2, 4, 8>(
+            2 => interp_vector_field::<_, _, 3, 9, 27>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            3 => interp_vector_field::<_, _, 3, 9, 27>(
+            3 => interp_vector_field::<_, _, 4, 16, 64>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            4 => interp_vector_field::<_, _, 4, 16, 64>(
+            4 => interp_vector_field::<_, _, 5, 25, 125>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            5 => interp_vector_field::<_, _, 5, 25, 125>(
+            5 => interp_vector_field::<_, _, 6, 36, 216>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
@@ -915,31 +915,31 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_vector_field_in_known_grid_cell::<_, _, 1, 1, 1>(
+            1 => interp_vector_field_in_known_grid_cell::<_, _, 2, 4, 8>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            2 => interp_vector_field_in_known_grid_cell::<_, _, 2, 4, 8>(
+            2 => interp_vector_field_in_known_grid_cell::<_, _, 3, 9, 27>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            3 => interp_vector_field_in_known_grid_cell::<_, _, 3, 9, 27>(
+            3 => interp_vector_field_in_known_grid_cell::<_, _, 4, 16, 64>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            4 => interp_vector_field_in_known_grid_cell::<_, _, 4, 16, 64>(
+            4 => interp_vector_field_in_known_grid_cell::<_, _, 5, 25, 125>(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
             ),
-            5 => interp_vector_field_in_known_grid_cell::<_, _, 5, 25, 125>(
+            5 => interp_vector_field_in_known_grid_cell::<_, _, 6, 36, 216>(
                 field,
                 interp_point,
                 interp_indices,
@@ -961,27 +961,27 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_extrap_vector_field::<_, _, 1, 1, 1>(
+            1 => interp_extrap_vector_field::<_, _, 2, 4, 8>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            2 => interp_extrap_vector_field::<_, _, 2, 4, 8>(
+            2 => interp_extrap_vector_field::<_, _, 3, 9, 27>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            3 => interp_extrap_vector_field::<_, _, 3, 9, 27>(
+            3 => interp_extrap_vector_field::<_, _, 4, 16, 64>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            4 => interp_extrap_vector_field::<_, _, 4, 16, 64>(
+            4 => interp_extrap_vector_field::<_, _, 5, 25, 125>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
             ),
-            5 => interp_extrap_vector_field::<_, _, 5, 25, 125>(
+            5 => interp_extrap_vector_field::<_, _, 6, 36, 216>(
                 field,
                 interp_point,
                 variation_threshold_for_linear,
