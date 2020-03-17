@@ -19,7 +19,7 @@ fn compute_start_offset<F: BFloat, const N_POINTS: usize>(
 
     match location {
         CoordLocation::Center => {
-            if N_POINTS - 1 % 2 != 0 && interp_coord < center_coords[interp_idx] {
+            if (N_POINTS - 1) % 2 != 0 && interp_coord < center_coords[interp_idx] {
                 // If coordinates are located at cell centers, interpolation order is odd
                 // and interpolation coordinate is in lower half of the cell:
                 // Shift start offset one cell down.
@@ -29,7 +29,7 @@ fn compute_start_offset<F: BFloat, const N_POINTS: usize>(
             }
         }
         CoordLocation::LowerEdge => {
-            if N_POINTS - 1 % 2 == 0 && interp_coord > center_coords[interp_idx] {
+            if (N_POINTS - 1) % 2 == 0 && interp_coord > center_coords[interp_idx] {
                 // If coordinates are located at lower cell edges, interpolation order is even
                 // and interpolation coordinate is in upper half of the cell:
                 // Shift start offset one cell up.
@@ -123,10 +123,8 @@ fn create_value_subarray_for_interior<
     values: &Array3<F>,
     start_indices: &Idx3<isize>,
 ) -> ([F; N_POINTS_CUBED], F) {
-    //let mut subarray = MaybeUninit::uninit_array::<N_POINTS_CUBED>();
     let mut subarray: [MaybeUninit<F>; N_POINTS_CUBED] =
         unsafe { MaybeUninit::uninit().assume_init() };
-    //unsafe { MaybeUninit::uninit().assume_init() };
     let offsets = Idx3::from(&start_indices);
     let mut idx = 0;
 
@@ -146,7 +144,7 @@ fn create_value_subarray_for_interior<
         }
     }
 
-    assert_eq!(idx, N_POINTS_CUBED);
+    debug_assert_eq!(idx, N_POINTS_CUBED);
 
     let variation =
         F::one() - (sum * sum) / (sum_of_squares * F::from_usize(N_POINTS_CUBED).unwrap());
@@ -195,6 +193,8 @@ fn create_value_subarray_for_periodic<
         }
     }
 
+    debug_assert_eq!(idx, N_POINTS_CUBED);
+
     let variation = F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_CUBED).unwrap());
 
     (
@@ -209,9 +209,9 @@ fn create_value_subarray<F: BFloat, const N_POINTS: usize, const N_POINTS_CUBED:
     start_indices: &Idx3<isize>,
 ) -> ([F; N_POINTS_CUBED], F) {
     if any_crosses_periodic_bound {
-        create_value_subarray_for_periodic::<_, N_POINTS, N_POINTS_CUBED>(values, &start_indices)
+        create_value_subarray_for_periodic::<_, N_POINTS, N_POINTS_CUBED>(values, start_indices)
     } else {
-        create_value_subarray_for_interior::<_, N_POINTS, N_POINTS_CUBED>(values, &start_indices)
+        create_value_subarray_for_interior::<_, N_POINTS, N_POINTS_CUBED>(values, start_indices)
     }
 }
 
@@ -264,19 +264,31 @@ fn create_coordinate_subarrays<F: BFloat, const N_POINTS: usize>(
     start_indices: &Idx3<isize>,
 ) -> ([F; N_POINTS], [F; N_POINTS], [F; N_POINTS]) {
     let x_coord_subarray = if crosses_periodic_bound[X] {
-        create_coordinate_subarray_for_periodic(coords[X], extents[X], start_indices[X])
+        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
+            coords[X],
+            extents[X],
+            start_indices[X],
+        )
     } else {
-        create_coordinate_subarray_for_interior(coords[X], start_indices[X])
+        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[X], start_indices[X])
     };
     let y_coord_subarray = if crosses_periodic_bound[Y] {
-        create_coordinate_subarray_for_periodic(coords[Y], extents[Y], start_indices[Y])
+        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
+            coords[Y],
+            extents[Y],
+            start_indices[Y],
+        )
     } else {
-        create_coordinate_subarray_for_interior(coords[Y], start_indices[Y])
+        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[Y], start_indices[Y])
     };
     let z_coord_subarray = if crosses_periodic_bound[Z] {
-        create_coordinate_subarray_for_periodic(coords[Z], extents[Z], start_indices[Z])
+        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
+            coords[Z],
+            extents[Z],
+            start_indices[Z],
+        )
     } else {
-        create_coordinate_subarray_for_interior(coords[Z], start_indices[Z])
+        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[Z], start_indices[Z])
     };
     (x_coord_subarray, y_coord_subarray, z_coord_subarray)
 }
@@ -410,28 +422,28 @@ fn interp<
         // in order to avoid overshoot.
         if variation > variation_threshold_for_linear && N_POINTS > 2 {
             let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
-                find_start_indices_and_crossings::<_, _, 1>(
+                find_start_indices_and_crossings::<_, _, 2>(
                     grid,
                     locations,
                     interp_point,
                     interp_indices,
                 );
 
-            let (value_subarray, _) = create_value_subarray::<_, 1, 1>(
+            let (value_subarray, _) = create_value_subarray::<_, 2, 8>(
                 any_crosses_periodic_bound,
                 values,
                 &start_indices,
             );
 
             let (x_coord_subarray, y_coord_subarray, z_coord_subarray) =
-                create_coordinate_subarrays::<_, 1>(
+                create_coordinate_subarrays::<_, 2>(
                     &crosses_periodic_bound,
                     coords,
                     grid.extents(),
                     &start_indices,
                 );
 
-            interp_subarrays::<_, 1, 1, 1>(
+            interp_subarrays::<_, 2, 4, 8>(
                 In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray),
                 &value_subarray,
                 interp_point,
