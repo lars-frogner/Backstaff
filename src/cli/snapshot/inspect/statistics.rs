@@ -18,11 +18,8 @@ pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
         .help_message("Print help information")
         .arg(
             Arg::with_name("quantities")
-                .short("q")
-                .long("quantities")
-                .require_equals(true)
                 .require_delimiter(true)
-                .value_name("NAMES")
+                .value_name("QUANTITIES")
                 .help("List of quantities to print statistics for (comma-separated)")
                 .required(true)
                 .takes_value(true)
