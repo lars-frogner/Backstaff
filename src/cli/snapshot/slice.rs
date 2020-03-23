@@ -1,14 +1,25 @@
 //! Command line interface for extracting slices of snapshot quantity fields.
 
-use crate::cli;
-use crate::field::ResampledCoordLocation;
-use crate::geometry::Dim3;
-use crate::grid::{CoordLocation, Grid3};
-use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
-use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::{
+    cli::{
+        interpolation::poly_fit::{
+            construct_poly_fit_interpolator_config_from_options,
+            create_poly_fit_interpolator_subcommand,
+        },
+        utils as cli_utils,
+    },
+    create_subcommand, exit_on_error, exit_with_error,
+    field::ResampledCoordLocation,
+    geometry::Dim3,
+    grid::{CoordLocation, Grid3},
+    interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+    io::{
+        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        utils as io_utils,
+    },
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 /// Builds a representation of the `snapshot-slice` command line subcommand.
 pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -24,6 +35,18 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
              the default interpolator implementation and parameters are used.",
         )
         .help_message("Print help information")
+        .arg(
+            Arg::with_name("output-file")
+                .value_name("OUTPUT_FILE")
+                .help("Path where the slice field should be saved in pickle format")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("overwrite")
+                .long("overwrite")
+                .help("Automatically overwrite any existing file"),
+        )
         .arg(
             Arg::with_name("quantity")
                 .short("q")
@@ -57,16 +80,6 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("output-path")
-                .short("o")
-                .long("output-path")
-                .require_equals(true)
-                .value_name("PATH")
-                .help("Path where the slice field should be saved in pickle format")
-                .required(true)
-                .takes_value(true),
-        )
-        .arg(
             Arg::with_name("sample-location")
                 .short("l")
                 .long("sample-location")
@@ -85,14 +98,15 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
                     "Make sampled slice values follow the potentially non-uniform underlying grid",
                 ),
         )
-        .subcommand(cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand())
+        .subcommand(create_subcommand!(slice, poly_fit_interpolator))
 }
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
-pub fn run_slice_subcommand<G: Grid3<fdt>>(
-    arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
-) {
+pub fn run_slice_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+{
     let quantity = arguments
         .value_of("quantity")
         .expect("No value for required argument.");
@@ -101,17 +115,25 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
         .value_of("axis")
         .expect("No value for required argument.");
 
-    let coord = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "coord");
+    let coord = cli_utils::get_value_from_required_parseable_argument::<fdt>(arguments, "coord");
 
-    let mut output_file_path = PathBuf::from_str(
-        arguments
-            .value_of("output-path")
-            .expect("No value for required argument."),
-    )
-    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
+    let mut output_file_path = exit_on_error!(
+        PathBuf::from_str(
+            arguments
+                .value_of("output-file")
+                .expect("No value for required argument."),
+        ),
+        "Error: Could not interpret path to output file: {}"
+    );
 
     if output_file_path.extension().is_none() {
         output_file_path.set_extension("pickle");
+    }
+
+    let force_overwrite = arguments.is_present("overwrite");
+
+    if !force_overwrite && !io_utils::write_allowed(&output_file_path) {
+        exit_with_error!("Aborted");
     }
 
     let sample_location = arguments
@@ -121,67 +143,69 @@ pub fn run_slice_subcommand<G: Grid3<fdt>>(
     let interpolator_config = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
     {
-        cli::interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options(
-            interpolator_arguments,
-        )
+        construct_poly_fit_interpolator_config_from_options(interpolator_arguments)
     } else {
         PolyFitInterpolatorConfig::default()
     };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
-    let field = snapshot
-        .obtain_scalar_field(quantity)
-        .unwrap_or_else(|err| panic!("Could not read {}: {}", quantity, err));
+    let field = exit_on_error!(
+        snapshot.obtain_scalar_field(quantity),
+        "Error: Could not read quantity {0} in snapshot: {1}",
+        quantity
+    );
 
     if arguments.is_present("allow-non-uniform") {
         let resampled_coord_locations = match sample_location {
             "center" => ResampledCoordLocation::center(),
             "lower" => ResampledCoordLocation::lower_edge(),
             "original" => ResampledCoordLocation::Original,
-            invalid => panic!("Invalid sample-location: {}", invalid),
+            invalid => exit_with_error!("Error: Invalid sample-location: {}", invalid),
         };
 
-        match axis {
-            "x" => {
-                field
-                    .slice_across_x(&interpolator, coord, resampled_coord_locations)
-                    .save_as_pickle(output_file_path)
-                    .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
-            }
-            "y" => {
-                field
-                    .slice_across_y(&interpolator, coord, resampled_coord_locations)
-                    .save_as_pickle(output_file_path)
-                    .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
-            }
-            "z" => {
-                field
-                    .slice_across_z(&interpolator, coord, resampled_coord_locations)
-                    .save_as_pickle(output_file_path)
-                    .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
-            }
-            invalid => panic!("Invalid axis: {}", invalid),
-        }
+        exit_on_error!(
+            match axis {
+                "x" => {
+                    field
+                        .slice_across_x(&interpolator, coord, resampled_coord_locations)
+                        .save_as_pickle(output_file_path)
+                }
+                "y" => {
+                    field
+                        .slice_across_y(&interpolator, coord, resampled_coord_locations)
+                        .save_as_pickle(output_file_path)
+                }
+                "z" => {
+                    field
+                        .slice_across_z(&interpolator, coord, resampled_coord_locations)
+                        .save_as_pickle(output_file_path)
+                }
+                invalid => exit_with_error!("Error: Invalid axis: {}", invalid),
+            },
+            "Error: Could not save output data: {}"
+        );
     } else {
         let location = match sample_location {
             "center" => CoordLocation::Center,
             "lower" => CoordLocation::LowerEdge,
-            "original" => panic!(
-                "Invalid sample-location: original (only available with --allow-non-uniform)"
+            "original" => exit_with_error!(
+                "Error: Invalid sample-location: original only available with --allow-non-uniform"
             ),
-            invalid => panic!("Invalid sample-location: {}", invalid),
+            invalid => exit_with_error!("Error: Invalid sample-location: {}", invalid),
         };
 
         let axis = match axis {
             "x" => Dim3::X,
             "y" => Dim3::Y,
             "z" => Dim3::Z,
-            invalid => panic!("Invalid axis: {}", invalid),
+            invalid => exit_with_error!("Error: Invalid axis: {}", invalid),
         };
 
-        field
-            .regular_slice_across_axis(&interpolator, axis, coord, location)
-            .save_as_pickle(output_file_path)
-            .unwrap_or_else(|err| panic!("Could not save output data: {}", err));
+        exit_on_error!(
+            field
+                .regular_slice_across_axis(&interpolator, axis, coord, location)
+                .save_as_pickle(output_file_path),
+            "Error: Could not save output data: {}"
+        );
     }
 }

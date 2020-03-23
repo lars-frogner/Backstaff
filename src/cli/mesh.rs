@@ -2,12 +2,14 @@
 
 mod regular;
 
-use crate::grid::Grid3;
-use crate::io::mesh;
-use crate::io::snapshot::fdt;
+use self::regular::{create_regular_mesh_subcommand, run_regular_subcommand};
+use crate::{
+    create_subcommand, exit_on_error, exit_with_error,
+    grid::Grid3,
+    io::snapshot::{fdt, native},
+};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for generating a Bifrost mesh file.
 pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -16,39 +18,47 @@ pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
         .help_message("Print help information")
         .setting(AppSettings::SubcommandRequired)
         .arg(
-            Arg::with_name("output-path")
-                .short("o")
-                .long("output-path")
-                .require_equals(true)
-                .value_name("PATH")
+            Arg::with_name("output-file")
+                .value_name("OUTPUT_FILE")
                 .help("Path where the mesh file should be created")
                 .required(true)
                 .takes_value(true),
         )
-        .subcommand(regular::create_regular_mesh_subcommand())
+        .arg(
+            Arg::with_name("overwrite")
+                .long("overwrite")
+                .help("Automatically overwrite any existing file"),
+        )
+        .subcommand(create_subcommand!(create_mesh, regular_mesh))
 }
 
 /// Runs the actions for the `create_mesh` subcommand using the given arguments.
 pub fn run_create_mesh_subcommand(arguments: &ArgMatches) {
     if let Some(regular_arguments) = arguments.subcommand_matches("regular") {
-        regular::run_regular_subcommand(arguments, regular_arguments);
+        run_regular_subcommand(arguments, regular_arguments);
     } else {
-        panic!("No resampling mode specified.")
+        exit_with_error!("Error: No resampling mode specified");
     };
 }
 
 fn write_mesh_file<G: Grid3<fdt>>(root_arguments: &ArgMatches, grid: G) {
-    let mut output_file_path = PathBuf::from_str(
-        root_arguments
-            .value_of("output-path")
-            .expect("No value for required argument."),
-    )
-    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
+    let mut output_file_path = exit_on_error!(
+        PathBuf::from_str(
+            root_arguments
+                .value_of("output-file")
+                .expect("No value for required argument."),
+        ),
+        "Error: Could not interpret path to output file: {}"
+    );
 
     if output_file_path.extension().is_none() {
         output_file_path.set_extension("mesh");
     }
 
-    mesh::write_mesh_file_from_grid(&grid, output_file_path)
-        .unwrap_or_else(|err| panic!("Could not write mesh file: {}", err));
+    let force_overwrite = root_arguments.is_present("overwrite");
+
+    exit_on_error!(
+        native::write_mesh_file_from_grid(&grid, output_file_path, force_overwrite),
+        "Error: Could not write mesh file: {}"
+    );
 }

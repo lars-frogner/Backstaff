@@ -2,22 +2,28 @@
 
 pub mod basic;
 
-use super::ftr;
-use super::seeding::Seeder3;
-use super::stepping::{Stepper3, StepperFactory3};
-use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Dim3, Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::io::{utils, Endianness, Verbose};
-use crate::num::BFloat;
+use super::{
+    ftr,
+    seeding::Seeder3,
+    stepping::{Stepper3, StepperFactory3},
+};
+use crate::{
+    field::{ScalarField3, VectorField3},
+    geometry::{Dim3, Point3, Vec3},
+    grid::Grid3,
+    interpolation::Interpolator3,
+    io::{
+        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        utils, Endianness, Verbose,
+    },
+    num::BFloat,
+};
 use rayon::prelude::*;
-use serde::ser::{SerializeStruct, Serializer};
-use serde::Serialize;
-use std::collections::HashMap;
-use std::path::Path;
-use std::{fs, io, mem};
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Serialize,
+};
+use std::{collections::HashMap, fs, io, mem, path::Path};
 
 type FieldLinePath3 = (Vec<ftr>, Vec<ftr>, Vec<ftr>);
 type FixedScalarValues = HashMap<String, Vec<ftr>>;
@@ -51,16 +57,17 @@ pub trait FieldLineTracer3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `St`: Type of stepper.
-    fn trace<G, I, St>(
+    fn trace<G, R, I, St>(
         &self,
         field_name: &str,
-        snapshot: &SnapshotCacher3<G>,
+        snapshot: &SnapshotCacher3<G, R>,
         interpolator: &I,
         stepper: St,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
         I: Interpolator3,
         St: Stepper3;
 }
@@ -128,9 +135,9 @@ impl FieldLineSet3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn trace<Sd, Tr, G, I, StF>(
+    pub fn trace<Sd, Tr, G, R, I, StF>(
         field_name: &str,
-        snapshot: &SnapshotCacher3<G>,
+        snapshot: &SnapshotCacher3<G, R>,
         seeder: Sd,
         tracer: &Tr,
         interpolator: &I,
@@ -143,6 +150,7 @@ impl FieldLineSet3 {
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
         G: Grid3<fdt>,
+        R: SnapshotReader3<G> + Sync,
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
     {

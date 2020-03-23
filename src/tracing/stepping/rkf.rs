@@ -6,13 +6,17 @@ pub mod rkf23;
 pub mod rkf45;
 
 use super::{StepperInstruction, StepperResult, StoppingCause};
-use crate::field::VectorField3;
-use crate::geometry::{Dim3, Point3, Vec3};
-use crate::grid::{Grid3, GridPointQuery3};
-use crate::interpolation::Interpolator3;
-use crate::num::BFloat;
-use crate::tracing::ftr;
-use Dim3::{X, Y, Z};
+use crate::{
+    field::VectorField3,
+    geometry::{
+        Dim3::{X, Y, Z},
+        Point3, Vec3,
+    },
+    grid::{Grid3, GridPointQuery3},
+    interpolation::Interpolator3,
+    num::BFloat,
+    tracing::ftr,
+};
 
 /// Type of RKF stepper.
 #[derive(Clone, Copy, Debug)]

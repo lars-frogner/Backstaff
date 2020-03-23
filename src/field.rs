@@ -1,21 +1,23 @@
 //! Scalar and vector fields.
 
-use crate::geometry::{
-    CoordRefs2, CoordRefs3, Coords2, Dim2, Dim3, Idx2, Idx3, In2D, In3D, Point3, Vec2, Vec3,
+pub mod quantities;
+
+use crate::{
+    geometry::{
+        CoordRefs2, CoordRefs3, Coords2, Dim2,
+        Dim3::{self, X, Y, Z},
+        Idx2, Idx3, In2D, In3D, Point3, Vec2, Vec3,
+    },
+    grid::{regular::RegularGrid2, CoordLocation, Grid2, Grid3},
+    interpolation::Interpolator3,
+    io::utils::save_data_as_pickle,
+    num::{BFloat, OrderableIndexValuePair},
 };
-use crate::grid::regular::RegularGrid2;
-use crate::grid::{CoordLocation, Grid2, Grid3};
-use crate::interpolation::Interpolator3;
-use crate::io::utils::save_data_as_pickle;
-use crate::num::{BFloat, OrderableIndexValuePair};
 use itertools::Itertools;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use serde::Serialize;
-use std::path::Path;
-use std::sync::Arc;
-use std::{io, iter};
-use Dim3::{X, Y, Z};
+use std::{io, iter, path::Path, sync::Arc};
 
 /// Location in the grid cell for resampled field values.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -47,6 +49,14 @@ impl ResampledCoordLocation {
             resampled[Z].into_location(original[Z]),
         )
     }
+}
+
+/// Method for resampling a field.
+#[derive(Clone, Copy, Debug)]
+pub enum ResamplingMethod {
+    WeightedSampleAveraging,
+    WeightedCellAveraging,
+    DirectSampling,
 }
 
 /// A 3D scalar field.
@@ -194,6 +204,35 @@ where
                     max_value,
                 )
             })
+    }
+
+    /// Resamples the scalar field onto the given grid using the given method and
+    /// returns the resampled field.
+    pub fn resampled_to_grid<H, I>(
+        &self,
+        grid: Arc<H>,
+        resampled_locations: In3D<ResampledCoordLocation>,
+        interpolator: &I,
+        method: ResamplingMethod,
+    ) -> ScalarField3<F, H>
+    where
+        H: Grid3<F>,
+        I: Interpolator3,
+    {
+        match method {
+            ResamplingMethod::WeightedSampleAveraging => self
+                .resampled_to_grid_with_weighted_sample_averaging(
+                    grid,
+                    resampled_locations,
+                    interpolator,
+                ),
+            ResamplingMethod::WeightedCellAveraging => {
+                self.resampled_to_grid_with_weighted_cell_averaging(grid, resampled_locations)
+            }
+            ResamplingMethod::DirectSampling => {
+                self.resampled_to_grid_with_direct_sampling(grid, resampled_locations, interpolator)
+            }
+        }
     }
 
     /// Resamples the scalar field onto the given grid and returns the resampled field.

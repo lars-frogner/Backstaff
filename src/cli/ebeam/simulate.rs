@@ -1,29 +1,70 @@
 //! Command line interface for simulating electron beams.
 
-use crate::cli;
-use crate::ebeam::accelerator::Accelerator;
-use crate::ebeam::detection::simple::{
-    SimpleReconnectionSiteDetector, SimpleReconnectionSiteDetectorConfig,
+use super::{
+    accelerator::simple_power_law::{
+        construct_simple_power_law_accelerator_config_from_options,
+        create_simple_power_law_accelerator_subcommand,
+    },
+    detection::{
+        manual::{
+            construct_manual_reconnection_site_detector_from_options,
+            create_manual_reconnection_site_detector_subcommand,
+        },
+        simple::{
+            construct_simple_reconnection_site_detector_config_from_options,
+            create_simple_reconnection_site_detector_subcommand,
+        },
+    },
+    distribution::power_law::{
+        construct_power_law_distribution_config_from_options,
+        create_power_law_distribution_subcommand,
+    },
 };
-use crate::ebeam::detection::ReconnectionSiteDetector;
-use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerator;
-use crate::ebeam::distribution::power_law::acceleration::simple::{
-    SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
+use crate::{
+    cli::{
+        interpolation::poly_fit::{
+            construct_poly_fit_interpolator_config_from_options,
+            create_poly_fit_interpolator_subcommand,
+        },
+        tracing::stepping::rkf::{
+            construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand,
+        },
+    },
+    create_subcommand,
+    ebeam::{
+        accelerator::Accelerator,
+        detection::{
+            simple::{SimpleReconnectionSiteDetector, SimpleReconnectionSiteDetectorConfig},
+            ReconnectionSiteDetector,
+        },
+        distribution::{
+            power_law::{
+                acceleration::simple::{
+                    SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
+                },
+                PowerLawDistributionConfig,
+            },
+            Distribution,
+        },
+        BeamPropertiesCollection, ElectronBeamSwarm,
+    },
+    exit_on_error, exit_with_error,
+    grid::Grid3,
+    interpolation::{
+        poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+        Interpolator3,
+    },
+    io::{
+        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        utils,
+    },
+    tracing::stepping::rkf::{
+        rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig, RKFStepperType,
+    },
 };
-use crate::ebeam::distribution::power_law::PowerLawDistributionConfig;
-use crate::ebeam::distribution::Distribution;
-use crate::ebeam::{BeamPropertiesCollection, ElectronBeamSwarm};
-use crate::grid::Grid3;
-use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
-use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
-use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 /// Builds a representation of the `ebeam-simulate` command line subcommand.
 pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -45,12 +86,9 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .help_message("Print help information")
         .arg(
-            Arg::with_name("output-path")
-                .short("o")
-                .long("output-path")
-                .require_equals(true)
-                .value_name("PATH")
-                .help("Path where the beam data should be saved")
+            Arg::with_name("output-file")
+                .value_name("OUTPUT_FILE")
+                .help("Path of the file where the beam data should be saved")
                 .required(true)
                 .takes_value(true),
         )
@@ -64,6 +102,11 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true)
                 .possible_values(&["fl", "pickle", "json"])
                 .default_value("fl"),
+        )
+        .arg(
+            Arg::with_name("overwrite")
+                .long("overwrite")
+                .help("Automatically overwrite any existing file"),
         )
         .arg(
             Arg::with_name("generate-only")
@@ -136,89 +179,172 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .help("Prints the values of all the parameters that will be used"),
         );
 
-    let simple_reconnection_site_detector_subcommand =
-        super::detection::simple::create_simple_reconnection_site_detector_subcommand();
-    let manual_reconnection_site_detector_subcommand =
-        super::detection::manual::create_manual_reconnection_site_detector_subcommand();
-    let power_law_distribution_subcommand =
-        super::distribution::power_law::create_power_law_distribution_subcommand();
-    let simple_power_law_accelerator_subcommand =
-        super::accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand();
-    let dc_power_law_accelerator_subcommand =
-        super::accelerator::dc_power_law::create_dc_power_law_accelerator_subcommand();
-    let poly_fit_interpolator_subcommand =
-        cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand();
-    let rkf_stepper_subcommand = cli::tracing::stepping::rkf::create_rkf_stepper_subcommand();
-
-    let poly_fit_interpolator_subcommand =
-        poly_fit_interpolator_subcommand.subcommand(rkf_stepper_subcommand.clone());
-    let simple_power_law_accelerator_subcommand = simple_power_law_accelerator_subcommand
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(rkf_stepper_subcommand.clone());
-    let dc_power_law_accelerator_subcommand = dc_power_law_accelerator_subcommand
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(rkf_stepper_subcommand.clone());
-    let power_law_distribution_subcommand = power_law_distribution_subcommand
-        .subcommand(simple_power_law_accelerator_subcommand.clone())
-        .subcommand(dc_power_law_accelerator_subcommand.clone())
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(rkf_stepper_subcommand.clone());
-    let simple_reconnection_site_detector_subcommand = simple_reconnection_site_detector_subcommand
-        .subcommand(power_law_distribution_subcommand.clone())
-        .subcommand(simple_power_law_accelerator_subcommand.clone())
-        .subcommand(dc_power_law_accelerator_subcommand.clone())
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(rkf_stepper_subcommand.clone());
-    let manual_reconnection_site_detector_subcommand = manual_reconnection_site_detector_subcommand
-        .subcommand(power_law_distribution_subcommand.clone())
-        .subcommand(simple_power_law_accelerator_subcommand.clone())
-        .subcommand(dc_power_law_accelerator_subcommand.clone())
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(rkf_stepper_subcommand.clone());
-
-    app.subcommand(simple_reconnection_site_detector_subcommand)
-        .subcommand(manual_reconnection_site_detector_subcommand)
-        .subcommand(power_law_distribution_subcommand)
-        .subcommand(simple_power_law_accelerator_subcommand)
-        .subcommand(dc_power_law_accelerator_subcommand)
-        .subcommand(poly_fit_interpolator_subcommand)
-        .subcommand(rkf_stepper_subcommand)
+    app.subcommand(
+        create_subcommand!(simulate, simple_reconnection_site_detector)
+            .subcommand(
+                create_subcommand!(simple_reconnection_site_detector, power_law_distribution)
+                    .subcommand(
+                        create_subcommand!(power_law_distribution, simple_power_law_accelerator)
+                            .subcommand(
+                                create_subcommand!(
+                                    simple_power_law_accelerator,
+                                    poly_fit_interpolator
+                                )
+                                .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+                            )
+                            .subcommand(create_subcommand!(
+                                simple_power_law_accelerator,
+                                rkf_stepper
+                            )),
+                    )
+                    .subcommand(
+                        create_subcommand!(power_law_distribution, poly_fit_interpolator)
+                            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+                    )
+                    .subcommand(create_subcommand!(power_law_distribution, rkf_stepper)),
+            )
+            .subcommand(
+                create_subcommand!(
+                    simple_reconnection_site_detector,
+                    simple_power_law_accelerator
+                )
+                .subcommand(
+                    create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
+                        .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+                )
+                .subcommand(create_subcommand!(
+                    simple_power_law_accelerator,
+                    rkf_stepper
+                )),
+            )
+            .subcommand(
+                create_subcommand!(simple_reconnection_site_detector, poly_fit_interpolator)
+                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+            )
+            .subcommand(create_subcommand!(
+                simple_reconnection_site_detector,
+                rkf_stepper
+            )),
+    )
+    .subcommand(
+        create_subcommand!(simulate, manual_reconnection_site_detector)
+            .subcommand(
+                create_subcommand!(manual_reconnection_site_detector, power_law_distribution)
+                    .subcommand(
+                        create_subcommand!(power_law_distribution, simple_power_law_accelerator)
+                            .subcommand(
+                                create_subcommand!(
+                                    simple_power_law_accelerator,
+                                    poly_fit_interpolator
+                                )
+                                .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+                            )
+                            .subcommand(create_subcommand!(
+                                simple_power_law_accelerator,
+                                rkf_stepper
+                            )),
+                    )
+                    .subcommand(
+                        create_subcommand!(power_law_distribution, poly_fit_interpolator)
+                            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+                    )
+                    .subcommand(create_subcommand!(power_law_distribution, rkf_stepper)),
+            )
+            .subcommand(
+                create_subcommand!(
+                    manual_reconnection_site_detector,
+                    simple_power_law_accelerator
+                )
+                .subcommand(
+                    create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
+                        .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+                )
+                .subcommand(create_subcommand!(
+                    simple_power_law_accelerator,
+                    rkf_stepper
+                )),
+            )
+            .subcommand(
+                create_subcommand!(manual_reconnection_site_detector, poly_fit_interpolator)
+                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+            )
+            .subcommand(create_subcommand!(
+                manual_reconnection_site_detector,
+                rkf_stepper
+            )),
+    )
+    .subcommand(
+        create_subcommand!(simulate, power_law_distribution)
+            .subcommand(
+                create_subcommand!(power_law_distribution, simple_power_law_accelerator)
+                    .subcommand(
+                        create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
+                            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+                    )
+                    .subcommand(create_subcommand!(
+                        simple_power_law_accelerator,
+                        rkf_stepper
+                    )),
+            )
+            .subcommand(
+                create_subcommand!(power_law_distribution, poly_fit_interpolator)
+                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+            )
+            .subcommand(create_subcommand!(power_law_distribution, rkf_stepper)),
+    )
+    .subcommand(
+        create_subcommand!(simulate, simple_power_law_accelerator)
+            .subcommand(
+                create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
+                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+            )
+            .subcommand(create_subcommand!(
+                simple_power_law_accelerator,
+                rkf_stepper
+            )),
+    )
+    .subcommand(
+        create_subcommand!(simulate, poly_fit_interpolator)
+            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
+    )
+    .subcommand(create_subcommand!(simulate, rkf_stepper))
 }
 
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
-pub fn run_simulate_subcommand<G: Grid3<fdt>>(
-    arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
-) {
+pub fn run_simulate_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
+{
     run_with_selected_detector(arguments, snapshot);
 }
 
-fn run_with_selected_detector<G>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G>)
+fn run_with_selected_detector<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
 where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
 {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
-        let detector =
-            super::detection::manual::construct_manual_reconnection_site_detector_from_options(
-                detector_arguments,
-            );
+        let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
         run_with_selected_accelerator(arguments, detector_arguments, snapshot, detector);
     } else {
-        let (detector_config, detector_arguments) = if let Some(detector_arguments) =
-            arguments.subcommand_matches("simple_detector")
-        {
-            (super::detection::simple::construct_simple_reconnection_site_detector_config_from_options(
-                detector_arguments,
-                snapshot.reader(),
-            ), detector_arguments)
-        } else {
-            (
-                SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(
-                    snapshot.reader(),
-                ),
-                arguments,
-            )
-        };
+        let (detector_config, detector_arguments) =
+            if let Some(detector_arguments) = arguments.subcommand_matches("simple_detector") {
+                (
+                    construct_simple_reconnection_site_detector_config_from_options(
+                        detector_arguments,
+                        snapshot.reader(),
+                    ),
+                    detector_arguments,
+                )
+            } else {
+                (
+                    SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(
+                        snapshot.reader(),
+                    ),
+                    arguments,
+                )
+            };
 
         if arguments.is_present("print-parameter-values") {
             println!("{:#?}", detector_config);
@@ -230,20 +356,21 @@ where
     }
 }
 
-fn run_with_selected_accelerator<G, D>(
+fn run_with_selected_accelerator<G, R, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     detector: D,
 ) where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
     D: ReconnectionSiteDetector,
 {
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
         arguments.subcommand_matches("power_law_distribution")
     {
         (
-            super::distribution::power_law::construct_power_law_distribution_config_from_options(
+            construct_power_law_distribution_config_from_options(
                 distribution_arguments,
                 snapshot.reader(),
             ),
@@ -260,30 +387,17 @@ fn run_with_selected_accelerator<G, D>(
         println!("{:#?}", distribution_config);
     }
 
-    if let Some(accelerator_arguments) =
+    if let Some(_accelerator_arguments) =
         distribution_arguments.subcommand_matches("dc_power_law_accelerator")
     {
-        let (accelerator_config, acceleration_region_tracer) = super::accelerator::dc_power_law::construct_dc_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
-        if root_arguments.is_present("print-parameter-values") {
-            println!("{:#?}", accelerator_config);
-            println!("{:#?}", acceleration_region_tracer.config());
-        }
-        let accelerator = DCPowerLawAccelerator::new(
-            distribution_config,
-            accelerator_config,
-            acceleration_region_tracer,
-        );
-        run_with_selected_interpolator(
-            root_arguments,
-            accelerator_arguments,
-            snapshot,
-            detector,
-            accelerator,
-        );
+        unimplemented!()
     } else if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("simple_power_law_accelerator")
     {
-        let accelerator_config = super::accelerator::simple_power_law::construct_simple_power_law_accelerator_config_from_options(accelerator_arguments, snapshot.reader());
+        let accelerator_config = construct_simple_power_law_accelerator_config_from_options(
+            accelerator_arguments,
+            snapshot.reader(),
+        );
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
         }
@@ -312,13 +426,14 @@ fn run_with_selected_accelerator<G, D>(
     };
 }
 
-fn run_with_selected_interpolator<G, D, A>(
+fn run_with_selected_interpolator<G, R, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     detector: D,
     accelerator: A)
 where G: Grid3<fdt>,
+      R: SnapshotReader3<G> + Sync,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -328,9 +443,7 @@ where G: Grid3<fdt>,
         arguments.subcommand_matches("poly_fit_interpolator")
     {
         (
-            cli::interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options(
-                interpolator_arguments,
-            ),
+            construct_poly_fit_interpolator_config_from_options(interpolator_arguments),
             interpolator_arguments,
         )
     } else {
@@ -353,30 +466,53 @@ where G: Grid3<fdt>,
     );
 }
 
-fn run_with_selected_stepper_factory<G, D, A, I>(
+fn run_with_selected_stepper_factory<G, R, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     detector: D,
     accelerator: A,
     interpolator: I)
 where G: Grid3<fdt>,
+      R: SnapshotReader3<G> + Sync,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
       I: Interpolator3
 {
-    let (stepper_type, stepper_config) = if let Some(stepper_arguments) =
-        arguments.subcommand_matches("rkf_stepper")
-    {
-        cli::tracing::stepping::rkf::construct_rkf_stepper_config_from_options(stepper_arguments)
-    } else {
-        (RKFStepperType::RKF45, RKFStepperConfig::default())
-    };
+    let (stepper_type, stepper_config) =
+        if let Some(stepper_arguments) = arguments.subcommand_matches("rkf_stepper") {
+            construct_rkf_stepper_config_from_options(stepper_arguments)
+        } else {
+            (RKFStepperType::RKF45, RKFStepperConfig::default())
+        };
 
     if root_arguments.is_present("print-parameter-values") {
         println!("{:#?}\nstepper_type: {:?}", stepper_config, stepper_type);
+    }
+
+    let mut output_file_path = exit_on_error!(
+        PathBuf::from_str(
+            root_arguments
+                .value_of("output-file")
+                .expect("No value for required argument."),
+        ),
+        "Error: Could not interpret path to output file: {}"
+    );
+
+    let output_format = root_arguments
+        .value_of("output-format")
+        .expect("No value for argument with default.");
+
+    if output_file_path.extension().is_none() {
+        output_file_path.set_extension(output_format);
+    }
+
+    let force_overwrite = root_arguments.is_present("overwrite");
+
+    if !force_overwrite && !utils::write_allowed(&output_file_path) {
+        exit_with_error!("Aborted");
     }
 
     let verbose = root_arguments.is_present("verbose").into();
@@ -427,43 +563,40 @@ where G: Grid3<fdt>,
         }
     };
     snapshot.drop_all_fields();
-    perform_post_simulation_actions(root_arguments, snapshot, interpolator, beams);
+    perform_post_simulation_actions(
+        root_arguments,
+        output_format,
+        output_file_path,
+        snapshot,
+        interpolator,
+        beams,
+    );
 }
 
-fn perform_post_simulation_actions<G, A, I>(
+fn perform_post_simulation_actions<G, R, A, I>(
     root_arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    output_format: &str,
+    output_file_path: PathBuf,
+    snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
 ) where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
     A: Accelerator,
     I: Interpolator3,
 {
-    let mut output_file_path = PathBuf::from_str(
-        root_arguments
-            .value_of("output-path")
-            .expect("No value for required argument."),
-    )
-    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
-
-    let output_format = root_arguments
-        .value_of("output-format")
-        .expect("No value for argument with default.");
-
-    if output_file_path.extension().is_none() {
-        output_file_path.set_extension(output_format);
-    }
-
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extra-fixed-scalars")
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_fixed_scalars {
             beams.extract_fixed_scalars(
-                snapshot
-                    .obtain_scalar_field(name)
-                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                exit_on_error!(
+                    snapshot.obtain_scalar_field(name),
+                    "Error: Could not read quantity {0} from snapshot: {1}",
+                    name
+                ),
                 &interpolator,
             );
             snapshot.drop_scalar_field(name);
@@ -475,9 +608,11 @@ fn perform_post_simulation_actions<G, A, I>(
     {
         for name in extra_fixed_vectors {
             beams.extract_fixed_vectors(
-                snapshot
-                    .obtain_vector_field(name)
-                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                exit_on_error!(
+                    snapshot.obtain_vector_field(name),
+                    "Error: Could not read quantity {0} from snapshot: {1}",
+                    name
+                ),
                 &interpolator,
             );
             snapshot.drop_vector_field(name);
@@ -489,9 +624,11 @@ fn perform_post_simulation_actions<G, A, I>(
     {
         for name in extra_varying_scalars {
             beams.extract_varying_scalars(
-                snapshot
-                    .obtain_scalar_field(name)
-                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                exit_on_error!(
+                    snapshot.obtain_scalar_field(name),
+                    "Error: Could not read quantity {0} from snapshot: {1}",
+                    name
+                ),
                 &interpolator,
             );
             snapshot.drop_scalar_field(name);
@@ -503,20 +640,24 @@ fn perform_post_simulation_actions<G, A, I>(
     {
         for name in extra_varying_vectors {
             beams.extract_varying_vectors(
-                snapshot
-                    .obtain_vector_field(name)
-                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                exit_on_error!(
+                    snapshot.obtain_vector_field(name),
+                    "Error: Could not read quantity {0} from snapshot: {1}",
+                    name
+                ),
                 &interpolator,
             );
             snapshot.drop_vector_field(name);
         }
     }
 
-    let result = match output_format {
-        "pickle" => beams.save_as_combined_pickles(output_file_path),
-        "json" => beams.save_as_json(output_file_path),
-        "fl" => beams.into_custom_binary_file(output_file_path),
-        invalid => panic!("Invalid output format {}.", invalid),
-    };
-    result.unwrap_or_else(|err| panic!("Could not save output data: {}", err));
+    exit_on_error!(
+        match output_format {
+            "pickle" => beams.save_as_combined_pickles(output_file_path),
+            "json" => beams.save_as_json(output_file_path),
+            "fl" => beams.into_custom_binary_file(output_file_path),
+            invalid => exit_with_error!("Error: Invalid output format {}.", invalid),
+        },
+        "Error: Could not save output data: {}"
+    );
 }

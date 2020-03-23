@@ -1,9 +1,8 @@
 //! Command line interface for reading seed points from an input file.
 
-use crate::tracing::seeding::manual::ManualSeeder3;
+use crate::{exit_on_error, tracing::seeding::manual::ManualSeeder3};
 use clap::{App, Arg, ArgMatches, SubCommand};
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for using a manual seeder.
 pub fn create_manual_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -16,11 +15,11 @@ pub fn create_manual_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .help_message("Print help information")
         .arg(
-            Arg::with_name("input-path")
+            Arg::with_name("input-file")
                 .short("i")
-                .long("input-path")
+                .long("input-file")
                 .require_equals(true)
-                .value_name("PATH")
+                .value_name("FILE")
                 .help("Path to the text file containing the seed points")
                 .required(true)
                 .takes_value(true),
@@ -29,13 +28,17 @@ pub fn create_manual_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
 
 /// Creates a manual seeder based on the provided arguments.
 pub fn create_manual_seeder_from_arguments(arguments: &ArgMatches) -> ManualSeeder3 {
-    let input_file_path = PathBuf::from_str(
-        arguments
-            .value_of("input-path")
-            .expect("No value for required argument."),
-    )
-    .unwrap_or_else(|err| panic!("Could not interpret input-path: {}", err));
+    let input_file_path = exit_on_error!(
+        PathBuf::from_str(
+            arguments
+                .value_of("input-file")
+                .expect("No value for required argument."),
+        ),
+        "Error: Could not interpret path to input file: {}"
+    );
 
-    ManualSeeder3::new(input_file_path)
-        .unwrap_or_else(|err| panic!("Could not create manual seeder: {}", err))
+    exit_on_error!(
+        ManualSeeder3::new(input_file_path),
+        "Error: Could not create manual seeder: {}"
+    )
 }

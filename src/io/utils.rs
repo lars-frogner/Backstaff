@@ -1,14 +1,75 @@
 //! Utilities for input/output.
 
 use super::Endianness;
-use byteorder;
-use byteorder::{ByteOrder, ReadBytesExt};
+use byteorder::{self, ByteOrder, ReadBytesExt};
 use serde::Serialize;
 use serde_json;
 use serde_pickle;
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::Path;
-use std::{fs, io, mem};
+use std::{
+    fs, io,
+    io::{Read, Seek, SeekFrom, Write},
+    mem,
+    path::Path,
+};
+
+/// Prompts the user with a question and returns whether the answer was yes.
+///
+/// The given default answer is assumed if the user simply presses `return`.
+pub fn user_says_yes(question: &str, default_is_no: bool) -> bool {
+    let full_question = format!(
+        "{} [{}]",
+        question,
+        if default_is_no { "y/N" } else { "Y/n" }
+    );
+    let accepted_answers = ["y", "n"];
+    let mut answer = String::with_capacity(2);
+    let final_answer;
+    println!("{}", &full_question);
+    loop {
+        let _ = io::stdout().flush();
+        match io::stdin().read_line(&mut answer) {
+            Ok(_) => {
+                if let Some('\n') = answer.chars().next_back() {
+                    answer.pop();
+                }
+                if let Some('\r') = answer.chars().next_back() {
+                    answer.pop();
+                }
+                if answer.is_empty() {
+                    final_answer = if default_is_no { "n" } else { "y" };
+                    break;
+                } else {
+                    answer.to_ascii_lowercase();
+                    if accepted_answers.contains(&answer.as_str()) {
+                        final_answer = answer.as_str();
+                        break;
+                    }
+                }
+            }
+            Err(err) => println!("{}", err.to_string()),
+        }
+        answer.clear();
+        println!("{}", &full_question);
+    }
+    final_answer == "y"
+}
+
+/// Check if the file at the given path exists, and if so, ask user whether it
+/// can be overwritten.
+pub fn write_allowed<P: AsRef<Path>>(file_path: P) -> bool {
+    let file_path = file_path.as_ref();
+    if file_path.exists() {
+        user_says_yes(
+            &format!(
+                "File {} already exists, overwrite?",
+                file_path.file_name().unwrap().to_string_lossy()
+            ),
+            true,
+        )
+    } else {
+        true
+    }
+}
 
 /// Describes the properties of a type that can be translated to and from bytes
 /// by the `byteorder` crate.
@@ -50,7 +111,24 @@ pub fn read_text_file<P: AsRef<Path>>(file_path: P) -> io::Result<String> {
 }
 
 /// Writes the given string as a text file with the specified path.
-pub fn write_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
+///
+/// Prompts the user to confirm overwrite if necessary.
+pub fn write_text_file<P: AsRef<Path>>(
+    text: &str,
+    output_file_path: P,
+    force_overwrite: bool,
+) -> io::Result<()> {
+    let output_file_path = output_file_path.as_ref();
+    if force_overwrite || write_allowed(output_file_path) {
+        overwrite_text_file(text, output_file_path)
+    } else {
+        Ok(())
+    }
+}
+
+/// Writes the given string as a text file with the specified path,
+/// regardless of whether the file already exists.
+pub fn overwrite_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
     let mut file = fs::File::create(output_file_path)?;
     write!(&mut file, "{}", text)
 }
@@ -136,6 +214,7 @@ pub fn write_data_as_pickle<T: Serialize, W: io::Write>(
 impl ByteorderData for f32 {
     fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
         match endianness {
+            Endianness::Native => byteorder::NativeEndian::write_f32_into(source, dest),
             Endianness::Little => byteorder::LittleEndian::write_f32_into(source, dest),
             Endianness::Big => byteorder::BigEndian::write_f32_into(source, dest),
         };
@@ -147,6 +226,7 @@ impl ByteorderData for f32 {
         endianness: Endianness,
     ) -> io::Result<()> {
         match endianness {
+            Endianness::Native => file.read_f32_into::<byteorder::NativeEndian>(buffer),
             Endianness::Little => file.read_f32_into::<byteorder::LittleEndian>(buffer),
             Endianness::Big => file.read_f32_into::<byteorder::BigEndian>(buffer),
         }
@@ -156,6 +236,7 @@ impl ByteorderData for f32 {
 impl ByteorderData for f64 {
     fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
         match endianness {
+            Endianness::Native => byteorder::NativeEndian::write_f64_into(source, dest),
             Endianness::Little => byteorder::LittleEndian::write_f64_into(source, dest),
             Endianness::Big => byteorder::BigEndian::write_f64_into(source, dest),
         };
@@ -167,6 +248,7 @@ impl ByteorderData for f64 {
         endianness: Endianness,
     ) -> io::Result<()> {
         match endianness {
+            Endianness::Native => file.read_f64_into::<byteorder::NativeEndian>(buffer),
             Endianness::Little => file.read_f64_into::<byteorder::LittleEndian>(buffer),
             Endianness::Big => file.read_f64_into::<byteorder::BigEndian>(buffer),
         }
@@ -176,6 +258,7 @@ impl ByteorderData for f64 {
 impl ByteorderData for i32 {
     fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
         match endianness {
+            Endianness::Native => byteorder::NativeEndian::write_i32_into(source, dest),
             Endianness::Little => byteorder::LittleEndian::write_i32_into(source, dest),
             Endianness::Big => byteorder::BigEndian::write_i32_into(source, dest),
         };
@@ -187,6 +270,7 @@ impl ByteorderData for i32 {
         endianness: Endianness,
     ) -> io::Result<()> {
         match endianness {
+            Endianness::Native => file.read_i32_into::<byteorder::NativeEndian>(buffer),
             Endianness::Little => file.read_i32_into::<byteorder::LittleEndian>(buffer),
             Endianness::Big => file.read_i32_into::<byteorder::BigEndian>(buffer),
         }
@@ -196,6 +280,7 @@ impl ByteorderData for i32 {
 impl ByteorderData for i64 {
     fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
         match endianness {
+            Endianness::Native => byteorder::NativeEndian::write_i64_into(source, dest),
             Endianness::Little => byteorder::LittleEndian::write_i64_into(source, dest),
             Endianness::Big => byteorder::BigEndian::write_i64_into(source, dest),
         };
@@ -207,6 +292,7 @@ impl ByteorderData for i64 {
         endianness: Endianness,
     ) -> io::Result<()> {
         match endianness {
+            Endianness::Native => file.read_i64_into::<byteorder::NativeEndian>(buffer),
             Endianness::Little => file.read_i64_into::<byteorder::LittleEndian>(buffer),
             Endianness::Big => file.read_i64_into::<byteorder::BigEndian>(buffer),
         }
@@ -230,6 +316,7 @@ impl ByteorderData for u8 {
 impl ByteorderData for u32 {
     fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
         match endianness {
+            Endianness::Native => byteorder::NativeEndian::write_u32_into(source, dest),
             Endianness::Little => byteorder::LittleEndian::write_u32_into(source, dest),
             Endianness::Big => byteorder::BigEndian::write_u32_into(source, dest),
         };
@@ -241,6 +328,7 @@ impl ByteorderData for u32 {
         endianness: Endianness,
     ) -> io::Result<()> {
         match endianness {
+            Endianness::Native => file.read_u32_into::<byteorder::NativeEndian>(buffer),
             Endianness::Little => file.read_u32_into::<byteorder::LittleEndian>(buffer),
             Endianness::Big => file.read_u32_into::<byteorder::BigEndian>(buffer),
         }
@@ -250,6 +338,7 @@ impl ByteorderData for u32 {
 impl ByteorderData for u64 {
     fn write_into_byte_buffer(source: &[Self], dest: &mut [u8], endianness: Endianness) {
         match endianness {
+            Endianness::Native => byteorder::NativeEndian::write_u64_into(source, dest),
             Endianness::Little => byteorder::LittleEndian::write_u64_into(source, dest),
             Endianness::Big => byteorder::BigEndian::write_u64_into(source, dest),
         };
@@ -261,6 +350,7 @@ impl ByteorderData for u64 {
         endianness: Endianness,
     ) -> io::Result<()> {
         match endianness {
+            Endianness::Native => file.read_u64_into::<byteorder::NativeEndian>(buffer),
             Endianness::Little => file.read_u64_into::<byteorder::LittleEndian>(buffer),
             Endianness::Big => file.read_u64_into::<byteorder::BigEndian>(buffer),
         }

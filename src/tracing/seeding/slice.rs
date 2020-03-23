@@ -1,21 +1,21 @@
 //! Generation of seed points in a slice through a field.
 
-use super::super::ftr;
-use super::Seeder3;
-use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Dim2, Dim3, Idx3, In2D, Point2, Point3, Vec3};
-use crate::grid::{CoordLocation, Grid2, Grid3};
-use crate::interpolation::Interpolator3;
-use crate::num::BFloat;
-use crate::random;
-use rand::distributions::uniform::SampleUniform;
-use rand::distributions::{Distribution, Uniform};
-use rayon;
-use rayon::prelude::*;
-use std::collections::HashSet;
-use std::iter::FromIterator;
-use std::vec;
-use Dim3::{X, Y, Z};
+use super::{super::ftr, Seeder3};
+use crate::{
+    field::{ScalarField3, VectorField3},
+    geometry::{
+        Dim2,
+        Dim3::{self, X, Y, Z},
+        Idx3, In2D, Point2, Point3, Vec3,
+    },
+    grid::{CoordLocation, Grid2, Grid3},
+    interpolation::Interpolator3,
+    num::BFloat,
+    random,
+};
+use rand::distributions::{uniform::SampleUniform, Distribution, Uniform};
+use rayon::{self, prelude::*};
+use std::{collections::HashSet, iter::FromIterator, vec};
 
 /// Generator for seed points in a slice of a 3D field.
 #[derive(Clone, Debug)]

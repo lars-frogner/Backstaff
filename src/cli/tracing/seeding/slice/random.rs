@@ -1,15 +1,14 @@
 //! Command line interface for producing randomly spaced seed points in a 2D slice of a 3D grid.
 
 use super::CommonSliceSeederParameters;
-use crate::cli;
-use crate::geometry::Point2;
-use crate::grid::Grid3;
-use crate::io::snapshot::fdt;
-use crate::tracing::seeding::slice::SliceSeeder3;
+use crate::{
+    cli::utils, geometry::Point2, grid::Grid3, io::snapshot::fdt,
+    tracing::seeding::slice::SliceSeeder3,
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the random slice seeder.
-pub fn create_random_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
+pub fn create_random_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("random")
         .about("Use the random slice seeder")
         .long_about(
@@ -41,7 +40,7 @@ where
     G: Grid3<fdt>,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
-    let n_seeds = cli::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
+    let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
 
     SliceSeeder3::random(
         grid,

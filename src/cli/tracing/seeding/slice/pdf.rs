@@ -2,16 +2,19 @@
 //! according to values in a 2D slice of a 3D grid.
 
 use super::CommonSliceSeederParameters;
-use crate::cli;
-use crate::geometry::Point2;
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::tracing::seeding::slice::SliceSeeder3;
+use crate::{
+    cli::utils,
+    exit_on_error,
+    geometry::Point2,
+    grid::Grid3,
+    interpolation::Interpolator3,
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    tracing::seeding::slice::SliceSeeder3,
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the slice PDF seeder.
-pub fn create_slice_pdf_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
+pub fn create_value_pdf_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("value_pdf")
         .about("Use the slice value PDF seeder")
         .long_about(
@@ -58,28 +61,31 @@ pub fn create_slice_pdf_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Creates a slice PDF seeder based on the provided arguments.
-pub fn create_slice_pdf_seeder_from_arguments<G, I, S>(
+pub fn create_slice_pdf_seeder_from_arguments<G, R, I, S>(
     arguments: &ArgMatches,
     parameters: &CommonSliceSeederParameters,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: &I,
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
     I: Interpolator3,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
     let quantity = arguments
         .value_of("quantity")
         .expect("No value for required argument.");
-    let n_seeds = cli::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
-    let power = cli::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
+    let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
+    let power = utils::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
     if arguments.is_present("is-vector-quantity") {
-        let field = snapshot
-            .obtain_vector_field(quantity)
-            .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", quantity, err));
+        let field = exit_on_error!(
+            snapshot.obtain_vector_field(quantity),
+            "Error: Could not read quantity {0} in snapshot: {1}",
+            quantity
+        );
         let seeder = SliceSeeder3::vector_field_pdf(
             field,
             interpolator,
@@ -92,9 +98,11 @@ where
         snapshot.drop_vector_field(quantity);
         seeder
     } else {
-        let field = snapshot
-            .obtain_scalar_field(quantity)
-            .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", quantity, err));
+        let field = exit_on_error!(
+            snapshot.obtain_scalar_field(quantity),
+            "Error: Could not read quantity {0} in snapshot: {1}",
+            quantity
+        );
         let seeder = SliceSeeder3::scalar_field_pdf(
             field,
             interpolator,

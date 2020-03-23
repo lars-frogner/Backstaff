@@ -1,15 +1,21 @@
 //! Basic field line tracing.
 
-use super::super::stepping::{Stepper3, StepperInstruction, SteppingSense};
-use super::{FieldLinePath3, FieldLineSetProperties3, FieldLineTracer3};
-use crate::geometry::{Dim3, Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::tracing::{self, ftr, TracerResult};
+use super::{
+    super::stepping::{Stepper3, StepperInstruction, SteppingSense},
+    FieldLinePath3, FieldLineSetProperties3, FieldLineTracer3,
+};
+use crate::{
+    geometry::{
+        Dim3::{X, Y, Z},
+        Point3, Vec3,
+    },
+    grid::Grid3,
+    interpolation::Interpolator3,
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    tracing::{self, ftr, TracerResult},
+};
 use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
-use Dim3::{X, Y, Z};
 
 /// Data required to represent a basic 3D field line.
 pub struct BasicFieldLineData3 {
@@ -59,16 +65,17 @@ impl BasicFieldLineTracer3 {
 impl FieldLineTracer3 for BasicFieldLineTracer3 {
     type Data = BasicFieldLineData3;
 
-    fn trace<G, I, S>(
+    fn trace<G, R, I, S>(
         &self,
         field_name: &str,
-        snapshot: &SnapshotCacher3<G>,
+        snapshot: &SnapshotCacher3<G, R>,
         interpolator: &I,
         stepper: S,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
         I: Interpolator3,
         S: Stepper3,
     {
@@ -333,7 +340,10 @@ mod tests {
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
-    use crate::io::snapshot::{SnapshotReader3, SnapshotReaderConfig};
+    use crate::io::snapshot::{
+        native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
+        SnapshotCacher3,
+    };
     use crate::io::{Endianness, Verbose};
     use crate::tracing::field_line::FieldLineSet3;
     use crate::tracing::seeding::slice::SliceSeeder3;
@@ -342,13 +352,14 @@ mod tests {
 
     #[test]
     fn tracing_and_saving_basic_field_line_set_works() {
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(SnapshotReaderConfig::new(
-            "data/en024031_emer3.0sml_ebeam_631.idl",
-            Endianness::Little,
-            Verbose::No,
-        ))
-        .unwrap();
-        let mut snapshot = reader.into_cacher();
+        let reader =
+            NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
+                "data/en024031_emer3.0sml_ebeam_631.idl",
+                Endianness::Little,
+                Verbose::No,
+            ))
+            .unwrap();
+        let mut snapshot = SnapshotCacher3::new(reader);
 
         let field_name = "b";
         snapshot.cache_vector_field(field_name).unwrap();

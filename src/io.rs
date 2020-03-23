@@ -1,12 +1,12 @@
 //! File input/output.
 
-pub mod mesh;
 pub mod snapshot;
 pub mod utils;
 
 /// Little- or big-endian byte order.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endianness {
+    Native,
     Little,
     Big,
 }

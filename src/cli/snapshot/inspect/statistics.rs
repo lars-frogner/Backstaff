@@ -1,9 +1,12 @@
 //! Command line interface for printing statistics for quantities in a snapshot.
 
-use crate::field::ScalarField3;
-use crate::geometry::Dim3;
-use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
+use crate::{
+    exit_on_error,
+    field::ScalarField3,
+    geometry::Dim3,
+    grid::Grid3,
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
 use Dim3::{X, Y, Z};
@@ -15,11 +18,8 @@ pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
         .help_message("Print help information")
         .arg(
             Arg::with_name("quantities")
-                .short("q")
-                .long("quantities")
-                .require_equals(true)
                 .require_delimiter(true)
-                .value_name("NAMES")
+                .value_name("QUANTITIES")
                 .help("List of quantities to print statistics for (comma-separated)")
                 .required(true)
                 .takes_value(true)
@@ -29,17 +29,25 @@ pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
-pub fn run_statistics_subcommand<G: Grid3<fdt>>(
-    arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
-) {
-    for quantity in arguments
+pub fn run_statistics_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+{
+    for name in arguments
         .values_of("quantities")
         .expect("No values for required argument.")
     {
-        match snapshot.obtain_scalar_field(quantity) {
-            Ok(field) => print_statistics_report(&field),
-            Err(err) => println!("Could not read {}: {}", quantity, err),
+        if !snapshot.reader().has_variable(name) {
+            eprintln!("Warning: Quantity {} not present in snapshot", name);
+        } else {
+            exit_on_error!(
+                snapshot
+                    .obtain_scalar_field(name)
+                    .map(|field| print_statistics_report(&field)),
+                "Error: Could not read quantity {0} in snapshot: {1}",
+                name
+            );
         }
     }
 }

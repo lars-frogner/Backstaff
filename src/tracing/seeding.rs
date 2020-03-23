@@ -5,9 +5,11 @@ pub mod manual;
 pub mod slice;
 
 use super::ftr;
-use crate::geometry::{Idx3, Point3};
-use crate::grid::Grid3;
-use crate::num::BFloat;
+use crate::{
+    geometry::{Idx3, Point3},
+    grid::Grid3,
+    num::BFloat,
+};
 use rayon::prelude::*;
 
 /// Defines the properties of a 3D seed point generator.

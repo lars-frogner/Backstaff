@@ -4,13 +4,16 @@ pub mod hor_regular;
 pub mod regular;
 
 use self::regular::RegularGrid2;
-use crate::geometry::{
-    CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2, Dim3, Idx2, Idx3, In2D, In3D, Point2, Point3,
-    Vec2, Vec3,
+use crate::{
+    geometry::{
+        CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
+        Dim3::{self, X, Y, Z},
+        Idx2, Idx3, In2D, In3D, Point2, Point3, Vec2, Vec3,
+    },
+    num::BFloat,
 };
-use crate::num::BFloat;
 use ndarray::prelude::*;
-use Dim3::{X, Y, Z};
+use std::io;
 
 /// Coordinates located at center or lower edge of grid cell.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -718,6 +721,134 @@ impl<F: BFloat, T> GridPointQuery2<F, T> {
             }
         }
     }
+}
+
+/// Verifies that the given coordinate arrays conform to an available grid type, and returns this type.
+pub fn verify_coordinate_arrays<F: BFloat>(
+    center_coords: &Coords3<F>,
+    lower_coords: &Coords3<F>,
+) -> io::Result<GridType> {
+    let nonuniformity_threshold = F::from_f32(5e-3).unwrap();
+
+    let coord_names = In3D::new("x", "y", "z");
+    let mut is_uniform = In3D::same(true);
+
+    for &dim in &Dim3::slice() {
+        let center_vec = &center_coords[dim];
+        let lower_vec = &lower_coords[dim];
+
+        let length = center_vec.len();
+
+        if lower_vec.len() != length {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Inconsistent number of {}-coordinates", coord_names[dim]),
+            ));
+        }
+
+        if length < 2 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Insufficient number of {}-coordinates (must be at least 2)",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        if !center_vec
+            .iter()
+            .zip(center_vec.iter().skip(1))
+            .all(|(&lower, &upper)| upper >= lower)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Center {}-coordinates do not increase monotonically",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        if !lower_vec
+            .iter()
+            .zip(lower_vec.iter().skip(1))
+            .all(|(&lower, &upper)| upper >= lower)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Lower edge {}-coordinates do not increase monotonically",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        let center_differences: Vec<_> = center_vec
+            .iter()
+            .zip(center_vec.iter().skip(1))
+            .map(|(&lower, &upper)| <F as num::Float>::abs(upper - lower))
+            .collect();
+
+        let uniform_centers = center_differences
+            .iter()
+            .zip(center_differences.iter().skip(1))
+            .all(|(&first, &second)| {
+                <F as num::Float>::abs(second - first) < nonuniformity_threshold
+            });
+
+        let lower_edge_differences: Vec<_> = lower_vec
+            .iter()
+            .zip(lower_vec.iter().skip(1))
+            .map(|(&lower, &upper)| <F as num::Float>::abs(upper - lower))
+            .collect();
+
+        let uniform_lower_edges = lower_edge_differences
+            .iter()
+            .zip(lower_edge_differences.iter().skip(1))
+            .all(|(&first, &second)| {
+                <F as num::Float>::abs(second - first) < nonuniformity_threshold
+            });
+
+        if uniform_centers != uniform_lower_edges {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Inconsistent uniformity of {}-coordinates",
+                    coord_names[dim]
+                ),
+            ));
+        }
+
+        is_uniform[dim] = uniform_centers;
+
+        if !lower_vec
+            .iter()
+            .zip(center_vec.iter())
+            .all(|(&lower, &upper)| upper > lower)
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Found grid cell where center {}-coordinate is not larger than lower edge coordinate",
+                    coord_names[dim]
+                ),
+            ));
+        }
+    }
+
+    let detected_grid_type = match is_uniform.to_tuple() {
+        (true, true, true) => GridType::Regular,
+        (true, true, false) => GridType::HorRegular,
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Non-uniform x- or y-coordinates not supported",
+            ))
+        }
+    };
+
+    Ok(detected_grid_type)
 }
 
 fn extent_from_bounds<F: BFloat>(lower_bound: F, upper_bound: F) -> F {

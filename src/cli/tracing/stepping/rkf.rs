@@ -1,7 +1,9 @@
 //! Command line interface for Runge-Kutta-Fehlberg steppers.
 
-use crate::cli;
-use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
+use crate::{
+    cli::utils,
+    tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType},
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using a Runge-Kutta-Fehlberg stepper.
@@ -134,26 +136,28 @@ pub fn construct_rkf_stepper_config_from_options(
     arguments: &ArgMatches,
 ) -> (RKFStepperType, RKFStepperConfig) {
     let dense_step_length =
-        cli::get_value_from_required_parseable_argument(arguments, "dense-step-length");
+        utils::get_value_from_required_parseable_argument(arguments, "dense-step-length");
     let max_step_attempts =
-        cli::get_value_from_required_parseable_argument(arguments, "max-step-attempts");
+        utils::get_value_from_required_parseable_argument(arguments, "max-step-attempts");
     let absolute_tolerance =
-        cli::get_value_from_required_parseable_argument(arguments, "absolute-tolerance");
+        utils::get_value_from_required_parseable_argument(arguments, "absolute-tolerance");
     let relative_tolerance =
-        cli::get_value_from_required_parseable_argument(arguments, "relative-tolerance");
-    let safety_factor = cli::get_value_from_required_parseable_argument(arguments, "safety-factor");
+        utils::get_value_from_required_parseable_argument(arguments, "relative-tolerance");
+    let safety_factor =
+        utils::get_value_from_required_parseable_argument(arguments, "safety-factor");
     let min_step_scale =
-        cli::get_value_from_required_parseable_argument(arguments, "min-step-scale");
+        utils::get_value_from_required_parseable_argument(arguments, "min-step-scale");
     let max_step_scale =
-        cli::get_value_from_required_parseable_argument(arguments, "max-step-scale");
-    let initial_error = cli::get_value_from_required_parseable_argument(arguments, "initial-error");
+        utils::get_value_from_required_parseable_argument(arguments, "max-step-scale");
+    let initial_error =
+        utils::get_value_from_required_parseable_argument(arguments, "initial-error");
     let initial_step_length =
-        cli::get_value_from_required_parseable_argument(arguments, "initial-step-length");
+        utils::get_value_from_required_parseable_argument(arguments, "initial-step-length");
     let sudden_reversals_for_sink =
-        cli::get_value_from_required_parseable_argument(arguments, "sudden-reversals-for-sink");
+        utils::get_value_from_required_parseable_argument(arguments, "sudden-reversals-for-sink");
     let use_pi_control = !arguments.is_present("disable-pi-control");
 
-    let stepper_type = cli::get_value_from_required_constrained_argument(
+    let stepper_type = utils::get_value_from_required_constrained_argument(
         arguments,
         "stepping-scheme",
         &["rkf23", "rkf45"],

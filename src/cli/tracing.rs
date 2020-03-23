@@ -4,22 +4,50 @@ pub mod field_line;
 pub mod seeding;
 pub mod stepping;
 
-use crate::cli;
-use crate::grid::Grid3;
-use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::tracing::field_line::basic::{BasicFieldLineTracer3, BasicFieldLineTracerConfig};
-use crate::tracing::field_line::{FieldLineSet3, FieldLineSetProperties3, FieldLineTracer3};
-use crate::tracing::seeding::Seeder3;
-use crate::tracing::stepping::rkf::rkf23::RKF23StepperFactory3;
-use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
-use crate::tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType};
-use crate::tracing::stepping::StepperFactory3;
+use self::{
+    field_line::basic::{
+        construct_basic_field_line_tracer_config_from_options,
+        create_basic_field_line_tracer_subcommand,
+    },
+    seeding::{
+        manual::{create_manual_seeder_from_arguments, create_manual_seeder_subcommand},
+        slice::{create_slice_seeder_from_arguments, create_slice_seeder_subcommand},
+    },
+    stepping::rkf::{construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand},
+};
+use crate::{
+    cli::interpolation::poly_fit::{
+        construct_poly_fit_interpolator_config_from_options,
+        create_poly_fit_interpolator_subcommand,
+    },
+    create_subcommand, exit_on_error, exit_with_error,
+    grid::Grid3,
+    interpolation::{
+        poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+        Interpolator3,
+    },
+    io::{
+        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        utils,
+    },
+    tracing::{
+        field_line::{
+            basic::{BasicFieldLineTracer3, BasicFieldLineTracerConfig},
+            FieldLineSet3, FieldLineSetProperties3, FieldLineTracer3,
+        },
+        seeding::Seeder3,
+        stepping::{
+            rkf::{
+                rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig,
+                RKFStepperType,
+            },
+            StepperFactory3,
+        },
+    },
+};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 /// Builds a representation of the `trace` command line subcommand.
 pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -34,24 +62,11 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .help_message("Print help information")
         .arg(
-            Arg::with_name("output-path")
-                .short("o")
-                .long("output-path")
-                .require_equals(true)
-                .value_name("PATH")
+            Arg::with_name("output-file")
+                .value_name("OUTPUT_FILE")
                 .help("Path where the field line data should be saved")
                 .required(true)
                 .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("vector-quantity")
-                .short("q")
-                .long("vector-quantity")
-                .require_equals(true)
-                .value_name("NAME")
-                .help("Vector field from the snapshot to trace")
-                .takes_value(true)
-                .default_value("b"),
         )
         .arg(
             Arg::with_name("output-format")
@@ -63,6 +78,21 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true)
                 .possible_values(&["fl", "pickle", "json"])
                 .default_value("fl"),
+        )
+        .arg(
+            Arg::with_name("overwrite")
+                .long("overwrite")
+                .help("Automatically overwrite any existing file"),
+        )
+        .arg(
+            Arg::with_name("vector-quantity")
+                .short("q")
+                .long("vector-quantity")
+                .require_equals(true)
+                .value_name("NAME")
+                .help("Vector field from the snapshot to trace")
+                .takes_value(true)
+                .default_value("b"),
         )
         .arg(
             Arg::with_name("extra-fixed-scalars")
@@ -103,57 +133,76 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .help("Prints the values of all the parameters that will be used"),
         );
 
-    let basic_field_line_tracer_subcommand =
-        cli::tracing::field_line::basic::create_basic_field_line_tracer_subcommand();
-    let rkf_stepper_subcommand = cli::tracing::stepping::rkf::create_rkf_stepper_subcommand();
-    let poly_fit_interpolator_subcommand =
-        cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand();
-    let slice_seeder_subcommand = cli::tracing::seeding::slice::create_slice_seeder_subcommand();
-    let manual_seeder_subcommand = cli::tracing::seeding::manual::create_manual_seeder_subcommand();
-
-    let poly_fit_interpolator_subcommand = poly_fit_interpolator_subcommand
-        .setting(AppSettings::SubcommandRequired)
-        .subcommand(slice_seeder_subcommand.clone())
-        .subcommand(manual_seeder_subcommand.clone());
-
-    let rkf_stepper_subcommand = rkf_stepper_subcommand
-        .setting(AppSettings::SubcommandRequired)
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(slice_seeder_subcommand.clone())
-        .subcommand(manual_seeder_subcommand.clone());
-
-    let basic_field_line_tracer_subcommand = basic_field_line_tracer_subcommand
-        .setting(AppSettings::SubcommandRequired)
-        .subcommand(rkf_stepper_subcommand.clone())
-        .subcommand(poly_fit_interpolator_subcommand.clone())
-        .subcommand(slice_seeder_subcommand.clone())
-        .subcommand(manual_seeder_subcommand.clone());
-
     app.setting(AppSettings::SubcommandRequired)
-        .subcommand(basic_field_line_tracer_subcommand)
-        .subcommand(rkf_stepper_subcommand)
-        .subcommand(poly_fit_interpolator_subcommand)
-        .subcommand(slice_seeder_subcommand)
-        .subcommand(manual_seeder_subcommand)
+        .subcommand(
+            create_subcommand!(trace, basic_field_line_tracer)
+                .setting(AppSettings::SubcommandRequired)
+                .subcommand(
+                    create_subcommand!(basic_field_line_tracer, rkf_stepper)
+                        .setting(AppSettings::SubcommandRequired)
+                        .subcommand(
+                            create_subcommand!(rkf_stepper, poly_fit_interpolator)
+                                .setting(AppSettings::SubcommandRequired)
+                                .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
+                                .subcommand(create_subcommand!(
+                                    poly_fit_interpolator,
+                                    manual_seeder
+                                )),
+                        )
+                        .subcommand(create_subcommand!(rkf_stepper, slice_seeder))
+                        .subcommand(create_subcommand!(rkf_stepper, manual_seeder)),
+                )
+                .subcommand(
+                    create_subcommand!(basic_field_line_tracer, poly_fit_interpolator)
+                        .setting(AppSettings::SubcommandRequired)
+                        .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
+                        .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
+                )
+                .subcommand(create_subcommand!(basic_field_line_tracer, slice_seeder))
+                .subcommand(create_subcommand!(basic_field_line_tracer, manual_seeder)),
+        )
+        .subcommand(
+            create_subcommand!(trace, rkf_stepper)
+                .setting(AppSettings::SubcommandRequired)
+                .subcommand(
+                    create_subcommand!(rkf_stepper, poly_fit_interpolator)
+                        .setting(AppSettings::SubcommandRequired)
+                        .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
+                        .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
+                )
+                .subcommand(create_subcommand!(rkf_stepper, slice_seeder))
+                .subcommand(create_subcommand!(rkf_stepper, manual_seeder)),
+        )
+        .subcommand(
+            create_subcommand!(trace, poly_fit_interpolator)
+                .setting(AppSettings::SubcommandRequired)
+                .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
+                .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
+        )
+        .subcommand(create_subcommand!(trace, slice_seeder))
+        .subcommand(create_subcommand!(trace, manual_seeder))
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_trace_subcommand<G: Grid3<fdt>>(
-    arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
-) {
+pub fn run_trace_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
+{
     run_with_selected_tracer(arguments, snapshot);
 }
 
-fn run_with_selected_tracer<G>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G>)
+fn run_with_selected_tracer<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
 where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
 {
     let (tracer_config, tracer_arguments) =
         if let Some(tracer_arguments) = arguments.subcommand_matches("basic_tracer") {
-            (cli::tracing::field_line::basic::construct_basic_field_line_tracer_config_from_options(
-            tracer_arguments,
-        ), tracer_arguments)
+            (
+                construct_basic_field_line_tracer_config_from_options(tracer_arguments),
+                tracer_arguments,
+            )
         } else {
             (BasicFieldLineTracerConfig::default(), arguments)
         };
@@ -167,13 +216,14 @@ where
     run_with_selected_stepper_factory(arguments, tracer_arguments, snapshot, tracer);
 }
 
-fn run_with_selected_stepper_factory<G, Tr>(
+fn run_with_selected_stepper_factory<G, R, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     tracer: Tr,
 ) where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -181,9 +231,7 @@ fn run_with_selected_stepper_factory<G, Tr>(
     let ((stepper_type, stepper_config), stepper_arguments) =
         if let Some(stepper_arguments) = arguments.subcommand_matches("rkf_stepper") {
             (
-                cli::tracing::stepping::rkf::construct_rkf_stepper_config_from_options(
-                    stepper_arguments,
-                ),
+                construct_rkf_stepper_config_from_options(stepper_arguments),
                 stepper_arguments,
             )
         } else {
@@ -215,14 +263,15 @@ fn run_with_selected_stepper_factory<G, Tr>(
     }
 }
 
-fn run_with_selected_interpolator<G, Tr, StF>(
+fn run_with_selected_interpolator<G, R, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     tracer: Tr,
     stepper_factory: StF,
 ) where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -232,9 +281,7 @@ fn run_with_selected_interpolator<G, Tr, StF>(
         arguments.subcommand_matches("poly_fit_interpolator")
     {
         (
-            cli::interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options(
-                interpolator_arguments,
-            ),
+            construct_poly_fit_interpolator_config_from_options(interpolator_arguments),
             interpolator_arguments,
         )
     } else {
@@ -257,15 +304,16 @@ fn run_with_selected_interpolator<G, Tr, StF>(
     );
 }
 
-fn run_with_selected_seeder<G, Tr, StF, I>(
+fn run_with_selected_seeder<G, R, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
 ) where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -273,11 +321,7 @@ fn run_with_selected_seeder<G, Tr, StF, I>(
     I: Interpolator3,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
-        let seeder = cli::tracing::seeding::slice::create_slice_seeder_from_arguments(
-            seeder_arguments,
-            snapshot,
-            &interpolator,
-        );
+        let seeder = create_slice_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
         run_tracing(
             root_arguments,
             snapshot,
@@ -287,8 +331,7 @@ fn run_with_selected_seeder<G, Tr, StF, I>(
             seeder,
         );
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
-        let seeder =
-            cli::tracing::seeding::manual::create_manual_seeder_from_arguments(seeder_arguments);
+        let seeder = create_manual_seeder_from_arguments(seeder_arguments);
         run_tracing(
             root_arguments,
             snapshot,
@@ -298,19 +341,20 @@ fn run_with_selected_seeder<G, Tr, StF, I>(
             seeder,
         );
     } else {
-        panic!("No seeder specified.")
+        exit_with_error!("Error: No seeder specified")
     };
 }
 
-fn run_tracing<G, Tr, StF, I, Sd>(
+fn run_tracing<G, R, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
     seeder: Sd,
 ) where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -318,12 +362,37 @@ fn run_tracing<G, Tr, StF, I, Sd>(
     I: Interpolator3,
     Sd: Seeder3,
 {
+    let mut output_file_path = exit_on_error!(
+        PathBuf::from_str(
+            root_arguments
+                .value_of("output-file")
+                .expect("No value for required argument."),
+        ),
+        "Error: Could not interpret path to output file: {}"
+    );
+
+    let output_format = root_arguments
+        .value_of("output-format")
+        .expect("No value for argument with default.");
+
+    if output_file_path.extension().is_none() {
+        output_file_path.set_extension(output_format);
+    }
+
+    let force_overwrite = root_arguments.is_present("overwrite");
+
+    if !force_overwrite && !utils::write_allowed(&output_file_path) {
+        exit_with_error!("Aborted");
+    }
+
     let quantity = root_arguments
         .value_of("vector-quantity")
         .expect("No value for argument with default.");
-    snapshot
-        .cache_vector_field(quantity)
-        .unwrap_or_else(|err| panic!("Could not read {}: {}", quantity, err));
+    exit_on_error!(
+        snapshot.cache_vector_field(quantity),
+        "Error: Could not read quantity {0} in snapshot: {1}",
+        quantity
+    );
 
     let field_lines = FieldLineSet3::trace(
         quantity,
@@ -335,42 +404,39 @@ fn run_tracing<G, Tr, StF, I, Sd>(
         root_arguments.is_present("verbose").into(),
     );
     snapshot.drop_all_fields();
-    perform_post_tracing_actions(root_arguments, snapshot, interpolator, field_lines);
+    perform_post_tracing_actions(
+        root_arguments,
+        output_format,
+        output_file_path,
+        snapshot,
+        interpolator,
+        field_lines,
+    );
 }
 
-fn perform_post_tracing_actions<G, I>(
+fn perform_post_tracing_actions<G, R, I>(
     root_arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    output_format: &str,
+    output_file_path: PathBuf,
+    snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: I,
     mut field_lines: FieldLineSet3,
 ) where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
     I: Interpolator3,
 {
-    let mut output_file_path = PathBuf::from_str(
-        root_arguments
-            .value_of("output-path")
-            .expect("No value for required argument."),
-    )
-    .unwrap_or_else(|err| panic!("Could not interpret output-path: {}", err));
-
-    let output_format = root_arguments
-        .value_of("output-format")
-        .expect("No value for argument with default.");
-
-    if output_file_path.extension().is_none() {
-        output_file_path.set_extension(output_format);
-    }
-
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extra-fixed-scalars")
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_fixed_scalars {
             field_lines.extract_fixed_scalars(
-                snapshot
-                    .obtain_scalar_field(name)
-                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                exit_on_error!(
+                    snapshot.obtain_scalar_field(name),
+                    "Error: Could not read quantity {0} in snapshot: {1}",
+                    name
+                ),
                 &interpolator,
             );
             snapshot.drop_scalar_field(name);
@@ -382,20 +448,24 @@ fn perform_post_tracing_actions<G, I>(
     {
         for name in extra_varying_scalars {
             field_lines.extract_varying_scalars(
-                snapshot
-                    .obtain_scalar_field(name)
-                    .unwrap_or_else(|err| panic!("Could not read {} from snapshot: {}", name, err)),
+                exit_on_error!(
+                    snapshot.obtain_scalar_field(name),
+                    "Error: Could not read quantity {0} in snapshot: {1}",
+                    name
+                ),
                 &interpolator,
             );
             snapshot.drop_scalar_field(name);
         }
     }
 
-    let result = match output_format {
-        "pickle" => field_lines.save_as_combined_pickles(output_file_path),
-        "json" => field_lines.save_as_json(output_file_path),
-        "fl" => field_lines.save_into_custom_binary(output_file_path),
-        invalid => panic!("Invalid output format {}.", invalid),
-    };
-    result.unwrap_or_else(|err| panic!("Could not save output data: {}", err));
+    exit_on_error!(
+        match output_format {
+            "pickle" => field_lines.save_as_combined_pickles(output_file_path),
+            "json" => field_lines.save_as_json(output_file_path),
+            "fl" => field_lines.save_into_custom_binary(output_file_path),
+            invalid => exit_with_error!("Error: Invalid output format {}.", invalid),
+        },
+        "Error: Could not save output data: {}"
+    );
 }

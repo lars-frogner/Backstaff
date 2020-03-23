@@ -1,15 +1,18 @@
 //! Generation of seed indices by evaluating a criterion on field values.
 
-use super::super::ftr;
-use super::IndexSeeder3;
-use crate::field::{self, ScalarField3, VectorField3};
-use crate::geometry::{Dim3, Idx3, Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::num::BFloat;
+use super::{super::ftr, IndexSeeder3};
+use crate::{
+    field::{self, ScalarField3, VectorField3},
+    geometry::{
+        Dim3::{X, Y, Z},
+        Idx3, Point3, Vec3,
+    },
+    grid::Grid3,
+    interpolation::Interpolator3,
+    num::BFloat,
+};
 use rayon::prelude::*;
 use std::vec;
-use Dim3::{X, Y, Z};
 
 /// Generator for seed indices found by evaluating a criterion on values of a 3D field.
 #[derive(Clone, Debug)]

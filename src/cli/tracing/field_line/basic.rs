@@ -1,8 +1,11 @@
 //! Command line interface for basic field line tracer.
 
-use crate::cli;
-use crate::tracing::field_line::basic::{
-    BasicFieldLineTracerConfig, FieldLinePointSpacing, FieldLineTracingSense,
+use crate::{
+    cli::utils,
+    exit_on_error,
+    tracing::field_line::basic::{
+        BasicFieldLineTracerConfig, FieldLinePointSpacing, FieldLineTracingSense,
+    },
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
 
@@ -54,7 +57,7 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn construct_basic_field_line_tracer_config_from_options(
     arguments: &ArgMatches,
 ) -> BasicFieldLineTracerConfig {
-    let tracing_sense = cli::get_value_from_required_constrained_argument(
+    let tracing_sense = utils::get_value_from_required_constrained_argument(
         arguments,
         "tracing-sense",
         &["both", "same", "opposite"],
@@ -64,7 +67,7 @@ pub fn construct_basic_field_line_tracer_config_from_options(
             FieldLineTracingSense::opposite(),
         ],
     );
-    let point_spacing = cli::get_value_from_required_constrained_argument(
+    let point_spacing = utils::get_value_from_required_constrained_argument(
         arguments,
         "point-spacing",
         &["regular", "natural"],
@@ -78,11 +81,10 @@ pub fn construct_basic_field_line_tracer_config_from_options(
         .expect("No value for argument with default.")
     {
         "inf" => None,
-        length_str => Some(
-            length_str
-                .parse()
-                .unwrap_or_else(|err| panic!("Could not parse value of max-length: {}", err)),
-        ),
+        length_str => Some(exit_on_error!(
+            length_str.parse::<f64>(),
+            "Error: Could not parse value of max-length: {}"
+        )),
     };
     BasicFieldLineTracerConfig {
         tracing_sense,

@@ -1,10 +1,13 @@
 //! Command line interface for the simple power-law distribution accelerator.
 
-use crate::cli;
-use crate::ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig;
-use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotReader3};
-use crate::units::solar::U_T;
+use crate::{
+    cli::utils,
+    ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig,
+    exit_on_error,
+    grid::Grid3,
+    io::snapshot::{fdt, SnapshotReader3},
+    units::solar::U_T,
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the simple power-law distribution accelerator.
@@ -158,11 +161,15 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
 
 /// Determines simple power-law distribution accelerator parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
+pub fn construct_simple_power_law_accelerator_config_from_options<G, R>(
     arguments: &ArgMatches,
-    reader: &SnapshotReader3<G>,
-) -> SimplePowerLawAccelerationConfig {
-    let acceleration_duration = cli::get_value_from_param_file_argument_with_default(
+    reader: &R,
+) -> SimplePowerLawAccelerationConfig
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+{
+    let acceleration_duration = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "acceleration-duration",
@@ -171,7 +178,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_ACCELERATION_DURATION,
     );
 
-    let particle_energy_fraction = cli::get_value_from_param_file_argument_with_default(
+    let particle_energy_fraction = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "particle-energy-fraction",
@@ -180,7 +187,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_PARTICLE_ENERGY_FRACTION,
     );
 
-    let power_law_delta = cli::get_value_from_param_file_argument_with_default(
+    let power_law_delta = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "power-law-delta",
@@ -189,7 +196,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_POWER_LAW_DELTA,
     );
 
-    let min_total_power_density = cli::get_value_from_param_file_argument_with_default(
+    let min_total_power_density = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "min-total-power-density",
@@ -198,7 +205,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_TOTAL_POWER_DENSITY,
     );
 
-    let min_depletion_distance = cli::get_value_from_param_file_argument_with_default(
+    let min_depletion_distance = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "min-depletion-distance",
@@ -208,33 +215,34 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G: Grid3<fdt>>
     );
 
     let max_pitch_angle =
-        cli::get_value_from_required_parseable_argument(arguments, "max-pitch-angle");
+        utils::get_value_from_required_parseable_argument(arguments, "max-pitch-angle");
 
     let max_electric_field_angle =
-        cli::get_value_from_required_parseable_argument(arguments, "max-electric-field-angle");
+        utils::get_value_from_required_parseable_argument(arguments, "max-electric-field-angle");
 
     let min_temperature =
-        cli::get_value_from_required_parseable_argument(arguments, "min-temperature");
+        utils::get_value_from_required_parseable_argument(arguments, "min-temperature");
 
     let max_mass_density = match arguments
         .value_of("max-mass-density")
         .expect("No value for argument with default.")
     {
         "inf" => SimplePowerLawAccelerationConfig::DEFAULT_MAX_MASS_DENSITY,
-        mass_density_str => mass_density_str
-            .parse()
-            .unwrap_or_else(|err| panic!("Could not parse value of max-mass-density: {}", err)),
+        mass_density_str => exit_on_error!(
+            mass_density_str.parse::<f64>(),
+            "Error: Could not parse value of max-mass-density: {}"
+        ),
     };
 
     let inclusion_probability =
-        cli::get_value_from_required_parseable_argument(arguments, "inclusion-probability");
+        utils::get_value_from_required_parseable_argument(arguments, "inclusion-probability");
 
     let initial_cutoff_energy_guess =
-        cli::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
+        utils::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
     let acceptable_root_finding_error =
-        cli::get_value_from_required_parseable_argument(arguments, "root-finding-error");
+        utils::get_value_from_required_parseable_argument(arguments, "root-finding-error");
     let max_root_finding_iterations =
-        cli::get_value_from_required_parseable_argument(arguments, "root-finding-iterations");
+        utils::get_value_from_required_parseable_argument(arguments, "root-finding-iterations");
 
     SimplePowerLawAccelerationConfig {
         acceleration_duration,

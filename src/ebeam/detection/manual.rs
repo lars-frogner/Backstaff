@@ -1,12 +1,15 @@
 //! Detection of reconnection sites by reading positions from an input file.
 
 use super::ReconnectionSiteDetector;
-use crate::geometry::Idx3;
-use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::io::Verbose;
-use crate::tracing::seeding::manual::ManualSeeder3;
-use crate::tracing::seeding::Seeder3;
+use crate::{
+    geometry::Idx3,
+    grid::Grid3,
+    io::{
+        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        Verbose,
+    },
+    tracing::seeding::{manual::ManualSeeder3, Seeder3},
+};
 use std::io;
 use std::path::Path;
 
@@ -30,11 +33,15 @@ impl ManualReconnectionSiteDetector {
 impl ReconnectionSiteDetector for ManualReconnectionSiteDetector {
     type Seeder = Vec<Idx3<usize>>;
 
-    fn detect_reconnection_sites<G: Grid3<fdt>>(
+    fn detect_reconnection_sites<G, R>(
         &self,
-        snapshot: &mut SnapshotCacher3<G>,
+        snapshot: &mut SnapshotCacher3<G, R>,
         _verbose: Verbose,
-    ) -> Self::Seeder {
+    ) -> Self::Seeder
+    where
+        G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
+    {
         self.seeder.to_index_seeder(snapshot.reader().grid())
     }
 }

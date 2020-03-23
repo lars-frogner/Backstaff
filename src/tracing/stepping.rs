@@ -3,11 +3,13 @@
 pub mod rkf;
 
 use super::ftr;
-use crate::field::VectorField3;
-use crate::geometry::{Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::num::BFloat;
+use crate::{
+    field::VectorField3,
+    geometry::{Point3, Vec3},
+    grid::Grid3,
+    interpolation::Interpolator3,
+    num::BFloat,
+};
 
 /// Stepping along the field line in the same direction as the field or opposite.
 #[derive(Clone, Copy, Debug, PartialEq)]
