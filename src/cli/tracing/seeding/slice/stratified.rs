@@ -1,16 +1,17 @@
 //! Command line interface for producing stratified seed points in a 2D slice of a 3D grid.
 
 use super::CommonSliceSeederParameters;
-use crate::cli;
-use crate::geometry::{In2D, Point2};
-use crate::grid::Grid3;
-use crate::io::snapshot::fdt;
-use crate::tracing::ftr;
-use crate::tracing::seeding::slice::SliceSeeder3;
+use crate::{
+    cli::utils,
+    geometry::{In2D, Point2},
+    grid::Grid3,
+    io::snapshot::fdt,
+    tracing::{ftr, seeding::slice::SliceSeeder3},
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the stratified slice seeder.
-pub fn create_stratified_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
+pub fn create_stratified_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("stratified")
         .about("Use the stratified slice seeder")
         .long_about(
@@ -65,11 +66,11 @@ where
     G: Grid3<fdt>,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
-    let shape = cli::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
+    let shape = utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
     let n_seeds_per_cell =
-        cli::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
+        utils::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
     let randomness =
-        cli::get_value_from_required_parseable_argument::<ftr>(arguments, "randomness");
+        utils::get_value_from_required_parseable_argument::<ftr>(arguments, "randomness");
 
     SliceSeeder3::stratified(
         grid,

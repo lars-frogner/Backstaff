@@ -5,13 +5,21 @@ pub mod random;
 pub mod regular;
 pub mod stratified;
 
-use crate::cli;
-use crate::geometry::{Dim2, Dim3, Point2};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::tracing::ftr;
-use crate::tracing::seeding::slice::SliceSeeder3;
+use self::{
+    pdf::{create_slice_pdf_seeder_from_arguments, create_value_pdf_subcommand},
+    random::{create_random_slice_seeder_from_arguments, create_random_subcommand},
+    regular::{create_regular_slice_seeder_from_arguments, create_regular_subcommand},
+    stratified::{create_stratified_slice_seeder_from_arguments, create_stratified_subcommand},
+};
+use crate::{
+    cli::utils,
+    create_subcommand, exit_on_false, exit_with_error,
+    geometry::{Dim2, Dim3, Point2},
+    grid::Grid3,
+    interpolation::Interpolator3,
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    tracing::{ftr, seeding::slice::SliceSeeder3},
+};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 /// Holds parameters that are required by all slice seeders.
@@ -74,47 +82,48 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 )
                 .takes_value(true),
         )
-        .subcommand(regular::create_regular_slice_seeder_subcommand())
-        .subcommand(random::create_random_slice_seeder_subcommand())
-        .subcommand(stratified::create_stratified_slice_seeder_subcommand())
-        .subcommand(pdf::create_slice_pdf_seeder_subcommand())
+        .subcommand(create_subcommand!(slice_seeder, regular))
+        .subcommand(create_subcommand!(slice_seeder, random))
+        .subcommand(create_subcommand!(slice_seeder, stratified))
+        .subcommand(create_subcommand!(slice_seeder, value_pdf))
 }
 
 /// Creates a slice seeder based on the provided arguments.
-pub fn create_slice_seeder_from_arguments<G, I>(
+pub fn create_slice_seeder_from_arguments<G, R, I>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G>,
+    snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: &I,
 ) -> SliceSeeder3
 where
     G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
     I: Interpolator3,
 {
-    let axis = cli::get_value_from_required_constrained_argument(
+    let axis = utils::get_value_from_required_constrained_argument(
         arguments,
         "axis",
         &["x", "y", "z"],
         &Dim3::slice(),
     );
-    let coord = cli::get_value_from_required_parseable_argument::<ftr>(arguments, "coord");
+    let coord = utils::get_value_from_required_parseable_argument::<ftr>(arguments, "coord");
 
-    let horizontal_limits = cli::get_values_from_parseable_argument_with_custom_defaults(
+    let horizontal_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "horizontal-limits",
         &|| vec![std::f32::NEG_INFINITY, std::f32::INFINITY],
     );
-    assert!(
+    exit_on_false!(
         horizontal_limits[1] >= horizontal_limits[0],
-        "Upper horizontal limit must be larger than or equal to lower horizontal limit."
+        "Error: Upper horizontal limit must be larger than or equal to lower horizontal limit"
     );
-    let vertical_limits = cli::get_values_from_parseable_argument_with_custom_defaults(
+    let vertical_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "vertical-limits",
         &|| vec![std::f32::NEG_INFINITY, std::f32::INFINITY],
     );
-    assert!(
+    exit_on_false!(
         vertical_limits[1] >= vertical_limits[0],
-        "Upper vertical limit must be larger than or equal to lower vertical limit."
+        "Error: Upper vertical limit must be larger than or equal to lower vertical limit"
     );
 
     let parameters = CommonSliceSeederParameters { axis, coord };
@@ -127,28 +136,28 @@ where
     };
 
     if let Some(seeder_arguments) = arguments.subcommand_matches("regular") {
-        regular::create_regular_slice_seeder_from_arguments(
+        create_regular_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
             snapshot.reader().grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("random") {
-        random::create_random_slice_seeder_from_arguments(
+        create_random_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
             snapshot.reader().grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("stratified") {
-        stratified::create_stratified_slice_seeder_from_arguments(
+        create_stratified_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
             snapshot.reader().grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("value_pdf") {
-        pdf::create_slice_pdf_seeder_from_arguments(
+        create_slice_pdf_seeder_from_arguments(
             seeder_arguments,
             &parameters,
             snapshot,
@@ -156,6 +165,6 @@ where
             &satisifes_constraints,
         )
     } else {
-        panic!("No seeder specified.")
+        exit_with_error!("Error: No seeder specified")
     }
 }

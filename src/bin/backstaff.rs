@@ -2,5 +2,5 @@
 
 fn main() {
     #[cfg(feature = "cli")]
-    backstaff::cli::run();
+    backstaff::cli::run::run();
 }

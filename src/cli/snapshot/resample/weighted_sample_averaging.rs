@@ -1,7 +1,13 @@
 //! Command line interface for resampling a snapshot using weighted sample averaging.
 
-use crate::cli;
-use clap::{App, SubCommand};
+use crate::{
+    cli::{
+        interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
+        snapshot::write::create_write_subcommand,
+    },
+    create_subcommand,
+};
+use clap::{App, AppSettings, SubCommand};
 
 /// Builds a representation of the `snapshot-resample-weighted_sample_averaging` command line subcommand.
 pub fn create_weighted_sample_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -21,5 +27,11 @@ pub fn create_weighted_sample_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
              the default interpolator implementation and parameters are used.",
         )
         .help_message("Print help information")
-        .subcommand(cli::interpolation::poly_fit::create_poly_fit_interpolator_subcommand())
+        .setting(AppSettings::SubcommandRequired)
+        .subcommand(
+            create_subcommand!(weighted_sample_averaging, poly_fit_interpolator)
+                .setting(AppSettings::SubcommandRequired)
+                .subcommand(create_subcommand!(poly_fit_interpolator, write)),
+        )
+        .subcommand(create_subcommand!(weighted_sample_averaging, write))
 }

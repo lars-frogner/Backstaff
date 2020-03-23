@@ -1,8 +1,11 @@
 //! Command line interface for creating Bifrost mesh files for regular grids.
 
-use crate::cli;
-use crate::geometry::{In3D, Vec3};
-use crate::grid::regular::RegularGrid3;
+use crate::{
+    cli::utils,
+    exit_on_false,
+    geometry::{In3D, Vec3},
+    grid::regular::RegularGrid3,
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Builds a representation of the `create_mesh-regular` command line subcommand.
@@ -17,7 +20,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the grid.")
+                .help("Shape of the grid")
                 .takes_value(true)
                 .required(true),
         )
@@ -29,7 +32,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help("Lower and upper bound for the x-coordinates.")
+                .help("Lower and upper bound for the x-coordinates")
                 .takes_value(true)
                 .required(true),
         )
@@ -41,7 +44,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help("Lower and upper bound for the y-coordinates.")
+                .help("Lower and upper bound for the y-coordinates")
                 .takes_value(true)
                 .required(true),
         )
@@ -53,7 +56,7 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help("Lower and upper bound for the z-coordinates.")
+                .help("Lower and upper bound for the z-coordinates")
                 .takes_value(true)
                 .required(true),
         )
@@ -61,22 +64,22 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
 
 /// Runs the actions for the `create_mesh-regular` subcommand using the given arguments.
 pub fn run_regular_subcommand(root_arguments: &ArgMatches, arguments: &ArgMatches) {
-    let shape = cli::get_values_from_required_parseable_argument(arguments, "shape");
+    let shape = utils::get_values_from_required_parseable_argument(arguments, "shape");
 
-    let x_bounds = cli::get_values_from_required_parseable_argument(arguments, "x-bounds");
-    assert!(
+    let x_bounds = utils::get_values_from_required_parseable_argument(arguments, "x-bounds");
+    exit_on_false!(
         x_bounds[1] > x_bounds[0],
-        "Upper bound on x must be larger than lower bound."
+        "Error: Upper bound on x must be larger than lower bound"
     );
-    let y_bounds = cli::get_values_from_required_parseable_argument(arguments, "y-bounds");
-    assert!(
+    let y_bounds = utils::get_values_from_required_parseable_argument(arguments, "y-bounds");
+    exit_on_false!(
         y_bounds[1] > y_bounds[0],
-        "Upper bound on y must be larger than lower bound."
+        "Error: Upper bound on y must be larger than lower bound"
     );
-    let z_bounds = cli::get_values_from_required_parseable_argument(arguments, "z-bounds");
-    assert!(
+    let z_bounds = utils::get_values_from_required_parseable_argument(arguments, "z-bounds");
+    exit_on_false!(
         z_bounds[1] > z_bounds[0],
-        "Upper bound on z must be larger than lower bound."
+        "Error: Upper bound on z must be larger than lower bound"
     );
 
     let grid = RegularGrid3::from_bounds(

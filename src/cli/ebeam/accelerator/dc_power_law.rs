@@ -1,13 +1,15 @@
 //! Command line interface for the DC power-law distribution accelerator.
 
-use crate::cli;
-use crate::ebeam::distribution::power_law::acceleration::dc::acceleration_region::{
-    AccelerationRegionTracer, AccelerationRegionTracerConfig,
+use crate::{
+    cli,
+    ebeam::distribution::power_law::acceleration::dc::acceleration_region::{
+        AccelerationRegionTracer, AccelerationRegionTracerConfig,
+    },
+    ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerationConfig,
+    grid::Grid3,
+    io::snapshot::{fdt, SnapshotReader3},
+    units::solar::{U_E, U_T},
 };
-use crate::ebeam::distribution::power_law::acceleration::dc::DCPowerLawAccelerationConfig;
-use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotReader3};
-use crate::units::solar::{U_E, U_T};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the DC power-law distribution accelerator.
@@ -129,7 +131,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
 /// based on provided options and values in parameter file.
 pub fn construct_dc_power_law_accelerator_config_from_options<G: Grid3<fdt>>(
     arguments: &ArgMatches,
-    reader: &SnapshotReader3<G>,
+    reader: &R,
 ) -> (DCPowerLawAccelerationConfig, AccelerationRegionTracer) {
     let acceleration_duration = cli::get_value_from_param_file_argument_with_default(
         reader,

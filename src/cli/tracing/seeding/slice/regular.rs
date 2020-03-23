@@ -1,15 +1,17 @@
 //! Command line interface for producing regularly spaced seed points in a 2D slice of a 3D grid.
 
 use super::CommonSliceSeederParameters;
-use crate::cli;
-use crate::geometry::{In2D, Point2};
-use crate::grid::Grid3;
-use crate::io::snapshot::fdt;
-use crate::tracing::seeding::slice::SliceSeeder3;
+use crate::{
+    cli::utils,
+    geometry::{In2D, Point2},
+    grid::Grid3,
+    io::snapshot::fdt,
+    tracing::seeding::slice::SliceSeeder3,
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the regular slice seeder.
-pub fn create_regular_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
+pub fn create_regular_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("regular")
         .about("Use the regular slice seeder")
         .long_about(
@@ -43,7 +45,7 @@ where
     G: Grid3<fdt>,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
-    let shape = cli::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
+    let shape = utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
 
     SliceSeeder3::regular(
         grid,

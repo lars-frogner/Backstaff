@@ -1,9 +1,11 @@
 //! Command line interface for the power-law electron distribution.
 
-use crate::cli;
-use crate::ebeam::distribution::power_law::PowerLawDistributionConfig;
-use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotReader3};
+use crate::{
+    cli::utils,
+    ebeam::distribution::power_law::PowerLawDistributionConfig,
+    grid::Grid3,
+    io::snapshot::{fdt, SnapshotReader3},
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the power-law distribution.
@@ -61,11 +63,15 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
 
 /// Determines power-law distribution parameters based on
 /// provided options and values in parameter file.
-pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
+pub fn construct_power_law_distribution_config_from_options<G, R>(
     arguments: &ArgMatches,
-    reader: &SnapshotReader3<G>,
-) -> PowerLawDistributionConfig {
-    let min_residual_factor = cli::get_value_from_param_file_argument_with_default(
+    reader: &R,
+) -> PowerLawDistributionConfig
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+{
+    let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "min-residual-factor",
@@ -73,7 +79,7 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
         &|min_residual| min_residual,
         PowerLawDistributionConfig::DEFAULT_MIN_RESIDUAL_FACTOR,
     );
-    let min_deposited_power_per_distance = cli::get_value_from_param_file_argument_with_default(
+    let min_deposited_power_per_distance = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "min-deposited-power-per-distance",
@@ -81,7 +87,7 @@ pub fn construct_power_law_distribution_config_from_options<G: Grid3<fdt>>(
         &|min_dep_en| min_dep_en,
         PowerLawDistributionConfig::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
     );
-    let max_propagation_distance = cli::get_value_from_param_file_argument_with_default(
+    let max_propagation_distance = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "max-propagation-distance",

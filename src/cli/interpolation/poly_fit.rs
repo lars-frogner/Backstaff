@@ -1,7 +1,6 @@
 //! Command line interface for interpolation by polynomial fitting.
 
-use crate::cli;
-use crate::interpolation::poly_fit::PolyFitInterpolatorConfig;
+use crate::{cli::utils, interpolation::poly_fit::PolyFitInterpolatorConfig};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the polynomial fitting interpolator.
@@ -44,9 +43,9 @@ pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn construct_poly_fit_interpolator_config_from_options(
     arguments: &ArgMatches,
 ) -> PolyFitInterpolatorConfig {
-    let order = cli::get_value_from_required_parseable_argument(arguments, "order");
+    let order = utils::get_value_from_required_parseable_argument(arguments, "order");
     let variation_threshold_for_linear =
-        cli::get_value_from_required_parseable_argument(arguments, "variation-threshold");
+        utils::get_value_from_required_parseable_argument(arguments, "variation-threshold");
     PolyFitInterpolatorConfig {
         order,
         variation_threshold_for_linear,

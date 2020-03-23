@@ -1,9 +1,11 @@
 //! Command line interface for the simple reconnection site detector.
 
-use crate::cli;
-use crate::ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig;
-use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotReader3};
+use crate::{
+    cli::utils,
+    ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
+    grid::Grid3,
+    io::snapshot::{fdt, SnapshotReader3},
+};
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 /// Creates a subcommand for using the simple reconnection site detector.
@@ -45,11 +47,15 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
 
 /// Determines simple reconnection site detector parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_reconnection_site_detector_config_from_options<G: Grid3<fdt>>(
+pub fn construct_simple_reconnection_site_detector_config_from_options<G, R>(
     arguments: &ArgMatches,
-    reader: &SnapshotReader3<G>,
-) -> SimpleReconnectionSiteDetectorConfig {
-    let reconnection_factor_threshold = cli::get_value_from_param_file_argument_with_default(
+    reader: &R,
+) -> SimpleReconnectionSiteDetectorConfig
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+{
+    let reconnection_factor_threshold = utils::get_value_from_param_file_argument_with_default(
         reader,
         arguments,
         "reconnection-factor-threshold",
@@ -57,7 +63,7 @@ pub fn construct_simple_reconnection_site_detector_config_from_options<G: Grid3<
         &|krec_lim| krec_lim,
         SimpleReconnectionSiteDetectorConfig::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
     );
-    let detection_depth_limits = cli::get_values_from_param_file_argument_with_defaults(
+    let detection_depth_limits = utils::get_values_from_param_file_argument_with_defaults(
         reader,
         arguments,
         "detection-depth-limits",
