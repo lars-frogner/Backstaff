@@ -11,9 +11,12 @@ use crate::{
     geometry::In3D,
     grid::Grid3,
 };
+use regex::Regex;
 use std::{
     collections::{hash_map::Entry, HashMap},
-    io, str,
+    io,
+    path::Path,
+    str,
     sync::Arc,
 };
 
@@ -27,6 +30,9 @@ pub enum SnapshotFormat {
     #[cfg(feature = "netcdf")]
     NetCDF,
 }
+
+/// Snapshot number to assume when not inferrable.
+pub const FALLBACK_SNAP_NUM: u32 = 1;
 
 /// Standard names of coordinate arrays
 pub const COORDINATE_NAMES: [&'static str; 12] = [
@@ -344,4 +350,25 @@ impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
         self.scalar_fields.clear();
         self.vector_fields.clear();
     }
+}
+
+/// Parses the file name of the given path and returns the interpreted
+/// snapshot name and (if detected) number.
+pub fn extract_name_and_num_from_snapshot_path<P: AsRef<Path>>(
+    file_path: P,
+) -> (String, Option<u32>) {
+    let file_path = file_path.as_ref();
+    let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
+    let regex = Regex::new(r"^(.+?)_(\d+)$").unwrap();
+    let (snap_name, snap_num) = regex
+        .captures(&file_stem)
+        .map(|caps| (caps[1].to_string(), Some(caps[2].parse::<u32>().unwrap())))
+        .unwrap_or((file_stem, None));
+    (snap_name, snap_num)
+}
+
+/// Combines the given snapshot name, number and extension to produce a
+/// snapshot file name.
+pub fn create_snapshot_file_name(snap_name: &str, snap_num: u32, extension: &str) -> String {
+    format!("{}_{:03}.{}", snap_name, snap_num, extension)
 }

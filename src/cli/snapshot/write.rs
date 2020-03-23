@@ -5,7 +5,7 @@ use crate::{
     field::{quantities, ScalarField3},
     grid::Grid3,
     io::{
-        snapshot::{fdt, native, ParameterValue, SnapshotReader3},
+        snapshot::{self, fdt, native, ParameterValue, SnapshotReader3},
         utils,
     },
 };
@@ -25,9 +25,11 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("OUTPUT_FILE")
                 .help(
                     "Path of the output file to produce.\n\
-                     Writes in the following format based on the file extension:\n\
-                     *.idl: Creates a parameter file with an associated .snap [and .aux] file\n\
-                     *.nc: Creates a NetCDF file using the CF convention (requires the netcdf feature)",
+                     Writes in the following format based on the file extension:\
+                     \n    *.idl: Creates a parameter file with an associated .snap [and .aux] file\
+                     \n    *.nc: Creates a NetCDF file using the CF convention (requires the netcdf feature)\n\
+                     If processing multiple snapshots, the output snapshot number will be incremented\n\
+                     (or appended if necessary) with basis in this snapshot file name.",
                 )
                 .required(true)
                 .takes_value(true),
@@ -106,6 +108,7 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     arguments: &ArgMatches,
     reader: &RIN,
+    snap_num_offset: Option<u32>,
     new_grid: Option<Arc<GOUT>>,
     modified_parameters: HashMap<&str, ParameterValue>,
     field_modifier: FM,
@@ -115,7 +118,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     GOUT: Grid3<fdt>,
     FM: Fn(ScalarField3<fdt, GIN>) -> io::Result<ScalarField3<fdt, GOUT>>,
 {
-    let output_param_path = exit_on_error!(
+    let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
             arguments
                 .value_of("output-file")
@@ -124,10 +127,22 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
         "Error: Could not interpret path to output file: {}"
     );
 
-    let output_extension = output_param_path
+    let output_extension = output_file_path
         .extension()
         .unwrap_or_else(|| exit_with_error!("Error: Missing extension for output-file"))
-        .to_string_lossy();
+        .to_string_lossy()
+        .to_string();
+
+    if let Some(snap_num_offset) = snap_num_offset {
+        let (output_snap_name, output_snap_num) =
+            snapshot::extract_name_and_num_from_snapshot_path(&output_file_path);
+        let output_snap_num = output_snap_num.unwrap_or(snapshot::FALLBACK_SNAP_NUM);
+        output_file_path.set_file_name(snapshot::create_snapshot_file_name(
+            &output_snap_name,
+            output_snap_num + snap_num_offset,
+            &output_extension,
+        ));
+    }
 
     let force_overwrite = arguments.is_present("overwrite");
     let continue_on_warnings = arguments.is_present("yes");
@@ -219,7 +234,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                 &included_quantities,
                 modified_parameters,
                 modified_field_producer!(),
-                &output_param_path,
+                &output_file_path,
                 force_overwrite,
                 verbose,
             ),
@@ -233,7 +248,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                         &included_quantities,
                         modified_parameters,
                         modified_field_producer!(),
-                        &output_param_path,
+                        &output_file_path,
                         strip_metadata,
                         force_overwrite,
                         verbose,

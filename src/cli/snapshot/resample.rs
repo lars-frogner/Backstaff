@@ -97,8 +97,11 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
-pub fn run_resample_subcommand<G, R>(arguments: &ArgMatches, reader: &R)
-where
+pub fn run_resample_subcommand<G, R>(
+    arguments: &ArgMatches,
+    reader: &R,
+    snap_num_offset: Option<u32>,
+) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
 {
@@ -114,13 +117,20 @@ where
         panic!("No resampling method specified.")
     };
 
-    run_with_selected_interpolator(arguments, method_arguments, reader, resampling_method)
+    run_with_selected_interpolator(
+        arguments,
+        method_arguments,
+        reader,
+        snap_num_offset,
+        resampling_method,
+    )
 }
 
 fn run_with_selected_interpolator<G, R>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     reader: &R,
+    snap_num_offset: Option<u32>,
     resampling_method: ResamplingMethod,
 ) where
     G: Grid3<fdt>,
@@ -142,6 +152,7 @@ fn run_with_selected_interpolator<G, R>(
         root_arguments,
         arguments,
         reader,
+        snap_num_offset,
         resampling_method,
         interpolator,
     );
@@ -151,6 +162,7 @@ fn run_resampling<G, R, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     reader: &R,
+    snap_num_offset: Option<u32>,
     resampling_method: ResamplingMethod,
     interpolator: I,
 ) where
@@ -223,6 +235,7 @@ fn run_resampling<G, R, I>(
             run_write_subcommand(
                 write_arguments,
                 reader,
+                snap_num_offset,
                 Some(Arc::clone(&$new_grid)),
                 HashMap::new(),
                 |field| {

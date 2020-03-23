@@ -23,7 +23,7 @@ macro_rules! create_subcommand {
     }};
 }
 
-fn parse_value_string<T>(argument_name: &str, value_string: &str) -> T
+pub fn parse_value_string<T>(argument_name: &str, value_string: &str) -> T
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,

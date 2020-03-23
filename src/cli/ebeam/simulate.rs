@@ -55,7 +55,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
         utils,
     },
     tracing::stepping::rkf::{
@@ -311,22 +311,34 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
-pub fn run_simulate_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
-where
+pub fn run_simulate_subcommand<G, R>(
+    arguments: &ArgMatches,
+    snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
+) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
-    run_with_selected_detector(arguments, snapshot);
+    run_with_selected_detector(arguments, snapshot, snap_num_offset);
 }
 
-fn run_with_selected_detector<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
-where
+fn run_with_selected_detector<G, R>(
+    arguments: &ArgMatches,
+    snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
+) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
         let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
-        run_with_selected_accelerator(arguments, detector_arguments, snapshot, detector);
+        run_with_selected_accelerator(
+            arguments,
+            detector_arguments,
+            snapshot,
+            snap_num_offset,
+            detector,
+        );
     } else {
         let (detector_config, detector_arguments) =
             if let Some(detector_arguments) = arguments.subcommand_matches("simple_detector") {
@@ -352,7 +364,13 @@ where
 
         let detector = SimpleReconnectionSiteDetector::new(detector_config);
 
-        run_with_selected_accelerator(arguments, detector_arguments, snapshot, detector);
+        run_with_selected_accelerator(
+            arguments,
+            detector_arguments,
+            snapshot,
+            snap_num_offset,
+            detector,
+        );
     }
 }
 
@@ -360,6 +378,7 @@ fn run_with_selected_accelerator<G, R, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
     detector: D,
 ) where
     G: Grid3<fdt>,
@@ -406,6 +425,7 @@ fn run_with_selected_accelerator<G, R, D>(
             root_arguments,
             accelerator_arguments,
             snapshot,
+            snap_num_offset,
             detector,
             accelerator,
         );
@@ -420,6 +440,7 @@ fn run_with_selected_accelerator<G, R, D>(
             root_arguments,
             distribution_arguments,
             snapshot,
+            snap_num_offset,
             detector,
             accelerator,
         );
@@ -430,6 +451,7 @@ fn run_with_selected_interpolator<G, R, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
     detector: D,
     accelerator: A)
 where G: Grid3<fdt>,
@@ -460,6 +482,7 @@ where G: Grid3<fdt>,
         root_arguments,
         interpolator_arguments,
         snapshot,
+        snap_num_offset,
         detector,
         accelerator,
         interpolator,
@@ -470,6 +493,7 @@ fn run_with_selected_stepper_factory<G, R, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
     detector: D,
     accelerator: A,
     interpolator: I)
@@ -507,6 +531,17 @@ where G: Grid3<fdt>,
 
     if output_file_path.extension().is_none() {
         output_file_path.set_extension(output_format);
+    }
+
+    if let Some(snap_num_offset) = snap_num_offset {
+        let (output_base_name, output_existing_num) =
+            snapshot::extract_name_and_num_from_snapshot_path(&output_file_path);
+        let output_existing_num = output_existing_num.unwrap_or(snapshot::FALLBACK_SNAP_NUM);
+        output_file_path.set_file_name(snapshot::create_snapshot_file_name(
+            &output_base_name,
+            output_existing_num + snap_num_offset,
+            output_format,
+        ));
     }
 
     let force_overwrite = root_arguments.is_present("overwrite");
