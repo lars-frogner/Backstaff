@@ -1,12 +1,15 @@
 //! Structured grids with uniform spacing in all dimensions.
 
 use super::{CoordLocation, Grid2, Grid3, GridType};
-use crate::geometry::{
-    CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2, Dim3, In2D, In3D, Vec2, Vec3,
+use crate::{
+    geometry::{
+        CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
+        Dim3::{self, X, Y, Z},
+        In2D, In3D, Vec2, Vec3,
+    },
+    num::BFloat,
 };
-use crate::num::BFloat;
 use std::iter;
-use Dim3::{X, Y, Z};
 
 /// A regular 3D grid.
 #[derive(Clone, Debug)]

@@ -1,11 +1,15 @@
 //! Interpolation by polynomial fitting.
 
 use super::Interpolator3;
-use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Dim3, Idx3, In3D, Point3, Vec3};
-use crate::grid::{CoordLocation, Grid3, GridPointQuery3};
-use crate::num::BFloat;
-use Dim3::{X, Y, Z};
+use crate::{
+    field::{ScalarField3, VectorField3},
+    geometry::{
+        Dim3::{self, X, Y, Z},
+        Idx3, In3D, Point3, Vec3,
+    },
+    grid::{CoordLocation, Grid3, GridPointQuery3},
+    num::BFloat,
+};
 
 macro_rules! compute_start_offset {
     ($center_coords:expr, $locations:expr, $interp_coord:expr, $interp_idx:expr, $order:expr) => {{
@@ -879,18 +883,23 @@ mod tests {
     use super::*;
     use crate::field::ResampledCoordLocation;
     use crate::grid::hor_regular::HorRegularGrid3;
-    use crate::io::snapshot::{fdt, SnapshotReader3, SnapshotReaderConfig};
+    use crate::io::snapshot::{
+        fdt,
+        native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
+        SnapshotReader3,
+    };
     use crate::io::{Endianness, Verbose};
     use ndarray_stats::QuantileExt;
 
     #[test]
     fn interpolation_at_original_data_points_works() {
-        let reader = SnapshotReader3::<HorRegularGrid3<_>>::new(SnapshotReaderConfig::new(
-            "data/en024031_emer3.0sml_ebeam_631.idl",
-            Endianness::Little,
-            Verbose::No,
-        ))
-        .unwrap();
+        let reader =
+            NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
+                "data/en024031_emer3.0sml_ebeam_631.idl",
+                Endianness::Little,
+                Verbose::No,
+            ))
+            .unwrap();
         let field = reader.read_scalar_field("r").unwrap();
 
         let coords = field.coords();

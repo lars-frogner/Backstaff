@@ -5,11 +5,13 @@ pub mod seeding;
 pub mod stepping;
 
 use self::stepping::{Stepper3, StepperInstruction, StepperResult, SteppingSense, StoppingCause};
-use crate::field::VectorField3;
-use crate::geometry::{Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::num::BFloat;
+use crate::{
+    field::VectorField3,
+    geometry::{Point3, Vec3},
+    grid::Grid3,
+    interpolation::Interpolator3,
+    num::BFloat,
+};
 
 /// Floating-point precision to use for tracing.
 #[allow(non_camel_case_types)]

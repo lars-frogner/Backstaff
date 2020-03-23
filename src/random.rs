@@ -1,9 +1,10 @@
 //! Utilities related to random numbers.
 
 use crate::num::BFloat;
-use rand;
-use rand::distributions::uniform::SampleUniform;
-use rand::distributions::{Distribution, Uniform};
+use rand::{
+    self,
+    distributions::{uniform::SampleUniform, Distribution, Uniform},
+};
 
 /// Samples a given number of indices from the given probability distribution.
 ///

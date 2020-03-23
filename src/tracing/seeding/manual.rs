@@ -1,17 +1,14 @@
 //! Reading seed points from an input file.
 
-use super::super::ftr;
-use super::Seeder3;
-use crate::geometry::{Idx3, Point3};
-use crate::grid::Grid3;
-use crate::io::utils;
-use crate::num::BFloat;
-use rayon;
-use rayon::prelude::*;
-use std::io;
-use std::io::BufRead;
-use std::path::Path;
-use std::vec;
+use super::{super::ftr, Seeder3};
+use crate::{
+    geometry::{Idx3, Point3},
+    grid::Grid3,
+    io::utils,
+    num::BFloat,
+};
+use rayon::{self, prelude::*};
+use std::{io::{self, BufRead}, path::Path, vec};
 
 /// Generator for 3D seed points read from an input file.
 #[derive(Clone, Debug)]
@@ -58,7 +55,7 @@ impl ManualSeeder3 {
                                             io::Error::new(
                                                 io::ErrorKind::InvalidData,
                                                 format!(
-                                                    "Failed parsing coordinate string `{}` in input file: {}",
+                                                    "Failed parsing coordinate string {} in input file: {}",
                                                     coord_str,
                                                     err.to_string()
                                                 ),

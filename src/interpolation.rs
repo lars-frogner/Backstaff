@@ -2,10 +2,12 @@
 
 pub mod poly_fit;
 
-use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Idx3, Point3, Vec3};
-use crate::grid::{Grid3, GridPointQuery3};
-use crate::num::BFloat;
+use crate::{
+    field::{ScalarField3, VectorField3},
+    geometry::{Idx3, Point3, Vec3},
+    grid::{Grid3, GridPointQuery3},
+    num::BFloat,
+};
 
 /// Defines the properties of a 3D interpolator.
 pub trait Interpolator3: Clone + Sync + Send {

@@ -1,12 +1,14 @@
 //! Structured grids with uniform spacing in the horizontal dimensions.
 
-use super::regular::RegularGrid2;
-use super::{CoordLocation, Grid2, Grid3, GridType};
-use crate::geometry::{
-    CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2, Dim3, In2D, In3D, Vec2, Vec3,
+use super::{regular::RegularGrid2, CoordLocation, Grid2, Grid3, GridType};
+use crate::{
+    geometry::{
+        CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
+        Dim3::{self, X, Y, Z},
+        In2D, In3D, Vec2, Vec3,
+    },
+    num::BFloat,
 };
-use crate::num::BFloat;
-use Dim3::{X, Y, Z};
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Clone, Debug)]

@@ -2,17 +2,19 @@
 //! a third-order Runge-Kutta method with error
 //! estimation through an embedded second-order step.
 
-use super::super::{Stepper3, StepperFactory3, StepperInstruction, StepperResult};
 use super::{
+    super::{Stepper3, StepperFactory3, StepperInstruction, StepperResult},
     ComputedDirection3, PIControlParams, RKFStepper3, RKFStepperConfig, RKFStepperState3,
     StepAttempt3,
 };
-use crate::field::VectorField3;
-use crate::geometry::{Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::num::BFloat;
-use crate::tracing::ftr;
+use crate::{
+    field::VectorField3,
+    geometry::{Point3, Vec3},
+    grid::Grid3,
+    interpolation::Interpolator3,
+    num::BFloat,
+    tracing::ftr,
+};
 
 /// A stepper using the third order Runge–Kutta–Fehlberg method.
 #[derive(Clone, Debug)]
