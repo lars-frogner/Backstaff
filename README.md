@@ -64,14 +64,16 @@ FLAGS:
     -h, --help       Print help information
 
 OPTIONS:
-    -e, --endianness=<ENDIANNESS>    Endianness to assume for snapshots in native binary format
-                                      [default: little]  [possible values: little, big, native]
+    -r, --snap-range=<FIRST>,<LAST>    Inclusive range of snapshot numbers associated with the input snapshot to
+                                       process [default: only process INPUT_FILE]
+    -e, --endianness=<ENDIANNESS>      Endianness to assume for snapshots in native binary format
+                                        [default: little]  [possible values: little, big, native]
 
 ARGS:
     <INPUT_FILE>    Path to the file representing the snapshot.
                     Assumes the following format based on the file extension:
-                    *.idl: Parameter file with associated .snap [and .aux] file
-                    *.nc: NetCDF file using the CF convention (requires the netcdf feature)
+                        *.idl: Parameter file with associated .snap [and .aux] file
+                        *.nc: NetCDF file using the CF convention (requires the netcdf feature)
 
 SUBCOMMANDS:
     inspect     Inspect properties of the snapshot
@@ -133,22 +135,32 @@ field_lines.plot_field_lines(field_line_set, alpha=0.01, output_path='field_line
 This is the resulting figure:
 ![field_lines](figures/field_lines.png "Magnetic field lines")
 
-### Creating a NetCDF file for visualization
+### Creating NetCDF files for visualization
 
-By enabling the `netcdf` feature, it is easy to convert snapshot data into the NetCDF format, which is supported by various visualization tools like [ParaView](https://www.paraview.org/) and [VAPOR](https://www.vapor.ucar.edu/). In the following example, the temperature and mass density fields in a Bifrost snapshot are resampled to a regular 512<sup>3</sup> grid and written to a NetCDF file.
+By enabling the `netcdf` feature, it is easy to convert snapshot data into the NetCDF format, which is supported by various visualization tools like [ParaView](https://www.paraview.org/) and [VAPOR](https://www.vapor.ucar.edu/). In the following example, the temperature and mass density fields in a set of Bifrost snapshots are resampled to a regular 512<sup>3</sup> grid and written to a set of NetCDF files.
 ```
 $ backstaff \
-    snapshot photo_tr_001.idl \
-    resample -v --shape=512,512,512 weighted_sample_averaging \
-    write -v --strip --included-quantities=r,tg photo_tr_001.nc
+    snapshot -v photo_tr_001.idl --snap-range=1,3 \
+    resample -v --shape=512,512,512 --sample-location=center weighted_sample_averaging \
+    write -v --strip --included-quantities=r,tg photo_tr.nc
 Writing grid to photo_tr_001.nc
+Reading r from photo_tr_001.snap
 Resampling r
 Writing r to photo_tr_001.nc
+Reading tg from photo_tr_001.aux
 Resampling tg
 Writing tg to photo_tr_001.nc
+...
+Writing grid to photo_tr_003.nc
+Reading r from photo_tr_003.snap
+Resampling r
+Writing r to photo_tr_003.nc
+Reading tg from photo_tr_003.aux
+Resampling tg
+Writing tg to photo_tr_003.nc
 ```
 
-Here is a ParaView volume rendering of the resulting temperature field:
+Here is a ParaView volume rendering of the resulting temperature field from one of the `.nc` files:
 ![volume_rendering](figures/volume_rendering.png "Volume rendering")
 
 ## Enabling tab-completion for `backstaff` arguments
