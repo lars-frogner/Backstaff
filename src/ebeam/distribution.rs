@@ -3,12 +3,13 @@
 pub mod power_law;
 
 use super::{feb, BeamPropertiesCollection};
-use crate::geometry::{Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::tracing::ftr;
-use crate::tracing::stepping::SteppingSense;
+use crate::{
+    geometry::{Point3, Vec3},
+    grid::Grid3,
+    interpolation::Interpolator3,
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    tracing::{ftr, stepping::SteppingSense},
+};
 
 /// Whether or not a distribution is depleted.
 #[derive(Clone, Copy, Debug)]
@@ -50,14 +51,15 @@ pub trait Distribution {
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
-    fn propagate<G, I>(
+    fn propagate<G, R, I>(
         &mut self,
-        snapshot: &SnapshotCacher3<G>,
+        snapshot: &SnapshotCacher3<G, R>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
     ) -> PropagationResult
     where
         G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
         I: Interpolator3;
 }

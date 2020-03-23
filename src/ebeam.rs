@@ -4,28 +4,38 @@ pub mod accelerator;
 pub mod detection;
 pub mod distribution;
 
-use self::accelerator::Accelerator;
-use self::detection::ReconnectionSiteDetector;
-use self::distribution::{DepletionStatus, Distribution, PropagationResult};
-use crate::field::{ScalarField3, VectorField3};
-use crate::geometry::{Dim3, Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3};
-use crate::io::utils;
-use crate::io::Verbose;
-use crate::num::BFloat;
-use crate::tracing::field_line::{self, FieldLineSetProperties3};
-use crate::tracing::stepping::{Stepper3, StepperFactory3, StepperInstruction};
-use crate::tracing::{self, ftr, TracerResult};
+use self::{
+    accelerator::Accelerator,
+    detection::ReconnectionSiteDetector,
+    distribution::{DepletionStatus, Distribution, PropagationResult},
+};
+use crate::{
+    field::{ScalarField3, VectorField3},
+    geometry::{
+        Dim3::{X, Y, Z},
+        Point3, Vec3,
+    },
+    grid::Grid3,
+    interpolation::Interpolator3,
+    io::{
+        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        utils, Verbose,
+    },
+    num::BFloat,
+    tracing::{
+        self,
+        field_line::{self, FieldLineSetProperties3},
+        ftr,
+        stepping::{Stepper3, StepperFactory3, StepperInstruction},
+        TracerResult,
+    },
+};
 use rayon::prelude::*;
-use serde::ser::{SerializeStruct, Serializer};
-use serde::Serialize;
-use std::collections::HashMap;
-use std::io::Write;
-use std::path::Path;
-use std::{fs, io};
-use Dim3::{X, Y, Z};
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Serialize,
+};
+use std::{collections::HashMap, fs, io, io::Write, path::Path};
 
 /// Floating-point precision to use for electron beam physics.
 #[allow(non_camel_case_types)]
@@ -308,8 +318,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<G, D, I, StF>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_unpropagated<G, R, D, I, StF>(snapshot: &mut SnapshotCacher3<G, R>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
+          R: SnapshotReader3<G> + Sync,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
@@ -360,8 +371,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<G, D, I, StF>(snapshot: &mut SnapshotCacher3<G>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_propagated<G, R, D, I, StF>(snapshot: &mut SnapshotCacher3<G, R>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
+          R: SnapshotReader3<G> + Sync,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
@@ -689,14 +701,15 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
 }
 
 impl<D: Distribution> PropagatedElectronBeam<D> {
-    fn generate<G, I, S>(
+    fn generate<G, R, I, S>(
         mut distribution: D,
-        snapshot: &SnapshotCacher3<G>,
+        snapshot: &SnapshotCacher3<G, R>,
         interpolator: &I,
         stepper: S,
     ) -> Option<Self>
     where
         G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
         I: Interpolator3,
         S: Stepper3,
     {

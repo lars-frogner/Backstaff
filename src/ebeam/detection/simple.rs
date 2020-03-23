@@ -1,12 +1,16 @@
 //! Simple model for detection of reconnection sites.
 
 use super::ReconnectionSiteDetector;
-use crate::geometry::Dim3;
-use crate::grid::Grid3;
-use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
-use crate::io::Verbose;
-use crate::tracing::seeding::criterion::CriterionSeeder3;
-use crate::tracing::seeding::IndexSeeder3;
+use crate::{
+    exit_on_error,
+    geometry::Dim3,
+    grid::Grid3,
+    io::{
+        snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3},
+        Verbose,
+    },
+    tracing::seeding::{criterion::CriterionSeeder3, IndexSeeder3},
+};
 
 /// Configuration parameters for the simple reconnection site detection method.
 #[derive(Clone, Debug)]
@@ -37,18 +41,19 @@ impl SimpleReconnectionSiteDetector {
 impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
     type Seeder = CriterionSeeder3;
 
-    fn detect_reconnection_sites<G: Grid3<fdt>>(
+    fn detect_reconnection_sites<G, R>(
         &self,
-        snapshot: &mut SnapshotCacher3<G>,
+        snapshot: &mut SnapshotCacher3<G, R>,
         verbose: Verbose,
-    ) -> Self::Seeder {
-        let reconnection_factor_field =
-            snapshot.obtain_scalar_field("krec").unwrap_or_else(|err| {
-                panic!(
-                    "Could not read reconnection factor field from snapshot: {}",
-                    err
-                )
-            });
+    ) -> Self::Seeder
+    where
+        G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
+    {
+        let reconnection_factor_field = exit_on_error!(
+            snapshot.obtain_scalar_field("krec"),
+            "Error: Could not read reconnection factor field from snapshot: {}"
+        );
         let seeder = CriterionSeeder3::on_scalar_field_values(
             reconnection_factor_field,
             &|reconnection_factor| reconnection_factor >= self.config.reconnection_factor_threshold,
@@ -75,8 +80,13 @@ impl SimpleReconnectionSiteDetectorConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
+    pub fn with_defaults_from_param_file<G, R>(reader: &R) -> Self
+    where
+        G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
+    {
         let reconnection_factor_threshold = reader
+            .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "reconnection_factor_threshold",
                 "krec_lim",
@@ -84,6 +94,7 @@ impl SimpleReconnectionSiteDetectorConfig {
                 Self::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
             );
         let min_detection_depth = reader
+            .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "min_detection_depth",
                 "z_rec_ulim",
@@ -91,6 +102,7 @@ impl SimpleReconnectionSiteDetectorConfig {
                 Self::DEFAULT_MIN_DETECTION_DEPTH,
             );
         let max_detection_depth = reader
+            .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "max_detection_depth",
                 "z_rec_llim",

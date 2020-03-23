@@ -2,18 +2,21 @@
 
 pub mod acceleration;
 
-use super::super::{feb, BeamPropertiesCollection, FixedBeamScalarValues, FixedBeamVectorValues};
-use super::{DepletionStatus, Distribution, PropagationResult};
-use crate::constants::{KEV_TO_ERG, M_H, PI, Q_ELECTRON};
-use crate::geometry::{Point3, Vec3};
-use crate::grid::Grid3;
-use crate::interpolation::Interpolator3;
-use crate::io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3};
-use crate::math;
-use crate::plasma::ionization;
-use crate::tracing::ftr;
-use crate::tracing::stepping::SteppingSense;
-use crate::units::solar::{U_L, U_L3, U_R};
+use super::{
+    super::{feb, BeamPropertiesCollection, FixedBeamScalarValues, FixedBeamVectorValues},
+    DepletionStatus, Distribution, PropagationResult,
+};
+use crate::{
+    constants::{KEV_TO_ERG, M_H, PI, Q_ELECTRON},
+    geometry::{Point3, Vec3},
+    grid::Grid3,
+    interpolation::Interpolator3,
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3},
+    math,
+    plasma::ionization,
+    tracing::{ftr, stepping::SteppingSense},
+    units::solar::{U_L, U_L3, U_R},
+};
 use rayon::prelude::*;
 
 /// Configuration parameters for power-law distributions.
@@ -400,15 +403,16 @@ impl Distribution for PowerLawDistribution {
         }
     }
 
-    fn propagate<G, I>(
+    fn propagate<G, R, I>(
         &mut self,
-        snapshot: &SnapshotCacher3<G>,
+        snapshot: &SnapshotCacher3<G, R>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
     ) -> PropagationResult
     where
         G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
         I: Interpolator3,
     {
         let mut deposition_position = new_position - displacement * 0.5;
@@ -505,8 +509,13 @@ impl PowerLawDistributionConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<G: Grid3<fdt>>(reader: &SnapshotReader3<G>) -> Self {
+    pub fn with_defaults_from_param_file<G, R>(reader: &R) -> Self
+    where
+        G: Grid3<fdt>,
+        R: SnapshotReader3<G>,
+    {
         let min_residual_factor = reader
+            .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "min_residual_factor",
                 "min_residual",
@@ -514,6 +523,7 @@ impl PowerLawDistributionConfig {
                 Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             );
         let min_deposited_power_per_distance = reader
+            .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "min_deposited_power_per_distance",
                 "min_dep_en",
@@ -521,6 +531,7 @@ impl PowerLawDistributionConfig {
                 Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             );
         let max_propagation_distance = reader
+            .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "max_propagation_distance",
                 "max_dist",
