@@ -252,6 +252,11 @@ impl<F: BFloat> Vec3<F> {
         self[Y] = -self[Y];
         self[Z] = -self[Z];
     }
+
+    /// Determines the maximum component value for the vector.
+    pub fn max(&self) -> F {
+        F::max(self[X], F::max(self[Y], self[Z]))
+    }
 }
 
 impl<F: BFloat> Index<Dim3> for Vec3<F> {
