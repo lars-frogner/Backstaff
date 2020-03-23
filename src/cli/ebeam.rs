@@ -23,12 +23,15 @@ pub fn create_ebeam_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `ebeam` subcommand using the given arguments.
-pub fn run_ebeam_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
-where
+pub fn run_ebeam_subcommand<G, R>(
+    arguments: &ArgMatches,
+    snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
+) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
     if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
-        run_simulate_subcommand(simulate_arguments, snapshot);
+        run_simulate_subcommand(simulate_arguments, snapshot, snap_num_offset);
     }
 }

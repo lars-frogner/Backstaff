@@ -10,11 +10,12 @@ use self::{
     slice::create_slice_subcommand, write::create_write_subcommand,
 };
 use crate::{
+    cli::utils,
     create_subcommand, exit_on_error, exit_with_error,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     io::{
         snapshot::{
-            fdt,
+            self, fdt,
             native::{
                 self, NativeSnapshotParameters, NativeSnapshotReader3, NativeSnapshotReaderConfig,
             },
@@ -49,11 +50,24 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("INPUT_FILE")
                 .help(
                     "Path to the file representing the snapshot.\n\
-                     Assumes the following format based on the file extension:\n\
-                     *.idl: Parameter file with associated .snap [and .aux] file\n\
-                     *.nc: NetCDF file using the CF convention (requires the netcdf feature)",
+                     Assumes the following format based on the file extension:\
+                     \n    *.idl: Parameter file with associated .snap [and .aux] file\
+                     \n    *.nc: NetCDF file using the CF convention (requires the netcdf feature)",
                 )
                 .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("snap-range")
+                .short("r")
+                .long("snap-range")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_names(&["FIRST", "LAST"])
+                .help(
+                    "Inclusive range of snapshot numbers associated with the input snapshot to\n\
+                     process [default: only process INPUT_FILE]",
+                )
                 .takes_value(true),
         )
         .arg(
@@ -88,7 +102,7 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 macro_rules! create_native_reader_and_run {
-    ($config:expr, $run_macro:tt) => {{
+    ($config:expr, $snap_num_offset:expr, $run_macro:tt) => {{
         let parameters = exit_on_error!(
             NativeSnapshotParameters::new($config.param_file_path()),
             "Error: Could not read parameter file: {}"
@@ -126,7 +140,7 @@ macro_rules! create_native_reader_and_run {
                     ),
                     "Error: Could not create snapshot reader: {}"
                 );
-                $run_macro!(reader)
+                $run_macro!(reader, $snap_num_offset)
             }
             GridType::HorRegular => {
                 let grid = HorRegularGrid3::from_coords(
@@ -142,7 +156,7 @@ macro_rules! create_native_reader_and_run {
                     ),
                     "Error: Could not create snapshot reader: {}"
                 );
-                $run_macro!(reader)
+                $run_macro!(reader, $snap_num_offset)
             }
         }
     }};
@@ -150,9 +164,9 @@ macro_rules! create_native_reader_and_run {
 
 #[cfg(feature = "netcdf")]
 macro_rules! create_netcdf_reader_and_run {
-    ($config:expr, $run_macro:tt) => {{
+    ($config:expr, $snap_num_offset:expr, $run_macro:tt) => {{
         let file = exit_on_error!(
-            netcdf::open_file($config.path()),
+            netcdf::open_file($config.file_path()),
             "Error: Could not open NetCDF file: {}"
         );
         let parameters = exit_on_error!(
@@ -186,7 +200,8 @@ macro_rules! create_netcdf_reader_and_run {
                 $run_macro!(
                     NetCDFSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
                         $config, file, parameters, grid, endianness,
-                    )
+                    ),
+                    $snap_num_offset
                 )
             }
             GridType::HorRegular => {
@@ -200,7 +215,8 @@ macro_rules! create_netcdf_reader_and_run {
                 $run_macro!(
                     NetCDFSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
                         $config, file, parameters, grid, endianness,
-                    )
+                    ),
+                    $snap_num_offset
                 )
             }
         }
@@ -210,22 +226,27 @@ macro_rules! create_netcdf_reader_and_run {
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
     macro_rules! run_subcommands_for_reader {
-        ($reader:expr) => {{
+        ($reader:expr, $snap_num_offset:expr) => {{
             let mut snapshot = SnapshotCacher3::new($reader);
 
             if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
                 inspect::run_inspect_subcommand(inspect_arguments, &mut snapshot);
             }
             if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
-                slice::run_slice_subcommand(slice_arguments, &mut snapshot);
+                slice::run_slice_subcommand(slice_arguments, &mut snapshot, $snap_num_offset);
             }
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-                resample::run_resample_subcommand(resample_arguments, snapshot.reader());
+                resample::run_resample_subcommand(
+                    resample_arguments,
+                    snapshot.reader(),
+                    $snap_num_offset,
+                );
             }
             if let Some(write_arguments) = arguments.subcommand_matches("write") {
                 write::run_write_subcommand(
                     write_arguments,
                     snapshot.reader(),
+                    $snap_num_offset,
                     None,
                     HashMap::new(),
                     |field| Ok(field),
@@ -234,13 +255,21 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
             #[cfg(feature = "tracing")]
             {
                 if let Some(trace_arguments) = arguments.subcommand_matches("trace") {
-                    crate::cli::tracing::run_trace_subcommand(trace_arguments, &mut snapshot);
+                    crate::cli::tracing::run_trace_subcommand(
+                        trace_arguments,
+                        &mut snapshot,
+                        $snap_num_offset,
+                    );
                 }
             }
             #[cfg(feature = "ebeam")]
             {
                 if let Some(ebeam_arguments) = arguments.subcommand_matches("ebeam") {
-                    crate::cli::ebeam::run_ebeam_subcommand(ebeam_arguments, &mut snapshot);
+                    crate::cli::ebeam::run_ebeam_subcommand(
+                        ebeam_arguments,
+                        &mut snapshot,
+                        $snap_num_offset,
+                    );
                 }
             }
         }};
@@ -255,6 +284,45 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
         "Error: Could not interpret path to input file: {}"
     );
 
+    let input_extension = input_file_path
+        .extension()
+        .unwrap_or_else(|| exit_with_error!("Error: Missing extension for input-file"))
+        .to_string_lossy()
+        .to_string();
+
+    let input_snap_paths_and_num_offsets = match arguments.values_of("snap-range") {
+        Some(value_strings) => {
+            let snap_num_range: Vec<u32> = value_strings
+                .map(|value_string| utils::parse_value_string("snap-range", value_string))
+                .collect();
+            exit_on_false!(
+                snap_num_range.len() == 2,
+                "Error: Invalid number of values for snap-range (must be 2)"
+            );
+            exit_on_false!(
+                snap_num_range[1] > snap_num_range[0],
+                "Error: Last snapshot number must be larger than first snapshot number"
+            );
+
+            let (snap_name, _) =
+                snapshot::extract_name_and_num_from_snapshot_path(&input_file_path);
+
+            (snap_num_range[0]..=snap_num_range[1])
+                .map(|snap_num| {
+                    (
+                        input_file_path.with_file_name(snapshot::create_snapshot_file_name(
+                            &snap_name,
+                            snap_num,
+                            &input_extension,
+                        )),
+                        Some(snap_num - snap_num_range[0]),
+                    )
+                })
+                .collect()
+        }
+        None => vec![(input_file_path, None)],
+    };
+
     let endianness = match arguments
         .value_of("endianness")
         .expect("No value for argument with default.")
@@ -267,22 +335,28 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
 
     let verbose = arguments.is_present("verbose").into();
 
-    match input_file_path
-        .extension()
-        .unwrap_or_else(|| exit_with_error!("Error: Missing extension for input-file"))
-        .to_string_lossy()
-        .as_ref()
-    {
+    match input_extension.as_ref() {
         "idl" => {
-            let reader_config =
-                NativeSnapshotReaderConfig::new(&input_file_path, endianness, verbose);
-            create_native_reader_and_run!(reader_config, run_subcommands_for_reader);
+            for (file_path, snap_num_offset) in input_snap_paths_and_num_offsets {
+                let reader_config = NativeSnapshotReaderConfig::new(file_path, endianness, verbose);
+                create_native_reader_and_run!(
+                    reader_config,
+                    snap_num_offset,
+                    run_subcommands_for_reader
+                );
+            }
         }
         "nc" => {
             #[cfg(feature = "netcdf")]
             {
-                let reader_config = NetCDFSnapshotReaderConfig::new(&input_file_path, verbose);
-                create_netcdf_reader_and_run!(reader_config, run_subcommands_for_reader);
+                for (file_path, snap_num_offset) in input_snap_paths_and_num_offsets {
+                    let reader_config = NetCDFSnapshotReaderConfig::new(file_path, verbose);
+                    create_netcdf_reader_and_run!(
+                        reader_config,
+                        snap_num_offset,
+                        run_subcommands_for_reader
+                    );
+                }
             }
             #[cfg(not(feature = "netcdf"))]
             exit_with_error!("Error: Compile with netcdf feature in order to read NetCDF files\n\

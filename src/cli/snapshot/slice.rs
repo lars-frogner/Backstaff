@@ -14,7 +14,7 @@ use crate::{
     grid::{CoordLocation, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
         utils as io_utils,
     },
 };
@@ -102,8 +102,11 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
-pub fn run_slice_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
-where
+pub fn run_slice_subcommand<G, R>(
+    arguments: &ArgMatches,
+    snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
+) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
 {
@@ -126,8 +129,21 @@ where
         "Error: Could not interpret path to output file: {}"
     );
 
+    let output_extension = "pickle";
+
     if output_file_path.extension().is_none() {
-        output_file_path.set_extension("pickle");
+        output_file_path.set_extension(output_extension);
+    }
+
+    if let Some(snap_num_offset) = snap_num_offset {
+        let (output_base_name, output_existing_num) =
+            snapshot::extract_name_and_num_from_snapshot_path(&output_file_path);
+        let output_existing_num = output_existing_num.unwrap_or(snapshot::FALLBACK_SNAP_NUM);
+        output_file_path.set_file_name(snapshot::create_snapshot_file_name(
+            &output_base_name,
+            output_existing_num + snap_num_offset,
+            output_extension,
+        ));
     }
 
     let force_overwrite = arguments.is_present("overwrite");

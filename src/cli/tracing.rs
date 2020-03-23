@@ -27,7 +27,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
         utils,
     },
     tracing::{
@@ -184,16 +184,22 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_trace_subcommand<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
-where
+pub fn run_trace_subcommand<G, R>(
+    arguments: &ArgMatches,
+    snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
+) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
-    run_with_selected_tracer(arguments, snapshot);
+    run_with_selected_tracer(arguments, snapshot, snap_num_offset);
 }
 
-fn run_with_selected_tracer<G, R>(arguments: &ArgMatches, snapshot: &mut SnapshotCacher3<G, R>)
-where
+fn run_with_selected_tracer<G, R>(
+    arguments: &ArgMatches,
+    snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
+) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
@@ -213,13 +219,20 @@ where
 
     let tracer = BasicFieldLineTracer3::new(tracer_config);
 
-    run_with_selected_stepper_factory(arguments, tracer_arguments, snapshot, tracer);
+    run_with_selected_stepper_factory(
+        arguments,
+        tracer_arguments,
+        snapshot,
+        snap_num_offset,
+        tracer,
+    );
 }
 
 fn run_with_selected_stepper_factory<G, R, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
     tracer: Tr,
 ) where
     G: Grid3<fdt>,
@@ -250,6 +263,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
             root_arguments,
             stepper_arguments,
             snapshot,
+            snap_num_offset,
             tracer,
             RKF23StepperFactory3::new(stepper_config),
         ),
@@ -257,6 +271,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
             root_arguments,
             stepper_arguments,
             snapshot,
+            snap_num_offset,
             tracer,
             RKF45StepperFactory3::new(stepper_config),
         ),
@@ -267,6 +282,7 @@ fn run_with_selected_interpolator<G, R, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
     tracer: Tr,
     stepper_factory: StF,
 ) where
@@ -298,6 +314,7 @@ fn run_with_selected_interpolator<G, R, Tr, StF>(
         root_arguments,
         interpolator_arguments,
         snapshot,
+        snap_num_offset,
         tracer,
         stepper_factory,
         interpolator,
@@ -308,6 +325,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
@@ -325,6 +343,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
         run_tracing(
             root_arguments,
             snapshot,
+            snap_num_offset,
             tracer,
             stepper_factory,
             interpolator,
@@ -335,6 +354,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
         run_tracing(
             root_arguments,
             snapshot,
+            snap_num_offset,
             tracer,
             stepper_factory,
             interpolator,
@@ -348,6 +368,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
 fn run_tracing<G, R, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
+    snap_num_offset: Option<u32>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
@@ -377,6 +398,17 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
 
     if output_file_path.extension().is_none() {
         output_file_path.set_extension(output_format);
+    }
+
+    if let Some(snap_num_offset) = snap_num_offset {
+        let (output_base_name, output_existing_num) =
+            snapshot::extract_name_and_num_from_snapshot_path(&output_file_path);
+        let output_existing_num = output_existing_num.unwrap_or(snapshot::FALLBACK_SNAP_NUM);
+        output_file_path.set_file_name(snapshot::create_snapshot_file_name(
+            &output_base_name,
+            output_existing_num + snap_num_offset,
+            output_format,
+        ));
     }
 
     let force_overwrite = root_arguments.is_present("overwrite");
