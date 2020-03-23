@@ -5,7 +5,7 @@ mod param;
 
 use super::{
     super::{utils, Endianness, Verbose},
-    fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3,
+    fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3, FALLBACK_SNAP_NUM,
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
@@ -20,7 +20,6 @@ use crate::{
     },
 };
 use ndarray::prelude::*;
-use regex::Regex;
 use std::{
     collections::HashMap,
     fs, io,
@@ -378,18 +377,9 @@ where
     let output_param_path = output_param_path.as_ref().with_extension("idl");
 
     let output_file_name = output_param_path.file_name().unwrap().to_string_lossy();
-    let snap_regex = Regex::new(r"(.+?)_(\d\d\d)\.idl").unwrap();
-    let (snap_name, snap_num) = snap_regex
-        .captures(&output_file_name)
-        .map(|caps| (caps[1].to_string(), caps[2].parse::<u32>().unwrap()))
-        .unwrap_or((
-            output_param_path
-                .file_stem()
-                .unwrap()
-                .to_string_lossy()
-                .to_string(),
-            0,
-        ));
+
+    let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(&output_param_path);
+    let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
 
     modified_parameters.insert(
         "snapname",

@@ -6,7 +6,7 @@ mod param;
 use super::{
     super::{utils, Endianness, Verbose},
     fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3, COORDINATE_NAMES,
-    PRIMARY_VARIABLE_NAMES_MHD,
+    FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
     field::ScalarField3,
@@ -19,7 +19,6 @@ use crate::{
 };
 use ndarray::prelude::*;
 use netcdf_rs::{self as nc, File, Group, GroupMut, MutableFile, Numeric};
-use regex::Regex;
 use std::{
     collections::HashMap,
     io,
@@ -40,7 +39,7 @@ macro_rules! io_result {
 #[derive(Clone, Debug)]
 pub struct NetCDFSnapshotReaderConfig {
     /// Path to the file.
-    path: PathBuf,
+    file_path: PathBuf,
     /// Whether to print status messages while reading fields.
     verbose: Verbose,
 }
@@ -60,7 +59,7 @@ pub struct NetCDFSnapshotReader3<G> {
 impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
-        let file = open_file(&config.path)?;
+        let file = open_file(&config.file_path)?;
 
         let parameters = NetCDFSnapshotParameters::new(&file)?;
 
@@ -167,7 +166,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
             println!(
                 "Reading {} from {}",
                 variable_name,
-                self.config.path.file_name().unwrap().to_string_lossy()
+                self.config.file_path.file_name().unwrap().to_string_lossy()
             );
         }
         let (values, locations, endianness) = read_snapshot_3d_variable::<fdt, G>(
@@ -195,15 +194,15 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
 
 impl NetCDFSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new<P: AsRef<Path>>(path: P, verbose: Verbose) -> Self {
+    pub fn new<P: AsRef<Path>>(file_path: P, verbose: Verbose) -> Self {
         NetCDFSnapshotReaderConfig {
-            path: path.as_ref().to_path_buf(),
+            file_path: file_path.as_ref().to_path_buf(),
             verbose,
         }
     }
 
-    pub fn path(&self) -> &Path {
-        self.path.as_path()
+    pub fn file_path(&self) -> &Path {
+        self.file_path.as_path()
     }
 }
 
@@ -263,18 +262,9 @@ where
     let mut root_group = file.root_mut().unwrap();
 
     let output_file_name = output_file_path.file_name().unwrap().to_string_lossy();
-    let snap_regex = Regex::new(r"(.+?)_(\d\d\d)\.nc").unwrap();
-    let (snap_name, snap_num) = snap_regex
-        .captures(&output_file_name)
-        .map(|caps| (caps[1].to_string(), caps[2].parse::<u32>().unwrap()))
-        .unwrap_or((
-            output_file_path
-                .file_stem()
-                .unwrap()
-                .to_string_lossy()
-                .to_string(),
-            0,
-        ));
+
+    let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(&output_file_path);
+    let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
 
     modified_parameters.insert(
         "snapname",
