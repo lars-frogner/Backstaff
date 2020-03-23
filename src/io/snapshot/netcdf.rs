@@ -301,10 +301,10 @@ where
             let mut new_parameters = reader.parameters().clone();
             new_parameters.modify_values(modified_parameters);
 
-            if verbose.is_yes() {
-                println!("Writing parameters to {}", output_file_name);
-            }
             if !strip_metadata {
+                if verbose.is_yes() {
+                    println!("Writing parameters to {}", output_file_name);
+                }
                 param::write_snapshot_parameters(&mut root_group, &new_parameters)?;
             }
 
