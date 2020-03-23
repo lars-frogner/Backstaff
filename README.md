@@ -53,6 +53,8 @@ If you have installed the binary, simply run the `backstaff` command. If you ins
 Actions are specified and configured through a hierachy of subcommands, which can be inspected by looking at their help texts. For example, the help text for the `snapshot` subcommand can be viewed as follows:
 ```
 $ backstaff snapshot -h
+```
+```
 backstaff-snapshot
 Specify input snapshot to perform further actions on
 
@@ -94,6 +96,8 @@ This graph was created with the hidden `backstaff-command_graph` command, which 
 Printing some statistics for density and temperature in a snapshot could look like this:
 ```
 $ backstaff snapshot photo_tr_001.idl inspect statistics r,tg
+```
+```
 *************** Statistics for r ***************
 Number of values: 452984832
 Number of NaNs:   0
@@ -118,6 +122,8 @@ $ backstaff --timing \
         basic_tracer --max-length=100.0 \
         slice_seeder --axis=z --coord=-2.0 \
             regular --shape=100,100
+```
+```
 Found 10000 start positions
 Successfully traced 10000 field lines
 Saving field lines in field_lines.fl
@@ -143,6 +149,8 @@ $ backstaff \
     snapshot -v photo_tr_001.idl --snap-range=1,3 \
     resample -v --shape=512,512,512 --sample-location=center weighted_sample_averaging \
     write -v --strip --included-quantities=r,tg photo_tr.nc
+```
+```
 Writing grid to photo_tr_001.nc
 Reading r from photo_tr_001.snap
 Resampling r
