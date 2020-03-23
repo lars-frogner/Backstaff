@@ -44,27 +44,29 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .help_message("Print help information")
         .setting(AppSettings::SubcommandRequired)
+        .arg(
+            Arg::with_name("shape")
+                .short("s")
+                .long("shape")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_names(&["NX", "NY", "NZ"])
+                .help("Shape of the regular grid to resample to")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("mesh-file")
+                .short("m")
+                .long("mesh-file")
+                .require_equals(true)
+                .value_name("FILE")
+                .help("Path to a Bifrost mesh file representing the grid to resample to")
+                .takes_value(true),
+        )
         .group(
             ArgGroup::with_name("grid")
                 .args(&["shape", "mesh-file"])
                 .required(true),
-        )
-        .arg(
-            Arg::with_name("shape")
-                .require_delimiter(true)
-                .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the regular grid to resample to")
-                .takes_value(true)
-                .required(true)
-                .conflicts_with("mesh-file"),
-        )
-        .arg(
-            Arg::with_name("mesh-file")
-                .value_name("FILE")
-                .help("Path to a Bifrost mesh file representing the grid to resample to")
-                .takes_value(true)
-                .required(true)
-                .conflicts_with("shape"),
         )
         .arg(
             Arg::with_name("sample-location")
@@ -167,8 +169,8 @@ fn run_resampling<G, R, I>(
         invalid => exit_with_error!("Invalid sample-location: {}", invalid),
     };
 
-    let continue_on_warnings = arguments.is_present("yes");
-    let is_verbose = arguments.is_present("verbose");
+    let continue_on_warnings = root_arguments.is_present("yes");
+    let is_verbose = root_arguments.is_present("verbose");
 
     let old_grid = reader.grid();
 
