@@ -16,7 +16,6 @@ macro_rules! create_subcommand {
             crate::cli::command_graph::insert_command_graph_edge(
                 stringify!($parent_command),
                 stringify!($child_command),
-                1.0,
             );
         }
         subcommand
