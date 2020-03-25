@@ -99,7 +99,7 @@ $ backstaff snapshot photo_tr_001.idl inspect --included-quantities=r,tg statist
 ```
 ```
 ================================================================================
-           Statistics for r from snapshot 462 of cb24ni_ebeam_offline
+                  Statistics for r from snapshot 1 of photo_tr
 --------------------------------------------------------------------------------
                          For all r, all x, all y, all z
 ================================================================================
@@ -125,7 +125,7 @@ Average value:       0.0026214391
 70th percentile:     0.0030976003
 95th percentile:     0.0066802846
 ================================================================================
-          Statistics for tg from snapshot 462 of cb24ni_ebeam_offline
+                 Statistics for tg from snapshot 1 of photo_tr
 --------------------------------------------------------------------------------
                         For all tg, all x, all y, all z
 ================================================================================
