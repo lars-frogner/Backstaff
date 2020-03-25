@@ -3,7 +3,10 @@
 use crate::num::BFloat;
 use num;
 use serde::Serialize;
-use std::ops::{Add, Div, Index, IndexMut, Mul, Sub};
+use std::{
+    fmt,
+    ops::{Add, Div, Index, IndexMut, Mul, Sub},
+};
 
 /// Denotes the x-, y- or z-dimension.
 #[derive(Clone, Copy, Debug)]
@@ -34,6 +37,20 @@ impl Dim3 {
     }
 }
 
+impl fmt::Display for Dim3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::X => "x",
+                Self::Y => "y",
+                Self::Z => "z",
+            }
+        )
+    }
+}
+
 use Dim3::{X, Y, Z};
 
 /// Denotes the x- or y-dimension.
@@ -47,6 +64,19 @@ impl Dim2 {
     /// Creates an array for iterating over the x- and y-dimensions.
     pub fn slice() -> [Self; 2] {
         [Dim2::X, Dim2::Y]
+    }
+}
+
+impl fmt::Display for Dim2 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::X => "x",
+                Self::Y => "y",
+            }
+        )
     }
 }
 
