@@ -109,6 +109,13 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     fn extents(&self) -> &Vec3<F> {
         &self.extents
     }
+    fn set_periodicity(&mut self, is_periodic: In3D<bool>) {
+        assert!(
+            !is_periodic[Z],
+            "This grid type cannot be periodic in the z-direction."
+        );
+        self.is_periodic = is_periodic;
+    }
 }
 
 /// A 2D grid which is regular in x but non-uniform in y.

@@ -117,6 +117,9 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// Returns a reference to the full coordinate extent of each dimension.
     fn extents(&self) -> &Vec3<F>;
 
+    /// Sets the periodicity of the grid along each dimension.
+    fn set_periodicity(&mut self, is_periodic: In3D<bool>);
+
     /// Returns the lower and upper corner of the grid cell of the given 3D index.
     fn grid_cell_extremal_corners(&self, indices: &Idx3<usize>) -> (Point3<F>, Point3<F>) {
         let lower_corner = self.lower_edges().point(indices);
@@ -730,7 +733,6 @@ pub fn verify_coordinate_arrays<F: BFloat>(
 ) -> io::Result<GridType> {
     let nonuniformity_threshold = F::from_f32(5e-3).unwrap();
 
-    let coord_names = In3D::new("x", "y", "z");
     let mut is_uniform = In3D::same(true);
 
     for &dim in &Dim3::slice() {
@@ -742,7 +744,7 @@ pub fn verify_coordinate_arrays<F: BFloat>(
         if lower_vec.len() != length {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Inconsistent number of {}-coordinates", coord_names[dim]),
+                format!("Inconsistent number of {}-coordinates", dim),
             ));
         }
 
@@ -751,7 +753,7 @@ pub fn verify_coordinate_arrays<F: BFloat>(
                 io::ErrorKind::InvalidData,
                 format!(
                     "Insufficient number of {}-coordinates (must be at least 2)",
-                    coord_names[dim]
+                    dim
                 ),
             ));
         }
@@ -763,10 +765,7 @@ pub fn verify_coordinate_arrays<F: BFloat>(
         {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!(
-                    "Center {}-coordinates do not increase monotonically",
-                    coord_names[dim]
-                ),
+                format!("Center {}-coordinates do not increase monotonically", dim),
             ));
         }
 
@@ -779,7 +778,7 @@ pub fn verify_coordinate_arrays<F: BFloat>(
                 io::ErrorKind::InvalidData,
                 format!(
                     "Lower edge {}-coordinates do not increase monotonically",
-                    coord_names[dim]
+                    dim
                 ),
             ));
         }
@@ -813,10 +812,7 @@ pub fn verify_coordinate_arrays<F: BFloat>(
         if uniform_centers != uniform_lower_edges {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!(
-                    "Inconsistent uniformity of {}-coordinates",
-                    coord_names[dim]
-                ),
+                format!("Inconsistent uniformity of {}-coordinates", dim),
             ));
         }
 
@@ -831,7 +827,7 @@ pub fn verify_coordinate_arrays<F: BFloat>(
                 io::ErrorKind::InvalidData,
                 format!(
                     "Found grid cell where center {}-coordinate is not larger than lower edge coordinate",
-                    coord_names[dim]
+                    dim
                 ),
             ));
         }
