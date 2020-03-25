@@ -120,6 +120,9 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
         self.all_variable_names().contains(&variable_name)
     }
 
+    /// Returns the name and (if available) number of the snapshot.
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
+
     /// Updates the reader to reflect the current content of the files.
     fn reread(&mut self) -> io::Result<()>;
 
