@@ -4,13 +4,10 @@ use crate::{
     exit_on_error, exit_with_error,
     field::{quantities, ScalarField3},
     grid::Grid3,
-    io::{
-        snapshot::{self, fdt, native, ParameterValue, SnapshotReader3},
-        utils,
-    },
+    io::snapshot::{self, fdt, native, ParameterValue, SnapshotReader3},
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
-use std::{collections::HashMap, io, path::PathBuf, process, str::FromStr, sync::Arc};
+use std::{collections::HashMap, io, path::PathBuf, str::FromStr, sync::Arc};
 
 #[cfg(feature = "netcdf")]
 use crate::io::snapshot::netcdf;
@@ -148,64 +145,8 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     let continue_on_warnings = arguments.is_present("yes");
     let verbose = arguments.is_present("verbose").into();
 
-    let included_quantities = if let Some(included_quantities) = arguments
-        .values_of("included-quantities")
-        .map(|values| values.collect::<Vec<_>>())
-    {
-        included_quantities
-            .into_iter()
-            .filter(|name| {
-                let has_variable = reader.has_variable(name);
-                if !has_variable {
-                    eprintln!("Warning: Quantity {} not present in snapshot", name);
-                    if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
-                        process::exit(1);
-                    }
-                }
-                has_variable
-            })
-            .collect()
-    } else if let Some(excluded_quantities) = arguments
-        .values_of("excluded-quantities")
-        .map(|values| values.collect::<Vec<_>>())
-    {
-        reader.all_variable_names_except(&excluded_quantities)
-    } else {
-        reader.all_variable_names()
-    };
-
-    let derived_quantities: Vec<_> = arguments
-        .values_of("derived-quantities")
-        .map(|values| values.collect::<Vec<_>>())
-        .unwrap_or(Vec::new())
-        .into_iter()
-        .filter(|quantity_name| {
-            match quantities::find_missing_quantity_dependencies(reader, quantity_name) {
-                Some(missing_dependencies) => {
-                    if missing_dependencies.is_empty() {
-                        true
-                    } else {
-                        eprintln!(
-                            "Warning: Missing following dependencies for derived quantity {}: {}",
-                            quantity_name,
-                            missing_dependencies.join(", ")
-                        );
-                        if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
-                            process::exit(1);
-                        }
-                        false
-                    }
-                }
-                None => {
-                    eprintln!("Warning: Derived quantity {} not supported", quantity_name);
-                    if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
-                        process::exit(1);
-                    }
-                    false
-                }
-            }
-        })
-        .collect();
+    let (included_quantities, derived_quantities) =
+        super::parse_quantity_lists(arguments, reader, continue_on_warnings);
 
     if included_quantities.is_empty() && derived_quantities.is_empty() {
         exit_with_error!("Aborted: No quantities to write");
