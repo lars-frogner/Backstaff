@@ -95,21 +95,62 @@ This graph was created with the hidden `backstaff-command_graph` command, which 
 
 Printing some statistics for density and temperature in a snapshot could look like this:
 ```
-$ backstaff snapshot photo_tr_001.idl inspect statistics r,tg
+$ backstaff snapshot photo_tr_001.idl inspect --included-quantities=r,tg statistics --slice-depths=-1
 ```
 ```
-*************** Statistics for r ***************
-Number of values: 452984832
-Number of NaNs:   0
-Minimum value:    0.000000018624148 at [287, 212, 188] = (8.96875, 6.625, -5.801833)
-Maximum value:    323.4068 at [374, 144, 767] = (11.6875, 4.5, 2.513908)
-Average value:    13.808196
-*************** Statistics for tg ***************
-Number of values: 452984832
-Number of NaNs:   0
-Minimum value:    1998.7125 at [271, 619, 513] = (8.46875, 19.34375, -1.240245)
-Maximum value:    4552963 at [491, 479, 0] = (15.34375, 14.96875, -14.29715)
-Average value:    799067.2
+================================================================================
+           Statistics for r from snapshot 462 of cb24ni_ebeam_offline
+--------------------------------------------------------------------------------
+                         For all r, all x, all y, all z
+================================================================================
+Number of values:    452984832
+Minimum value:       1.8624148e-8 at (  8.969,   6.625,  -5.802) [287, 212, 188]
+Maximum value:       323.40679932 at ( 11.688,   4.500,   2.514) [374, 144, 767]
+Average value:       13.853664398
+5th percentile:      8.8137845e-8
+30th percentile:     1.6243816e-7
+50th percentile:     3.2699592e-7
+70th percentile:     0.0031316155
+95th percentile:     105.14699554
+--------------------------------------------------------------------------------
+                               In slice at z = -1
+--------------------------------------------------------------------------------
+Number of values:    589824
+Minimum value:       3.3142376e-7 at ( 18.969,  14.500,  -1.000) [607, 464, 532]
+Maximum value:       0.0221519507 at ( 17.719,  16.156,  -1.000) [567, 517, 532]
+Average value:       0.0026214391
+5th percentile:      3.2273060e-4
+30th percentile:     0.0013502331
+50th percentile:     0.0020803101
+70th percentile:     0.0030976003
+95th percentile:     0.0066802846
+================================================================================
+          Statistics for tg from snapshot 462 of cb24ni_ebeam_offline
+--------------------------------------------------------------------------------
+                        For all tg, all x, all y, all z
+================================================================================
+Number of values:    452984832
+Minimum value:       1998.7125244 at (  8.469,  19.344,  -1.240) [271, 619, 513]
+Maximum value:       4.55296300e6 at ( 15.344,  14.969, -14.297) [491, 479,   0]
+Average value:       9.67478562e5
+5th percentile:      2988.0380859
+30th percentile:     12443.400391
+50th percentile:     45016.046875
+70th percentile:     2.00756875e6
+95th percentile:     2.36561025e6
+--------------------------------------------------------------------------------
+                               In slice at z = -1
+--------------------------------------------------------------------------------
+Number of values:    589824
+Minimum value:       2003.6245117 at ( 14.156,   7.844,  -1.000) [453, 251, 532]
+Maximum value:       1.52222038e6 at ( 18.938,  14.906,  -1.000) [606, 477, 532]
+Average value:       5080.4008789
+5th percentile:      2319.4228516
+30th percentile:     2574.3144531
+50th percentile:     2911.8168945
+70th percentile:     3771.8098145
+95th percentile:     5850.3222656
+--------------------------------------------------------------------------------
 ```
 
 ### Tracing magnetic field lines
