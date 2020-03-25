@@ -135,6 +135,11 @@ where
         &self.values
     }
 
+    /// Returns a mutable reference to the 3D array of field values.
+    pub fn values_mut(&mut self) -> &mut Array3<F> {
+        &mut self.values
+    }
+
     /// Returns the field value at the given 3D index.
     pub fn value(&self, indices: &Idx3<usize>) -> F {
         self.values[[indices[X], indices[Y], indices[Z]]]
@@ -960,6 +965,12 @@ where
         self.components[dim].values()
     }
 
+    /// Returns a mutable reference to the 3D array of field values
+    /// for the specified component.
+    pub fn values_mut(&mut self, dim: Dim3) -> &mut Array3<F> {
+        self.components[dim].values_mut()
+    }
+
     /// Returns a reference to the 3D array of field values for each component.
     pub fn all_values(&self) -> In3D<&Array3<F>> {
         In3D::new(self.values(X), self.values(Y), self.values(Z))
@@ -1311,6 +1322,11 @@ where
         &self.values
     }
 
+    /// Returns a mutable reference to the 2D array of field values.
+    pub fn values_mut(&mut self) -> &mut Array2<F> {
+        &mut self.values
+    }
+
     /// Returns the field value at the given 2D index.
     pub fn value(&self, indices: &Idx2<usize>) -> F {
         self.values[[indices[Dim2::X], indices[Dim2::Y]]]
@@ -1477,6 +1493,11 @@ where
         self.components[dim].values()
     }
 
+    /// Returns a mutable reference to the 2D array of field values.
+    pub fn values_mut(&mut self, dim: Dim2) -> &mut Array2<F> {
+        self.components[dim].values_mut()
+    }
+
     /// Returns a reference to the 2D array of field values for each component.
     pub fn all_values(&self) -> In2D<&Array2<F>> {
         In2D::new(self.values(Dim2::X), self.values(Dim2::Y))
@@ -1587,6 +1608,12 @@ where
     /// specified component.
     pub fn values(&self, dim: Dim3) -> &Array2<F> {
         self.components[dim].values()
+    }
+
+    /// Returns a mutable reference to the 2D array of field values for the
+    /// specified component.
+    pub fn values_mut(&mut self, dim: Dim3) -> &mut Array2<F> {
+        self.components[dim].values_mut()
     }
 
     /// Returns a reference to the coordinate locations specifying

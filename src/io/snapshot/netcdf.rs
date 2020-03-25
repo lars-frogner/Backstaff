@@ -140,6 +140,10 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
             .collect()
     }
 
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+        super::extract_name_and_num_from_snapshot_path(self.config.file_path())
+    }
+
     fn reread(&mut self) -> io::Result<()> {
         let Self {
             file,

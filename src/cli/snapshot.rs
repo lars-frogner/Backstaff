@@ -10,8 +10,9 @@ use self::{
     slice::create_slice_subcommand, write::create_write_subcommand,
 };
 use crate::{
-    cli::utils,
+    cli::utils as cli_utils,
     create_subcommand, exit_on_error, exit_with_error,
+    field::quantities,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     io::{
         snapshot::{
@@ -19,13 +20,13 @@ use crate::{
             native::{
                 self, NativeSnapshotParameters, NativeSnapshotReader3, NativeSnapshotReaderConfig,
             },
-            SnapshotCacher3,
+            SnapshotCacher3, SnapshotReader3,
         },
-        Endianness,
+        utils as io_utils, Endianness,
     },
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::{collections::HashMap, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, path::PathBuf, process, str::FromStr};
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
@@ -230,7 +231,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
             let mut snapshot = SnapshotCacher3::new($reader);
 
             if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-                inspect::run_inspect_subcommand(inspect_arguments, &mut snapshot);
+                inspect::run_inspect_subcommand(inspect_arguments, snapshot.reader());
             }
             if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
                 slice::run_slice_subcommand(slice_arguments, &mut snapshot, $snap_num_offset);
@@ -293,7 +294,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
     let input_snap_paths_and_num_offsets = match arguments.values_of("snap-range") {
         Some(value_strings) => {
             let snap_num_range: Vec<u32> = value_strings
-                .map(|value_string| utils::parse_value_string("snap-range", value_string))
+                .map(|value_string| cli_utils::parse_value_string("snap-range", value_string))
                 .collect();
             exit_on_false!(
                 snap_num_range.len() == 2,
@@ -364,4 +365,77 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
         }
         invalid => exit_with_error!("Error: Invalid extension {} for input-file", invalid),
     }
+}
+
+fn parse_quantity_lists<'a, G, R>(
+    arguments: &'a ArgMatches,
+    reader: &'a R,
+    continue_on_warnings: bool,
+) -> (Vec<&'a str>, Vec<&'a str>)
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+{
+    let included_quantities = if let Some(included_quantities) = arguments
+        .values_of("included-quantities")
+        .map(|values| values.collect::<Vec<_>>())
+    {
+        included_quantities
+            .into_iter()
+            .filter(|name| {
+                let has_variable = reader.has_variable(name);
+                if !has_variable {
+                    eprintln!("Warning: Quantity {} not present in snapshot", name);
+                    if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
+                        process::exit(1);
+                    }
+                }
+                has_variable
+            })
+            .collect()
+    } else if let Some(excluded_quantities) = arguments
+        .values_of("excluded-quantities")
+        .map(|values| values.collect::<Vec<_>>())
+    {
+        reader.all_variable_names_except(&excluded_quantities)
+    } else {
+        reader.all_variable_names()
+    };
+
+    let derived_quantities: Vec<_> = arguments
+        .values_of("derived-quantities")
+        .map(|values| values.collect::<Vec<_>>())
+        .unwrap_or(Vec::new())
+        .into_iter()
+        .filter(|quantity_name| {
+            match quantities::find_missing_quantity_dependencies(reader, quantity_name) {
+                Some(missing_dependencies) => {
+                    if missing_dependencies.is_empty() {
+                        true
+                    } else {
+                        eprintln!(
+                            "Warning: Missing following dependencies for derived quantity {}: {}",
+                            quantity_name,
+                            missing_dependencies.join(", ")
+                        );
+                        if !continue_on_warnings
+                            && !io_utils::user_says_yes("Still continue?", true)
+                        {
+                            process::exit(1);
+                        }
+                        false
+                    }
+                }
+                None => {
+                    eprintln!("Warning: Derived quantity {} not supported", quantity_name);
+                    if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
+                        process::exit(1);
+                    }
+                    false
+                }
+            }
+        })
+        .collect();
+
+    (included_quantities, derived_quantities)
 }
