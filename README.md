@@ -84,7 +84,7 @@ SUBCOMMANDS:
     write       Write snapshot data to file
 ```
 
-Here is a graph of the command hierarchy available when the default features are enabled.
+Here is a graph of the command hierarchy available when all features are enabled.
 ![command_graph](figures/command_graph.png "Command graph")
 
 This graph was created with the hidden `backstaff-command_graph` command, which outputs the command hierarchy graph in DOT format for rendering with [Graphviz](https://www.graphviz.org/).
