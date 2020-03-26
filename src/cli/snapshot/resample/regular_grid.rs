@@ -42,9 +42,9 @@ pub fn create_regular_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("x-limits")
+            Arg::with_name("x-bounds")
                 .short("x")
-                .long("x-limits")
+                .long("x-bounds")
                 .require_equals(true)
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
@@ -56,9 +56,9 @@ pub fn create_regular_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("y-limits")
+            Arg::with_name("y-bounds")
                 .short("y")
-                .long("y-limits")
+                .long("y-bounds")
                 .require_equals(true)
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
@@ -70,9 +70,9 @@ pub fn create_regular_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("z-limits")
+            Arg::with_name("z-bounds")
                 .short("z")
-                .long("z-limits")
+                .long("z-bounds")
                 .require_equals(true)
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
@@ -128,42 +128,48 @@ pub fn run_resampling_for_regular_grid<G, R, I>(
         shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
         "Error: Grid size must be larger than zero in every dimension"
     );
-    let x_limits = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let x_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
         root_arguments,
-        "x-limits",
+        "x-bounds",
         &|| vec![original_lower_bounds[X], original_upper_bounds[X]],
     );
     exit_on_false!(
-        x_limits[1] > x_limits[0],
-        "Error: Upper limit for x must exceed lower limit"
+        x_bounds[1] > x_bounds[0],
+        "Error: Upper bound for x must exceed lower bound"
     );
-    let y_limits = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let y_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
         root_arguments,
-        "y-limits",
+        "y-bounds",
         &|| vec![original_lower_bounds[Y], original_upper_bounds[Y]],
     );
     exit_on_false!(
-        y_limits[1] > y_limits[0],
-        "Error: Upper limit for y must exceed lower limit"
+        y_bounds[1] > y_bounds[0],
+        "Error: Upper bound for y must exceed lower bound"
     );
-    let z_limits = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let z_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
         root_arguments,
-        "z-limits",
+        "z-bounds",
         &|| vec![original_lower_bounds[Z], original_upper_bounds[Z]],
     );
     exit_on_false!(
-        z_limits[1] > z_limits[0],
-        "Error: Upper limit for z must exceed lower limit"
+        z_bounds[1] > z_bounds[0],
+        "Error: Upper bound for z must exceed lower bound"
     );
-    let new_lower_bounds = Vec3::new(x_limits[0], y_limits[0], z_limits[0]);
-    let new_upper_bounds = Vec3::new(x_limits[1], y_limits[1], z_limits[1]);
-    let new_grid = Arc::new(RegularGrid3::from_bounds(
+    let new_lower_bounds = Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]);
+    let new_upper_bounds = Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]);
+    let mut new_grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),
         new_lower_bounds,
         new_upper_bounds,
         original_is_periodic,
-    ));
-    super::verify_bounds_for_new_grid(original_grid, new_grid.as_ref(), continue_on_warnings);
+    );
+    super::correct_periodicity_for_new_grid(
+        original_grid,
+        &mut new_grid,
+        continue_on_warnings,
+        is_verbose,
+    );
+    let new_grid = Arc::new(new_grid);
     super::resample_snapshot_for_grid(
         write_arguments,
         reader,

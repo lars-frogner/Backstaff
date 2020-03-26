@@ -17,7 +17,7 @@ use crate::{
     },
     create_subcommand, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
-    geometry::In3D,
+    geometry::{Dim3, In3D},
     grid::Grid3,
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
@@ -25,7 +25,7 @@ use crate::{
     },
     io::{
         snapshot::{fdt, SnapshotReader3},
-        utils as io_utils,
+        utils,
     },
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
@@ -209,44 +209,117 @@ fn run_with_selected_interpolator<G, R>(
     }
 }
 
-fn verify_bounds_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
+fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
     original_grid: &GIN,
-    new_grid: &GOUT,
+    new_grid: &mut GOUT,
     continue_on_warnings: bool,
+    is_verbose: bool,
 ) {
-    const BOUNDS_DIFF_THRESHOLD: fdt = 5e-3;
+    // A coordinate difference must exceed this fraction of a grid cell
+    // extent in order to be detected
+    const BOUND_DIFF_THRESHOLD_FACTOR: fdt = 0.1;
+
+    const WARNING_BOUND_DIFF_THRESHOLD_FACTOR: fdt = 10.0;
+
+    let average_grid_cell_extents = original_grid.average_grid_cell_extents();
 
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
     let new_lower_bounds = new_grid.lower_bounds();
     let new_upper_bounds = new_grid.upper_bounds();
 
-    let different_lower_bounds =
-        (new_lower_bounds - original_lower_bounds).abs().max() > BOUNDS_DIFF_THRESHOLD;
-    let different_upper_bounds =
-        (new_upper_bounds - original_upper_bounds).abs().max() > BOUNDS_DIFF_THRESHOLD;
-    let different_bounds = different_lower_bounds || different_upper_bounds;
-    if different_bounds {
-        eprintln!("Warning: Bounds of resampling grid differ from original grid bounds");
+    let mut is_periodic = In3D::same(false);
+
+    for &dim in &Dim3::slice() {
+        let average_grid_cell_extent = average_grid_cell_extents[dim];
+        let bound_diff_threshold = average_grid_cell_extent * BOUND_DIFF_THRESHOLD_FACTOR;
+        let warning_bound_diff_threshold =
+            average_grid_cell_extent * WARNING_BOUND_DIFF_THRESHOLD_FACTOR;
+
+        let original_lower_bound = original_lower_bounds[dim];
+        let original_upper_bound = original_upper_bounds[dim];
+        let new_lower_bound = new_lower_bounds[dim];
+        let new_upper_bound = new_upper_bounds[dim];
+
+        let lower_difference = original_lower_bound - new_lower_bound;
+        let upper_difference = new_upper_bound - original_upper_bound;
+
+        let abs_lower_difference = fdt::abs(lower_difference);
+        let abs_upper_difference = fdt::abs(upper_difference);
+
+        if original_grid.is_periodic(dim) {
+            let original_span = original_upper_bound - original_lower_bound;
+
+            if abs_lower_difference <= bound_diff_threshold
+                && abs_upper_difference <= bound_diff_threshold
+            {
+                is_periodic[dim] = true;
+            } else if upper_difference + bound_diff_threshold >= 0.0
+                && lower_difference + bound_diff_threshold >= 0.0
+            {
+                let lower_expansion_ratio = lower_difference / original_span;
+                let upper_expansion_ratio = upper_difference / original_span;
+                if fdt::abs(
+                    (lower_expansion_ratio - fdt::trunc(lower_expansion_ratio)) * original_span,
+                ) <= bound_diff_threshold
+                    && fdt::abs(
+                        (upper_expansion_ratio - fdt::trunc(upper_expansion_ratio)) * original_span,
+                    ) <= bound_diff_threshold
+                {
+                    is_periodic[dim] = true;
+                }
+            }
+            if !is_periodic[dim] {
+                let warning_triggered = (abs_lower_difference >= bound_diff_threshold
+                    && abs_lower_difference <= warning_bound_diff_threshold)
+                    || (abs_upper_difference >= bound_diff_threshold
+                        && abs_upper_difference <= warning_bound_diff_threshold);
+
+                if warning_triggered {
+                    eprintln!(
+                        "Warning: Field is no longer periodic in {}-direction after resampling\n\
+                         because new bounds differ slightly from original bounds:\n\
+                         Before resampling: [{}, {})\n\
+                         After resampling: [{}, {})",
+                        dim,
+                        original_lower_bound,
+                        original_upper_bound,
+                        new_lower_bound,
+                        new_upper_bound
+                    );
+                    if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
+                        process::exit(1);
+                    }
+                } else if is_verbose {
+                    println!(
+                        "Field is no longer periodic in {}-direction after resampling\n\
+                         because new bounds do not coincide with periodic boundaries:\n\
+                         Before resampling: [{}, {})\n\
+                         After resampling: [{}, {})",
+                        dim,
+                        original_lower_bound,
+                        original_upper_bound,
+                        new_lower_bound,
+                        new_upper_bound
+                    );
+                }
+            }
+        } else if new_upper_bound - bound_diff_threshold > original_upper_bound
+            || new_lower_bound + bound_diff_threshold < original_lower_bound
+        {
+            eprintln!(
+                "Warning: Extrapolating beyond {}-bounds of original field:\n\
+                 Before resampling: [{}, {})\n\
+                 After resampling: [{}, {})",
+                dim, original_lower_bound, original_upper_bound, new_lower_bound, new_upper_bound
+            );
+            if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
+                process::exit(1);
+            }
+        }
     }
-    if different_lower_bounds {
-        eprintln!(
-            "Lower bounds: {:?} (resampling) vs {:?} (original)",
-            new_lower_bounds, original_lower_bounds
-        );
-    }
-    if different_upper_bounds {
-        eprintln!(
-            "Upper bounds: {:?} (resampling) vs {:?} (original)",
-            new_upper_bounds, original_upper_bounds
-        );
-    }
-    if different_bounds
-        && !continue_on_warnings
-        && !io_utils::user_says_yes("Still continue?", true)
-    {
-        process::exit(1);
-    }
+
+    new_grid.set_periodicity(is_periodic);
 }
 
 fn resample_snapshot_for_grid<GIN, R, GOUT, I>(

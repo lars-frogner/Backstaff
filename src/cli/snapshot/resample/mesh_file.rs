@@ -84,18 +84,20 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
     );
     match detected_grid_type {
         GridType::Regular => {
-            let new_grid = Arc::new(RegularGrid3::from_coords(
+            let mut new_grid = RegularGrid3::from_coords(
                 center_coords,
                 lower_edge_coords,
                 original_is_periodic,
                 Some(up_derivatives),
                 Some(down_derivatives),
-            ));
-            super::verify_bounds_for_new_grid(
-                original_grid,
-                new_grid.as_ref(),
-                continue_on_warnings,
             );
+            super::correct_periodicity_for_new_grid(
+                original_grid,
+                &mut new_grid,
+                continue_on_warnings,
+                is_verbose,
+            );
+            let new_grid = Arc::new(new_grid);
             super::resample_snapshot_for_grid(
                 write_arguments,
                 reader,
@@ -108,18 +110,20 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
             );
         }
         GridType::HorRegular => {
-            let new_grid = Arc::new(HorRegularGrid3::from_coords(
+            let mut new_grid = HorRegularGrid3::from_coords(
                 center_coords,
                 lower_edge_coords,
                 original_is_periodic,
                 Some(up_derivatives),
                 Some(down_derivatives),
-            ));
-            super::verify_bounds_for_new_grid(
-                original_grid,
-                new_grid.as_ref(),
-                continue_on_warnings,
             );
+            super::correct_periodicity_for_new_grid(
+                original_grid,
+                &mut new_grid,
+                continue_on_warnings,
+                is_verbose,
+            );
+            let new_grid = Arc::new(new_grid);
             super::resample_snapshot_for_grid(
                 write_arguments,
                 reader,
