@@ -188,7 +188,7 @@ By enabling the `netcdf` feature, it is easy to convert snapshot data into the N
 ```
 $ backstaff \
     snapshot -v photo_tr_001.idl --snap-range=1,3 \
-    resample -v --shape=512,512,512 --sample-location=center weighted_sample_averaging \
+    resample -v --sample-location=center regular_grid --shape=512,512,512 \
     write -v --strip --included-quantities=r,tg photo_tr.nc
 ```
 ```
