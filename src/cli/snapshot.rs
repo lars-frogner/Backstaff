@@ -361,7 +361,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
             }
             #[cfg(not(feature = "netcdf"))]
             exit_with_error!("Error: Compile with netcdf feature in order to read NetCDF files\n\
-                              Tip: Use cargo flag --features=netcdf and make sure libnetcdf is available")
+                              Tip: Use cargo flag --features=netcdf and make sure the NetCDF library is available");
         }
         invalid => exit_with_error!("Error: Invalid extension {} for input-file", invalid),
     }
