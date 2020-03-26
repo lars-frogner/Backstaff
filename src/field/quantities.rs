@@ -15,16 +15,26 @@ use rayon::prelude::*;
 use std::{collections::HashMap, io};
 
 lazy_static! {
-    static ref DERIVED_QUANTITIES: HashMap<&'static str, (&'static str, Vec<&'static str>)> =
-        vec![(
+    static ref DERIVED_QUANTITIES: HashMap<&'static str, (&'static str, Vec<&'static str>)> = vec![
+        (
             "ubeam",
             (
-                "Volume integrated beam heating [energy/time in Bifrost units]",
+                "Volume integrated beam heating\n\
+                 [energy/time in Bifrost units]",
                 vec!["qbeam"]
             )
-        )]
-        .into_iter()
-        .collect();
+        ),
+        (
+            "log10_pos_qbeam",
+            (
+                "Log10 of beam heating, with negative and zero values set to NaN\n\
+                 [energy/time/volume in Bifrost units]",
+                vec!["qbeam"]
+            )
+        )
+    ]
+    .into_iter()
+    .collect();
 }
 
 /// Prints an overview of available quantities and their dependencies.
@@ -42,8 +52,11 @@ pub fn print_available_quantities() {
         .collect();
     lines.sort();
     println!(
-        "*************** Derivable quantities ***************\n{}",
-        lines.join("\n")
+        "============================= Derivable quantities =============================\n{}{}",
+        lines.join(
+            "\n--------------------------------------------------------------------------------\n"
+        ),
+        "\n--------------------------------------------------------------------------------"
     );
 }
 
@@ -85,6 +98,7 @@ where
     }
     let (values, locations) = match name {
         "ubeam" => compute_ubeam_values(reader),
+        "log10_pos_qbeam" => compute_log10_pos_qbeam_values(reader),
         invalid => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("Quantity {} not supported", invalid),
@@ -116,6 +130,27 @@ where
             let indices = field::compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
             *value *= grid.grid_cell_volume(&indices);
         });
+
+    Ok((values, In3D::same(CoordLocation::Center)))
+}
+
+fn compute_log10_pos_qbeam_values<G, R>(
+    reader: &R,
+) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+{
+    let mut values = reader.read_scalar_field("qbeam")?.into_values();
+    let values_buffer = values.as_slice_memory_order_mut().unwrap();
+
+    values_buffer.par_iter_mut().for_each(|value| {
+        *value = if *value <= 0.0 {
+            std::f32::NAN
+        } else {
+            fdt::log10(*value)
+        };
+    });
 
     Ok((values, In3D::same(CoordLocation::Center)))
 }
