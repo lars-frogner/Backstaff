@@ -15,6 +15,7 @@ use crate::{
         In3D,
     },
     grid::{CoordLocation, Grid3},
+    io_result,
     num::BFloat,
 };
 use ndarray::prelude::*;
@@ -28,12 +29,6 @@ use std::{
 
 pub use mesh::read_grid_data;
 pub use param::NetCDFSnapshotParameters;
-
-macro_rules! io_result {
-    ($result:expr) => {
-        $result.map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))
-    };
-}
 
 /// Configuration parameters for NetCDF snapshot reader.
 #[derive(Clone, Debug)]

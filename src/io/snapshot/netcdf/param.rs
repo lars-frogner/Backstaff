@@ -1,15 +1,9 @@
 //! Utilities for parameters in NetCDF format.
 
 use super::super::{super::Verbose, ParameterValue, SnapshotParameters};
-use crate::{geometry::In3D, io::snapshot::fdt};
+use crate::{geometry::In3D, io::snapshot::fdt, io_result};
 use netcdf_rs::{AttrValue, File, Group, GroupMut};
 use std::{collections::HashMap, io, path::PathBuf};
-
-macro_rules! io_result {
-    ($result:expr) => {
-        $result.map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))
-    };
-}
 
 #[derive(Clone, Debug)]
 /// Representation of parameters for NetCDF snapshots.

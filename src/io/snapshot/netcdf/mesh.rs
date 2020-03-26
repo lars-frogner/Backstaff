@@ -9,15 +9,10 @@ use crate::{
     },
     grid::{self, Grid3, GridType},
     io::snapshot::fdt,
+    io_result,
 };
 use netcdf_rs::{self, File, GroupMut};
 use std::{io, path::PathBuf};
-
-macro_rules! io_result {
-    ($result:expr) => {
-        $result.map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))
-    };
-}
 
 /// Tries to construct a grid from the data in the given NetCDF group.
 pub fn read_grid<G: Grid3<fdt>>(

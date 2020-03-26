@@ -12,6 +12,13 @@ use std::{
     path::Path,
 };
 
+#[macro_export]
+macro_rules! io_result {
+    ($result:expr) => {
+        $result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))
+    };
+}
+
 /// Prompts the user with a question and returns whether the answer was yes.
 ///
 /// The given default answer is assumed if the user simply presses `return`.
