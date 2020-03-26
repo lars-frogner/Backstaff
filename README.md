@@ -197,6 +197,9 @@ $ backstaff \
     write -v --strip --included-quantities=r,tg photo_tr.nc
 ```
 ```
+Reading parameters from photo_tr_001.idl
+Reading grid from photo_tr.mesh
+Detected horizontally regular grid
 Writing grid to photo_tr_001.nc
 Reading r from photo_tr_001.snap
 Resampling r
@@ -205,6 +208,9 @@ Reading tg from photo_tr_001.aux
 Resampling tg
 Writing tg to photo_tr_001.nc
 ...
+Reading parameters from photo_tr_003.idl
+Reading grid from photo_tr.mesh
+Detected horizontally regular grid
 Writing grid to photo_tr_003.nc
 Reading r from photo_tr_003.snap
 Resampling r
