@@ -15,6 +15,23 @@ use std::{
     sync::Mutex,
 };
 
+pub const CONFIG_COMMANDS: [&'static str; 14] = [
+    "weighted_sample_averaging",
+    "weighted_cell_averaging",
+    "direct_sampling",
+    "poly_fit_interpolator",
+    "basic_field_line_tracer",
+    "slice_seeder",
+    "manual_seeder",
+    "rkf_stepper",
+    "power_law_distribution",
+    "manual_detector",
+    "simple_detector",
+    "simple_power_law_accelerator",
+    "manual_reconnection_site_detector",
+    "simple_reconnection_site_detector",
+];
+
 /// Builds a representation of the `command_graph` command line subcommand.
 pub fn create_command_graph_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("command_graph")
@@ -30,6 +47,11 @@ pub fn create_command_graph_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .help("Path of the output DOT file to produce.")
                 .takes_value(true)
                 .default_value("command_graph.gv"),
+        )
+        .arg(
+            Arg::with_name("include-configuration")
+                .long("include-configuration")
+                .help("Include optional configuration commands"),
         )
         .arg(
             Arg::with_name("overwrite")
@@ -50,14 +72,20 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches) {
         "Error: Could not interpret path to output file: {}"
     );
 
+    let include_configuration = arguments.is_present("include-configuration");
     let force_overwrite = arguments.is_present("overwrite");
+
+    let mut command_graph = COMMAND_GRAPH.lock().unwrap().clone();
+
+    if !include_configuration {
+        command_graph.retain_edges(|graph, edge_index| !graph.edge_weight(edge_index).unwrap());
+        command_graph
+            .retain_nodes(|graph, node_index| graph.neighbors_undirected(node_index).count() > 0);
+    };
 
     let dot_text = format!(
         "{}",
-        Dot::with_config(
-            &COMMAND_GRAPH.lock().unwrap().clone(),
-            &[Config::EdgeNoLabel]
-        )
+        Dot::with_config(&command_graph, &[Config::EdgeNoLabel])
     );
     exit_on_error!(
         utils::write_text_file(&dot_text, output_file_path, force_overwrite),
@@ -68,15 +96,16 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches) {
 lazy_static! {
     static ref COMMAND_NODES: Mutex<HashMap<&'static str, NodeIndex<u32>>> =
         Mutex::new(HashMap::new());
-    static ref COMMAND_GRAPH: Mutex<Graph<&'static str, f32, Directed>> = Mutex::new(Graph::new());
+    static ref COMMAND_GRAPH: Mutex<Graph<&'static str, bool, Directed>> = Mutex::new(Graph::new());
 }
 
 /// Adds a parent-child command relationship to the global command graph.
 pub fn insert_command_graph_edge(
     parent_command_name: &'static str,
     child_command_name: &'static str,
-    weight: f32,
 ) {
+    let is_config = CONFIG_COMMANDS.contains(&parent_command_name)
+        || CONFIG_COMMANDS.contains(&child_command_name);
     let parent_index = *COMMAND_NODES
         .lock()
         .unwrap()
@@ -90,5 +119,5 @@ pub fn insert_command_graph_edge(
     COMMAND_GRAPH
         .lock()
         .unwrap()
-        .add_edge(parent_index, child_index, weight);
+        .add_edge(parent_index, child_index, is_config);
 }

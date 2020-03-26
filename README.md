@@ -84,7 +84,7 @@ SUBCOMMANDS:
     write       Write snapshot data to file
 ```
 
-Here is a graph of the command hierarchy available when the default features are enabled.
+Here is a graph of the command hierarchy available when all features are enabled.
 ![command_graph](figures/command_graph.png "Command graph")
 
 This graph was created with the hidden `backstaff-command_graph` command, which outputs the command hierarchy graph in DOT format for rendering with [Graphviz](https://www.graphviz.org/).
@@ -188,7 +188,7 @@ By enabling the `netcdf` feature, it is easy to convert snapshot data into the N
 ```
 $ backstaff \
     snapshot -v photo_tr_001.idl --snap-range=1,3 \
-    resample -v --shape=512,512,512 --sample-location=center weighted_sample_averaging \
+    resample -v --sample-location=center regular_grid --shape=512,512,512 \
     write -v --strip --included-quantities=r,tg photo_tr.nc
 ```
 ```

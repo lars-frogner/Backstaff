@@ -56,9 +56,8 @@ pub fn create_inspect_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .multiple(true),
         )
         .arg(
-            Arg::with_name("yes")
-                .short("y")
-                .long("yes")
+            Arg::with_name("ignore-warnings")
+                .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
         )
         .arg(
@@ -76,7 +75,7 @@ where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
 {
-    let continue_on_warnings = arguments.is_present("yes");
+    let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
     let (included_quantities, derived_quantities) =

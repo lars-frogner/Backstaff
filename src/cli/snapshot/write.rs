@@ -78,9 +78,8 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .multiple(true),
         )
         .arg(
-            Arg::with_name("yes")
-                .short("y")
-                .long("yes")
+            Arg::with_name("ignore-warnings")
+                .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
         )
         .arg(
@@ -142,7 +141,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     }
 
     let force_overwrite = arguments.is_present("overwrite");
-    let continue_on_warnings = arguments.is_present("yes");
+    let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
     let (included_quantities, derived_quantities) =

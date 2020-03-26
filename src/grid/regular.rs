@@ -204,7 +204,9 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     fn extents(&self) -> &Vec3<F> {
         &self.extents
     }
-
+    fn set_periodicity(&mut self, is_periodic: In3D<bool>) {
+        self.is_periodic = is_periodic;
+    }
     fn average_grid_cell_extents(&self) -> Vec3<F> {
         self.cell_extents().clone()
     }
