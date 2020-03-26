@@ -88,20 +88,16 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("output-file")
                 .value_name("OUTPUT_FILE")
-                .help("Path of the file where the beam data should be saved")
+                .help(
+                    "Path of the file where the beam data should be saved\n\
+                       Writes in the following format based on the file extension:\
+                       \n    *.fl: Creates a binary file readable by the backstaff Python package\
+                       \n    *.pickle: Creates a Python pickle file\
+                       \n    *.json: Creates a JSON file\
+                       \n    *.h5part: Creates a H5Part file (requires the hdf5 feature)",
+                )
                 .required(true)
                 .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("output-format")
-                .short("f")
-                .long("output-format")
-                .require_equals(true)
-                .value_name("FORMAT")
-                .help("Format to use for saving beam data\n")
-                .takes_value(true)
-                .possible_values(&["fl", "pickle", "json"])
-                .default_value("fl"),
         )
         .arg(
             Arg::with_name("overwrite")
@@ -515,23 +511,20 @@ where G: Grid3<fdt>,
     if root_arguments.is_present("print-parameter-values") {
         println!("{:#?}\nstepper_type: {:?}", stepper_config, stepper_type);
     }
-
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
             root_arguments
                 .value_of("output-file")
-                .expect("No value for required argument."),
+                .expect("Required argument not present."),
         ),
         "Error: Could not interpret path to output file: {}"
     );
 
-    let output_format = root_arguments
-        .value_of("output-format")
-        .expect("No value for argument with default.");
-
-    if output_file_path.extension().is_none() {
-        output_file_path.set_extension(output_format);
-    }
+    let output_extension = output_file_path
+        .extension()
+        .unwrap_or_else(|| exit_with_error!("Error: Missing extension for output-file"))
+        .to_string_lossy()
+        .to_string();
 
     if let Some(snap_num_offset) = snap_num_offset {
         let (output_base_name, output_existing_num) =
@@ -540,7 +533,7 @@ where G: Grid3<fdt>,
         output_file_path.set_file_name(snapshot::create_snapshot_file_name(
             &output_base_name,
             output_existing_num + snap_num_offset,
-            output_format,
+            &output_extension,
         ));
     }
 
@@ -600,7 +593,7 @@ where G: Grid3<fdt>,
     snapshot.drop_all_fields();
     perform_post_simulation_actions(
         root_arguments,
-        output_format,
+        &output_extension,
         output_file_path,
         snapshot,
         interpolator,
@@ -610,7 +603,7 @@ where G: Grid3<fdt>,
 
 fn perform_post_simulation_actions<G, R, A, I>(
     root_arguments: &ArgMatches,
-    output_format: &str,
+    output_extension: &str,
     output_file_path: PathBuf,
     snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: I,
@@ -687,11 +680,20 @@ fn perform_post_simulation_actions<G, R, A, I>(
     }
 
     exit_on_error!(
-        match output_format {
+        match output_extension {
+            "fl" => beams.save_into_custom_binary(output_file_path),
             "pickle" => beams.save_as_combined_pickles(output_file_path),
             "json" => beams.save_as_json(output_file_path),
-            "fl" => beams.into_custom_binary_file(output_file_path),
-            invalid => exit_with_error!("Error: Invalid output format {}.", invalid),
+            "h5part" => {
+                #[cfg(feature = "hdf5")]
+                {
+                    beams.save_as_h5part(output_file_path)
+                }
+                #[cfg(not(feature = "hdf5"))]
+                exit_with_error!("Error: Compile with hdf5 feature in order to write H5Part files\n\
+                                  Tip: Use cargo flag --features=hdf5 and make sure the HDF5 library is available");
+            }
+            invalid => exit_with_error!("Error: Invalid extension {} for output-file", invalid),
         },
         "Error: Could not save output data: {}"
     );

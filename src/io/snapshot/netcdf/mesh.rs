@@ -1,6 +1,6 @@
 //! Utilities for mesh data in NetCDF format.
 
-use super::super::super::Endianness;
+use super::super::super::{Endianness, Verbose};
 use crate::{
     geometry::{
         Coords3,
@@ -9,20 +9,16 @@ use crate::{
     },
     grid::{self, Grid3, GridType},
     io::snapshot::fdt,
+    io_result,
 };
-use netcdf_rs::{self, Group, GroupMut};
-use std::io;
-
-macro_rules! io_result {
-    ($result:expr) => {
-        $result.map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))
-    };
-}
+use netcdf_rs::{self, File, GroupMut};
+use std::{io, path::PathBuf};
 
 /// Tries to construct a grid from the data in the given NetCDF group.
 pub fn read_grid<G: Grid3<fdt>>(
-    group: &Group,
+    file: &File,
     is_periodic: In3D<bool>,
+    verbose: Verbose,
 ) -> io::Result<(G, Endianness)> {
     let (
         detected_grid_type,
@@ -31,7 +27,7 @@ pub fn read_grid<G: Grid3<fdt>>(
         up_derivatives,
         down_derivatives,
         endianness,
-    ) = read_grid_data(group)?;
+    ) = read_grid_data(file, verbose)?;
 
     if detected_grid_type != G::TYPE {
         return Err(io::Error::new(
@@ -54,7 +50,8 @@ pub fn read_grid<G: Grid3<fdt>>(
 
 /// Reads the data required to construct a grid from the given NetCDF group.
 pub fn read_grid_data(
-    group: &Group,
+    file: &File,
+    verbose: Verbose,
 ) -> io::Result<(
     GridType,
     Coords3<fdt>,
@@ -63,6 +60,16 @@ pub fn read_grid_data(
     Option<Coords3<fdt>>,
     Endianness,
 )> {
+    if verbose.is_yes() {
+        println!(
+            "Reading grid from {}",
+            PathBuf::from(file.path().unwrap())
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+        );
+    }
+    let group = &file.root().unwrap();
     let (xm, endianness) = super::read_snapshot_1d_variable::<fdt>(group, "xm")?;
     let ym = match super::read_snapshot_1d_variable::<fdt>(group, "ym")? {
         (ym, e) if e == endianness => Ok(ym),
@@ -103,7 +110,8 @@ pub fn read_grid_data(
     let center_coords = Coords3::new(xm, ym, zm);
     let lower_coords = Coords3::new(xmdn, ymdn, zmdn);
 
-    let detected_grid_type = grid::verify_coordinate_arrays(&center_coords, &lower_coords)?;
+    let detected_grid_type =
+        grid::verify_coordinate_arrays(&center_coords, &lower_coords, verbose.is_yes())?;
 
     let derivative_count = group
         .variables()

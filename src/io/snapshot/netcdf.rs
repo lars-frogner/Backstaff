@@ -15,6 +15,7 @@ use crate::{
         In3D,
     },
     grid::{CoordLocation, Grid3},
+    io_result,
     num::BFloat,
 };
 use ndarray::prelude::*;
@@ -28,12 +29,6 @@ use std::{
 
 pub use mesh::read_grid_data;
 pub use param::NetCDFSnapshotParameters;
-
-macro_rules! io_result {
-    ($result:expr) => {
-        $result.map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))
-    };
-}
 
 /// Configuration parameters for NetCDF snapshot reader.
 #[derive(Clone, Debug)]
@@ -61,10 +56,10 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
     pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
         let file = open_file(&config.file_path)?;
 
-        let parameters = NetCDFSnapshotParameters::new(&file)?;
+        let parameters = NetCDFSnapshotParameters::new(&file, config.verbose())?;
 
         let is_periodic = parameters.determine_grid_periodicity()?;
-        let (grid, endianness) = mesh::read_grid::<G>(&file.root().unwrap(), is_periodic)?;
+        let (grid, endianness) = mesh::read_grid::<G>(&file, is_periodic, config.verbose())?;
 
         Ok(Self::new_from_parameters_and_grid(
             config, file, parameters, grid, endianness,
@@ -203,6 +198,10 @@ impl NetCDFSnapshotReaderConfig {
             file_path: file_path.as_ref().to_path_buf(),
             verbose,
         }
+    }
+
+    pub fn verbose(&self) -> Verbose {
+        self.verbose
     }
 
     pub fn file_path(&self) -> &Path {
@@ -475,6 +474,7 @@ fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<F>>(
 
 /// Creates a new NetCDF file at the given path.
 pub fn create_file<P: AsRef<Path>>(path: P) -> io::Result<MutableFile> {
+    utils::create_directory_if_missing(&path)?;
     let file = io_result!(nc::create(path))?;
     Ok(file)
 }

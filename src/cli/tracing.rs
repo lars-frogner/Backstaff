@@ -64,20 +64,16 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("output-file")
                 .value_name("OUTPUT_FILE")
-                .help("Path where the field line data should be saved")
+                .help(
+                    "Path of the file where the field line data should be saved\n\
+                       Writes in the following format based on the file extension:\
+                       \n    *.fl: Creates a binary file readable by the backstaff Python package\
+                       \n    *.pickle: Creates a Python pickle file\
+                       \n    *.json: Creates a JSON file\
+                       \n    *.h5part: Creates a H5Part file (requires the hdf5 feature)",
+                )
                 .required(true)
                 .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("output-format")
-                .short("f")
-                .long("output-format")
-                .require_equals(true)
-                .value_name("FORMAT")
-                .help("Format to use for saving field line data\n")
-                .takes_value(true)
-                .possible_values(&["fl", "pickle", "json"])
-                .default_value("fl"),
         )
         .arg(
             Arg::with_name("overwrite")
@@ -95,28 +91,22 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("b"),
         )
         .arg(
-            Arg::with_name("extra-fixed-scalars")
-                .long("extra-fixed-scalars")
+            Arg::with_name("extracted-quantities")
+                .long("extracted-quantities")
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .help(
-                    "List of scalar fields to extract at seed positions\n \
-                     (comma-separated)",
-                )
+                .help("List of quantities to extract along field line paths (comma-separated)")
                 .takes_value(true)
                 .multiple(true),
         )
         .arg(
-            Arg::with_name("extra-varying-scalars")
-                .long("extra-varying-scalars")
+            Arg::with_name("extracted-seed-quantities")
+                .long("extracted-seed-quantities")
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .help(
-                    "List of scalar fields to extract along field line paths\n \
-                     (comma-separated)",
-                )
+                .help("List of quantities to extract at seed positions (comma-separated)")
                 .takes_value(true)
                 .multiple(true),
         )
@@ -130,7 +120,8 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("print-parameter-values")
                 .short("p")
                 .long("print-parameter-values")
-                .help("Prints the values of all the parameters that will be used"),
+                .help("Prints the values of all the parameters that will be used")
+                .hidden(true),
         );
 
     app.setting(AppSettings::SubcommandRequired)
@@ -387,18 +378,16 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         PathBuf::from_str(
             root_arguments
                 .value_of("output-file")
-                .expect("No value for required argument."),
+                .expect("Required argument not present."),
         ),
         "Error: Could not interpret path to output file: {}"
     );
 
-    let output_format = root_arguments
-        .value_of("output-format")
-        .expect("No value for argument with default.");
-
-    if output_file_path.extension().is_none() {
-        output_file_path.set_extension(output_format);
-    }
+    let output_extension = output_file_path
+        .extension()
+        .unwrap_or_else(|| exit_with_error!("Error: Missing extension for output-file"))
+        .to_string_lossy()
+        .to_string();
 
     if let Some(snap_num_offset) = snap_num_offset {
         let (output_base_name, output_existing_num) =
@@ -407,7 +396,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         output_file_path.set_file_name(snapshot::create_snapshot_file_name(
             &output_base_name,
             output_existing_num + snap_num_offset,
-            output_format,
+            &output_extension,
         ));
     }
 
@@ -438,7 +427,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
     snapshot.drop_all_fields();
     perform_post_tracing_actions(
         root_arguments,
-        output_format,
+        &output_extension,
         output_file_path,
         snapshot,
         interpolator,
@@ -448,7 +437,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
 
 fn perform_post_tracing_actions<G, R, I>(
     root_arguments: &ArgMatches,
-    output_format: &str,
+    output_extension: &str,
     output_file_path: PathBuf,
     snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: I,
@@ -459,7 +448,7 @@ fn perform_post_tracing_actions<G, R, I>(
     I: Interpolator3,
 {
     if let Some(extra_fixed_scalars) = root_arguments
-        .values_of("extra-fixed-scalars")
+        .values_of("extracted-seed-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_fixed_scalars {
@@ -475,7 +464,7 @@ fn perform_post_tracing_actions<G, R, I>(
         }
     }
     if let Some(extra_varying_scalars) = root_arguments
-        .values_of("extra-varying-scalars")
+        .values_of("extracted-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
@@ -492,11 +481,20 @@ fn perform_post_tracing_actions<G, R, I>(
     }
 
     exit_on_error!(
-        match output_format {
+        match output_extension {
+            "fl" => field_lines.save_into_custom_binary(output_file_path),
             "pickle" => field_lines.save_as_combined_pickles(output_file_path),
             "json" => field_lines.save_as_json(output_file_path),
-            "fl" => field_lines.save_into_custom_binary(output_file_path),
-            invalid => exit_with_error!("Error: Invalid output format {}.", invalid),
+            "h5part" => {
+                #[cfg(feature = "hdf5")]
+                {
+                    field_lines.save_as_h5part(output_file_path)
+                }
+                #[cfg(not(feature = "hdf5"))]
+                exit_with_error!("Error: Compile with hdf5 feature in order to write H5Part files\n\
+                                  Tip: Use cargo flag --features=hdf5 and make sure the HDF5 library is available");
+            }
+            invalid => exit_with_error!("Error: Invalid extension {} for output-file", invalid),
         },
         "Error: Could not save output data: {}"
     );

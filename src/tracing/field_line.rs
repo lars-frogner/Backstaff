@@ -25,6 +25,11 @@ use serde::{
 };
 use std::{collections::HashMap, fs, io, mem, path::Path};
 
+#[cfg(feature = "hdf5")]
+use crate::io_result;
+#[cfg(feature = "hdf5")]
+use hdf5_rs as hdf5;
+
 type FieldLinePath3 = (Vec<ftr>, Vec<ftr>, Vec<ftr>);
 type FixedScalarValues = HashMap<String, Vec<ftr>>;
 type FixedVector3Values = HashMap<String, Vec<Vec3<ftr>>>;
@@ -428,7 +433,7 @@ impl FieldLineSet3 {
                 output_file_path.as_ref().display()
             );
         }
-        let mut file = fs::File::create(output_file_path)?;
+        let mut file = utils::create_file_and_required_directories(output_file_path)?;
         self.write_as_combined_pickles(&mut file)
     }
 
@@ -440,7 +445,6 @@ impl FieldLineSet3 {
             &self.upper_bounds,
             self.properties.clone(),
         )
-        .map(|_| ())
     }
 
     /// Serializes the field line data into a custom binary format and saves at the given path.
@@ -448,7 +452,11 @@ impl FieldLineSet3 {
         if self.verbose.is_yes() {
             println!(
                 "Saving field lines in {}",
-                output_file_path.as_ref().display()
+                output_file_path
+                    .as_ref()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
             );
         }
         save_field_line_data_as_custom_binary(
@@ -460,6 +468,22 @@ impl FieldLineSet3 {
         .map(|_| ())
     }
 
+    /// Serializes the field line data into a H5Part format and saves to the given path.
+    #[cfg(feature = "hdf5")]
+    pub fn save_as_h5part<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+        if self.verbose.is_yes() {
+            println!(
+                "Saving field lines in {}",
+                output_file_path
+                    .as_ref()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+            );
+        }
+        save_field_line_data_as_h5part(output_file_path, self.properties.clone())
+    }
+
     /// Serializes the field line data into a custom binary format and writes to the given writer,
     /// consuming the field line set in the process.
     pub fn write_into_custom_binary<W: io::Write>(self, writer: &mut W) -> io::Result<()> {
@@ -469,7 +493,6 @@ impl FieldLineSet3 {
             &self.upper_bounds,
             self.properties,
         )
-        .map(|_| ())
     }
 
     /// Serializes the field line data into a custom binary format and saves at the given path,
@@ -478,7 +501,11 @@ impl FieldLineSet3 {
         if self.verbose.is_yes() {
             println!(
                 "Saving field lines in {}",
-                output_file_path.as_ref().display()
+                output_file_path
+                    .as_ref()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
             );
         }
         save_field_line_data_as_custom_binary(
@@ -488,6 +515,23 @@ impl FieldLineSet3 {
             self.properties,
         )
         .map(|_| ())
+    }
+
+    /// Serializes the field line data into a H5Part format and saves to the given path,
+    /// consuming the field line set in the process.
+    #[cfg(feature = "hdf5")]
+    pub fn save_into_h5part<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
+        if self.verbose.is_yes() {
+            println!(
+                "Saving field lines in {}",
+                output_file_path
+                    .as_ref()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+            );
+        }
+        save_field_line_data_as_h5part(output_file_path, self.properties)
     }
 }
 
@@ -531,7 +575,7 @@ pub fn save_field_line_data_as_custom_binary<P: AsRef<Path>>(
     upper_bounds: &Vec3<ftr>,
     properties: FieldLineSetProperties3,
 ) -> io::Result<fs::File> {
-    let mut file = fs::File::create(output_file_path)?;
+    let mut file = utils::create_file_and_required_directories(output_file_path)?;
     write_field_line_data_as_custom_binary(&mut file, lower_bounds, upper_bounds, properties)?;
     Ok(file)
 }
@@ -833,6 +877,73 @@ pub fn write_field_line_data_as_custom_binary<W: io::Write>(
         );
         mem::drop(flat_varying_vector_values);
         writer.write_all(&byte_buffer[..byte_offset])?;
+    }
+
+    Ok(())
+}
+
+/// Saves the given field line data as a H5Part file at the given path.
+#[cfg(feature = "hdf5")]
+pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
+    file_path: P,
+    properties: FieldLineSetProperties3,
+) -> io::Result<()> {
+    let FieldLineSetProperties3 {
+        number_of_field_lines,
+        fixed_scalar_values,
+        varying_scalar_values,
+        ..
+    } = properties;
+
+    if number_of_field_lines == 0 {
+        eprintln!("Warning: No data to write to H5Part file");
+        return Ok(());
+    }
+
+    let number_of_fixed_scalar_quantities = fixed_scalar_values.len();
+    let number_of_varying_scalar_quantities = varying_scalar_values.len();
+
+    if number_of_fixed_scalar_quantities == 0 && number_of_varying_scalar_quantities == 0 {
+        eprintln!("Warning: No data to write to H5Part file");
+        return Ok(());
+    }
+
+    utils::create_directory_if_missing(&file_path)?;
+    let group = io_result!(io_result!(hdf5::File::create(file_path))?.create_group("Step#0"))?;
+
+    if number_of_fixed_scalar_quantities > 0 {
+        for (name, values) in fixed_scalar_values {
+            let dataset = io_result!(group
+                .new_dataset::<ftr>()
+                .create(&name, number_of_field_lines))?;
+            io_result!(dataset.write_raw(&values))?;
+        }
+    }
+
+    if number_of_varying_scalar_quantities > 0 {
+        let number_of_field_line_elements: usize = varying_scalar_values
+            .iter()
+            .next()
+            .unwrap()
+            .1
+            .iter()
+            .map(|vec| vec.len())
+            .sum();
+
+        if number_of_field_line_elements > 0 {
+            let mut concatenated_values = Vec::with_capacity(number_of_field_line_elements);
+
+            for (name, values) in varying_scalar_values {
+                for vec in values {
+                    concatenated_values.extend(vec.into_iter());
+                }
+                let dataset = io_result!(group
+                    .new_dataset::<ftr>()
+                    .create(&name, number_of_field_line_elements))?;
+                io_result!(dataset.write_raw(&concatenated_values))?;
+                concatenated_values.clear();
+            }
+        }
     }
 
     Ok(())

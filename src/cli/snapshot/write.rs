@@ -196,7 +196,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                 }
                 #[cfg(not(feature = "netcdf"))]
                 exit_with_error!("Error: Compile with netcdf feature in order to write NetCDF files\n\
-                                  Tip: Use cargo flag --features=netcdf and make sure libnetcdf is available");
+                                  Tip: Use cargo flag --features=netcdf and make sure the NetCDF library is available");
             }
             invalid => exit_with_error!("Error: Invalid extension {} for output-file", invalid),
         },

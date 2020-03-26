@@ -12,9 +12,11 @@ Rust is highly suited for this project, for a number of reasons. It is a low-lev
 
 ## Prerequesites
 
-You need to have the Rust toolchain installed in order to build the binaries. Installation instructions can be found at https://www.rust-lang.org/tools/install.
+You need to have the Rust toolchain installed in order to build the binaries. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
 
-If you want to work with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found at https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html.
+If you want to work with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found [here](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html).
+
+Similarly, support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format requires the `HDF5` library, which can be obtained [here](https://www.hdfgroup.org/downloads/hdf5/).
 
 ## Installation
 
@@ -26,7 +28,17 @@ $ cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
 By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root=<DIR>`.
 
-**_NOTE:_** Compilation can be quite slow because some of the code relies heavily on macros, which are time consuming to compile. If this is an issue, compilation can be sped up by adding the `--branch=const-generics-interp`, which installs a branch using the experimental [Const generics](https://github.com/rust-lang/rfcs/blob/master/text/2000-const-generics.md) Rust functionality to avoid macros. However, this requires that you activate the nightly Rust compiler by running `rustup default nightly` prior to `cargo install`. Revert to the stable compiler afterwards by running `rustup default stable`.
+If installing with the `netcdf` feature (see the [Features](#features) section), you may have to inform the linker about the path to the external NetCDF library. This is easily done through the `RUSTFLAGS` environment variable:
+```
+$ RUSTFLAGS='-L/path/to/netcdf/lib' cargo install ...
+```
+
+For the `hdf5` feature, the `HDF5_DIR` environment variable can if necessary be used to tell the build system where the root folder (not the `lib` subdirectory) of the external HDF5 library is located:
+```
+$ HDF5_DIR=/path/to/hdf5 cargo install ...
+```
+
+**_NOTE:_** Compilation can be quite slow because the interpolation code relies heavily on macros, which are time consuming to compile. If this is an issue, compilation can be sped up by adding the `--branch=const-generics-interp`, which installs a branch using the experimental [Const generics](https://github.com/rust-lang/rfcs/blob/master/text/2000-const-generics.md) Rust functionality to avoid macros. However, this requires that you activate the nightly Rust compiler by running `rustup default nightly` prior to `cargo install`. Revert to the stable compiler afterwards by running `rustup default stable`.
 
 ### Compiling from source
 
@@ -34,17 +46,14 @@ You can compile the code in this repository using the `cargo build` command. Mak
 
 ## Features
 
-The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` flag to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,netcdf`. The `--no-default-features` flag can be used to disable the default features.
+The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` flag to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be use to include all features.
 
 Currently the available features are:
 * `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
+* `netcdf`: Support for reading and writing snapshot data in the [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) format (using the [CF conventions](http://cfconventions.org/)).
 * `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
+* `hdf5`: Support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, in particular for writing field line data using the [H5Part](https://dav.lbl.gov/archive/Research/AcceleratorSAPP/) conventions.
 * `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI. Requires `tracing`.
-* `netcdf`: Support for reading and writing simulation data in the [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) format (using the [CF conventions](http://cfconventions.org/)).
-
-## API documentation
-
-The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` flag in order for them to be included in the documentation.
 
 ## Using the command line program
 
@@ -88,6 +97,10 @@ Here is a graph of the command hierarchy available when all features are enabled
 ![command_graph](figures/command_graph.png "Command graph")
 
 This graph was created with the hidden `backstaff-command_graph` command, which outputs the command hierarchy graph in DOT format for rendering with [Graphviz](https://www.graphviz.org/).
+
+## API documentation
+
+The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` flag in order for them to be included in the documentation.
 
 ## Examples
 
@@ -155,11 +168,11 @@ Average value:       5080.4008789
 
 ### Tracing magnetic field lines
 
-Here is a more complicated example where we trace a set of magnetic field lines from 100x100 regularly spaced locations in the upper chromosphere:
+The following command traces a set of magnetic field lines from 100x100 regularly spaced locations in the upper chromosphere, and extract the mass density and temperature along the field lines:
 ```
 $ backstaff --timing \
     snapshot photo_tr_001.idl \
-    trace --verbose field_lines.fl \
+    trace --verbose --extracted-quantities=r,tg field_lines.h5part \
         basic_tracer --max-length=100.0 \
         slice_seeder --axis=z --coord=-2.0 \
             regular --shape=100,100
@@ -167,20 +180,16 @@ $ backstaff --timing \
 ```
 Found 10000 start positions
 Successfully traced 10000 field lines
-Saving field lines in field_lines.fl
-Elapsed time: 12.731385333 s
-```
-**_NOTE:_** The program has to be built with the `--features=tracing` option in order for the `trace` command to become available.
-
-Using the `backstaff` Python package included in this repository, we can easily read and visualize the field line data:
-```python
-import backstaff.field_lines as field_lines
-field_line_set = field_lines.FieldLineSet3.from_file('field_lines.fl')
-field_lines.plot_field_lines(field_line_set, alpha=0.01, output_path='field_lines.png')
+Extracting r along field line paths
+Extracting tg along field line paths
+Saving field lines in field_lines.h5part
+Elapsed time: 18.861097286 s
 ```
 
-This is the resulting figure:
+Here the field line data was saved in a H5Part file, which enables easy visualization with tools like [ParaView](https://www.paraview.org/). Here is a visualization of the density along the field lines:
 ![field_lines](figures/field_lines.png "Magnetic field lines")
+
+**_NOTE:_** The program has to be built with the `tracing` feature in order for the `trace` command to become available, and the `hdf5` feature in order for the `.h5part` format to be supported.
 
 ### Creating NetCDF files for visualization
 
@@ -192,6 +201,9 @@ $ backstaff \
     write -v --strip --included-quantities=r,tg photo_tr.nc
 ```
 ```
+Reading parameters from photo_tr_001.idl
+Reading grid from photo_tr.mesh
+Detected horizontally regular grid
 Writing grid to photo_tr_001.nc
 Reading r from photo_tr_001.snap
 Resampling r
@@ -200,6 +212,9 @@ Reading tg from photo_tr_001.aux
 Resampling tg
 Writing tg to photo_tr_001.nc
 ...
+Reading parameters from photo_tr_003.idl
+Reading grid from photo_tr.mesh
+Detected horizontally regular grid
 Writing grid to photo_tr_003.nc
 Reading r from photo_tr_003.snap
 Resampling r

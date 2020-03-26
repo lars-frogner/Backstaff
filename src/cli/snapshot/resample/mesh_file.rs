@@ -79,7 +79,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
     let write_arguments = arguments.subcommand_matches("write").unwrap();
 
     let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(
-        native::parse_mesh_file(mesh_file_path),
+        native::parse_mesh_file(mesh_file_path, is_verbose.into()),
         "Error: Could not parse mesh file: {}"
     );
     match detected_grid_type {

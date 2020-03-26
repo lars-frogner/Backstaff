@@ -12,6 +12,13 @@ use std::{
     path::Path,
 };
 
+#[macro_export]
+macro_rules! io_result {
+    ($result:expr) => {
+        $result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))
+    };
+}
+
 /// Prompts the user with a question and returns whether the answer was yes.
 ///
 /// The given default answer is assumed if the user simply presses `return`.
@@ -110,6 +117,28 @@ pub fn read_text_file<P: AsRef<Path>>(file_path: P) -> io::Result<String> {
     Ok(text)
 }
 
+/// Creates any directories missing in order for the given path to
+/// be valid.
+pub fn create_directory_if_missing<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let path = path.as_ref();
+    if path.file_name().is_some() {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+        } else {
+            Ok(())
+        }
+    } else {
+        fs::create_dir_all(path)
+    }
+}
+
+/// Creates the file at the given path, as well as any missing parent
+/// directories.
+pub fn create_file_and_required_directories<P: AsRef<Path>>(file_path: P) -> io::Result<fs::File> {
+    create_directory_if_missing(&file_path)?;
+    fs::File::create(file_path)
+}
+
 /// Writes the given string as a text file with the specified path.
 ///
 /// Prompts the user to confirm overwrite if necessary.
@@ -129,7 +158,7 @@ pub fn write_text_file<P: AsRef<Path>>(
 /// Writes the given string as a text file with the specified path,
 /// regardless of whether the file already exists.
 pub fn overwrite_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
-    let mut file = fs::File::create(output_file_path)?;
+    let mut file = create_file_and_required_directories(output_file_path)?;
     write!(&mut file, "{}", text)
 }
 
@@ -167,7 +196,7 @@ pub fn save_data_as_binary<P>(output_file_path: P, byte_buffer: &[u8]) -> io::Re
 where
     P: AsRef<Path>,
 {
-    let mut file = fs::File::create(output_file_path)?;
+    let mut file = create_file_and_required_directories(output_file_path)?;
     file.write_all(&byte_buffer)
 }
 
@@ -177,7 +206,7 @@ where
     P: AsRef<Path>,
     T: Serialize,
 {
-    let mut file = fs::File::create(output_file_path)?;
+    let mut file = create_file_and_required_directories(output_file_path)?;
     write_data_as_json(&mut file, data)
 }
 
@@ -187,7 +216,7 @@ where
     P: AsRef<Path>,
     T: Serialize,
 {
-    let mut file = fs::File::create(output_file_path)?;
+    let mut file = create_file_and_required_directories(output_file_path)?;
     write_data_as_pickle(&mut file, data)
 }
 
