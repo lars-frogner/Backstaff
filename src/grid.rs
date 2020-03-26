@@ -732,7 +732,7 @@ pub fn verify_coordinate_arrays<F: BFloat>(
     lower_coords: &Coords3<F>,
     print_grid_type: bool,
 ) -> io::Result<GridType> {
-    let nonuniformity_threshold = F::from_f32(5e-3).unwrap();
+    let nonuniformity_threshold_factor = F::from_f32(1e-3).unwrap();
 
     let mut is_uniform = In3D::same(true);
 
@@ -783,6 +783,12 @@ pub fn verify_coordinate_arrays<F: BFloat>(
                 ),
             ));
         }
+
+        let nonuniformity_threshold = nonuniformity_threshold_factor
+            * (F::from_f32(2.0).unwrap() * *center_vec.last().unwrap()
+                - *lower_vec.last().unwrap()
+                - *lower_vec.first().unwrap())
+            / F::from_usize(length).unwrap();
 
         let center_differences: Vec<_> = center_vec
             .iter()
