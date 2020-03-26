@@ -91,28 +91,22 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("b"),
         )
         .arg(
-            Arg::with_name("extra-fixed-scalars")
-                .long("extra-fixed-scalars")
+            Arg::with_name("extracted-quantities")
+                .long("extracted-quantities")
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .help(
-                    "List of scalar fields to extract at seed positions\n \
-                     (comma-separated)",
-                )
+                .help("List of quantities to extract along field line paths (comma-separated)")
                 .takes_value(true)
                 .multiple(true),
         )
         .arg(
-            Arg::with_name("extra-varying-scalars")
-                .long("extra-varying-scalars")
+            Arg::with_name("extracted-seed-quantities")
+                .long("extracted-seed-quantities")
                 .require_equals(true)
                 .require_delimiter(true)
                 .value_name("NAMES")
-                .help(
-                    "List of scalar fields to extract along field line paths\n \
-                     (comma-separated)",
-                )
+                .help("List of quantities to extract at seed positions (comma-separated)")
                 .takes_value(true)
                 .multiple(true),
         )
@@ -454,7 +448,7 @@ fn perform_post_tracing_actions<G, R, I>(
     I: Interpolator3,
 {
     if let Some(extra_fixed_scalars) = root_arguments
-        .values_of("extra-fixed-scalars")
+        .values_of("extracted-seed-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_fixed_scalars {
@@ -470,7 +464,7 @@ fn perform_post_tracing_actions<G, R, I>(
         }
     }
     if let Some(extra_varying_scalars) = root_arguments
-        .values_of("extra-varying-scalars")
+        .values_of("extracted-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
