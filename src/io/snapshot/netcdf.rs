@@ -475,6 +475,7 @@ fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<F>>(
 
 /// Creates a new NetCDF file at the given path.
 pub fn create_file<P: AsRef<Path>>(path: P) -> io::Result<MutableFile> {
+    utils::create_directory_if_missing(&path)?;
     let file = io_result!(nc::create(path))?;
     Ok(file)
 }

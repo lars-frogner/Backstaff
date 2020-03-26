@@ -428,7 +428,7 @@ impl FieldLineSet3 {
                 output_file_path.as_ref().display()
             );
         }
-        let mut file = fs::File::create(output_file_path)?;
+        let mut file = utils::create_file_and_required_directories(output_file_path)?;
         self.write_as_combined_pickles(&mut file)
     }
 
@@ -531,7 +531,7 @@ pub fn save_field_line_data_as_custom_binary<P: AsRef<Path>>(
     upper_bounds: &Vec3<ftr>,
     properties: FieldLineSetProperties3,
 ) -> io::Result<fs::File> {
-    let mut file = fs::File::create(output_file_path)?;
+    let mut file = utils::create_file_and_required_directories(output_file_path)?;
     write_field_line_data_as_custom_binary(&mut file, lower_bounds, upper_bounds, properties)?;
     Ok(file)
 }

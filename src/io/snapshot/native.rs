@@ -22,8 +22,7 @@ use crate::{
 use ndarray::prelude::*;
 use std::{
     collections::HashMap,
-    fs, io,
-    io::Write,
+    io::{self, Write},
     mem,
     path::{Path, PathBuf},
     str,
@@ -532,7 +531,7 @@ where
     if !(force_overwrite || utils::write_allowed(output_file_path)) {
         return Ok(());
     }
-    let mut file = fs::File::create(output_file_path)?;
+    let mut file = utils::create_file_and_required_directories(output_file_path)?;
     file.set_len(byte_buffer_size as u64)?;
 
     utils::write_into_byte_buffer(

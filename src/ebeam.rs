@@ -35,7 +35,11 @@ use serde::{
     ser::{SerializeStruct, Serializer},
     Serialize,
 };
-use std::{collections::HashMap, fs, io, io::Write, path::Path};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+    path::Path,
+};
 
 /// Floating-point precision to use for electron beam physics.
 #[allow(non_camel_case_types)]
@@ -643,7 +647,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         result_7?;
         result_8?;
 
-        let mut file = fs::File::create(output_file_path)?;
+        let mut file = utils::create_file_and_required_directories(output_file_path)?;
         file.write_all(
             &[
                 buffer_1, buffer_2, buffer_3, buffer_4, buffer_5, buffer_6, buffer_7, buffer_8,
