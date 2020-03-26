@@ -26,6 +26,11 @@ $ cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
 By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root=<DIR>`.
 
+If installing with the `netcdf` feature (see the [Features](#features) section), you may have to inform the linker about the path to the external `netcdf` library. This is easily done through the `RUSTFLAGS` environment variable:
+```
+$ RUSTFLAGS='-L /path/to/library/directory' cargo install ...
+```
+
 **_NOTE:_** Compilation can be quite slow because some of the code relies heavily on macros, which are time consuming to compile. If this is an issue, compilation can be sped up by adding the `--branch=const-generics-interp`, which installs a branch using the experimental [Const generics](https://github.com/rust-lang/rfcs/blob/master/text/2000-const-generics.md) Rust functionality to avoid macros. However, this requires that you activate the nightly Rust compiler by running `rustup default nightly` prior to `cargo install`. Revert to the stable compiler afterwards by running `rustup default stable`.
 
 ### Compiling from source
