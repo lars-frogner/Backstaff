@@ -147,7 +147,13 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     let (included_quantities, derived_quantities) =
         super::parse_quantity_lists(arguments, reader, continue_on_warnings);
 
-    if included_quantities.is_empty() && derived_quantities.is_empty() {
+    let quantity_names: Vec<_> = included_quantities
+        .iter()
+        .cloned()
+        .chain(derived_quantities.iter().cloned())
+        .collect();
+
+    if quantity_names.is_empty() {
         exit_with_error!("Aborted: No quantities to write");
     }
 
@@ -171,7 +177,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
             "idl" => native::write_modified_snapshot(
                 reader,
                 new_grid,
-                &included_quantities,
+                &quantity_names,
                 modified_parameters,
                 modified_field_producer!(),
                 &output_file_path,
@@ -185,7 +191,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                     netcdf::write_modified_snapshot(
                         reader,
                         new_grid,
-                        &included_quantities,
+                        &quantity_names,
                         modified_parameters,
                         modified_field_producer!(),
                         &output_file_path,

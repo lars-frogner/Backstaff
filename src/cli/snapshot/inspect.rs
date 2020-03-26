@@ -81,13 +81,13 @@ where
     let (included_quantities, derived_quantities) =
         super::parse_quantity_lists(arguments, reader, continue_on_warnings);
 
-    let quantity_names = included_quantities
+    let quantity_names: Vec<_> = included_quantities
         .iter()
         .cloned()
         .chain(derived_quantities.iter().cloned())
         .collect();
 
-    if included_quantities.is_empty() && derived_quantities.is_empty() {
+    if quantity_names.is_empty() {
         exit_with_error!("Aborted: No quantities to write");
     }
 
