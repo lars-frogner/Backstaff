@@ -1,9 +1,9 @@
 //! Utilities for parameters in NetCDF format.
 
-use super::super::{ParameterValue, SnapshotParameters};
+use super::super::{super::Verbose, ParameterValue, SnapshotParameters};
 use crate::{geometry::In3D, io::snapshot::fdt};
 use netcdf_rs::{AttrValue, File, Group, GroupMut};
-use std::{collections::HashMap, io};
+use std::{collections::HashMap, io, path::PathBuf};
 
 macro_rules! io_result {
     ($result:expr) => {
@@ -18,7 +18,16 @@ pub struct NetCDFSnapshotParameters {
 }
 
 impl NetCDFSnapshotParameters {
-    pub fn new(file: &File) -> io::Result<Self> {
+    pub fn new(file: &File, verbose: Verbose) -> io::Result<Self> {
+        if verbose.is_yes() {
+            println!(
+                "Reading parameters from {}",
+                PathBuf::from(file.path().unwrap())
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+            );
+        }
         let root_group = file.root().unwrap();
         let parameters = read_all_parameter_names(&root_group)
             .into_iter()

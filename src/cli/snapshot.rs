@@ -105,7 +105,7 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
 macro_rules! create_native_reader_and_run {
     ($config:expr, $snap_num_offset:expr, $run_macro:tt) => {{
         let parameters = exit_on_error!(
-            NativeSnapshotParameters::new($config.param_file_path()),
+            NativeSnapshotParameters::new($config.param_file_path(), $config.verbose()),
             "Error: Could not read parameter file: {}"
         );
         let mesh_path = exit_on_error!(
@@ -119,7 +119,7 @@ macro_rules! create_native_reader_and_run {
             up_derivatives,
             down_derivatives,
         ) = exit_on_error!(
-            native::parse_mesh_file(mesh_path),
+            native::parse_mesh_file(mesh_path, $config.verbose()),
             "Error: Could not parse mesh file: {}"
         );
         let is_periodic = exit_on_error!(
@@ -171,7 +171,7 @@ macro_rules! create_netcdf_reader_and_run {
             "Error: Could not open NetCDF file: {}"
         );
         let parameters = exit_on_error!(
-            NetCDFSnapshotParameters::new(&file),
+            NetCDFSnapshotParameters::new(&file, $config.verbose()),
             "Error: Could not read snapshot parameters from NetCDF file: {}"
         );
         let (
@@ -182,7 +182,7 @@ macro_rules! create_netcdf_reader_and_run {
             down_derivatives,
             endianness,
         ) = exit_on_error!(
-            netcdf::read_grid_data(&file.root().unwrap()),
+            netcdf::read_grid_data(&file, $config.verbose()),
             "Error: Could not read grid data from NetCDF file: {}"
         );
         let is_periodic = exit_on_error!(

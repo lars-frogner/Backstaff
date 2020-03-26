@@ -730,6 +730,7 @@ impl<F: BFloat, T> GridPointQuery2<F, T> {
 pub fn verify_coordinate_arrays<F: BFloat>(
     center_coords: &Coords3<F>,
     lower_coords: &Coords3<F>,
+    print_grid_type: bool,
 ) -> io::Result<GridType> {
     let nonuniformity_threshold = F::from_f32(5e-3).unwrap();
 
@@ -834,8 +835,18 @@ pub fn verify_coordinate_arrays<F: BFloat>(
     }
 
     let detected_grid_type = match is_uniform.to_tuple() {
-        (true, true, true) => GridType::Regular,
-        (true, true, false) => GridType::HorRegular,
+        (true, true, true) => {
+            if print_grid_type {
+                println!("Detected regular grid");
+            }
+            GridType::Regular
+        }
+        (true, true, false) => {
+            if print_grid_type {
+                println!("Detected horizontally regular grid");
+            }
+            GridType::HorRegular
+        }
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,

@@ -59,12 +59,12 @@ pub struct NativeSnapshotReader3<G> {
 impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NativeSnapshotReaderConfig) -> io::Result<Self> {
-        let parameters = NativeSnapshotParameters::new(&config.param_file_path)?;
+        let parameters = NativeSnapshotParameters::new(&config.param_file_path, config.verbose())?;
 
         let mesh_path = parameters.determine_mesh_path()?;
         let is_periodic = parameters.determine_grid_periodicity()?;
 
-        let grid = create_grid_from_mesh_file(&mesh_path, is_periodic)?;
+        let grid = create_grid_from_mesh_file(&mesh_path, is_periodic, config.verbose())?;
 
         Self::new_from_parameters_and_grid(config, parameters, grid)
     }
@@ -250,7 +250,7 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
     const FORMAT: SnapshotFormat = SnapshotFormat::Native;
 
     fn verbose(&self) -> Verbose {
-        self.config.verbose
+        self.config.verbose()
     }
 
     fn grid(&self) -> &G {
@@ -352,6 +352,10 @@ impl NativeSnapshotReaderConfig {
             endianness,
             verbose,
         }
+    }
+
+    pub fn verbose(&self) -> Verbose {
+        self.verbose
     }
 
     pub fn param_file_path(&self) -> &Path {

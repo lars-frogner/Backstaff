@@ -1,6 +1,6 @@
 //! Utilities for mesh files in native format.
 
-use super::super::{super::utils, fdt};
+use super::super::{super::utils, fdt, Verbose};
 use crate::{
     geometry::{
         Coords3,
@@ -17,6 +17,7 @@ use std::{collections::VecDeque, io, io::BufRead, path::Path};
 ///
 /// - `mesh_path`: Path of the mesh file.
 /// - `is_periodic`: Specifies for each dimension whether the grid is periodic.
+/// - `verbose`: Whether to print status messages while reading grid data.
 ///
 /// # Returns
 ///
@@ -29,13 +30,17 @@ use std::{collections::VecDeque, io, io::BufRead, path::Path};
 ///
 /// - `P`: A type that can be treated as a reference to a `Path`.
 /// - `G`: Type of the grid.
-pub fn create_grid_from_mesh_file<P, G>(mesh_path: P, is_periodic: In3D<bool>) -> io::Result<G>
+pub fn create_grid_from_mesh_file<P, G>(
+    mesh_path: P,
+    is_periodic: In3D<bool>,
+    verbose: Verbose,
+) -> io::Result<G>
 where
     P: AsRef<Path>,
     G: Grid3<fdt>,
 {
     let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) =
-        parse_mesh_file(mesh_path)?;
+        parse_mesh_file(mesh_path, verbose)?;
 
     if detected_grid_type != G::TYPE {
         return Err(io::Error::new(
@@ -117,6 +122,7 @@ where
 /// Parses the mesh file at the given path and returns relevant data.
 pub fn parse_mesh_file<P: AsRef<Path>>(
     mesh_path: P,
+    verbose: Verbose,
 ) -> io::Result<(
     GridType,
     Coords3<fdt>,
@@ -124,7 +130,13 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
     Coords3<fdt>,
     Coords3<fdt>,
 )> {
-    let file = utils::open_file_and_map_err(mesh_path)?;
+    let file = utils::open_file_and_map_err(&mesh_path)?;
+    if verbose.is_yes() {
+        println!(
+            "Reading grid from {}",
+            mesh_path.as_ref().file_name().unwrap().to_string_lossy()
+        );
+    }
     let mut lines = io::BufReader::new(file).lines();
     let coord_names = ["x", "y", "z"];
     let mut center_coord_vecs = VecDeque::new();
@@ -233,7 +245,8 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
         down_derivative_vecs.pop_front().unwrap(),
     );
 
-    let detected_grid_type = grid::verify_coordinate_arrays(&center_coords, &lower_coords)?;
+    let detected_grid_type =
+        grid::verify_coordinate_arrays(&center_coords, &lower_coords, verbose.is_yes())?;
 
     Ok((
         detected_grid_type,

@@ -61,10 +61,10 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
     pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
         let file = open_file(&config.file_path)?;
 
-        let parameters = NetCDFSnapshotParameters::new(&file)?;
+        let parameters = NetCDFSnapshotParameters::new(&file, config.verbose())?;
 
         let is_periodic = parameters.determine_grid_periodicity()?;
-        let (grid, endianness) = mesh::read_grid::<G>(&file.root().unwrap(), is_periodic)?;
+        let (grid, endianness) = mesh::read_grid::<G>(&file, is_periodic, config.verbose())?;
 
         Ok(Self::new_from_parameters_and_grid(
             config, file, parameters, grid, endianness,
@@ -203,6 +203,10 @@ impl NetCDFSnapshotReaderConfig {
             file_path: file_path.as_ref().to_path_buf(),
             verbose,
         }
+    }
+
+    pub fn verbose(&self) -> Verbose {
+        self.verbose
     }
 
     pub fn file_path(&self) -> &Path {
