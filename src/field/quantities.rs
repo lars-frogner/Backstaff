@@ -33,9 +33,9 @@ lazy_static! {
             )
         ),
         (
-            "symlog10_qbeam",
+            "log10_neg_qbeam",
             (
-                "Symmetric log10 of beam heating, with zero values set to NaN\n\
+                "Log10 of absolute beam heating, with positive and zero values set to NaN\n\
                  [energy/time/volume in Bifrost units]",
                 vec!["qbeam"]
             )
@@ -107,7 +107,7 @@ where
     let (values, locations) = match name {
         "ubeam" => compute_ubeam_values(reader),
         "log10_pos_qbeam" => compute_log10_pos_qbeam_values(reader),
-        "symlog10_qbeam" => compute_symlog10_qbeam_values(reader),
+        "log10_neg_qbeam" => compute_log10_neg_qbeam_values(reader),
         invalid => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("Quantity {} not supported", invalid),
@@ -164,7 +164,9 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_symlog10_qbeam_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_log10_neg_qbeam_values<G, R>(
+    reader: &R,
+) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
@@ -173,12 +175,10 @@ where
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
     values_buffer.par_iter_mut().for_each(|value| {
-        *value = if *value == 0.0 {
+        *value = if *value >= 0.0 {
             std::f32::NAN
-        } else if *value > 0.0 {
-            fdt::log10(*value)
         } else {
-            -fdt::log10(-(*value))
+            fdt::log10(-(*value))
         };
     });
 
