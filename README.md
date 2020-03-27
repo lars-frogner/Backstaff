@@ -186,14 +186,16 @@ Saving field lines in field_lines.h5part
 Elapsed time: 18.861097286 s
 ```
 
-Here the field line data was saved in a H5Part file, which enables easy visualization with tools like [ParaView](https://www.paraview.org/). Here is a visualization of the density along the field lines:
+Here the field line data was saved in a H5Part file, which enables easy visualization with tools like [ParaView](https://www.paraview.org/) and [VisIt](https://wci.llnl.gov/simulation/computer-codes/visit/).
+
+Here is a ParaView visualization of the density along the field lines:
 ![field_lines](figures/field_lines.png "Magnetic field lines")
 
 **_NOTE:_** The program has to be built with the `tracing` feature in order for the `trace` command to become available, and the `hdf5` feature in order for the `.h5part` format to be supported.
 
 ### Creating NetCDF files for visualization
 
-By enabling the `netcdf` feature, it is easy to convert snapshot data into the NetCDF format, which is supported by various visualization tools like [ParaView](https://www.paraview.org/) and [VAPOR](https://www.vapor.ucar.edu/). In the following example, the temperature and mass density fields in a set of Bifrost snapshots are resampled to a regular 512<sup>3</sup> grid and written to a set of NetCDF files.
+By enabling the `netcdf` feature, it is easy to convert snapshot data into the NetCDF format, which is supported by a wide range of visualization tools, including [ParaView](https://www.paraview.org/) and [VAPOR](https://www.vapor.ucar.edu/). In the following example, the temperature and mass density fields in a set of Bifrost snapshots are resampled to a regular 512<sup>3</sup> grid and written to a set of NetCDF files.
 ```
 $ backstaff \
     snapshot -v photo_tr_001.idl --snap-range=1,3 \

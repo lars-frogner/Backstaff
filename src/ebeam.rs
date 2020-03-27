@@ -469,7 +469,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .collect();
         self.properties
             .fixed_scalar_values
-            .insert(field.name().to_string(), values);
+            .insert(format!("{}0", field.name()), values);
     }
 
     /// Extracts and stores the value of the given vector field at the initial position for each beam.
@@ -499,7 +499,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .collect();
         self.properties
             .fixed_vector_values
-            .insert(field.name().to_string(), vectors);
+            .insert(format!("{}0", field.name()), vectors);
     }
 
     /// Extracts and stores the value of the given scalar field at each position for each beam.
@@ -695,7 +695,11 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
     /// Serializes the electron beam data into a H5Part format and saves to the given path.
     #[cfg(feature = "hdf5")]
-    pub fn save_as_h5part<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_h5part<P: AsRef<Path>>(
+        &self,
+        output_file_path: P,
+        drop_id: bool,
+    ) -> io::Result<()> {
         if self.verbose.is_yes() {
             println!(
                 "Saving beams in {}",
@@ -709,6 +713,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         field_line::save_field_line_data_as_h5part(
             output_file_path,
             self.properties.clone().into_field_line_set_properties(),
+            drop_id,
         )
     }
 
@@ -737,7 +742,11 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// Serializes the electron beam data into a H5Part format and saves to the given path,
     /// consuming the electron beam swarm in the process.
     #[cfg(feature = "hdf5")]
-    pub fn save_into_h5part<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
+    pub fn save_into_h5part<P: AsRef<Path>>(
+        self,
+        output_file_path: P,
+        drop_id: bool,
+    ) -> io::Result<()> {
         if self.verbose.is_yes() {
             println!(
                 "Saving beams in {}",
@@ -751,6 +760,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         field_line::save_field_line_data_as_h5part(
             output_file_path,
             self.properties.into_field_line_set_properties(),
+            drop_id,
         )
     }
 }

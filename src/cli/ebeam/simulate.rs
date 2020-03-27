@@ -163,6 +163,14 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .multiple(true),
         )
         .arg(
+            Arg::with_name("drop-h5part-id")
+                .long("drop-h5part-id")
+                .help(
+                    "Reduce H5Part file size by excluding particle IDs required by some tools\n\
+                     (e.g. VisIt)",
+                ),
+        )
+        .arg(
             Arg::with_name("verbose")
                 .short("v")
                 .long("verbose")
@@ -687,7 +695,10 @@ fn perform_post_simulation_actions<G, R, A, I>(
             "h5part" => {
                 #[cfg(feature = "hdf5")]
                 {
-                    beams.save_as_h5part(output_file_path)
+                    beams.save_as_h5part(
+                        output_file_path,
+                        root_arguments.is_present("drop-h5part-id"),
+                    )
                 }
                 #[cfg(not(feature = "hdf5"))]
                 exit_with_error!("Error: Compile with hdf5 feature in order to write H5Part files\n\
