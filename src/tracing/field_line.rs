@@ -222,7 +222,7 @@ impl FieldLineSet3 {
             .collect();
         self.properties
             .fixed_scalar_values
-            .insert(field.name().to_string(), values);
+            .insert(format!("{}0", field.name()), values);
     }
 
     /// Extracts and stores the value of the given vector field at the initial position for each field line.
@@ -253,7 +253,7 @@ impl FieldLineSet3 {
             .collect();
         self.properties
             .fixed_vector_values
-            .insert(field.name().to_string(), vectors);
+            .insert(format!("{}0", field.name()), vectors);
     }
 
     /// Extracts and stores the value of the given scalar field at each position for each field line.
