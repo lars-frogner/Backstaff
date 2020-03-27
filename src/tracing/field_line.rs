@@ -937,9 +937,10 @@ pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
                 for vec in values {
                     concatenated_values.extend(vec.into_iter());
                 }
+                let name = if name == "r" { "rho" } else { &name }; // `r` is reserved for radial distance
                 let dataset = io_result!(group
                     .new_dataset::<ftr>()
-                    .create(&name, number_of_field_line_elements))?;
+                    .create(name, number_of_field_line_elements))?;
                 io_result!(dataset.write_raw(&concatenated_values))?;
                 concatenated_values.clear();
             }
