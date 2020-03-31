@@ -6,7 +6,10 @@ use self::regular::{create_regular_mesh_subcommand, run_regular_subcommand};
 use crate::{
     create_subcommand, exit_on_error, exit_with_error,
     grid::Grid3,
-    io::snapshot::{fdt, native},
+    io::{
+        snapshot::{fdt, native},
+        utils::AtomicOutputPath,
+    },
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use std::{path::PathBuf, str::FromStr};
@@ -27,21 +30,25 @@ pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing file"),
+                .help("Automatically overwrite any existing file (unless listed as protected)"),
         )
         .subcommand(create_subcommand!(create_mesh, regular_mesh))
 }
 
 /// Runs the actions for the `create_mesh` subcommand using the given arguments.
-pub fn run_create_mesh_subcommand(arguments: &ArgMatches) {
+pub fn run_create_mesh_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     if let Some(regular_arguments) = arguments.subcommand_matches("regular") {
-        run_regular_subcommand(arguments, regular_arguments);
+        run_regular_subcommand(arguments, regular_arguments, protected_file_types);
     } else {
         exit_with_error!("Error: No resampling mode specified");
     };
 }
 
-fn write_mesh_file<G: Grid3<fdt>>(root_arguments: &ArgMatches, grid: G) {
+fn write_mesh_file<G: Grid3<fdt>>(
+    root_arguments: &ArgMatches,
+    grid: G,
+    protected_file_types: &[&str],
+) {
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
             root_arguments
@@ -55,10 +62,21 @@ fn write_mesh_file<G: Grid3<fdt>>(root_arguments: &ArgMatches, grid: G) {
         output_file_path.set_extension("mesh");
     }
 
-    let force_overwrite = root_arguments.is_present("overwrite");
+    let automatic_overwrite = root_arguments.is_present("overwrite");
+
+    let atomic_output_path = exit_on_error!(
+        AtomicOutputPath::new(output_file_path),
+        "Error: Could not create temporary output file: {}"
+    );
+    atomic_output_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
 
     exit_on_error!(
-        native::write_mesh_file_from_grid(&grid, output_file_path, force_overwrite),
+        native::write_mesh_file_from_grid(&grid, atomic_output_path.temporary_path()),
         "Error: Could not write mesh file: {}"
+    );
+
+    exit_on_error!(
+        atomic_output_path.perform_replace(),
+        "Error: Could not move temporary output file to target path: {}"
     );
 }
