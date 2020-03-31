@@ -100,10 +100,10 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
     ) -> (Vec<&'a str>, Vec<&'a str>) {
         let all_primary_variable_names = self.primary_variable_names();
 
-        let included_primary_variable_names = variable_names
+        let included_primary_variable_names = all_primary_variable_names
             .iter()
             .cloned()
-            .filter(|name| all_primary_variable_names.contains(name))
+            .filter(|name| variable_names.contains(name))
             .collect::<Vec<_>>();
 
         let included_auxiliary_variable_names = variable_names
