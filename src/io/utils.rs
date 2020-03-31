@@ -35,8 +35,9 @@ impl AtomicOutputPath {
         let output_dir = target_output_file_path.parent().ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "No extension for output file")
         })?;
+        create_directory_if_missing(output_dir)?;
         let temp_output_file_path = io_result!(Builder::new()
-            .prefix(".backstaff_tmp",)
+            .prefix(".backstaff_tmp")
             .suffix(&format!(
                 "_{}",
                 target_output_file_path
@@ -201,7 +202,7 @@ pub fn read_text_file<P: AsRef<Path>>(file_path: P) -> io::Result<String> {
 /// be valid.
 pub fn create_directory_if_missing<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref();
-    if path.file_name().is_some() {
+    if path.extension().is_some() {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
         } else {
