@@ -249,6 +249,10 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
 
     const FORMAT: SnapshotFormat = SnapshotFormat::Native;
 
+    fn path(&self) -> &Path {
+        self.config.param_file_path()
+    }
+
     fn verbose(&self) -> Verbose {
         self.config.verbose()
     }

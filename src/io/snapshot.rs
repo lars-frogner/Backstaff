@@ -51,6 +51,9 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
 
     const FORMAT: SnapshotFormat;
 
+    /// Returns the path to the file representing the snapshot.
+    fn path(&self) -> &Path;
+
     /// Whether the reader is verbose.
     fn verbose(&self) -> Verbose;
 

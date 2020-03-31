@@ -101,6 +101,10 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
 
     const FORMAT: SnapshotFormat = SnapshotFormat::NetCDF;
 
+    fn path(&self) -> &Path {
+        self.config.file_path()
+    }
+
     fn verbose(&self) -> Verbose {
         self.config.verbose
     }
