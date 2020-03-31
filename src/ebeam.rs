@@ -427,6 +427,11 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         }
     }
 
+    /// Whether the electron beam swarm is verbose.
+    pub fn verbose(&self) -> Verbose {
+        self.verbose
+    }
+
     /// Returns the number of beams making up the electron beam set.
     pub fn number_of_beams(&self) -> usize {
         self.properties.number_of_beams

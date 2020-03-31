@@ -189,6 +189,11 @@ impl FieldLineSet3 {
         Self::new(lower_bounds, upper_bounds, properties, verbose)
     }
 
+    /// Whether the field line set is verbose.
+    pub fn verbose(&self) -> Verbose {
+        self.verbose
+    }
+
     /// Returns the number of field lines making up the field line set.
     pub fn number_of_field_lines(&self) -> usize {
         self.properties.number_of_field_lines
