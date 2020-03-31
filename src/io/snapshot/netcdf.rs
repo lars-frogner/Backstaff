@@ -4,7 +4,10 @@ mod mesh;
 mod param;
 
 use super::{
-    super::{utils, Endianness, Verbose},
+    super::{
+        utils::{self, AtomicOutputPath},
+        Endianness, Verbose,
+    },
     fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3, COORDINATE_NAMES,
     FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
 };
@@ -216,9 +219,10 @@ impl NetCDFSnapshotReaderConfig {
 /// Writes all data associated with the given snapshot to a NetCDF file at the given path.
 pub fn write_identical_snapshot<P, G, R>(
     reader: &R,
-    output_path: P,
+    output_file_path: P,
     strip_metadata: bool,
-    force_overwrite: bool,
+    automatic_overwrite: bool,
+    protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
 where
@@ -234,9 +238,10 @@ where
         &quantity_names,
         HashMap::new(),
         |name| reader.read_scalar_field(name),
-        output_path,
+        output_file_path,
         strip_metadata,
-        force_overwrite,
+        automatic_overwrite,
+        protected_file_types,
         verbose,
     )
 }
@@ -250,7 +255,8 @@ pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
     field_producer: FP,
     output_file_path: P,
     strip_metadata: bool,
-    force_overwrite: bool,
+    automatic_overwrite: bool,
+    protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
 where
@@ -261,14 +267,6 @@ where
     FP: Fn(&str) -> io::Result<ScalarField3<fdt, GOUT>>,
 {
     let output_file_path = output_file_path.as_ref().with_extension("nc");
-
-    if !(force_overwrite || utils::write_allowed(&output_file_path)) {
-        return Ok(());
-    }
-    let mut file = create_file(&output_file_path)?;
-    let mut root_group = file.root_mut().unwrap();
-
-    let output_file_name = output_file_path.file_name().unwrap().to_string_lossy();
 
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(&output_file_path);
     let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
@@ -292,6 +290,18 @@ where
             included_auxiliary_variable_names.join(" ")
         )),
     );
+
+    let atomic_output_path = AtomicOutputPath::new(output_file_path)?;
+    atomic_output_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+
+    let output_file_name = atomic_output_path
+        .target_path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy();
+
+    let mut file = create_file(atomic_output_path.temporary_path())?;
+    let mut root_group = file.root_mut().unwrap();
 
     macro_rules! perform_writing {
         ($grid:expr) => {{
@@ -333,6 +343,9 @@ where
     } else {
         perform_writing!(reader.grid());
     };
+
+    drop(file);
+    atomic_output_path.perform_replace()?;
 
     Ok(())
 }
@@ -558,6 +571,6 @@ mod tests {
                 Verbose::No,
             ))
             .unwrap();
-        write_identical_snapshot(&reader, "test.nc", false, true, Verbose::No).unwrap();
+        write_identical_snapshot(&reader, "test.nc", false, true, &[], Verbose::No).unwrap();
     }
 }
