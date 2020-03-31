@@ -425,7 +425,7 @@ fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<F>>(
         ));
     }
     let locations = In3D::new(
-        match dimensions[0].name().as_str() {
+        match dimensions[2].name().as_str() {
             "xm" => CoordLocation::Center,
             "xmdn" => CoordLocation::LowerEdge,
             invalid => {
@@ -451,7 +451,7 @@ fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<F>>(
                 ))
             }
         },
-        match dimensions[2].name().as_str() {
+        match dimensions[0].name().as_str() {
             "zm" => CoordLocation::Center,
             "zmdn" => CoordLocation::LowerEdge,
             invalid => {
