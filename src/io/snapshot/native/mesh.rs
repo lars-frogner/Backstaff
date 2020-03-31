@@ -64,7 +64,6 @@ where
 ///
 /// - `grid`: Grid to create the mesh file from.
 /// - `mesh_path`: Path where the mesh file should be created.
-/// - `force_overwrite`: Whether to automatically overwrite any existing file.
 ///
 /// # Returns
 ///
@@ -77,11 +76,7 @@ where
 ///
 /// - `P`: A type that can be treated as a reference to a `Path`.
 /// - `G`: Type of the grid.
-pub fn write_mesh_file_from_grid<P, G>(
-    grid: &G,
-    mesh_path: P,
-    force_overwrite: bool,
-) -> io::Result<()>
+pub fn write_mesh_file_from_grid<P, G>(grid: &G, mesh_path: P) -> io::Result<()>
 where
     P: AsRef<Path>,
     G: Grid3<fdt>,
@@ -116,7 +111,7 @@ where
     };
 
     let text = [format_for_dim(X), format_for_dim(Y), format_for_dim(Z)].join("\n");
-    utils::write_text_file(&text, mesh_path, force_overwrite)
+    utils::write_text_file(&text, mesh_path)
 }
 
 /// Parses the mesh file at the given path and returns relevant data.
