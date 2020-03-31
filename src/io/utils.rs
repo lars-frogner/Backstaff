@@ -12,7 +12,7 @@ use std::{
     mem,
     path::{Path, PathBuf},
 };
-use tempfile::{NamedTempFile, TempPath};
+use tempfile::{Builder, TempPath};
 
 #[macro_export]
 macro_rules! io_result {
@@ -35,7 +35,17 @@ impl AtomicOutputPath {
         let output_dir = target_output_file_path.parent().ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "No extension for output file")
         })?;
-        let temp_output_file_path = io_result!(NamedTempFile::new_in(output_dir))?.into_temp_path();
+        let temp_output_file_path = io_result!(Builder::new()
+            .prefix(".backstaff_tmp",)
+            .suffix(&format!(
+                "_{}",
+                target_output_file_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+            ))
+            .tempfile_in(output_dir))?
+        .into_temp_path();
         Ok(Self {
             target_output_file_path,
             temp_output_file_path,
