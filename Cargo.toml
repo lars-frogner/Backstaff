@@ -31,6 +31,7 @@ serde = { version = "1.0.105", features = ["derive"] }
 serde_json = "1.0.44"
 serde-pickle = "0.6.0"
 special = "0.8.1"
+tempfile = "3.1.0"
 
 # Dependencies for cli
 chrono = { version = "0.4.11", optional = true }
