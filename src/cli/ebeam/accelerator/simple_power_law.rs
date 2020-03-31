@@ -225,7 +225,7 @@ where
 
     let max_mass_density = match arguments
         .value_of("max-mass-density")
-        .expect("No value for argument with default.")
+        .expect("No value for argument with defaultt")
     {
         "inf" => SimplePowerLawAccelerationConfig::DEFAULT_MAX_MASS_DENSITY,
         mass_density_str => exit_on_error!(

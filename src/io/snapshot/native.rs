@@ -4,7 +4,10 @@ mod mesh;
 mod param;
 
 use super::{
-    super::{utils, Endianness, Verbose},
+    super::{
+        utils::{self, AtomicOutputPath},
+        Endianness, Verbose,
+    },
     fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3, FALLBACK_SNAP_NUM,
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
 };
@@ -249,6 +252,10 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
 
     const FORMAT: SnapshotFormat = SnapshotFormat::Native;
 
+    fn path(&self) -> &Path {
+        self.config.param_file_path()
+    }
+
     fn verbose(&self) -> Verbose {
         self.config.verbose()
     }
@@ -371,7 +378,8 @@ pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
     mut modified_parameters: HashMap<&str, ParameterValue>,
     field_producer: FP,
     output_param_path: P,
-    force_overwrite: bool,
+    automatic_overwrite: bool,
+    protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
 where
@@ -382,8 +390,6 @@ where
     FP: Fn(&str) -> io::Result<ScalarField3<fdt, GOUT>>,
 {
     let output_param_path = output_param_path.as_ref().with_extension("idl");
-
-    let output_file_name = output_param_path.file_name().unwrap().to_string_lossy();
 
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(&output_param_path);
     let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
@@ -409,9 +415,49 @@ where
         )),
     );
 
-    let output_snap_path = output_param_path.with_extension("snap");
-    let output_aux_path = output_param_path.with_extension("aux");
-    let output_mesh_path = output_param_path.with_file_name(format!("{}.mesh", snap_name));
+    let has_primary = !included_primary_variable_names.is_empty();
+    let has_auxiliary = !included_auxiliary_variable_names.is_empty();
+
+    let atomic_param_path = AtomicOutputPath::new(output_param_path)?;
+    let atomic_mesh_path = AtomicOutputPath::new(
+        atomic_param_path
+            .target_path()
+            .with_file_name(format!("{}.mesh", snap_name)),
+    )?;
+    let atomic_snap_path =
+        AtomicOutputPath::new(atomic_param_path.target_path().with_extension("snap"))?;
+    let atomic_aux_path =
+        AtomicOutputPath::new(atomic_param_path.target_path().with_extension("aux"))?;
+
+    atomic_param_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+    atomic_mesh_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+    if has_primary {
+        atomic_aux_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+    }
+    if has_auxiliary {
+        atomic_snap_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+    }
+
+    let output_param_file_name = atomic_param_path
+        .target_path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy();
+    let output_mesh_file_name = atomic_mesh_path
+        .target_path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy();
+    let output_snap_file_name = atomic_snap_path
+        .target_path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy();
+    let output_aux_file_name = atomic_aux_path
+        .target_path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy();
 
     macro_rules! perform_writing {
         ($grid:expr) => {{
@@ -419,49 +465,56 @@ where
             new_parameters.modify_values(modified_parameters);
 
             if verbose.is_yes() {
-                println!(
-                    "Writing parameters to {}",
-                    output_param_path.file_name().unwrap().to_string_lossy()
-                );
+                println!("Writing parameters to {}", output_param_file_name);
             }
             utils::write_text_file(
                 &new_parameters.native_text_representation(),
-                &output_param_path,
-                force_overwrite,
+                atomic_param_path.temporary_path(),
             )?;
 
             if verbose.is_yes() {
-                println!(
-                    "Writing grid to {}",
-                    output_mesh_path.file_name().unwrap().to_string_lossy()
-                );
+                println!("Writing grid to {}", output_mesh_file_name);
             }
-            mesh::write_mesh_file_from_grid($grid, &output_mesh_path, force_overwrite)?;
+            mesh::write_mesh_file_from_grid($grid, atomic_mesh_path.temporary_path())?;
 
-            if !included_primary_variable_names.is_empty() {
+            if has_primary {
                 write_3d_snapfile(
-                    &output_snap_path,
+                    atomic_snap_path.temporary_path(),
                     &included_primary_variable_names,
                     &|name| {
                         field_producer(name).map(|field| {
                             if verbose.is_yes() {
-                                println!("Writing {} to {}", name, output_file_name);
+                                println!("Writing {} to {}", name, output_snap_file_name);
                             }
                             field.into_values()
                         })
                     },
                     reader.endianness(),
-                    force_overwrite,
                 )?;
             }
-            if !included_auxiliary_variable_names.is_empty() {
+            if has_auxiliary {
                 write_3d_snapfile(
-                    &output_aux_path,
+                    atomic_aux_path.temporary_path(),
                     &included_auxiliary_variable_names,
-                    &|name| field_producer(name).map(|field| field.into_values()),
+                    &|name| {
+                        field_producer(name).map(|field| {
+                            if verbose.is_yes() {
+                                println!("Writing {} to {}", name, output_aux_file_name);
+                            }
+                            field.into_values()
+                        })
+                    },
                     reader.endianness(),
-                    force_overwrite,
                 )?;
+            }
+
+            atomic_param_path.perform_replace()?;
+            atomic_mesh_path.perform_replace()?;
+            if has_primary {
+                atomic_snap_path.perform_replace()?;
+            }
+            if has_auxiliary {
+                atomic_aux_path.perform_replace()?;
             }
         }};
     }
@@ -491,7 +544,6 @@ where
 /// - `variable_names`: Names of the variables to write.
 /// - `variable_value_producer`: Closure producing an array of values given the variable name.
 /// - `endianness`: Endianness of the output data.
-/// - `force_overwrite`: Whether to automatically overwrite any existing file.
 ///
 /// # Returns
 ///
@@ -510,7 +562,6 @@ fn write_3d_snapfile<P, N, V>(
     variable_names: &[N],
     variable_value_producer: &V,
     endianness: Endianness,
-    force_overwrite: bool,
 ) -> io::Result<()>
 where
     P: AsRef<Path>,
@@ -532,16 +583,13 @@ where
     let byte_buffer_size = array_length * float_size;
     let mut byte_buffer = vec![0_u8; byte_buffer_size];
 
-    if !(force_overwrite || utils::write_allowed(output_file_path)) {
-        return Ok(());
-    }
     let mut file = utils::create_file_and_required_directories(output_file_path)?;
     file.set_len(byte_buffer_size as u64)?;
 
     utils::write_into_byte_buffer(
         variable_values
             .as_slice_memory_order()
-            .expect("Values array not contiguous."),
+            .expect("Values array not contiguous"),
         &mut byte_buffer,
         0,
         endianness,
@@ -559,7 +607,7 @@ where
         utils::write_into_byte_buffer(
             variable_values
                 .as_slice_memory_order()
-                .expect("Values array not contiguous."),
+                .expect("Values array not contiguous"),
             &mut byte_buffer,
             0,
             endianness,

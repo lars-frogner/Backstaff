@@ -225,7 +225,7 @@ macro_rules! create_netcdf_reader_and_run {
 }
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
-pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
+pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     macro_rules! run_subcommands_for_reader {
         ($reader:expr, $snap_num_offset:expr) => {{
             let mut snapshot = SnapshotCacher3::new($reader);
@@ -234,13 +234,19 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                 inspect::run_inspect_subcommand(inspect_arguments, snapshot.reader());
             }
             if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
-                slice::run_slice_subcommand(slice_arguments, &mut snapshot, $snap_num_offset);
+                slice::run_slice_subcommand(
+                    slice_arguments,
+                    &mut snapshot,
+                    $snap_num_offset,
+                    protected_file_types,
+                );
             }
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
                 resample::run_resample_subcommand(
                     resample_arguments,
                     snapshot.reader(),
                     $snap_num_offset,
+                    protected_file_types,
                 );
             }
             if let Some(write_arguments) = arguments.subcommand_matches("write") {
@@ -251,6 +257,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                     None,
                     HashMap::new(),
                     |field| Ok(field),
+                    protected_file_types,
                 );
             }
             #[cfg(feature = "tracing")]
@@ -260,6 +267,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                         trace_arguments,
                         &mut snapshot,
                         $snap_num_offset,
+                        protected_file_types,
                     );
                 }
             }
@@ -270,6 +278,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                         ebeam_arguments,
                         &mut snapshot,
                         $snap_num_offset,
+                        protected_file_types,
                     );
                 }
             }
@@ -280,7 +289,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
         PathBuf::from_str(
             arguments
                 .value_of("input-file")
-                .expect("Required argument not present."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to input file: {}"
     );
@@ -305,17 +314,17 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                 "Error: Last snapshot number must be larger than first snapshot number"
             );
 
-            let (snap_name, _) =
-                snapshot::extract_name_and_num_from_snapshot_path(&input_file_path);
-
             (snap_num_range[0]..=snap_num_range[1])
                 .map(|snap_num| {
                     (
-                        input_file_path.with_file_name(snapshot::create_snapshot_file_name(
-                            &snap_name,
-                            snap_num,
-                            &input_extension,
-                        )),
+                        input_file_path.with_file_name(
+                            snapshot::create_new_snapshot_file_name_from_path(
+                                &input_file_path,
+                                snap_num,
+                                &input_extension,
+                                false,
+                            ),
+                        ),
                         Some(snap_num - snap_num_range[0]),
                     )
                 })
@@ -326,7 +335,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
 
     let endianness = match arguments
         .value_of("endianness")
-        .expect("No value for argument with default.")
+        .expect("No value for argument with default")
     {
         "little" => Endianness::Little,
         "big" => Endianness::Big,

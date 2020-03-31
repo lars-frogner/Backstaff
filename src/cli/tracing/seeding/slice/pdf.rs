@@ -76,7 +76,7 @@ where
 {
     let quantity = arguments
         .value_of("quantity")
-        .expect("No value for required argument.");
+        .expect("No value for required argument");
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
     let power = utils::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
 

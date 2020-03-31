@@ -34,7 +34,7 @@ pub fn construct_manual_reconnection_site_detector_from_options(
         PathBuf::from_str(
             arguments
                 .value_of("input-file")
-                .expect("No value for required argument."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to input file: {}"
     );

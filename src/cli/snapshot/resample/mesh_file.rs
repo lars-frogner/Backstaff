@@ -54,6 +54,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
     continue_on_warnings: bool,
     is_verbose: bool,
     interpolator: I,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
@@ -71,7 +72,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
         PathBuf::from_str(
             root_arguments
                 .value_of("mesh-file")
-                .expect("No value for required argument.")
+                .expect("No value for required argument")
         ),
         "Error: Could not interpret path to mesh file: {}"
     );
@@ -107,6 +108,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
                 resampling_method,
                 is_verbose,
                 interpolator,
+                protected_file_types,
             );
         }
         GridType::HorRegular => {
@@ -133,6 +135,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
                 resampling_method,
                 is_verbose,
                 interpolator,
+                protected_file_types,
             );
         }
     }

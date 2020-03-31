@@ -189,6 +189,11 @@ impl FieldLineSet3 {
         Self::new(lower_bounds, upper_bounds, properties, verbose)
     }
 
+    /// Whether the field line set is verbose.
+    pub fn verbose(&self) -> Verbose {
+        self.verbose
+    }
+
     /// Returns the number of field lines making up the field line set.
     pub fn number_of_field_lines(&self) -> usize {
         self.properties.number_of_field_lines
@@ -217,7 +222,7 @@ impl FieldLineSet3 {
                 let value = interpolator
                     .interp_scalar_field(field, &acceleration_position)
                     .expect_inside();
-                num::NumCast::from(value).expect("Conversion failed.")
+                num::NumCast::from(value).expect("Conversion failed")
             })
             .collect();
         self.properties
@@ -285,7 +290,7 @@ impl FieldLineSet3 {
                             let value = interpolator
                                 .interp_scalar_field(field, &position)
                                 .expect_inside();
-                            num::NumCast::from(value).expect("Conversion failed.")
+                            num::NumCast::from(value).expect("Conversion failed")
                         })
                         .collect()
                 },
@@ -343,12 +348,6 @@ impl FieldLineSet3 {
 
     /// Serializes the field line data into JSON format and saves at the given path.
     pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving field line data in JSON format in {}",
-                output_file_path.as_ref().display()
-            );
-        }
         utils::save_data_as_json(output_file_path, &self)
     }
 
@@ -363,12 +362,6 @@ impl FieldLineSet3 {
     ///
     /// All the field line data is saved as a single pickled structure.
     pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving field lines as single pickle object in {}",
-                output_file_path.as_ref().display()
-            );
-        }
         utils::save_data_as_pickle(output_file_path, &self)
     }
 
@@ -427,12 +420,6 @@ impl FieldLineSet3 {
     ///
     /// The data fields are saved as separate pickle objects in the same file.
     pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving field lines in {}",
-                output_file_path.as_ref().display()
-            );
-        }
         let mut file = utils::create_file_and_required_directories(output_file_path)?;
         self.write_as_combined_pickles(&mut file)
     }
@@ -449,16 +436,6 @@ impl FieldLineSet3 {
 
     /// Serializes the field line data into a custom binary format and saves at the given path.
     pub fn save_as_custom_binary<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving field lines in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -475,16 +452,6 @@ impl FieldLineSet3 {
         output_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving field lines in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         save_field_line_data_as_h5part(output_file_path, self.properties.clone(), drop_id)
     }
 
@@ -502,16 +469,6 @@ impl FieldLineSet3 {
     /// Serializes the field line data into a custom binary format and saves at the given path,
     /// consuming the field line set in the process.
     pub fn save_into_custom_binary<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving field lines in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -529,16 +486,6 @@ impl FieldLineSet3 {
         output_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving field lines in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         save_field_line_data_as_h5part(output_file_path, self.properties, drop_id)
     }
 }

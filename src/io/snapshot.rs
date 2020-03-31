@@ -51,6 +51,9 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
 
     const FORMAT: SnapshotFormat;
 
+    /// Returns the path to the file representing the snapshot.
+    fn path(&self) -> &Path;
+
     /// Whether the reader is verbose.
     fn verbose(&self) -> Verbose;
 
@@ -97,10 +100,10 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
     ) -> (Vec<&'a str>, Vec<&'a str>) {
         let all_primary_variable_names = self.primary_variable_names();
 
-        let included_primary_variable_names = variable_names
+        let included_primary_variable_names = all_primary_variable_names
             .iter()
             .cloned()
-            .filter(|name| all_primary_variable_names.contains(name))
+            .filter(|name| variable_names.contains(name))
             .collect::<Vec<_>>();
 
         let included_auxiliary_variable_names = variable_names
@@ -316,7 +319,7 @@ impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
     pub fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<fdt, G> {
         self.scalar_fields
             .get(variable_name)
-            .expect("Scalar field is not cached.")
+            .expect("Scalar field is not cached")
     }
 
     /// Returns a reference to the vector field representing the given variable.
@@ -325,7 +328,7 @@ impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
     pub fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<fdt, G> {
         self.vector_fields
             .get(variable_name)
-            .expect("Vector field is not cached.")
+            .expect("Vector field is not cached")
     }
 
     /// Whether the scalar field representing the given variable is cached.
@@ -360,18 +363,63 @@ impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
 pub fn extract_name_and_num_from_snapshot_path<P: AsRef<Path>>(
     file_path: P,
 ) -> (String, Option<u32>) {
+    let (snap_name, snap_num_string) = parse_snapshot_file_path(file_path);
+    (
+        snap_name,
+        snap_num_string.map(|s| s.parse::<u32>().unwrap()),
+    )
+}
+
+/// Parses the file name of the given path and returns the number of digits
+/// in the snapshot number part of the file name, if present.
+pub fn determine_length_of_snap_num_in_file_name<P: AsRef<Path>>(file_path: P) -> Option<u32> {
+    parse_snapshot_file_path(file_path)
+        .1
+        .map(|s| s.len() as u32)
+}
+
+/// Parses the file name of the given path and returns a corresponding
+/// snapshot file name with the given number and extension.
+pub fn create_new_snapshot_file_name_from_path<P: AsRef<Path>>(
+    file_path: P,
+    snap_num: u32,
+    extension: &str,
+    use_snap_num_as_offset: bool,
+) -> String {
+    match parse_snapshot_file_path(file_path) {
+        (orig_snap_name, Some(orig_snap_num_string)) => {
+            let orig_snap_num = orig_snap_num_string.parse::<u32>().unwrap();
+            let new_snap_num = if use_snap_num_as_offset {
+                orig_snap_num + snap_num
+            } else {
+                snap_num
+            };
+            format!(
+                "{}_{:0width$}.{}",
+                orig_snap_name,
+                new_snap_num,
+                extension,
+                width = orig_snap_num_string.len()
+            )
+        }
+        (orig_snap_name, None) => {
+            let orig_snap_num = FALLBACK_SNAP_NUM;
+            let new_snap_num = if use_snap_num_as_offset {
+                orig_snap_num + snap_num
+            } else {
+                snap_num
+            };
+            format!("{}_{:03}.{}", orig_snap_name, new_snap_num, extension)
+        }
+    }
+}
+
+fn parse_snapshot_file_path<P: AsRef<Path>>(file_path: P) -> (String, Option<String>) {
     let file_path = file_path.as_ref();
     let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
     let regex = Regex::new(r"^(.+?)_(\d+)$").unwrap();
-    let (snap_name, snap_num) = regex
+    regex
         .captures(&file_stem)
-        .map(|caps| (caps[1].to_string(), Some(caps[2].parse::<u32>().unwrap())))
-        .unwrap_or((file_stem, None));
-    (snap_name, snap_num)
-}
-
-/// Combines the given snapshot name, number and extension to produce a
-/// snapshot file name.
-pub fn create_snapshot_file_name(snap_name: &str, snap_num: u32, extension: &str) -> String {
-    format!("{}_{:03}.{}", snap_name, snap_num, extension)
+        .map(|caps| (caps[1].to_string(), Some(caps[2].to_string())))
+        .unwrap_or_else(|| (file_stem, None))
 }

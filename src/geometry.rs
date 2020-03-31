@@ -217,9 +217,9 @@ impl<F: BFloat> Vec3<F> {
     /// Creates a new vector from the given vector, which may have a different component type.
     pub fn from<U: BFloat>(other: &Vec3<U>) -> Self {
         Vec3::new(
-            F::from(other[X]).expect("Conversion failed."),
-            F::from(other[Y]).expect("Conversion failed."),
-            F::from(other[Z]).expect("Conversion failed."),
+            F::from(other[X]).expect("Conversion failed"),
+            F::from(other[Y]).expect("Conversion failed"),
+            F::from(other[Z]).expect("Conversion failed"),
         )
     }
 
@@ -420,8 +420,8 @@ impl<F: BFloat> Vec2<F> {
     /// Creates a new vector from the given vector, which may have a different component type.
     pub fn from<U: BFloat>(other: &Vec2<U>) -> Self {
         Vec2::new(
-            F::from(other[Dim2::X]).expect("Conversion failed."),
-            F::from(other[Dim2::Y]).expect("Conversion failed."),
+            F::from(other[Dim2::X]).expect("Conversion failed"),
+            F::from(other[Dim2::Y]).expect("Conversion failed"),
         )
     }
 
@@ -624,9 +624,9 @@ impl<F: BFloat> Point3<F> {
     /// Creates a new point from the given components, which may have different types.
     pub fn from_components<U: BFloat, V: BFloat, W: BFloat>(x: U, y: V, z: W) -> Self {
         Point3::new(
-            F::from(x).expect("Conversion failed."),
-            F::from(y).expect("Conversion failed."),
-            F::from(z).expect("Conversion failed."),
+            F::from(x).expect("Conversion failed"),
+            F::from(y).expect("Conversion failed"),
+            F::from(z).expect("Conversion failed"),
         )
     }
 
@@ -774,8 +774,8 @@ impl<F: BFloat> Point2<F> {
     /// Creates a new point from the given components, which may have a different type.
     pub fn from_components<U: BFloat, V: BFloat>(x: U, y: V) -> Self {
         Point2::new(
-            F::from(x).expect("Conversion failed."),
-            F::from(y).expect("Conversion failed."),
+            F::from(x).expect("Conversion failed"),
+            F::from(y).expect("Conversion failed"),
         )
     }
 
@@ -928,9 +928,9 @@ impl<I: num::Integer> Idx3<I> {
         U: num::Integer + num::NumCast + Copy,
     {
         Idx3::new(
-            I::from(other[X]).expect("Conversion failed."),
-            I::from(other[Y]).expect("Conversion failed."),
-            I::from(other[Z]).expect("Conversion failed."),
+            I::from(other[X]).expect("Conversion failed"),
+            I::from(other[Y]).expect("Conversion failed"),
+            I::from(other[Z]).expect("Conversion failed"),
         )
     }
 }
@@ -979,8 +979,8 @@ impl<I: num::Integer> Idx2<I> {
         U: num::Integer + num::NumCast + Copy,
     {
         Idx2::new(
-            I::from(other[Dim2::X]).expect("Conversion failed."),
-            I::from(other[Dim2::Y]).expect("Conversion failed."),
+            I::from(other[Dim2::X]).expect("Conversion failed"),
+            I::from(other[Dim2::Y]).expect("Conversion failed"),
         )
     }
 }

@@ -99,6 +99,7 @@ pub fn run_resampling_for_regular_grid<G, R, I>(
     continue_on_warnings: bool,
     is_verbose: bool,
     interpolator: I,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
@@ -179,5 +180,6 @@ pub fn run_resampling_for_regular_grid<G, R, I>(
         resampling_method,
         is_verbose,
         interpolator,
+        protected_file_types,
     );
 }

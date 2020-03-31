@@ -222,7 +222,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                 }
             };
             indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
-                .expect("Coordinate index search failed.");
+                .expect("Coordinate index search failed");
         }
         debug_assert!(
             self.point_is_inside_cell(&point, &indices),
@@ -264,7 +264,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                     wrapped = true;
                 };
                 indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
-                    .expect("Coordinate index search failed.");
+                    .expect("Coordinate index search failed");
             } else if point[dim] < lower_bounds[dim] {
                 indices[dim] = 0;
                 point[dim] = lower_bounds[dim];
@@ -273,7 +273,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                 point[dim] = upper_bounds[dim].prev();
             } else {
                 indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
-                    .expect("Coordinate index search failed.");
+                    .expect("Coordinate index search failed");
             }
         }
         debug_assert!(
@@ -354,8 +354,8 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     {
         debug_assert!(upper_idx >= lower_idx);
 
-        let lower_idx = I::to_isize(&lower_idx).expect("Conversion failed.");
-        let upper_idx = I::to_isize(&upper_idx).expect("Conversion failed.");
+        let lower_idx = I::to_isize(&lower_idx).expect("Conversion failed");
+        let upper_idx = I::to_isize(&upper_idx).expect("Conversion failed");
 
         let wrapped_lower_idx = self.wrap_idx_to_closest(dim, lower_idx);
         let wrapped_upper_idx = self.wrap_idx_to_closest(dim, upper_idx - 1);
@@ -557,7 +557,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
                 }
             };
             indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
-                .expect("Coordinate index search failed.");
+                .expect("Coordinate index search failed");
         }
         debug_assert!(
             self.point_is_inside_cell(&point, &indices),
@@ -592,7 +592,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
                     point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
                 };
                 indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
-                    .expect("Coordinate index search failed.");
+                    .expect("Coordinate index search failed");
             } else {
                 indices[dim] = if point[dim] < lower_bounds[dim] {
                     0
@@ -600,7 +600,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
                     shape[dim] - 1
                 } else {
                     search_idx_of_coord(&lower_edges[dim], point[dim])
-                        .expect("Coordinate index search failed.")
+                        .expect("Coordinate index search failed")
                 };
             }
         }
@@ -914,7 +914,7 @@ fn search_idx_of_coord<F: BFloat>(lower_edges: &[F], coord: F) -> Option<usize> 
                 / (lower_edges[high] - lower_edges[low]))
             .floor();
 
-        mid = F::to_usize(&mid_float).expect("Conversion failed.");
+        mid = F::to_usize(&mid_float).expect("Conversion failed");
 
         if mid >= high {
             // Due to roundoff error, we might get `mid == high` even though `coord < lower_edges[high]`.

@@ -33,6 +33,6 @@ impl<I: num::Integer, F: BFloat> Eq for OrderableIndexValuePair<I, F> {}
 impl<I: num::Integer, F: BFloat> Ord for OrderableIndexValuePair<I, F> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.partial_cmp(&other)
-            .expect("NaN in floating point comparison.")
+            .expect("NaN in floating point comparison")
     }
 }

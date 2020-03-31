@@ -1,6 +1,7 @@
 //! Utilities for input/output.
 
 use super::Endianness;
+use crate::exit_with_error;
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use serde::Serialize;
 use serde_json;
@@ -9,14 +10,76 @@ use std::{
     fs, io,
     io::{Read, Seek, SeekFrom, Write},
     mem,
-    path::Path,
+    path::{Path, PathBuf},
 };
+use tempfile::{Builder, TempPath};
 
 #[macro_export]
 macro_rules! io_result {
     ($result:expr) => {
         $result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))
     };
+}
+
+/// Path to a target output file, with an associated temporary path for writing data to.
+/// The temporary file can take the place of the target output file in a single operation.
+pub struct AtomicOutputPath {
+    target_output_file_path: PathBuf,
+    temp_output_file_path: TempPath,
+}
+
+impl AtomicOutputPath {
+    /// Creates a new atomic output path for the given target file path.
+    pub fn new<P: AsRef<Path>>(output_file_path: P) -> io::Result<Self> {
+        let target_output_file_path = output_file_path.as_ref().to_path_buf();
+        let output_dir = target_output_file_path.parent().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "No extension for output file")
+        })?;
+        let temp_output_file_path = io_result!(Builder::new()
+            .prefix(".backstaff_tmp",)
+            .suffix(&format!(
+                "_{}",
+                target_output_file_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+            ))
+            .tempfile_in(output_dir))?
+        .into_temp_path();
+        Ok(Self {
+            target_output_file_path,
+            temp_output_file_path,
+        })
+    }
+
+    /// Returns the path to the target output file.
+    pub fn target_path(&self) -> &Path {
+        &self.target_output_file_path
+    }
+
+    /// Returns the path to the temporary output file.
+    pub fn temporary_path(&self) -> &Path {
+        &self.temp_output_file_path
+    }
+
+    /// Makes sure that the target output file can be overwritten, either automatically
+    /// or with user's consent. If not, aborts the program.
+    pub fn ensure_write_allowed(&self, automatic_overwrite: bool, protected_file_types: &[&str]) {
+        ensure_write_allowed(
+            self.target_path(),
+            automatic_overwrite,
+            protected_file_types,
+        );
+    }
+
+    /// Moves the temporary file to the target output file path.
+    pub fn perform_replace(self) -> io::Result<()> {
+        let Self {
+            target_output_file_path,
+            temp_output_file_path,
+        } = self;
+        io_result!(temp_output_file_path.persist(target_output_file_path))
+    }
 }
 
 /// Prompts the user with a question and returns whether the answer was yes.
@@ -46,7 +109,7 @@ pub fn user_says_yes(question: &str, default_is_no: bool) -> bool {
                     final_answer = if default_is_no { "n" } else { "y" };
                     break;
                 } else {
-                    answer.to_ascii_lowercase();
+                    answer = answer.to_ascii_lowercase();
                     if accepted_answers.contains(&answer.as_str()) {
                         final_answer = answer.as_str();
                         break;
@@ -75,6 +138,23 @@ pub fn write_allowed<P: AsRef<Path>>(file_path: P) -> bool {
         )
     } else {
         true
+    }
+}
+
+/// Makes sure that the file at the given path can be overwritten, either automatically
+/// or with user's consent. If not, aborts the program.
+pub fn ensure_write_allowed<P: AsRef<Path>>(
+    file_path: P,
+    automatic_overwrite: bool,
+    protected_file_types: &[&str],
+) {
+    let file_path = file_path.as_ref();
+    let is_protected = match file_path.extension() {
+        Some(extension) => protected_file_types.contains(&extension.to_string_lossy().as_ref()),
+        None => false,
+    };
+    if (!automatic_overwrite || is_protected) && !write_allowed(file_path) {
+        exit_with_error!("Aborted");
     }
 }
 
@@ -139,25 +219,9 @@ pub fn create_file_and_required_directories<P: AsRef<Path>>(file_path: P) -> io:
     fs::File::create(file_path)
 }
 
-/// Writes the given string as a text file with the specified path.
-///
-/// Prompts the user to confirm overwrite if necessary.
-pub fn write_text_file<P: AsRef<Path>>(
-    text: &str,
-    output_file_path: P,
-    force_overwrite: bool,
-) -> io::Result<()> {
-    let output_file_path = output_file_path.as_ref();
-    if force_overwrite || write_allowed(output_file_path) {
-        overwrite_text_file(text, output_file_path)
-    } else {
-        Ok(())
-    }
-}
-
 /// Writes the given string as a text file with the specified path,
 /// regardless of whether the file already exists.
-pub fn overwrite_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
+pub fn write_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
     let mut file = create_file_and_required_directories(output_file_path)?;
     write!(&mut file, "{}", text)
 }

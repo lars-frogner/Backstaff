@@ -427,6 +427,11 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         }
     }
 
+    /// Whether the electron beam swarm is verbose.
+    pub fn verbose(&self) -> Verbose {
+        self.verbose
+    }
+
     /// Returns the number of beams making up the electron beam set.
     pub fn number_of_beams(&self) -> usize {
         self.properties.number_of_beams
@@ -464,7 +469,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                 let value = interpolator
                     .interp_scalar_field(field, &acceleration_position)
                     .expect_inside();
-                num::NumCast::from(value).expect("Conversion failed.")
+                num::NumCast::from(value).expect("Conversion failed")
             })
             .collect();
         self.properties
@@ -529,7 +534,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                         let value = interpolator
                             .interp_scalar_field(field, &position)
                             .expect_inside();
-                        num::NumCast::from(value).expect("Conversion failed.")
+                        num::NumCast::from(value).expect("Conversion failed")
                     })
                     .collect()
             })
@@ -578,16 +583,6 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
     /// Serializes the electron beam data into JSON format and saves at the given path.
     pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving beams in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         utils::save_data_as_json(output_file_path, &self)
     }
 
@@ -595,16 +590,6 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// All the electron beam data is saved as a single pickled structure.
     pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving beams in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         utils::save_data_as_pickle(output_file_path, &self)
     }
 
@@ -612,16 +597,6 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// The data fields are saved as separate pickle objects in the same file.
     pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving beams in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         let mut buffer_1 = Vec::new();
         utils::write_data_as_pickle(&mut buffer_1, &self.lower_bounds)?;
         let mut buffer_2 = Vec::new();
@@ -674,16 +649,6 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
     /// Serializes the electron beam data into a custom binary format and saves at the given path.
     pub fn save_as_custom_binary<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving beams in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         let mut file = field_line::save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -700,16 +665,6 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         output_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving beams in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         field_line::save_field_line_data_as_h5part(
             output_file_path,
             self.properties.clone().into_field_line_set_properties(),
@@ -720,16 +675,6 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// Serializes the electron beam data into a custom binary format and saves at the given path,
     /// consuming the electron beam swarm in the process.
     pub fn save_into_custom_binary<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving beams in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         let mut file = field_line::save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -747,16 +692,6 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         output_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
-        if self.verbose.is_yes() {
-            println!(
-                "Saving beams in {}",
-                output_file_path
-                    .as_ref()
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-            );
-        }
         field_line::save_field_line_data_as_h5part(
             output_file_path,
             self.properties.into_field_line_set_properties(),

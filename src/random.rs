@@ -30,7 +30,7 @@ where
             match cdf.binary_search_by(|cdf_value| {
                 cdf_value
                     .partial_cmp(&sampled_cdf_value)
-                    .expect("Float comparison failed.")
+                    .expect("Float comparison failed")
             }) {
                 Ok(exact_idx) => exact_idx,
                 Err(adjacent_idx) => adjacent_idx,

@@ -78,13 +78,14 @@ pub fn run_resample_subcommand<G, R>(
     arguments: &ArgMatches,
     reader: &R,
     snap_num_offset: Option<u32>,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
 {
     let resampled_locations = match arguments
         .value_of("sample-location")
-        .expect("No value for argument with default.")
+        .expect("No value for argument with default")
     {
         "original" => In3D::same(ResampledCoordLocation::Original),
         "center" => In3D::same(ResampledCoordLocation::center()),
@@ -111,6 +112,7 @@ pub fn run_resample_subcommand<G, R>(
         &resampled_locations,
         continue_on_warnings,
         is_verbose,
+        protected_file_types,
     );
 }
 
@@ -122,6 +124,7 @@ fn run_with_selected_method<G, R>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
     is_verbose: bool,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
@@ -154,6 +157,7 @@ fn run_with_selected_method<G, R>(
         resampling_method,
         continue_on_warnings,
         is_verbose,
+        protected_file_types,
     )
 }
 
@@ -167,6 +171,7 @@ fn run_with_selected_interpolator<G, R>(
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     is_verbose: bool,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
@@ -194,6 +199,7 @@ fn run_with_selected_interpolator<G, R>(
             continue_on_warnings,
             is_verbose,
             interpolator,
+            protected_file_types,
         ),
         ResampleGridType::MeshFile => run_resampling_for_mesh_file(
             grid_type_arguments,
@@ -205,6 +211,7 @@ fn run_with_selected_interpolator<G, R>(
             continue_on_warnings,
             is_verbose,
             interpolator,
+            protected_file_types,
         ),
     }
 }
@@ -331,6 +338,7 @@ fn resample_snapshot_for_grid<GIN, R, GOUT, I>(
     resampling_method: ResamplingMethod,
     is_verbose: bool,
     interpolator: I,
+    protected_file_types: &[&str],
 ) where
     GIN: Grid3<fdt>,
     R: SnapshotReader3<GIN>,
@@ -354,5 +362,6 @@ fn resample_snapshot_for_grid<GIN, R, GOUT, I>(
                 resampling_method,
             ))
         },
+        protected_file_types,
     );
 }
