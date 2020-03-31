@@ -7,7 +7,13 @@ use crate::{
     io::snapshot::{self, fdt, native, ParameterValue, SnapshotReader3},
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
-use std::{collections::HashMap, io, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt, io,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 
 #[cfg(feature = "netcdf")]
 use crate::io::snapshot::netcdf;
@@ -34,7 +40,7 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing files"),
+                .help("Automatically overwrite any existing files (unless listed as protected)"),
         )
         .arg(
             Arg::with_name("included-quantities")
@@ -108,6 +114,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     new_grid: Option<Arc<GOUT>>,
     modified_parameters: HashMap<&str, ParameterValue>,
     field_modifier: FM,
+    protected_file_types: &[&str],
 ) where
     GIN: Grid3<fdt>,
     RIN: SnapshotReader3<GIN>,
@@ -123,11 +130,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
         "Error: Could not interpret path to output file: {}"
     );
 
-    let output_extension = output_file_path
-        .extension()
-        .unwrap_or_else(|| exit_with_error!("Error: Missing extension for output-file"))
-        .to_string_lossy()
-        .to_string();
+    let output_type = OutputType::from_path(&output_file_path);
 
     if let Some(snap_num_offset) = snap_num_offset {
         let (output_snap_name, output_snap_num) =
@@ -136,11 +139,11 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
         output_file_path.set_file_name(snapshot::create_snapshot_file_name(
             &output_snap_name,
             output_snap_num + snap_num_offset,
-            &output_extension,
+            &output_type.to_string(),
         ));
     }
 
-    let force_overwrite = arguments.is_present("overwrite");
+    let automatic_overwrite = arguments.is_present("overwrite");
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
@@ -173,39 +176,100 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     }
 
     exit_on_error!(
-        match output_extension.as_ref() {
-            "idl" => native::write_modified_snapshot(
+        match output_type {
+            OutputType::Native => native::write_modified_snapshot(
                 reader,
                 new_grid,
                 &quantity_names,
                 modified_parameters,
                 modified_field_producer!(),
                 &output_file_path,
-                force_overwrite,
+                automatic_overwrite,
+                protected_file_types,
                 verbose,
             ),
+            #[cfg(feature = "netcdf")]
+            OutputType::NetCDF => {
+                let strip_metadata = arguments.is_present("strip");
+                netcdf::write_modified_snapshot(
+                    reader,
+                    new_grid,
+                    &quantity_names,
+                    modified_parameters,
+                    modified_field_producer!(),
+                    &output_file_path,
+                    strip_metadata,
+                    automatic_overwrite,
+                    protected_file_types,
+                    verbose,
+                )
+            }
+        },
+        "Error: Could not write snapshot: {}"
+    );
+}
+
+#[derive(Copy, Clone, Debug)]
+enum OutputType {
+    Native,
+    #[cfg(feature = "netcdf")]
+    NetCDF,
+}
+
+impl OutputType {
+    fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
+        Self::from_extension(
+            file_path
+                .as_ref()
+                .extension()
+                .unwrap_or_else(|| {
+                    exit_with_error!(
+                        "Error: Missing extension for output file\n\
+                         Valid extensions are: {}",
+                        Self::valid_extensions_string()
+                    )
+                })
+                .to_string_lossy()
+                .as_ref(),
+        )
+    }
+
+    fn from_extension(extension: &str) -> Self {
+        match extension {
+            "idl" => Self::Native,
             "nc" => {
                 #[cfg(feature = "netcdf")]
                 {
-                    let strip_metadata = arguments.is_present("strip");
-                    netcdf::write_modified_snapshot(
-                        reader,
-                        new_grid,
-                        &quantity_names,
-                        modified_parameters,
-                        modified_field_producer!(),
-                        &output_file_path,
-                        strip_metadata,
-                        force_overwrite,
-                        verbose,
-                    )
+                    Self::NetCDF
                 }
                 #[cfg(not(feature = "netcdf"))]
                 exit_with_error!("Error: Compile with netcdf feature in order to write NetCDF files\n\
                                   Tip: Use cargo flag --features=netcdf and make sure the NetCDF library is available");
             }
-            invalid => exit_with_error!("Error: Invalid extension {} for output-file", invalid),
-        },
-        "Error: Could not write snapshot: {}"
-    );
+            invalid => exit_with_error!(
+                "Error: Invalid extension {} for output file\n\
+                 Valid extensions are: {}",
+                invalid,
+                Self::valid_extensions_string()
+            ),
+        }
+    }
+
+    fn valid_extensions_string() -> String {
+        format!("idl{}", if cfg!(feature = "netcdf") { ", nc" } else { "" })
+    }
+}
+
+impl fmt::Display for OutputType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Native => "idl",
+                #[cfg(feature = "netcdf")]
+                Self::NetCDF => "nc",
+            }
+        )
+    }
 }
