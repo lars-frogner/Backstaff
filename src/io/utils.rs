@@ -99,7 +99,7 @@ pub fn user_says_yes(question: &str, default_is_no: bool) -> bool {
                     final_answer = if default_is_no { "n" } else { "y" };
                     break;
                 } else {
-                    answer.to_ascii_lowercase();
+                    answer = answer.to_ascii_lowercase();
                     if accepted_answers.contains(&answer.as_str()) {
                         final_answer = answer.as_str();
                         break;
