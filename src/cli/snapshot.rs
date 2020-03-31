@@ -225,7 +225,7 @@ macro_rules! create_netcdf_reader_and_run {
 }
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
-pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
+pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     macro_rules! run_subcommands_for_reader {
         ($reader:expr, $snap_num_offset:expr) => {{
             let mut snapshot = SnapshotCacher3::new($reader);
@@ -234,13 +234,19 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                 inspect::run_inspect_subcommand(inspect_arguments, snapshot.reader());
             }
             if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
-                slice::run_slice_subcommand(slice_arguments, &mut snapshot, $snap_num_offset);
+                slice::run_slice_subcommand(
+                    slice_arguments,
+                    &mut snapshot,
+                    $snap_num_offset,
+                    protected_file_types,
+                );
             }
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
                 resample::run_resample_subcommand(
                     resample_arguments,
                     snapshot.reader(),
                     $snap_num_offset,
+                    protected_file_types,
                 );
             }
             if let Some(write_arguments) = arguments.subcommand_matches("write") {
@@ -251,6 +257,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                     None,
                     HashMap::new(),
                     |field| Ok(field),
+                    protected_file_types,
                 );
             }
             #[cfg(feature = "tracing")]
@@ -260,6 +267,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                         trace_arguments,
                         &mut snapshot,
                         $snap_num_offset,
+                        protected_file_types,
                     );
                 }
             }
@@ -270,6 +278,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches) {
                         ebeam_arguments,
                         &mut snapshot,
                         $snap_num_offset,
+                        protected_file_types,
                     );
                 }
             }

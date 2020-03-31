@@ -56,13 +56,13 @@ pub fn create_command_graph_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing file"),
+                .help("Automatically overwrite any existing file (unless listed as protected)"),
         )
         .help_message("Print help information")
 }
 
 /// Runs the actions for the `command_graph` subcommand using the given arguments.
-pub fn run_command_graph_subcommand(arguments: &ArgMatches) {
+pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     let output_file_path = exit_on_error!(
         PathBuf::from_str(
             arguments
@@ -73,7 +73,7 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches) {
     );
 
     let include_configuration = arguments.is_present("include-configuration");
-    let force_overwrite = arguments.is_present("overwrite");
+    let automatic_overwrite = arguments.is_present("overwrite");
 
     let mut command_graph = COMMAND_GRAPH.lock().unwrap().clone();
 
@@ -87,8 +87,11 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches) {
         "{}",
         Dot::with_config(&command_graph, &[Config::EdgeNoLabel])
     );
+
+    utils::ensure_write_allowed(&output_file_path, automatic_overwrite, protected_file_types);
+
     exit_on_error!(
-        utils::write_text_file(&dot_text, output_file_path, force_overwrite),
+        utils::write_text_file(&dot_text, output_file_path),
         "Error: Could not write command graph: {}"
     );
 }

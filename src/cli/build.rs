@@ -25,6 +25,20 @@ pub fn build<'a, 'b>() -> App<'a, 'b> {
                 .long("timing")
                 .help("Display elapsed time when done"),
         )
+        .arg(
+            Arg::with_name("protected-file-types")
+                .long("protected-file-types")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_name("EXTENSIONS")
+                .help(
+                    "List of extensions for file types that never should be overwritten automatically\n\
+                    (comma-separated)",
+                )
+                .takes_value(true)
+                .multiple(true)
+                .default_value("idl,snap,aux"),
+        )
         .subcommand(create_subcommand!(backstaff, snapshot))
         .subcommand(create_subcommand!(backstaff, create_mesh))
         .subcommand(create_subcommand!(backstaff, derivable_quantities))

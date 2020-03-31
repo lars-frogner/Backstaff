@@ -63,7 +63,11 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 /// Runs the actions for the `create_mesh-regular` subcommand using the given arguments.
-pub fn run_regular_subcommand(root_arguments: &ArgMatches, arguments: &ArgMatches) {
+pub fn run_regular_subcommand(
+    root_arguments: &ArgMatches,
+    arguments: &ArgMatches,
+    protected_file_types: &[&str],
+) {
     let shape = utils::get_values_from_required_parseable_argument(arguments, "shape");
 
     let x_bounds = utils::get_values_from_required_parseable_argument(arguments, "x-bounds");
@@ -89,5 +93,5 @@ pub fn run_regular_subcommand(root_arguments: &ArgMatches, arguments: &ArgMatche
         In3D::new(false, false, false),
     );
 
-    super::write_mesh_file(root_arguments, grid);
+    super::write_mesh_file(root_arguments, grid, protected_file_types);
 }

@@ -27,11 +27,17 @@ pub fn run_ebeam_subcommand<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
     snap_num_offset: Option<u32>,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
     if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
-        run_simulate_subcommand(simulate_arguments, snapshot, snap_num_offset);
+        run_simulate_subcommand(
+            simulate_arguments,
+            snapshot,
+            snap_num_offset,
+            protected_file_types,
+        );
     }
 }
