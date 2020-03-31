@@ -314,17 +314,17 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                 "Error: Last snapshot number must be larger than first snapshot number"
             );
 
-            let (snap_name, _) =
-                snapshot::extract_name_and_num_from_snapshot_path(&input_file_path);
-
             (snap_num_range[0]..=snap_num_range[1])
                 .map(|snap_num| {
                     (
-                        input_file_path.with_file_name(snapshot::create_snapshot_file_name(
-                            &snap_name,
-                            snap_num,
-                            &input_extension,
-                        )),
+                        input_file_path.with_file_name(
+                            snapshot::create_new_snapshot_file_name_from_path(
+                                &input_file_path,
+                                snap_num,
+                                &input_extension,
+                                false,
+                            ),
+                        ),
                         Some(snap_num - snap_num_range[0]),
                     )
                 })

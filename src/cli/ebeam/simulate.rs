@@ -623,13 +623,11 @@ where G: Grid3<fdt>,
     let output_type = OutputType::from_path(&output_file_path);
 
     if let Some(snap_num_offset) = snap_num_offset {
-        let (output_base_name, output_existing_num) =
-            snapshot::extract_name_and_num_from_snapshot_path(&output_file_path);
-        let output_existing_num = output_existing_num.unwrap_or(snapshot::FALLBACK_SNAP_NUM);
-        output_file_path.set_file_name(snapshot::create_snapshot_file_name(
-            &output_base_name,
-            output_existing_num + snap_num_offset,
+        output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
+            &output_file_path,
+            snap_num_offset,
             &output_type.to_string(),
+            true,
         ));
     }
 
