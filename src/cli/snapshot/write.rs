@@ -132,6 +132,8 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
 
     let output_type = OutputType::from_path(&output_file_path);
 
+    let mut write_mesh_file = true;
+
     if let Some(snap_num_offset) = snap_num_offset {
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
@@ -139,6 +141,9 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
             &output_type.to_string(),
             true,
         ));
+        if snap_num_offset > 0 {
+            write_mesh_file = false;
+        }
     }
 
     let automatic_overwrite = arguments.is_present("overwrite");
@@ -182,6 +187,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                 modified_parameters,
                 modified_field_producer!(),
                 &output_file_path,
+                write_mesh_file,
                 automatic_overwrite,
                 protected_file_types,
                 verbose,

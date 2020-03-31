@@ -378,6 +378,7 @@ pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
     mut modified_parameters: HashMap<&str, ParameterValue>,
     field_producer: FP,
     output_param_path: P,
+    write_mesh_file: bool,
     automatic_overwrite: bool,
     protected_file_types: &[&str],
     verbose: Verbose,
@@ -419,18 +420,24 @@ where
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
 
     let atomic_param_path = AtomicOutputPath::new(output_param_path)?;
-    let atomic_mesh_path = AtomicOutputPath::new(
-        atomic_param_path
-            .target_path()
-            .with_file_name(format!("{}.mesh", snap_name)),
-    )?;
+    let atomic_mesh_path = if write_mesh_file {
+        Some(AtomicOutputPath::new(
+            atomic_param_path
+                .target_path()
+                .with_file_name(format!("{}.mesh", snap_name)),
+        )?)
+    } else {
+        None
+    };
     let atomic_snap_path =
         AtomicOutputPath::new(atomic_param_path.target_path().with_extension("snap"))?;
     let atomic_aux_path =
         AtomicOutputPath::new(atomic_param_path.target_path().with_extension("aux"))?;
 
     atomic_param_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
-    atomic_mesh_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+    if let Some(atomic_mesh_path) = &atomic_mesh_path {
+        atomic_mesh_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+    }
     if has_primary {
         atomic_aux_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
     }
@@ -439,11 +446,6 @@ where
     }
 
     let output_param_file_name = atomic_param_path
-        .target_path()
-        .file_name()
-        .unwrap()
-        .to_string_lossy();
-    let output_mesh_file_name = atomic_mesh_path
         .target_path()
         .file_name()
         .unwrap()
@@ -472,10 +474,19 @@ where
                 atomic_param_path.temporary_path(),
             )?;
 
-            if verbose.is_yes() {
-                println!("Writing grid to {}", output_mesh_file_name);
+            if let Some(atomic_mesh_path) = &atomic_mesh_path {
+                if verbose.is_yes() {
+                    println!(
+                        "Writing grid to {}",
+                        atomic_mesh_path
+                            .target_path()
+                            .file_name()
+                            .unwrap()
+                            .to_string_lossy()
+                    );
+                }
+                mesh::write_mesh_file_from_grid($grid, atomic_mesh_path.temporary_path())?;
             }
-            mesh::write_mesh_file_from_grid($grid, atomic_mesh_path.temporary_path())?;
 
             if has_primary {
                 write_3d_snapfile(
@@ -509,7 +520,9 @@ where
             }
 
             atomic_param_path.perform_replace()?;
-            atomic_mesh_path.perform_replace()?;
+            if let Some(atomic_mesh_path) = atomic_mesh_path {
+                atomic_mesh_path.perform_replace()?;
+            }
             if has_primary {
                 atomic_snap_path.perform_replace()?;
             }
