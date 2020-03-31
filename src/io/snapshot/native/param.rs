@@ -56,10 +56,13 @@ impl NativeSnapshotParameters {
     }
 
     pub fn determine_snap_path(&self) -> io::Result<(PathBuf, PathBuf)> {
+        let width = super::super::determine_length_of_snap_num_in_file_name(&self.original_path)
+            .unwrap_or(3);
         let snap_path = self.original_path.with_file_name(format!(
-            "{}_{:03}.snap",
+            "{}_{:0width$}.snap",
             self.parameter_set.get_str_param("snapname")?,
-            self.determine_snap_num()?
+            self.determine_snap_num()?,
+            width = width as usize
         ));
         let aux_path = snap_path.with_extension("aux");
         Ok((snap_path, aux_path))
