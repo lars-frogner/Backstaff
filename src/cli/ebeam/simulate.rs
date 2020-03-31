@@ -615,7 +615,7 @@ where G: Grid3<fdt>,
         PathBuf::from_str(
             root_arguments
                 .value_of("output-file")
-                .expect("Required argument not present."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to output file: {}"
     );

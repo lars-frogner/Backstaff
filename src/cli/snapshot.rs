@@ -289,7 +289,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
         PathBuf::from_str(
             arguments
                 .value_of("input-file")
-                .expect("Required argument not present."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to input file: {}"
     );
@@ -335,7 +335,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
 
     let endianness = match arguments
         .value_of("endianness")
-        .expect("No value for argument with default.")
+        .expect("No value for argument with default")
     {
         "little" => Endianness::Little,
         "big" => Endianness::Big,

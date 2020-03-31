@@ -202,7 +202,7 @@ pub fn run_statistics_subcommand<'a, G, R, FP>(
 fn parse_limits(arguments: &ArgMatches, argument_name: &str) -> (fdt, fdt) {
     let limits: Vec<_> = arguments
         .values_of(argument_name)
-        .expect("No value for argument with default.")
+        .expect("No value for argument with default")
         .into_iter()
         .map(|string| match string {
             "-inf" => std::f32::NEG_INFINITY,

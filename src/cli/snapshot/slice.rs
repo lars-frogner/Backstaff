@@ -117,11 +117,11 @@ pub fn run_slice_subcommand<G, R>(
 {
     let quantity = arguments
         .value_of("quantity")
-        .expect("No value for required argument.");
+        .expect("No value for required argument");
 
     let axis = arguments
         .value_of("axis")
-        .expect("No value for required argument.");
+        .expect("No value for required argument");
 
     let coord = cli_utils::get_value_from_required_parseable_argument::<fdt>(arguments, "coord");
 
@@ -129,7 +129,7 @@ pub fn run_slice_subcommand<G, R>(
         PathBuf::from_str(
             arguments
                 .value_of("output-file")
-                .expect("No value for required argument."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to output file: {}"
     );
@@ -157,7 +157,7 @@ pub fn run_slice_subcommand<G, R>(
 
     let sample_location = arguments
         .value_of("sample-location")
-        .expect("No value for argument with default.");
+        .expect("No value for argument with default");
 
     let interpolator_config = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")

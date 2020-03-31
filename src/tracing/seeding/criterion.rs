@@ -57,7 +57,7 @@ impl CriterionSeeder3 {
         let values_slice = field
             .values()
             .as_slice_memory_order()
-            .expect("Values array not contiguous.");
+            .expect("Values array not contiguous");
 
         let seed_indices = values_slice
             .par_iter()

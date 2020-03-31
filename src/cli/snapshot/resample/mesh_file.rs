@@ -72,7 +72,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
         PathBuf::from_str(
             root_arguments
                 .value_of("mesh-file")
-                .expect("No value for required argument.")
+                .expect("No value for required argument")
         ),
         "Error: Could not interpret path to mesh file: {}"
     );

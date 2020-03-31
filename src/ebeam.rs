@@ -469,7 +469,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                 let value = interpolator
                     .interp_scalar_field(field, &acceleration_position)
                     .expect_inside();
-                num::NumCast::from(value).expect("Conversion failed.")
+                num::NumCast::from(value).expect("Conversion failed")
             })
             .collect();
         self.properties
@@ -534,7 +534,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                         let value = interpolator
                             .interp_scalar_field(field, &position)
                             .expect_inside();
-                        num::NumCast::from(value).expect("Conversion failed.")
+                        num::NumCast::from(value).expect("Conversion failed")
                     })
                     .collect()
             })

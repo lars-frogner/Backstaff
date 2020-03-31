@@ -67,7 +67,7 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types
         PathBuf::from_str(
             arguments
                 .value_of("output-file")
-                .expect("Required argument not present."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to output file: {}"
     );

@@ -480,7 +480,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         PathBuf::from_str(
             root_arguments
                 .value_of("output-file")
-                .expect("Required argument not present."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to output file: {}"
     );
@@ -508,7 +508,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
 
     let quantity = root_arguments
         .value_of("vector-quantity")
-        .expect("No value for argument with default.");
+        .expect("No value for argument with default");
     exit_on_error!(
         snapshot.cache_vector_field(quantity),
         "Error: Could not read quantity {0} in snapshot: {1}",

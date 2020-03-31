@@ -161,7 +161,7 @@ impl SliceSeeder3 {
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
         let slice_cell_extents = slice_grid.cell_extents();
 
-        let offset_limit = F::from(0.5 * randomness).expect("Conversion failed.");
+        let offset_limit = F::from(0.5 * randomness).expect("Conversion failed");
         let rng = rand::thread_rng();
         let mut uniform_offset_samples = Uniform::new(-offset_limit, offset_limit).sample_iter(rng);
 
@@ -232,7 +232,7 @@ impl SliceSeeder3 {
         let slice_field = field.regular_slice_across_axis(
             interpolator,
             axis,
-            F::from(coord).expect("Conversion failed."),
+            F::from(coord).expect("Conversion failed"),
             CoordLocation::Center,
         );
         let slice_values = slice_field.values();
@@ -309,7 +309,7 @@ impl SliceSeeder3 {
         let slice_field = field.regular_slice_across_axis(
             interpolator,
             axis,
-            F::from(coord).expect("Conversion failed."),
+            F::from(coord).expect("Conversion failed"),
             CoordLocation::Center,
         );
         let slice_values = slice_field.all_values();

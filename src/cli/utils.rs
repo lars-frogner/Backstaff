@@ -57,7 +57,7 @@ where
         argument_name,
         arguments
             .value_of(argument_name)
-            .expect("No value for required argument."),
+            .expect("No value for required argument"),
     )
 }
 
@@ -86,7 +86,7 @@ where
         argument_name,
         arguments
             .values_of(argument_name)
-            .expect("No values for required argument."),
+            .expect("No values for required argument"),
     )
 }
 
@@ -171,7 +171,7 @@ where
 {
     let value_string = arguments
         .value_of(argument_name)
-        .expect("No value for required argument.");
+        .expect("No value for required argument");
     let mut value: Option<T> = None;
     for (possible_value_string, possible_value) in
         possible_value_strings.iter().zip(possible_values)

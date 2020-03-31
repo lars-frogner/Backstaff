@@ -589,7 +589,7 @@ where
     utils::write_into_byte_buffer(
         variable_values
             .as_slice_memory_order()
-            .expect("Values array not contiguous."),
+            .expect("Values array not contiguous"),
         &mut byte_buffer,
         0,
         endianness,
@@ -607,7 +607,7 @@ where
         utils::write_into_byte_buffer(
             variable_values
                 .as_slice_memory_order()
-                .expect("Values array not contiguous."),
+                .expect("Values array not contiguous"),
             &mut byte_buffer,
             0,
             endianness,

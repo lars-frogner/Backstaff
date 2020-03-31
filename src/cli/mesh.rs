@@ -53,7 +53,7 @@ fn write_mesh_file<G: Grid3<fdt>>(
         PathBuf::from_str(
             root_arguments
                 .value_of("output-file")
-                .expect("No value for required argument."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to output file: {}"
     );

@@ -15,7 +15,7 @@ pub fn run() {
 
     let protected_file_types: Vec<_> = arguments
         .values_of("protected-file-types")
-        .expect("No value for argument with default.")
+        .expect("No value for argument with default")
         .collect();
 
     let start_instant = Instant::now();

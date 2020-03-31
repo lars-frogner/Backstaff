@@ -32,7 +32,7 @@ pub fn create_manual_seeder_from_arguments(arguments: &ArgMatches) -> ManualSeed
         PathBuf::from_str(
             arguments
                 .value_of("input-file")
-                .expect("No value for required argument."),
+                .expect("No value for required argument"),
         ),
         "Error: Could not interpret path to input file: {}"
     );

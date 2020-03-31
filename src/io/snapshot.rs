@@ -319,7 +319,7 @@ impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
     pub fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<fdt, G> {
         self.scalar_fields
             .get(variable_name)
-            .expect("Scalar field is not cached.")
+            .expect("Scalar field is not cached")
     }
 
     /// Returns a reference to the vector field representing the given variable.
@@ -328,7 +328,7 @@ impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
     pub fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<fdt, G> {
         self.vector_fields
             .get(variable_name)
-            .expect("Vector field is not cached.")
+            .expect("Vector field is not cached")
     }
 
     /// Whether the scalar field representing the given variable is cached.

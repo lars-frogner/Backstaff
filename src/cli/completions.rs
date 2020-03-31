@@ -97,7 +97,7 @@ pub fn create_completions_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn run_completions_subcommand<'a, 'b>(arguments: &ArgMatches) {
     let shell = arguments
         .value_of("shell")
-        .expect("No value for required argument.")
+        .expect("No value for required argument")
         .parse()
         .unwrap();
     build::build().gen_completions_to(clap::crate_name!(), shell, &mut io::stdout());

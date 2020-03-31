@@ -85,7 +85,7 @@ pub fn run_resample_subcommand<G, R>(
 {
     let resampled_locations = match arguments
         .value_of("sample-location")
-        .expect("No value for argument with default.")
+        .expect("No value for argument with default")
     {
         "original" => In3D::same(ResampledCoordLocation::Original),
         "center" => In3D::same(ResampledCoordLocation::center()),

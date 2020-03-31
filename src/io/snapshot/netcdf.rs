@@ -546,7 +546,7 @@ pub fn write_3d_scalar_field<G: Grid3<fdt>>(
     let values = field
         .values()
         .as_slice_memory_order()
-        .expect("Values array not contiguous.");
+        .expect("Values array not contiguous");
     io_result!(
         io_result!(group.add_variable::<fdt>(field_name, &dimension_names))?
             .put_values(values, None, None)
