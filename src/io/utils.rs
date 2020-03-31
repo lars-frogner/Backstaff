@@ -78,6 +78,23 @@ pub fn write_allowed<P: AsRef<Path>>(file_path: P) -> bool {
     }
 }
 
+/// Makes sure that the file at the given path can be overwritten, either automatically
+/// or with user's consent. If not, aborts the program.
+pub fn ensure_write_allowed<P: AsRef<Path>>(
+    file_path: P,
+    automatic_overwrite: bool,
+    protected_file_types: &[&str],
+) {
+    let file_path = file_path.as_ref();
+    let is_protected = match file_path.extension() {
+        Some(extension) => protected_file_types.contains(&extension.to_string_lossy().as_ref()),
+        None => false,
+    };
+    if (!automatic_overwrite || is_protected) && !write_allowed(file_path) {
+        exit_with_error!("Aborted");
+    }
+}
+
 /// Describes the properties of a type that can be translated to and from bytes
 /// by the `byteorder` crate.
 pub trait ByteorderData
@@ -139,25 +156,9 @@ pub fn create_file_and_required_directories<P: AsRef<Path>>(file_path: P) -> io:
     fs::File::create(file_path)
 }
 
-/// Writes the given string as a text file with the specified path.
-///
-/// Prompts the user to confirm overwrite if necessary.
-pub fn write_text_file<P: AsRef<Path>>(
-    text: &str,
-    output_file_path: P,
-    force_overwrite: bool,
-) -> io::Result<()> {
-    let output_file_path = output_file_path.as_ref();
-    if force_overwrite || write_allowed(output_file_path) {
-        overwrite_text_file(text, output_file_path)
-    } else {
-        Ok(())
-    }
-}
-
 /// Writes the given string as a text file with the specified path,
 /// regardless of whether the file already exists.
-pub fn overwrite_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
+pub fn write_text_file<P: AsRef<Path>>(text: &str, output_file_path: P) -> io::Result<()> {
     let mut file = create_file_and_required_directories(output_file_path)?;
     write!(&mut file, "{}", text)
 }
