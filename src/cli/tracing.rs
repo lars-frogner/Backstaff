@@ -28,7 +28,7 @@ use crate::{
     },
     io::{
         snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
-        utils,
+        utils::AtomicOutputPath,
     },
     tracing::{
         field_line::{
@@ -47,7 +47,11 @@ use crate::{
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use rayon::prelude::*;
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 /// Builds a representation of the `trace` command line subcommand.
 pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -78,7 +82,7 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing file"),
+                .help("Automatically overwrite any existing file (unless listed as protected)"),
         )
         .arg(
             Arg::with_name("vector-quantity")
@@ -187,17 +191,97 @@ pub fn run_trace_subcommand<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
     snap_num_offset: Option<u32>,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
-    run_with_selected_tracer(arguments, snapshot, snap_num_offset);
+    run_with_selected_tracer(arguments, snapshot, snap_num_offset, protected_file_types);
+}
+
+#[derive(Copy, Clone, Debug)]
+enum OutputType {
+    Fl,
+    Pickle,
+    JSON,
+    #[cfg(feature = "hdf5")]
+    H5Part,
+}
+
+impl OutputType {
+    fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
+        Self::from_extension(
+            file_path
+                .as_ref()
+                .extension()
+                .unwrap_or_else(|| {
+                    exit_with_error!(
+                        "Error: Missing extension for output file\n\
+                         Valid extensions are: {}",
+                        Self::valid_extensions_string()
+                    )
+                })
+                .to_string_lossy()
+                .as_ref(),
+        )
+    }
+
+    fn from_extension(extension: &str) -> Self {
+        match extension {
+            "fl" => Self::Fl,
+            "pickle" => Self::Pickle,
+            "json" => Self::JSON,
+            "h5part" => {
+                #[cfg(feature = "hdf5")]
+                {
+                    Self::H5Part
+                }
+                #[cfg(not(feature = "hdf5"))]
+                exit_with_error!("Error: Compile with hdf5 feature in order to write H5Part files\n\
+                                  Tip: Use cargo flag --features=hdf5 and make sure the HDF5 library is available");
+            }
+            invalid => exit_with_error!(
+                "Error: Invalid extension {} for output file\n\
+                 Valid extensions are: {}",
+                invalid,
+                Self::valid_extensions_string()
+            ),
+        }
+    }
+
+    fn valid_extensions_string() -> String {
+        format!(
+            "fl, pickle, json{}",
+            if cfg!(feature = "hdf5") {
+                ", h5part"
+            } else {
+                ""
+            }
+        )
+    }
+}
+
+impl fmt::Display for OutputType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Fl => "fl",
+                Self::Pickle => "pickle",
+                Self::JSON => "json",
+                #[cfg(feature = "hdf5")]
+                Self::H5Part => "h5part",
+            }
+        )
+    }
 }
 
 fn run_with_selected_tracer<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
     snap_num_offset: Option<u32>,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
@@ -224,6 +308,7 @@ fn run_with_selected_tracer<G, R>(
         snapshot,
         snap_num_offset,
         tracer,
+        protected_file_types,
     );
 }
 
@@ -233,6 +318,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
     snapshot: &mut SnapshotCacher3<G, R>,
     snap_num_offset: Option<u32>,
     tracer: Tr,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
@@ -265,6 +351,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
             snap_num_offset,
             tracer,
             RKF23StepperFactory3::new(stepper_config),
+            protected_file_types,
         ),
         RKFStepperType::RKF45 => run_with_selected_interpolator(
             root_arguments,
@@ -273,6 +360,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
             snap_num_offset,
             tracer,
             RKF45StepperFactory3::new(stepper_config),
+            protected_file_types,
         ),
     }
 }
@@ -284,6 +372,7 @@ fn run_with_selected_interpolator<G, R, Tr, StF>(
     snap_num_offset: Option<u32>,
     tracer: Tr,
     stepper_factory: StF,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
@@ -317,6 +406,7 @@ fn run_with_selected_interpolator<G, R, Tr, StF>(
         tracer,
         stepper_factory,
         interpolator,
+        protected_file_types,
     );
 }
 
@@ -328,6 +418,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
@@ -347,6 +438,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
             stepper_factory,
             interpolator,
             seeder,
+            protected_file_types,
         );
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
         let seeder = create_manual_seeder_from_arguments(seeder_arguments);
@@ -358,6 +450,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
             stepper_factory,
             interpolator,
             seeder,
+            protected_file_types,
         );
     } else {
         exit_with_error!("Error: No seeder specified")
@@ -372,6 +465,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
     stepper_factory: StF,
     interpolator: I,
     seeder: Sd,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
@@ -391,11 +485,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         "Error: Could not interpret path to output file: {}"
     );
 
-    let output_extension = output_file_path
-        .extension()
-        .unwrap_or_else(|| exit_with_error!("Error: Missing extension for output-file"))
-        .to_string_lossy()
-        .to_string();
+    let output_type = OutputType::from_path(&output_file_path);
 
     if let Some(snap_num_offset) = snap_num_offset {
         let (output_base_name, output_existing_num) =
@@ -404,15 +494,17 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         output_file_path.set_file_name(snapshot::create_snapshot_file_name(
             &output_base_name,
             output_existing_num + snap_num_offset,
-            &output_extension,
+            &output_type.to_string(),
         ));
     }
 
-    let force_overwrite = root_arguments.is_present("overwrite");
+    let automatic_overwrite = root_arguments.is_present("overwrite");
 
-    if !force_overwrite && !utils::write_allowed(&output_file_path) {
-        exit_with_error!("Aborted");
-    }
+    let atomic_output_path = exit_on_error!(
+        AtomicOutputPath::new(output_file_path),
+        "Error: Could not create temporary output file: {}"
+    );
+    atomic_output_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
 
     let quantity = root_arguments
         .value_of("vector-quantity")
@@ -435,8 +527,8 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
     snapshot.drop_all_fields();
     perform_post_tracing_actions(
         root_arguments,
-        &output_extension,
-        output_file_path,
+        output_type,
+        atomic_output_path,
         snapshot,
         interpolator,
         field_lines,
@@ -445,8 +537,8 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
 
 fn perform_post_tracing_actions<G, R, I>(
     root_arguments: &ArgMatches,
-    output_extension: &str,
-    output_file_path: PathBuf,
+    output_type: OutputType,
+    atomic_output_path: AtomicOutputPath,
     snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: I,
     mut field_lines: FieldLineSet3,
@@ -488,25 +580,35 @@ fn perform_post_tracing_actions<G, R, I>(
         }
     }
 
+    if field_lines.verbose().is_yes() {
+        println!(
+            "Saving beams in {}",
+            atomic_output_path
+                .target_path()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+        );
+    }
+
     exit_on_error!(
-        match output_extension {
-            "fl" => field_lines.save_into_custom_binary(output_file_path),
-            "pickle" => field_lines.save_as_combined_pickles(output_file_path),
-            "json" => field_lines.save_as_json(output_file_path),
-            "h5part" => {
-                #[cfg(feature = "hdf5")]
-                {
-                    field_lines.save_as_h5part(
-                        output_file_path,
-                        root_arguments.is_present("drop-h5part-id"),
-                    )
-                }
-                #[cfg(not(feature = "hdf5"))]
-                exit_with_error!("Error: Compile with hdf5 feature in order to write H5Part files\n\
-                                  Tip: Use cargo flag --features=hdf5 and make sure the HDF5 library is available");
-            }
-            invalid => exit_with_error!("Error: Invalid extension {} for output-file", invalid),
+        match output_type {
+            OutputType::Fl =>
+                field_lines.save_into_custom_binary(atomic_output_path.temporary_path()),
+            OutputType::Pickle =>
+                field_lines.save_as_combined_pickles(atomic_output_path.temporary_path()),
+            OutputType::JSON => field_lines.save_as_json(atomic_output_path.temporary_path()),
+            #[cfg(feature = "hdf5")]
+            OutputType::H5Part => field_lines.save_as_h5part(
+                atomic_output_path.temporary_path(),
+                root_arguments.is_present("drop-h5part-id"),
+            ),
         },
         "Error: Could not save output data: {}"
+    );
+
+    exit_on_error!(
+        atomic_output_path.perform_replace(),
+        "Error: Could not move temporary output file to target path: {}"
     );
 }
