@@ -192,6 +192,8 @@ def render(fig, tight_layout=True, output_path=None, force_show=False):
 def plot_2d_field(hor_coords,
                   vert_coords,
                   values,
+                  fig=None,
+                  ax=None,
                   figure_width=6.0,
                   figure_aspect=4.0/3.0,
                   vmin=None,
@@ -202,18 +204,28 @@ def plot_2d_field(hor_coords,
                   linscale=1.0,
                   cmap_name='viridis',
                   cmap_bad_color='white',
+                  contour_levels=None,
+                  contour_colors='r',
+                  contour_alpha=1.0,
+                  log_contour=False,
+                  vmin_contour=None,
+                  vmax_contour=None,
+                  contour_cmap_name='viridis',
                   xlabel=None,
                   ylabel=None,
                   clabel='',
+                  title=None,
                   rasterized=None,
                   output_path=None):
+
+    if fig is None or ax is None:
+        fig, ax = create_2d_subplots(width=figure_width,
+                                     aspect_ratio=figure_aspect)
+
     if symlog:
         norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
     else:
         norm = get_normalizer(vmin, vmax, log=log)
-
-    fig, ax = create_2d_subplots(width=figure_width,
-                                 aspect_ratio=figure_aspect)
 
     mesh = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
                          values.T,
@@ -223,6 +235,19 @@ def plot_2d_field(hor_coords,
                          cmap=get_cmap(cmap_name, bad_color=cmap_bad_color),
                          rasterized=rasterized)
 
+    if contour_levels is not None:
+        ax.contourf(hor_coords,
+                    vert_coords,
+                    values.T,
+                    levels=contour_levels,
+                    norm=get_normalizer(vmin_contour,
+                                        vmax_contour,
+                                        log=log_contour),
+                    cmap=get_cmap(contour_cmap_name),
+                    colors=contour_colors,
+                    alpha=contour_alpha,
+                    rasterized=rasterized)
+
     set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
                        (vert_coords[0], vert_coords[-1]))
     set_2d_axis_labels(ax, xlabel, ylabel)
@@ -230,7 +255,12 @@ def plot_2d_field(hor_coords,
 
     ax.set_aspect('equal')
 
+    if title is not None:
+        ax.set_title(title)
+
     render(fig, output_path=output_path)
+
+    return fig, ax, mesh
 
 
 def setup_line_animation(fig,
