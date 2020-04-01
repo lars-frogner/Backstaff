@@ -30,127 +30,131 @@ class ScalarField2:
         import backstaff.reading as reading
         return reading.read_2d_scalar_field(file_path)
 
+    @staticmethod
+    def slice_from_bifrost_data(bifrost_data,
+                                quantity,
+                                slice_axis=1,
+                                slice_coord=7.5,
+                                scale=None):
+        all_coords = [
+            bifrost_data.xdn, bifrost_data.ydn,
+            -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        ]
+        all_coords.pop(slice_axis)
+
+        all_center_coords = [
+            bifrost_data.x, bifrost_data.y, -bifrost_data.z[::-1]
+        ]
+        slice_idx = np.argmin(
+            np.abs(all_center_coords[slice_axis] - slice_coord))
+
+        all_slices = [slice(None)]*3
+        all_slices[slice_axis] = slice_idx
+
+        hor_coords = all_coords[0]
+        vert_coords = all_coords[1]
+        values = bifrost_data.get_var(
+            quantity)[:, :, ::-1][all_slices[0], all_slices[1], all_slices[2]]
+        if scale is not None:
+            values *= scale
+
+        return ScalarField2(Coords2(hor_coords, vert_coords), values)
+
+    @staticmethod
+    def accumulated_from_bifrost_data(bifrost_data,
+                                      quantity,
+                                      accum_axis=1,
+                                      scale=None):
+        all_coords = [
+            bifrost_data.xdn, bifrost_data.ydn,
+            -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        ]
+        all_coords.pop(accum_axis)
+        hor_coords = all_coords[0]
+        vert_coords = all_coords[1]
+        values = np.sum(bifrost_data.get_var(quantity)[:, :, ::-1],
+                        axis=accum_axis)
+        if scale is not None:
+            values *= scale
+
+        return ScalarField2(Coords2(hor_coords, vert_coords), values)
+
     def __init__(self, coords, values):
         assert isinstance(coords, Coords2)
         self.coords = coords
         self.values = np.asfarray(values)
         assert self.values.shape == self.coords.get_shape()
 
+    def __add__(self, term):
+        if isinstance(term, self.__class__):
+            assert np.allclose(self.coords.x, term.coords.x)
+            assert np.allclose(self.coords.y, term.coords.y)
+            return ScalarField2(self.coords, self.values + term.values)
+        else:
+            return ScalarField2(self.coords, self.values + term)
+
+    def __sub__(self, term):
+        if isinstance(term, self.__class__):
+            assert np.allclose(self.coords.x, term.coords.x)
+            assert np.allclose(self.coords.y, term.coords.y)
+            return ScalarField2(self.coords, self.values - term.values)
+        else:
+            return ScalarField2(self.coords, self.values - term)
+
+    def __mul__(self, factor):
+        if isinstance(factor, self.__class__):
+            assert np.allclose(self.coords.x, factor.coords.x)
+            assert np.allclose(self.coords.y, factor.coords.y)
+            return ScalarField2(self.coords, self.values*factor.values)
+        else:
+            return ScalarField2(self.coords, self.values*factor)
+
+    def __div__(self, divisor):
+        if isinstance(divisor, self.__class__):
+            assert np.allclose(self.coords.x, divisor.coords.x)
+            assert np.allclose(self.coords.y, divisor.coords.y)
+            return ScalarField2(self.coords, self.values/divisor.values)
+        else:
+            return ScalarField2(self.coords, self.values/divisor)
+
     def get_shape(self):
         return self.coords.get_shape()
 
-    def get_values(self):
-        return self.values
+    def get_values(self, inverted_vertically=False):
+        return self.values[:, ::(-1 if inverted_vertically else 1)]
+
+    def get_horizontal_coords(self):
+        return self.coords.x
+
+    def get_vertical_coords(self, inverted=False):
+        return -self.coords.y[::-1] if inverted else self.coords.y
 
     def get_horizontal_bounds(self):
         return (self.coords.x[0], self.coords.x[-1])
 
-    def get_vertical_bounds(self, negate=False):
+    def get_vertical_bounds(self, inverted=False):
         return (-self.coords.y[-1],
-                -self.coords.y[0]) if negate else (self.coords.y[0],
-                                                   self.coords.y[-1])
+                -self.coords.y[0]) if inverted else (self.coords.y[0],
+                                                     self.coords.y[-1])
 
-    def add_to_plot(self,
-                    ax,
-                    invert_horizontal_lims=False,
-                    invert_vertical_lims=False,
-                    negate_vertical_coords=False,
-                    vmin=None,
-                    vmax=None,
-                    log=False,
-                    symlog=False,
-                    linthresh=np.inf,
-                    linscale=1.0,
-                    cmap_name='viridis',
-                    cmap_bad_color='w',
-                    contour_levels=None,
-                    contour_colors='r',
-                    contour_alpha=1.0,
-                    log_contour=False,
-                    vmin_contour=None,
-                    vmax_contour=None,
-                    contour_cmap_name='viridis',
-                    rasterized=None):
+    def get_horizontal_extent(self):
+        start, end = self.get_horizontal_bounds()
+        return end - start
 
-        if symlog:
-            norm = plotting.get_symlog_normalizer(vmin,
-                                                  vmax,
-                                                  linthresh,
-                                                  linscale=linscale)
-        else:
-            norm = plotting.get_normalizer(vmin, vmax, log=log)
+    def get_vertical_extent(self):
+        start, end = self.get_vertical_bounds()
+        return end - start
 
-        values = self.get_values()
-
-        extent = [
-            *(self.get_horizontal_bounds()
-              [::-1 if invert_horizontal_lims else 1]),
-            *(self.get_vertical_bounds(negate=negate_vertical_coords)
-              [::-1 if invert_vertical_lims else 1])
-        ]
-
-        im = ax.imshow(values.T,
-                       norm=norm,
-                       cmap=plotting.get_cmap(cmap_name,
-                                              bad_color=cmap_bad_color),
-                       interpolation='none',
-                       extent=extent,
-                       aspect='equal',
-                       rasterized=rasterized)
-
-        if contour_levels is not None:
-            ax.contourf(
-                np.linspace(*extent[:2], values.shape[0]),
-                np.linspace(*extent[2:], values.shape[1]),
-                values[:, ::(-1 if negate_vertical_coords else 1)].T,
-                levels=contour_levels,
-                norm=plotting.get_normalizer(vmin_contour,
-                                             vmax_contour,
-                                             log=log_contour),
-                cmap=plotting.get_cmap(contour_cmap_name),
-                #colors=contour_colors,
-                alpha=contour_alpha,
-                rasterized=rasterized)
-
-        return im
-
-
-def plot_2d_scalar_field(field,
-                         fig=None,
-                         ax=None,
-                         figure_width=8.0,
-                         figure_aspect=4.0/3.0,
-                         xlabel=None,
-                         ylabel=None,
-                         value_description=None,
-                         title=None,
-                         render=True,
-                         output_path=None,
-                         **kwargs):
-
-    if fig is None or ax is None:
-        fig, ax = plotting.create_2d_subplots(figsize=(figure_width,
-                                                       figure_width/
-                                                       figure_aspect))
-
-    im = field.add_to_plot(ax, **kwargs)
-
-    plotting.set_2d_plot_extent(
-        ax,
-        field.get_horizontal_bounds()
-        [::-1 if kwargs.get('invert_horizontal_lims', False) else 1],
-        field.get_vertical_bounds(
-            negate=kwargs.get('negate_vertical_coords', False))
-        [::-1 if kwargs.get('invert_vertical_lims', False) else 1])
-    plotting.set_2d_axis_labels(ax, xlabel, ylabel)
-    plotting.add_2d_colorbar(
-        fig,
-        ax,
-        im,
-        label='' if value_description is None else value_description)
-
-    if title is not None:
-        ax.set_title(title)
-
-    if render:
-        plotting.render(fig, output_path=output_path)
+    def plot(self, inverted_vertically=False, **plot_kwargs):
+        figure_width = plot_kwargs.pop('figure_width', 7.2)
+        figure_aspect = plot_kwargs.pop(
+            'figure_aspect', 5/4 if np.abs(
+                (self.get_horizontal_extent() - self.get_vertical_extent())/
+                self.get_horizontal_extent()) < 1e-3 else 4.5/3)
+        plotting.plot_2d_field(
+            self.get_horizontal_coords(),
+            self.get_vertical_coords(inverted=inverted_vertically),
+            self.get_values(inverted_vertically=inverted_vertically),
+            figure_width=figure_width,
+            figure_aspect=figure_aspect,
+            **plot_kwargs)
