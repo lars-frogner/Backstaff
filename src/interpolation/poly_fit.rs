@@ -1,22 +1,27 @@
 //! Interpolation by polynomial fitting.
 
-use super::Interpolator3;
+#![allow(unused_imports)]
+#![allow(unused_macros)]
+#![allow(unused_variables)]
+
+use super::{Interpolator1, Interpolator2, Interpolator3};
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{ScalarField1, ScalarField2, ScalarField3, VectorField2, VectorField3},
     geometry::{
+        Dim2::{self, X as X2, Y as Y2},
         Dim3::{self, X, Y, Z},
-        Idx3, In3D, Point3, Vec3,
+        Idx2, Idx3, In2D, In3D, Point2, Point3, Vec2, Vec3,
     },
-    grid::{CoordLocation, Grid3, GridPointQuery3},
+    grid::{CoordLocation, Grid1, Grid2, Grid3, GridPointQuery1, GridPointQuery2, GridPointQuery3},
     num::BFloat,
 };
 
 macro_rules! compute_start_offset {
-    ($center_coords:expr, $locations:expr, $interp_coord:expr, $interp_idx:expr, $order:expr) => {{
+    ($center_coords:expr, $location:expr, $interp_coord:expr, $interp_idx:expr, $order:expr) => {{
         const N_POINTS: usize = $order + 1;
         const DEFAULT_START_OFFSET: isize = 1 - ((N_POINTS + 1) as isize) / 2;
 
-        match $locations {
+        match $location {
             CoordLocation::Center => {
                 if $order % 2 != 0 && $interp_coord < $center_coords[$interp_idx] {
                     // If coordinates are located at cell centers, interpolation order is odd
@@ -41,7 +46,7 @@ macro_rules! compute_start_offset {
     }};
 }
 
-macro_rules! compute_start_indices {
+macro_rules! compute_start_indices_3d {
     ($grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr) => {{
         let center_coords = $grid.centers();
         let start_offset_x = compute_start_offset!(
@@ -73,12 +78,50 @@ macro_rules! compute_start_indices {
     }};
 }
 
-macro_rules! find_start_indices_and_crossings {
+macro_rules! compute_start_indices_2d {
+    ($grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr) => {{
+        let center_coords = $grid.centers();
+        let start_offset_x = compute_start_offset!(
+            &center_coords[X2],
+            $locations[X2],
+            $interp_point[X2],
+            $interp_indices[X2],
+            $order
+        );
+        let start_offset_y = compute_start_offset!(
+            &center_coords[Y2],
+            $locations[Y2],
+            $interp_point[Y2],
+            $interp_indices[Y2],
+            $order
+        );
+        Idx2::new(
+            ($interp_indices[X2] as isize) + start_offset_x,
+            ($interp_indices[Y2] as isize) + start_offset_y,
+        )
+    }};
+}
+
+macro_rules! compute_start_index_1d {
+    ($grid:expr, $location:expr, $interp_coord:expr, $interp_index:expr, $order:expr) => {{
+        let center_coords = $grid.centers();
+        let start_offset = compute_start_offset!(
+            center_coords,
+            $location,
+            $interp_coord,
+            $interp_index,
+            $order
+        );
+        ($interp_index as isize) + start_offset
+    }};
+}
+
+macro_rules! find_start_indices_and_crossings_3d {
     ($grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr) => {
         {
             const N_POINTS: usize = $order + 1;
 
-            let mut start_indices = compute_start_indices!(
+            let mut start_indices = compute_start_indices_3d!(
                 $grid,
                 $locations,
                 $interp_point,
@@ -117,7 +160,90 @@ macro_rules! find_start_indices_and_crossings {
     };
 }
 
-macro_rules! create_value_subarray_for_interior {
+macro_rules! find_start_indices_and_crossings_2d {
+    ($grid:expr, $locations:expr, $interp_point:expr, $interp_indices:expr, $order:expr) => {
+        {
+            const N_POINTS: usize = $order + 1;
+
+            let mut start_indices = compute_start_indices_2d!(
+                $grid,
+                $locations,
+                $interp_point,
+                $interp_indices,
+                $order
+            );
+
+            let grid_shape = $grid.shape();
+            let mut crosses_periodic_bound = In2D::new(false, false);
+            let mut any_crosses_periodic_bound = false;
+
+            for &dim in &Dim2::slice() {
+                // Check if start index is outside lower bound
+                if start_indices[dim] < 0 {
+                    if $grid.is_periodic(dim) {
+                        // If the dimension is periodic, make a note of the crossing
+                        crosses_periodic_bound[dim] = true;
+                        any_crosses_periodic_bound = true;
+                    } else {
+                        // If the dimension is not periodic, shift the interpolation interval to lie on the inside
+                        start_indices[dim] = 0;
+                    }
+                // Check the upper bound accordingly
+                } else if (start_indices[dim] as usize) + N_POINTS > grid_shape[dim] {
+                    if $grid.is_periodic(dim) {
+                        crosses_periodic_bound[dim] = true;
+                        any_crosses_periodic_bound = true;
+                    } else {
+                        start_indices[dim] = (grid_shape[dim] - N_POINTS) as isize;
+                    }
+                }
+            }
+
+            (start_indices, any_crosses_periodic_bound, crosses_periodic_bound)
+        }
+    };
+}
+
+macro_rules! find_start_index_and_crossing_1d {
+    ($grid:expr, $location:expr, $interp_coord:expr, $interp_index:expr, $order:expr) => {
+        {
+            const N_POINTS: usize = $order + 1;
+
+            let mut start_index = compute_start_index_1d!(
+                $grid,
+                $location,
+                $interp_coord,
+                $interp_index,
+                $order
+            );
+
+            let grid_size = $grid.size();
+            let mut crosses_periodic_bound = false;
+
+            // Check if start index is outside lower bound
+            if start_index < 0 {
+                if $grid.is_periodic() {
+                    // If the grid is periodic, make a note of the crossing
+                    crosses_periodic_bound = true;
+                } else {
+                    // If the grid is not periodic, shift the interpolation interval to lie on the inside
+                    start_index = 0;
+                }
+            // Check the upper bound accordingly
+            } else if (start_index as usize) + N_POINTS > grid_size {
+                if $grid.is_periodic() {
+                    crosses_periodic_bound = true;
+                } else {
+                    start_index = (grid_size - N_POINTS) as isize;
+                }
+            }
+
+            (start_index, crosses_periodic_bound)
+        }
+    };
+}
+
+macro_rules! create_value_subarray_for_interior_3d {
     ($values:expr, $start_indices:expr, $order:expr) => {{
         const N_POINTS: usize = $order + 1;
 
@@ -148,7 +274,62 @@ macro_rules! create_value_subarray_for_interior {
     }};
 }
 
-macro_rules! create_value_subarray_for_periodic {
+macro_rules! create_value_subarray_for_interior_2d {
+    ($values:expr, $start_indices:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
+
+        let mut subarray = [F::zero(); N_POINTS * N_POINTS];
+        let offsets = Idx2::from(&$start_indices);
+        let mut idx = 0;
+
+        let mut sum = F::zero();
+        let mut sum_of_squares = F::zero();
+
+        for j in offsets[Y2]..(offsets[Y2] + N_POINTS) {
+            for i in offsets[X2]..(offsets[X2] + N_POINTS) {
+                let value = $values[[i, j]];
+                subarray[idx] = value;
+                idx += 1;
+
+                sum = sum + value;
+                sum_of_squares = sum_of_squares + value * value;
+            }
+        }
+
+        let variation =
+            F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS * N_POINTS).unwrap());
+
+        (subarray, variation)
+    }};
+}
+
+macro_rules! create_value_subarray_for_interior_1d {
+    ($values:expr, $start_index:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
+
+        let mut subarray = [F::zero(); N_POINTS];
+        let offset = $start_index as usize;
+        let mut idx = 0;
+
+        let mut sum = F::zero();
+        let mut sum_of_squares = F::zero();
+
+        for i in offset..(offset + N_POINTS) {
+            let value = $values[i];
+            subarray[idx] = value;
+            idx += 1;
+
+            sum = sum + value;
+            sum_of_squares = sum_of_squares + value * value;
+        }
+
+        let variation = F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS).unwrap());
+
+        (subarray, variation)
+    }};
+}
+
+macro_rules! create_value_subarray_for_periodic_3d {
     ($values:expr, $start_indices:expr, $order:expr) => {{
         const N_POINTS: usize = $order + 1;
 
@@ -188,12 +369,95 @@ macro_rules! create_value_subarray_for_periodic {
     }};
 }
 
-macro_rules! create_value_subarray {
+macro_rules! create_value_subarray_for_periodic_2d {
+    ($values:expr, $start_indices:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
+
+        let grid_shape = $values.shape();
+        let offsets = In2D::new(
+            ($start_indices[X2] + (grid_shape[0] as isize)) as usize,
+            ($start_indices[Y2] + (grid_shape[1] as isize)) as usize,
+        );
+        let mut subarray = [F::zero(); N_POINTS * N_POINTS];
+        let mut idx = 0;
+
+        let mut sum = F::zero();
+        let mut sum_of_squares = F::zero();
+
+        for j in 0..N_POINTS {
+            for i in 0..N_POINTS {
+                let value = $values[[
+                    (offsets[X2] + i) % grid_shape[0],
+                    (offsets[Y2] + j) % grid_shape[1],
+                ]];
+                subarray[idx] = value;
+                idx += 1;
+
+                sum = sum + value;
+                sum_of_squares = sum_of_squares + value * value;
+            }
+        }
+
+        let variation =
+            F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS * N_POINTS).unwrap());
+
+        (subarray, variation)
+    }};
+}
+
+macro_rules! create_value_subarray_for_periodic_1d {
+    ($values:expr, $start_index:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
+
+        let grid_size = $values.len();
+        let offset = ($start_index + (grid_size as isize)) as usize;
+        let mut subarray = [F::zero(); N_POINTS];
+        let mut idx = 0;
+
+        let mut sum = F::zero();
+        let mut sum_of_squares = F::zero();
+
+        for i in 0..N_POINTS {
+            let value = $values[(offset + i) % grid_size];
+            subarray[idx] = value;
+            idx += 1;
+
+            sum = sum + value;
+            sum_of_squares = sum_of_squares + value * value;
+        }
+
+        let variation = F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS).unwrap());
+
+        (subarray, variation)
+    }};
+}
+
+macro_rules! create_value_subarray_3d {
     ($any_crosses_periodic_bound:expr, $values:expr, $start_indices:expr, $order:expr) => {
         if $any_crosses_periodic_bound {
-            create_value_subarray_for_periodic!($values, &$start_indices, $order)
+            create_value_subarray_for_periodic_3d!($values, &$start_indices, $order)
         } else {
-            create_value_subarray_for_interior!($values, &$start_indices, $order)
+            create_value_subarray_for_interior_3d!($values, &$start_indices, $order)
+        };
+    };
+}
+
+macro_rules! create_value_subarray_2d {
+    ($any_crosses_periodic_bound:expr, $values:expr, $start_indices:expr, $order:expr) => {
+        if $any_crosses_periodic_bound {
+            create_value_subarray_for_periodic_2d!($values, &$start_indices, $order)
+        } else {
+            create_value_subarray_for_interior_2d!($values, &$start_indices, $order)
+        };
+    };
+}
+
+macro_rules! create_value_subarray_1d {
+    ($crosses_periodic_bound:expr, $values:expr, $start_index:expr, $order:expr) => {
+        if $crosses_periodic_bound {
+            create_value_subarray_for_periodic_1d!($values, $start_index, $order)
+        } else {
+            create_value_subarray_for_interior_1d!($values, $start_index, $order)
         };
     };
 }
@@ -239,7 +503,7 @@ macro_rules! create_coordinate_subarray_for_periodic {
     }};
 }
 
-macro_rules! create_coordinate_subarrays {
+macro_rules! create_coordinate_subarrays_3d {
     ($crosses_periodic_bound:expr, $coords:expr, $extents:expr, $start_indices:expr, $order:expr) => {{
         let x_coord_subarray = if $crosses_periodic_bound[X] {
             create_coordinate_subarray_for_periodic!(
@@ -275,7 +539,43 @@ macro_rules! create_coordinate_subarrays {
     }};
 }
 
-macro_rules! interp_subarrays {
+macro_rules! create_coordinate_subarrays_2d {
+    ($crosses_periodic_bound:expr, $coords:expr, $extents:expr, $start_indices:expr, $order:expr) => {{
+        let x_coord_subarray = if $crosses_periodic_bound[X2] {
+            create_coordinate_subarray_for_periodic!(
+                $coords[X2],
+                $extents[X2],
+                $start_indices[X2],
+                $order
+            )
+        } else {
+            create_coordinate_subarray_for_interior!($coords[X2], $start_indices[X2], $order)
+        };
+        let y_coord_subarray = if $crosses_periodic_bound[Y2] {
+            create_coordinate_subarray_for_periodic!(
+                $coords[Y2],
+                $extents[Y2],
+                $start_indices[Y2],
+                $order
+            )
+        } else {
+            create_coordinate_subarray_for_interior!($coords[Y2], $start_indices[Y2], $order)
+        };
+        (x_coord_subarray, y_coord_subarray)
+    }};
+}
+
+macro_rules! create_coordinate_subarray_1d {
+    ($crosses_periodic_bound:expr, $coords:expr, $extent:expr, $start_index:expr, $order:expr) => {{
+        if $crosses_periodic_bound {
+            create_coordinate_subarray_for_periodic!($coords, $extent, $start_index, $order)
+        } else {
+            create_coordinate_subarray_for_interior!($coords, $start_index, $order)
+        }
+    }};
+}
+
+macro_rules! interp_subarrays_3d {
     ($coords:expr, $values:expr, $interp_point:expr, $order:expr) => {{
         const N_POINTS: usize = $order + 1;
 
@@ -352,7 +652,85 @@ macro_rules! interp_subarrays {
     }};
 }
 
-macro_rules! interp {
+macro_rules! interp_subarrays_2d {
+    ($coords:expr, $values:expr, $interp_point:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
+
+        let x_coords = $coords[X2];
+        let y_coords = $coords[Y2];
+
+        let mut vals_c = [F::zero(); N_POINTS];
+        let mut vals_d = [F::zero(); N_POINTS];
+        let mut poly_x = [F::zero(); N_POINTS];
+        let mut poly_xy;
+        let mut accum;
+        let mut correction;
+
+        for j in 0..N_POINTS {
+            vals_c.copy_from_slice(&$values[j * N_POINTS..(j + 1) * N_POINTS]);
+            vals_d.copy_from_slice(&vals_c);
+
+            accum = vals_c[0];
+
+            for n in 1..N_POINTS {
+                for i in 0..(N_POINTS - n) {
+                    correction = (vals_c[i + 1] - vals_d[i]) / (x_coords[i + n] - x_coords[i]);
+                    vals_c[i] = ($interp_point[X2] - x_coords[i]) * correction;
+                    vals_d[i] = ($interp_point[X2] - x_coords[i + n]) * correction;
+                }
+
+                accum = accum + vals_c[0];
+            }
+
+            poly_x[j] = accum;
+        }
+
+        vals_c.copy_from_slice(&poly_x);
+        vals_d.copy_from_slice(&vals_c);
+
+        poly_xy = vals_c[0];
+
+        for n in 1..N_POINTS {
+            for j in 0..(N_POINTS - n) {
+                correction = (vals_c[j + 1] - vals_d[j]) / (y_coords[j + n] - y_coords[j]);
+                vals_c[j] = ($interp_point[Y2] - y_coords[j]) * correction;
+                vals_d[j] = ($interp_point[Y2] - y_coords[j + n]) * correction;
+            }
+
+            poly_xy = poly_xy + vals_c[0];
+        }
+        poly_xy
+    }};
+}
+
+macro_rules! interp_subarray_1d {
+    ($coords:expr, $values:expr, $interp_coord:expr, $order:expr) => {{
+        const N_POINTS: usize = $order + 1;
+
+        let mut vals_c = [F::zero(); N_POINTS];
+        let mut vals_d = [F::zero(); N_POINTS];
+        let mut poly;
+        let mut correction;
+
+        vals_c.copy_from_slice($values);
+        vals_d.copy_from_slice(&vals_c);
+
+        poly = vals_c[0];
+
+        for n in 1..N_POINTS {
+            for i in 0..(N_POINTS - n) {
+                correction = (vals_c[i + 1] - vals_d[i]) / ($coords[i + n] - $coords[i]);
+                vals_c[i] = ($interp_coord - $coords[i]) * correction;
+                vals_d[i] = ($interp_coord - $coords[i + n]) * correction;
+            }
+
+            poly = poly + vals_c[0];
+        }
+        poly
+    }};
+}
+
+macro_rules! interp_3d {
     (
         $grid:expr,
         $coords:expr,
@@ -365,7 +743,7 @@ macro_rules! interp {
      ) => {
         {
             let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
-                find_start_indices_and_crossings!(
+                find_start_indices_and_crossings_3d!(
                     $grid,
                     $locations,
                     $interp_point,
@@ -373,7 +751,7 @@ macro_rules! interp {
                     $order
                 );
 
-            let (value_subarray, variation) = create_value_subarray!(
+            let (value_subarray, variation) = create_value_subarray_3d!(
                 any_crosses_periodic_bound,
                 $values,
                 &start_indices,
@@ -385,7 +763,7 @@ macro_rules! interp {
             if variation > $variation_threshold_for_linear && $order > 1 {
 
                 let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
-                    find_start_indices_and_crossings!(
+                    find_start_indices_and_crossings_3d!(
                         $grid,
                         $locations,
                         $interp_point,
@@ -393,7 +771,7 @@ macro_rules! interp {
                         1
                     );
 
-                let (value_subarray, _) = create_value_subarray!(
+                let (value_subarray, _) = create_value_subarray_3d!(
                     any_crosses_periodic_bound,
                     $values,
                     &start_indices,
@@ -401,7 +779,7 @@ macro_rules! interp {
                 );
 
                 let (x_coord_subarray, y_coord_subarray, z_coord_subarray) =
-                    create_coordinate_subarrays!(
+                    create_coordinate_subarrays_3d!(
                         crosses_periodic_bound,
                         $coords,
                         $grid.extents(),
@@ -409,7 +787,7 @@ macro_rules! interp {
                         1
                     );
 
-                interp_subarrays!(
+                interp_subarrays_3d!(
                     In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray),
                     &value_subarray,
                     $interp_point,
@@ -419,7 +797,7 @@ macro_rules! interp {
             } else {
 
                 let (x_coord_subarray, y_coord_subarray, z_coord_subarray) =
-                    create_coordinate_subarrays!(
+                    create_coordinate_subarrays_3d!(
                         crosses_periodic_bound,
                         $coords,
                         $grid.extents(),
@@ -427,7 +805,7 @@ macro_rules! interp {
                         $order
                     );
 
-                interp_subarrays!(
+                interp_subarrays_3d!(
                     In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray),
                     &value_subarray,
                     $interp_point,
@@ -438,11 +816,156 @@ macro_rules! interp {
     };
 }
 
-macro_rules! interp_scalar_field_from_grid_point_query {
+macro_rules! interp_2d {
+    (
+        $grid:expr,
+        $coords:expr,
+        $locations:expr,
+        $values:expr,
+        $interp_point:expr,
+        $interp_indices:expr,
+        $variation_threshold_for_linear:expr,
+        $order:expr
+     ) => {
+        {
+            let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
+                find_start_indices_and_crossings_2d!(
+                    $grid,
+                    $locations,
+                    $interp_point,
+                    $interp_indices,
+                    $order
+                );
+
+            let (value_subarray, variation) = create_value_subarray_2d!(
+                any_crosses_periodic_bound,
+                $values,
+                &start_indices,
+                $order
+            );
+
+            // If the variation exceeds the given threshold, use linear interpolation
+            // in order to avoid overshoot.
+            if variation > $variation_threshold_for_linear && $order > 1 {
+
+                let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
+                    find_start_indices_and_crossings_2d!(
+                        $grid,
+                        $locations,
+                        $interp_point,
+                        $interp_indices,
+                        1
+                    );
+
+                let (value_subarray, _) = create_value_subarray_2d!(
+                    any_crosses_periodic_bound,
+                    $values,
+                    &start_indices,
+                    1
+                );
+
+                let (x_coord_subarray, y_coord_subarray) =
+                    create_coordinate_subarrays_2d!(
+                        crosses_periodic_bound,
+                        $coords,
+                        $grid.extents(),
+                        start_indices,
+                        1
+                    );
+
+                interp_subarrays_2d!(
+                    In2D::new(&x_coord_subarray, &y_coord_subarray),
+                    &value_subarray,
+                    $interp_point,
+                    1
+                )
+
+            } else {
+
+                let (x_coord_subarray, y_coord_subarray) =
+                    create_coordinate_subarrays_2d!(
+                        crosses_periodic_bound,
+                        $coords,
+                        $grid.extents(),
+                        start_indices,
+                        $order
+                    );
+
+                interp_subarrays_2d!(
+                    In2D::new(&x_coord_subarray, &y_coord_subarray),
+                    &value_subarray,
+                    $interp_point,
+                    $order
+                )
+            }
+        }
+    };
+}
+
+macro_rules! interp_1d {
+    (
+        $grid:expr,
+        $coords:expr,
+        $location:expr,
+        $values:expr,
+        $interp_coord:expr,
+        $interp_index:expr,
+        $variation_threshold_for_linear:expr,
+        $order:expr
+     ) => {{
+        let (start_index, crosses_periodic_bound) = find_start_index_and_crossing_1d!(
+            $grid,
+            $location,
+            $interp_coord,
+            $interp_index,
+            $order
+        );
+
+        let (value_subarray, variation) =
+            create_value_subarray_1d!(crosses_periodic_bound, $values, start_index, $order);
+
+        // If the variation exceeds the given threshold, use linear interpolation
+        // in order to avoid overshoot.
+        if variation > $variation_threshold_for_linear && $order > 1 {
+            let (start_index, crosses_periodic_bound) = find_start_index_and_crossing_1d!(
+                $grid,
+                $location,
+                $interp_coord,
+                $interp_index,
+                1
+            );
+
+            let (value_subarray, _) =
+                create_value_subarray_1d!(crosses_periodic_bound, $values, start_index, 1);
+
+            let coord_subarray = create_coordinate_subarray_1d!(
+                crosses_periodic_bound,
+                $coords,
+                $grid.extent(),
+                start_index,
+                1
+            );
+
+            interp_subarray_1d!(&coord_subarray, &value_subarray, $interp_coord, 1)
+        } else {
+            let coord_subarray = create_coordinate_subarray_1d!(
+                crosses_periodic_bound,
+                $coords,
+                $grid.extent(),
+                start_index,
+                $order
+            );
+
+            interp_subarray_1d!(&coord_subarray, &value_subarray, $interp_coord, $order)
+        }
+    }};
+}
+
+macro_rules! interp_scalar_field_from_grid_point_query_3d {
     ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         match $grid_point_query {
             GridPointQuery3::Inside(interp_indices) => {
-                GridPointQuery3::Inside(interp_scalar_field_in_known_grid_cell!(
+                GridPointQuery3::Inside(interp_scalar_field_in_known_grid_cell_3d!(
                     $field,
                     $interp_point,
                     &interp_indices,
@@ -452,7 +975,7 @@ macro_rules! interp_scalar_field_from_grid_point_query {
             }
             GridPointQuery3::MovedInside((interp_indices, moved_point)) => {
                 GridPointQuery3::MovedInside((
-                    interp_scalar_field_in_known_grid_cell!(
+                    interp_scalar_field_in_known_grid_cell_3d!(
                         $field,
                         &moved_point,
                         &interp_indices,
@@ -467,9 +990,67 @@ macro_rules! interp_scalar_field_from_grid_point_query {
     }};
 }
 
-macro_rules! interp_scalar_field_in_known_grid_cell {
+macro_rules! interp_scalar_field_from_grid_point_query_2d {
+    ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        match $grid_point_query {
+            GridPointQuery2::Inside(interp_indices) => {
+                GridPointQuery2::Inside(interp_scalar_field_in_known_grid_cell_2d!(
+                    $field,
+                    $interp_point,
+                    &interp_indices,
+                    $variation_threshold_for_linear,
+                    $order
+                ))
+            }
+            GridPointQuery2::MovedInside((interp_indices, moved_point)) => {
+                GridPointQuery2::MovedInside((
+                    interp_scalar_field_in_known_grid_cell_2d!(
+                        $field,
+                        &moved_point,
+                        &interp_indices,
+                        $variation_threshold_for_linear,
+                        $order
+                    ),
+                    moved_point,
+                ))
+            }
+            GridPointQuery2::Outside => GridPointQuery2::Outside,
+        }
+    }};
+}
+
+macro_rules! interp_scalar_field_from_grid_point_query_1d {
+    ($field:expr, $grid_point_query:expr, $interp_coord:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        match $grid_point_query {
+            GridPointQuery1::Inside(interp_index) => {
+                GridPointQuery1::Inside(interp_scalar_field_in_known_grid_cell_1d!(
+                    $field,
+                    $interp_coord,
+                    interp_index,
+                    $variation_threshold_for_linear,
+                    $order
+                ))
+            }
+            GridPointQuery1::MovedInside((interp_index, moved_coord)) => {
+                GridPointQuery1::MovedInside((
+                    interp_scalar_field_in_known_grid_cell_1d!(
+                        $field,
+                        moved_coord,
+                        interp_index,
+                        $variation_threshold_for_linear,
+                        $order
+                    ),
+                    moved_coord,
+                ))
+            }
+            GridPointQuery1::Outside => GridPointQuery1::Outside,
+        }
+    }};
+}
+
+macro_rules! interp_scalar_field_in_known_grid_cell_3d {
     ($field:expr, $interp_point:expr, $interp_indices:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
-        interp!(
+        interp_3d!(
             $field.grid(),
             &$field.coords(),
             $field.locations(),
@@ -482,11 +1063,41 @@ macro_rules! interp_scalar_field_in_known_grid_cell {
     }};
 }
 
-macro_rules! interp_vector_field_from_grid_point_query {
+macro_rules! interp_scalar_field_in_known_grid_cell_2d {
+    ($field:expr, $interp_point:expr, $interp_indices:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        interp_2d!(
+            $field.grid(),
+            &$field.coords(),
+            $field.locations(),
+            $field.values(),
+            $interp_point,
+            $interp_indices,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_scalar_field_in_known_grid_cell_1d {
+    ($field:expr, $interp_coord:expr, $interp_index:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        interp_1d!(
+            $field.grid(),
+            $field.coords(),
+            $field.location(),
+            $field.values(),
+            $interp_coord,
+            $interp_index,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_vector_field_from_grid_point_query_3d {
     ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         match $grid_point_query {
             GridPointQuery3::Inside(interp_indices) => {
-                GridPointQuery3::Inside(interp_vector_field_in_known_grid_cell!(
+                GridPointQuery3::Inside(interp_vector_field_in_known_grid_cell_3d!(
                     $field,
                     $interp_point,
                     &interp_indices,
@@ -496,7 +1107,7 @@ macro_rules! interp_vector_field_from_grid_point_query {
             }
             GridPointQuery3::MovedInside((interp_indices, moved_point)) => {
                 GridPointQuery3::MovedInside((
-                    interp_vector_field_in_known_grid_cell!(
+                    interp_vector_field_in_known_grid_cell_3d!(
                         $field,
                         &moved_point,
                         &interp_indices,
@@ -511,11 +1122,40 @@ macro_rules! interp_vector_field_from_grid_point_query {
     }};
 }
 
-macro_rules! interp_vector_field_in_known_grid_cell {
+macro_rules! interp_vector_field_from_grid_point_query_2d {
+    ($field:expr, $grid_point_query:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        match $grid_point_query {
+            GridPointQuery2::Inside(interp_indices) => {
+                GridPointQuery2::Inside(interp_vector_field_in_known_grid_cell_2d!(
+                    $field,
+                    $interp_point,
+                    &interp_indices,
+                    $variation_threshold_for_linear,
+                    $order
+                ))
+            }
+            GridPointQuery2::MovedInside((interp_indices, moved_point)) => {
+                GridPointQuery2::MovedInside((
+                    interp_vector_field_in_known_grid_cell_2d!(
+                        $field,
+                        &moved_point,
+                        &interp_indices,
+                        $variation_threshold_for_linear,
+                        $order
+                    ),
+                    moved_point,
+                ))
+            }
+            GridPointQuery2::Outside => GridPointQuery2::Outside,
+        }
+    }};
+}
+
+macro_rules! interp_vector_field_in_known_grid_cell_3d {
     ($field:expr, $interp_point:expr, $interp_indices:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         let grid = $field.grid();
         Vec3::new(
-            interp!(
+            interp_3d!(
                 grid,
                 &$field.coords(X),
                 $field.locations(X),
@@ -525,7 +1165,7 @@ macro_rules! interp_vector_field_in_known_grid_cell {
                 $variation_threshold_for_linear,
                 $order
             ),
-            interp!(
+            interp_3d!(
                 grid,
                 &$field.coords(Y),
                 $field.locations(Y),
@@ -535,7 +1175,7 @@ macro_rules! interp_vector_field_in_known_grid_cell {
                 $variation_threshold_for_linear,
                 $order
             ),
-            interp!(
+            interp_3d!(
                 grid,
                 &$field.coords(Z),
                 $field.locations(Z),
@@ -549,10 +1189,38 @@ macro_rules! interp_vector_field_in_known_grid_cell {
     }};
 }
 
-macro_rules! interp_scalar_field {
+macro_rules! interp_vector_field_in_known_grid_cell_2d {
+    ($field:expr, $interp_point:expr, $interp_indices:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid = $field.grid();
+        Vec2::new(
+            interp_2d!(
+                grid,
+                &$field.coords(X2),
+                $field.locations(X2),
+                &$field.values(X2),
+                $interp_point,
+                $interp_indices,
+                $variation_threshold_for_linear,
+                $order
+            ),
+            interp_2d!(
+                grid,
+                &$field.coords(Y2),
+                $field.locations(Y2),
+                &$field.values(Y2),
+                $interp_point,
+                $interp_indices,
+                $variation_threshold_for_linear,
+                $order
+            ),
+        )
+    }};
+}
+
+macro_rules! interp_scalar_field_3d {
     ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         let grid_point_query = $field.grid().find_grid_cell($interp_point);
-        interp_scalar_field_from_grid_point_query!(
+        interp_scalar_field_from_grid_point_query_3d!(
             $field,
             grid_point_query,
             $interp_point,
@@ -562,23 +1230,10 @@ macro_rules! interp_scalar_field {
     }};
 }
 
-macro_rules! interp_extrap_scalar_field {
-    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
-        let grid_point_query = $field.grid().find_closest_grid_cell($interp_point);
-        interp_scalar_field_from_grid_point_query!(
-            $field,
-            grid_point_query,
-            $interp_point,
-            $variation_threshold_for_linear,
-            $order
-        )
-    }};
-}
-
-macro_rules! interp_vector_field {
+macro_rules! interp_scalar_field_2d {
     ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         let grid_point_query = $field.grid().find_grid_cell($interp_point);
-        interp_vector_field_from_grid_point_query!(
+        interp_scalar_field_from_grid_point_query_2d!(
             $field,
             grid_point_query,
             $interp_point,
@@ -588,10 +1243,101 @@ macro_rules! interp_vector_field {
     }};
 }
 
-macro_rules! interp_extrap_vector_field {
+macro_rules! interp_scalar_field_1d {
+    ($field:expr, $interp_coord:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_grid_cell($interp_coord);
+        interp_scalar_field_from_grid_point_query_1d!(
+            $field,
+            grid_point_query,
+            $interp_coord,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_extrap_scalar_field_3d {
     ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
         let grid_point_query = $field.grid().find_closest_grid_cell($interp_point);
-        interp_vector_field_from_grid_point_query!(
+        interp_scalar_field_from_grid_point_query_3d!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_extrap_scalar_field_2d {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_closest_grid_cell($interp_point);
+        interp_scalar_field_from_grid_point_query_2d!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_extrap_scalar_field_1d {
+    ($field:expr, $interp_coord:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_closest_grid_cell($interp_coord);
+        interp_scalar_field_from_grid_point_query_1d!(
+            $field,
+            grid_point_query,
+            $interp_coord,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_vector_field_3d {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_grid_cell($interp_point);
+        interp_vector_field_from_grid_point_query_3d!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_vector_field_2d {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_grid_cell($interp_point);
+        interp_vector_field_from_grid_point_query_2d!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_extrap_vector_field_3d {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_closest_grid_cell($interp_point);
+        interp_vector_field_from_grid_point_query_3d!(
+            $field,
+            grid_point_query,
+            $interp_point,
+            $variation_threshold_for_linear,
+            $order
+        )
+    }};
+}
+
+macro_rules! interp_extrap_vector_field_2d {
+    ($field:expr, $interp_point:expr, $variation_threshold_for_linear:expr, $order:expr) => {{
+        let grid_point_query = $field.grid().find_closest_grid_cell($interp_point);
+        interp_vector_field_from_grid_point_query_2d!(
             $field,
             grid_point_query,
             $interp_point,
@@ -620,10 +1366,10 @@ pub struct PolyFitInterpolator3 {
 }
 
 impl PolyFitInterpolator3 {
-    /// Creates a new quadratic interpolator.
+    /// Creates a new polynomial fitting interpolator.
     pub fn new(config: PolyFitInterpolatorConfig) -> Self {
         config.validate();
-        PolyFitInterpolator3 { config }
+        Self { config }
     }
 }
 
@@ -641,11 +1387,11 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_scalar_field!(field, interp_point, variation_threshold_for_linear, 1),
-            2 => interp_scalar_field!(field, interp_point, variation_threshold_for_linear, 2),
-            3 => interp_scalar_field!(field, interp_point, variation_threshold_for_linear, 3),
-            4 => interp_scalar_field!(field, interp_point, variation_threshold_for_linear, 4),
-            5 => interp_scalar_field!(field, interp_point, variation_threshold_for_linear, 5),
+            1 => interp_scalar_field_3d!(field, interp_point, variation_threshold_for_linear, 1),
+            2 => interp_scalar_field_3d!(field, interp_point, variation_threshold_for_linear, 2),
+            3 => interp_scalar_field_3d!(field, interp_point, variation_threshold_for_linear, 3),
+            4 => interp_scalar_field_3d!(field, interp_point, variation_threshold_for_linear, 4),
+            5 => interp_scalar_field_3d!(field, interp_point, variation_threshold_for_linear, 5),
             order => panic!("Invalid interpolation order: {}", order),
         }
     }
@@ -668,35 +1414,35 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_scalar_field_in_known_grid_cell!(
+            1 => interp_scalar_field_in_known_grid_cell_3d!(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
                 1
             ),
-            2 => interp_scalar_field_in_known_grid_cell!(
+            2 => interp_scalar_field_in_known_grid_cell_3d!(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
                 2
             ),
-            3 => interp_scalar_field_in_known_grid_cell!(
+            3 => interp_scalar_field_in_known_grid_cell_3d!(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
                 3
             ),
-            4 => interp_scalar_field_in_known_grid_cell!(
+            4 => interp_scalar_field_in_known_grid_cell_3d!(
                 field,
                 interp_point,
                 interp_indices,
                 variation_threshold_for_linear,
                 4
             ),
-            5 => interp_scalar_field_in_known_grid_cell!(
+            5 => interp_scalar_field_in_known_grid_cell_3d!(
                 field,
                 interp_point,
                 interp_indices,
@@ -720,21 +1466,36 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => {
-                interp_extrap_scalar_field!(field, interp_point, variation_threshold_for_linear, 1)
-            }
-            2 => {
-                interp_extrap_scalar_field!(field, interp_point, variation_threshold_for_linear, 2)
-            }
-            3 => {
-                interp_extrap_scalar_field!(field, interp_point, variation_threshold_for_linear, 3)
-            }
-            4 => {
-                interp_extrap_scalar_field!(field, interp_point, variation_threshold_for_linear, 4)
-            }
-            5 => {
-                interp_extrap_scalar_field!(field, interp_point, variation_threshold_for_linear, 5)
-            }
+            1 => interp_extrap_scalar_field_3d!(
+                field,
+                interp_point,
+                variation_threshold_for_linear,
+                1
+            ),
+            2 => interp_extrap_scalar_field_3d!(
+                field,
+                interp_point,
+                variation_threshold_for_linear,
+                2
+            ),
+            3 => interp_extrap_scalar_field_3d!(
+                field,
+                interp_point,
+                variation_threshold_for_linear,
+                3
+            ),
+            4 => interp_extrap_scalar_field_3d!(
+                field,
+                interp_point,
+                variation_threshold_for_linear,
+                4
+            ),
+            5 => interp_extrap_scalar_field_3d!(
+                field,
+                interp_point,
+                variation_threshold_for_linear,
+                5
+            ),
             order => panic!("Invalid interpolation order: {}", order),
         }
     }
@@ -752,11 +1513,11 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 1),
-            2 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 2),
-            3 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 3),
-            4 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 4),
-            5 => interp_vector_field!(field, interp_point, variation_threshold_for_linear, 5),
+            1 => interp_vector_field_3d!(field, interp_point, variation_threshold_for_linear, 1),
+            2 => interp_vector_field_3d!(field, interp_point, variation_threshold_for_linear, 2),
+            3 => interp_vector_field_3d!(field, interp_point, variation_threshold_for_linear, 3),
+            4 => interp_vector_field_3d!(field, interp_point, variation_threshold_for_linear, 4),
+            5 => interp_vector_field_3d!(field, interp_point, variation_threshold_for_linear, 5),
             order => panic!("Invalid interpolation order: {}", order),
         }
     }
@@ -779,41 +1540,41 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => interp_vector_field_in_known_grid_cell!(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-                1
-            ),
-            2 => interp_vector_field_in_known_grid_cell!(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-                2
-            ),
-            3 => interp_vector_field_in_known_grid_cell!(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-                3
-            ),
-            4 => interp_vector_field_in_known_grid_cell!(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-                4
-            ),
-            5 => interp_vector_field_in_known_grid_cell!(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-                5
-            ),
+            // 1 => interp_vector_field_in_known_grid_cell_3d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_vector_field_in_known_grid_cell_3d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_vector_field_in_known_grid_cell_3d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_vector_field_in_known_grid_cell_3d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_vector_field_in_known_grid_cell_3d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
             order => panic!("Invalid interpolation order: {}", order),
         }
     }
@@ -831,21 +1592,446 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            1 => {
-                interp_extrap_vector_field!(field, interp_point, variation_threshold_for_linear, 1)
-            }
-            2 => {
-                interp_extrap_vector_field!(field, interp_point, variation_threshold_for_linear, 2)
-            }
-            3 => {
-                interp_extrap_vector_field!(field, interp_point, variation_threshold_for_linear, 3)
-            }
-            4 => {
-                interp_extrap_vector_field!(field, interp_point, variation_threshold_for_linear, 4)
-            }
-            5 => {
-                interp_extrap_vector_field!(field, interp_point, variation_threshold_for_linear, 5)
-            }
+            // 1 => interp_extrap_vector_field_3d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_extrap_vector_field_3d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_extrap_vector_field_3d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_extrap_vector_field_3d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_extrap_vector_field_3d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+}
+
+/// A 2D interpolator using polynomial fitting to estimate the interpolated value.
+#[derive(Clone, Debug)]
+pub struct PolyFitInterpolator2 {
+    config: PolyFitInterpolatorConfig,
+}
+
+impl PolyFitInterpolator2 {
+    /// Creates a new polynomial fitting interpolator.
+    pub fn new(config: PolyFitInterpolatorConfig) -> Self {
+        config.validate();
+        Self { config }
+    }
+}
+
+impl Interpolator2 for PolyFitInterpolator2 {
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_scalar_field<F, G>(
+        &self,
+        field: &ScalarField2<F, G>,
+        interp_point: &Point2<F>,
+    ) -> GridPointQuery2<F, F>
+    where
+        F: BFloat,
+        G: Grid2<F>,
+    {
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_scalar_field_2d!(field, interp_point, variation_threshold_for_linear, 1),
+            // 2 => interp_scalar_field_2d!(field, interp_point, variation_threshold_for_linear, 2),
+            // 3 => interp_scalar_field_2d!(field, interp_point, variation_threshold_for_linear, 3),
+            // 4 => interp_scalar_field_2d!(field, interp_point, variation_threshold_for_linear, 4),
+            // 5 => interp_scalar_field_2d!(field, interp_point, variation_threshold_for_linear, 5),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_scalar_field_known_cell<F, G>(
+        &self,
+        field: &ScalarField2<F, G>,
+        interp_point: &Point2<F>,
+        interp_indices: &Idx2<usize>,
+    ) -> F
+    where
+        F: BFloat,
+        G: Grid2<F>,
+    {
+        assert!(field
+            .grid()
+            .point_is_inside_cell(interp_point, interp_indices));
+
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_scalar_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_scalar_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_scalar_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_scalar_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_scalar_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_extrap_scalar_field<F, G>(
+        &self,
+        field: &ScalarField2<F, G>,
+        interp_point: &Point2<F>,
+    ) -> GridPointQuery2<F, F>
+    where
+        F: BFloat,
+        G: Grid2<F>,
+    {
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_extrap_scalar_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_extrap_scalar_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_extrap_scalar_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_extrap_scalar_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_extrap_scalar_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_vector_field<F, G>(
+        &self,
+        field: &VectorField2<F, G>,
+        interp_point: &Point2<F>,
+    ) -> GridPointQuery2<F, Vec2<F>>
+    where
+        F: BFloat,
+        G: Grid2<F>,
+    {
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_vector_field_2d!(field, interp_point, variation_threshold_for_linear, 1),
+            // 2 => interp_vector_field_2d!(field, interp_point, variation_threshold_for_linear, 2),
+            // 3 => interp_vector_field_2d!(field, interp_point, variation_threshold_for_linear, 3),
+            // 4 => interp_vector_field_2d!(field, interp_point, variation_threshold_for_linear, 4),
+            // 5 => interp_vector_field_2d!(field, interp_point, variation_threshold_for_linear, 5),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_vector_field_known_cell<F, G>(
+        &self,
+        field: &VectorField2<F, G>,
+        interp_point: &Point2<F>,
+        interp_indices: &Idx2<usize>,
+    ) -> Vec2<F>
+    where
+        F: BFloat,
+        G: Grid2<F>,
+    {
+        assert!(field
+            .grid()
+            .point_is_inside_cell(interp_point, interp_indices));
+
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_vector_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_vector_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_vector_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_vector_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_vector_field_in_known_grid_cell_2d!(
+            //     field,
+            //     interp_point,
+            //     interp_indices,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_extrap_vector_field<F, G>(
+        &self,
+        field: &VectorField2<F, G>,
+        interp_point: &Point2<F>,
+    ) -> GridPointQuery2<F, Vec2<F>>
+    where
+        F: BFloat,
+        G: Grid2<F>,
+    {
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_extrap_vector_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_extrap_vector_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_extrap_vector_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_extrap_vector_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_extrap_vector_field_2d!(
+            //     field,
+            //     interp_point,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+}
+
+/// A 1D interpolator using polynomial fitting to estimate the interpolated value.
+#[derive(Clone, Debug)]
+pub struct PolyFitInterpolator1 {
+    config: PolyFitInterpolatorConfig,
+}
+
+impl PolyFitInterpolator1 {
+    /// Creates a new polynomial fitting interpolator.
+    pub fn new(config: PolyFitInterpolatorConfig) -> Self {
+        config.validate();
+        Self { config }
+    }
+}
+
+impl Interpolator1 for PolyFitInterpolator1 {
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_scalar_field<F, G>(
+        &self,
+        field: &ScalarField1<F, G>,
+        interp_coord: F,
+    ) -> GridPointQuery1<F, F>
+    where
+        F: BFloat,
+        G: Grid1<F>,
+    {
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 1),
+            // 2 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 2),
+            3 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 3),
+            // 4 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 4),
+            // 5 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 5),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_scalar_field_known_cell<F, G>(
+        &self,
+        field: &ScalarField1<F, G>,
+        interp_coord: F,
+        interp_index: usize,
+    ) -> F
+    where
+        F: BFloat,
+        G: Grid1<F>,
+    {
+        assert!(field
+            .grid()
+            .coord_is_inside_cell(interp_coord, interp_index));
+
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_scalar_field_in_known_grid_cell_1d!(
+            //     field,
+            //     interp_coord,
+            //     interp_index,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_scalar_field_in_known_grid_cell_1d!(
+            //     field,
+            //     interp_coord,
+            //     interp_index,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_scalar_field_in_known_grid_cell_1d!(
+            //     field,
+            //     interp_coord,
+            //     interp_index,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_scalar_field_in_known_grid_cell_1d!(
+            //     field,
+            //     interp_coord,
+            //     interp_index,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_scalar_field_in_known_grid_cell_1d!(
+            //     field,
+            //     interp_coord,
+            //     interp_index,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }
+
+    #[allow(clippy::cognitive_complexity)]
+    fn interp_extrap_scalar_field<F, G>(
+        &self,
+        field: &ScalarField1<F, G>,
+        interp_coord: F,
+    ) -> GridPointQuery1<F, F>
+    where
+        F: BFloat,
+        G: Grid1<F>,
+    {
+        let variation_threshold_for_linear =
+            F::from(self.config.variation_threshold_for_linear).unwrap();
+        match self.config.order {
+            // 1 => interp_extrap_scalar_field_1d!(
+            //     field,
+            //     interp_coord,
+            //     variation_threshold_for_linear,
+            //     1
+            // ),
+            // 2 => interp_extrap_scalar_field_1d!(
+            //     field,
+            //     interp_coord,
+            //     variation_threshold_for_linear,
+            //     2
+            // ),
+            // 3 => interp_extrap_scalar_field_1d!(
+            //     field,
+            //     interp_coord,
+            //     variation_threshold_for_linear,
+            //     3
+            // ),
+            // 4 => interp_extrap_scalar_field_1d!(
+            //     field,
+            //     interp_coord,
+            //     variation_threshold_for_linear,
+            //     4
+            // ),
+            // 5 => interp_extrap_scalar_field_1d!(
+            //     field,
+            //     interp_coord,
+            //     variation_threshold_for_linear,
+            //     5
+            // ),
             order => panic!("Invalid interpolation order: {}", order),
         }
     }
