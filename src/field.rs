@@ -8,7 +8,7 @@ use crate::{
         Dim3::{self, X, Y, Z},
         Idx2, Idx3, In2D, In3D, Point3, Vec2, Vec3,
     },
-    grid::{regular::RegularGrid2, CoordLocation, Grid2, Grid3},
+    grid::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3},
     interpolation::Interpolator3,
     io::utils::save_data_as_pickle,
     num::{BFloat, OrderableIndexValuePair},
@@ -28,19 +28,19 @@ pub enum ResampledCoordLocation {
 
 impl ResampledCoordLocation {
     pub fn center() -> Self {
-        ResampledCoordLocation::Specific(CoordLocation::Center)
+        Self::Specific(CoordLocation::Center)
     }
     pub fn lower_edge() -> Self {
-        ResampledCoordLocation::Specific(CoordLocation::LowerEdge)
+        Self::Specific(CoordLocation::LowerEdge)
     }
     pub fn into_location(self, original: CoordLocation) -> CoordLocation {
         match self {
-            ResampledCoordLocation::Original => original,
-            ResampledCoordLocation::Specific(location) => location,
+            Self::Original => original,
+            Self::Specific(location) => location,
         }
     }
     pub fn convert_to_locations_3d(
-        resampled: In3D<ResampledCoordLocation>,
+        resampled: In3D<Self>,
         original: &In3D<CoordLocation>,
     ) -> In3D<CoordLocation> {
         In3D::new(
@@ -97,7 +97,7 @@ where
                 && grid_shape[Z] == values_shape[2],
             "Shape of grid does not match shape of array of values."
         );
-        ScalarField3 {
+        Self {
             name,
             grid,
             locations,
@@ -919,7 +919,7 @@ where
         components[X].set_grid(Arc::clone(&grid));
         components[Y].set_grid(Arc::clone(&grid));
         components[Z].set_grid(Arc::clone(&grid));
-        VectorField3 {
+        Self {
             name,
             grid,
             components,
@@ -1285,7 +1285,7 @@ where
         locations: In2D<CoordLocation>,
         values: Array2<F>,
     ) -> Self {
-        ScalarField2 {
+        Self {
             name,
             grid,
             locations,
@@ -1447,7 +1447,7 @@ where
     pub fn new(name: String, grid: Arc<G>, mut components: In2D<ScalarField2<F, G>>) -> Self {
         components[Dim2::X].set_grid(Arc::clone(&grid));
         components[Dim2::Y].set_grid(Arc::clone(&grid));
-        VectorField2 {
+        Self {
             name,
             grid,
             components,
@@ -1550,7 +1550,7 @@ where
         components[X].set_grid(Arc::clone(&grid));
         components[Y].set_grid(Arc::clone(&grid));
         components[Z].set_grid(Arc::clone(&grid));
-        PlaneVectorField3 {
+        Self {
             name,
             grid,
             components,
@@ -1625,6 +1625,153 @@ where
     /// Returns the 2D shape of the grid.
     pub fn shape(&self) -> &In2D<usize> {
         self.grid.shape()
+    }
+}
+
+/// A 1D scalar field.
+///
+/// Holds the grid and values of a 1D scalar field, as well as the
+/// specific coordinates where the values are defined.
+#[derive(Clone, Debug)]
+pub struct ScalarField1<F, G>
+where
+    F: BFloat,
+    G: Grid1<F>,
+{
+    name: String,
+    grid: Arc<G>,
+    location: CoordLocation,
+    values: Array1<F>,
+}
+
+#[derive(Serialize)]
+struct ScalarFieldSerializeData1<F: BFloat> {
+    coords: Vec<F>,
+    values: Array1<F>,
+}
+
+impl<F, G> ScalarField1<F, G>
+where
+    F: BFloat,
+    G: Grid1<F>,
+{
+    /// Creates a new scalar field given a name, a grid, the values and
+    /// coordinate location specifying where in the grid cell the values are defined.
+    pub fn new(name: String, grid: Arc<G>, location: CoordLocation, values: Array1<F>) -> Self {
+        Self {
+            name,
+            grid,
+            location,
+            values,
+        }
+    }
+
+    /// Returns a reference to the name of the field.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns a reference to the grid.
+    pub fn grid(&self) -> &G {
+        self.grid.as_ref()
+    }
+
+    /// Returns a new atomic reference counted pointer to the grid.
+    pub fn arc_with_grid(&self) -> Arc<G> {
+        Arc::clone(&self.grid)
+    }
+
+    /// Returns a set of references to the coordinates where the field
+    /// values are defined.
+    pub fn coords(&self) -> &[F] {
+        self.grid.coords_by_type(self.location)
+    }
+
+    /// Returns a reference to the 1D array of field values.
+    pub fn values(&self) -> &Array1<F> {
+        &self.values
+    }
+
+    /// Returns a mutable reference to the 1D array of field values.
+    pub fn values_mut(&mut self) -> &mut Array1<F> {
+        &mut self.values
+    }
+
+    /// Returns the field value at the given index.
+    pub fn value(&self, index: usize) -> F {
+        self.values[index]
+    }
+
+    /// Returns the size of the grid.
+    pub fn size(&self) -> usize {
+        self.grid.size()
+    }
+
+    /// Returns the coordinate location specifying where in the grid cell
+    /// the values are defined.
+    pub fn location(&self) -> CoordLocation {
+        self.location
+    }
+
+    /// Consumes the scalar field and returns the owned array of field values.
+    pub fn into_values(self) -> Array1<F> {
+        self.values
+    }
+
+    /// Computes the index and value of the minimum of the field.
+    ///
+    /// NaN values are ignored. Returns `None` if there are no finite values.
+    pub fn find_minimum(&self) -> Option<(usize, F)> {
+        self.values
+            .as_slice_memory_order()
+            .unwrap()
+            .par_iter()
+            .enumerate()
+            .filter_map(|(idx, &value)| {
+                if value.is_nan() {
+                    None
+                } else {
+                    Some(OrderableIndexValuePair(idx, value))
+                }
+            })
+            .min()
+            .map(|OrderableIndexValuePair(idx_of_min_value, min_value)| {
+                (idx_of_min_value, min_value)
+            })
+    }
+
+    /// Computes the index and value of the maximum of the field.
+    ///
+    /// NaN values are ignored. Returns `None` if there are no finite values.
+    pub fn find_maximum(&self) -> Option<(usize, F)> {
+        self.values
+            .as_slice_memory_order()
+            .unwrap()
+            .par_iter()
+            .enumerate()
+            .filter_map(|(idx, &value)| {
+                if value.is_nan() {
+                    None
+                } else {
+                    Some(OrderableIndexValuePair(idx, value))
+                }
+            })
+            .max()
+            .map(|OrderableIndexValuePair(idx_of_max_value, max_value)| {
+                (idx_of_max_value, max_value)
+            })
+    }
+
+    /// Serializes the field data into pickle format and save at the given path.
+    pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()>
+    where
+        F: Serialize,
+    {
+        let data = ScalarFieldSerializeData1 {
+            coords: self.coords().to_vec(),
+            values: self.values().clone(),
+        };
+        save_data_as_pickle(output_file_path, &data)
     }
 }
 
