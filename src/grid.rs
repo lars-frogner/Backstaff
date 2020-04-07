@@ -587,7 +587,10 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
     /// wrapping around any periodic boundaries,
     /// or the index of the closest grid cell if the coordinate is outside
     /// a non-periodic boundary.
-    fn find_closest_grid_cell(&self, point: &Point2<F>) -> Idx2<usize> {
+    ///
+    /// The result is returned as a `GridPointQuery2` which is guaranteed not
+    /// to be `Outside`.
+    fn find_closest_grid_cell(&self, point: &Point2<F>) -> GridPointQuery2<F, Idx2<usize>> {
         let lower_edges = self.lower_edges();
         let lower_bounds = self.lower_bounds();
         let upper_bounds = self.upper_bounds();
@@ -596,12 +599,16 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
 
         let mut point = point.clone();
         let mut indices = Idx2::origin();
-        for &dim in Dim2::slice().iter() {
+        let mut wrapped = false;
+
+        for &dim in &Dim2::slice() {
             if self.is_periodic(dim) {
                 if point[dim] < lower_bounds[dim] {
                     point[dim] = wrap_coordinate_lower(upper_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
                 } else if point[dim] >= upper_bounds[dim] {
                     point[dim] = wrap_coordinate_upper(lower_bounds[dim], extents[dim], point[dim]);
+                    wrapped = true;
                 };
                 indices[dim] = search_idx_of_coord(&lower_edges[dim], point[dim])
                     .expect("Coordinate index search failed");
@@ -620,7 +627,12 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
             self.indices_are_inside(&indices),
             "Found inside index is actually on the outside."
         );
-        indices
+
+        if wrapped {
+            GridPointQuery2::MovedInside((indices, point))
+        } else {
+            GridPointQuery2::Inside(indices)
+        }
     }
 
     /// Given a point that may be outside the grid boundaries, returns a new point
@@ -631,7 +643,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
         let upper_bounds = self.upper_bounds();
         let extents = self.extents();
         let mut wrapped_point = point.clone();
-        for &dim in Dim2::slice().iter() {
+        for &dim in &Dim2::slice() {
             if self.is_periodic(dim) {
                 if wrapped_point[dim] < lower_bounds[dim] {
                     wrapped_point[dim] =
@@ -753,7 +765,10 @@ pub trait Grid1<F: BFloat>: Clone + Sync + Send {
     /// wrapping around any periodic boundaries,
     /// or the index of the closest grid cell if the coordinate is outside
     /// a non-periodic boundary.
-    fn find_closest_grid_cell(&self, mut coord: F) -> usize {
+    ///
+    /// The result is returned as a `GridPointQuery1` which is guaranteed not
+    /// to be `Outside`.
+    fn find_closest_grid_cell(&self, mut coord: F) -> GridPointQuery1<F, usize> {
         let lower_edges = self.lower_edges();
         let lower_bound = self.lower_bound();
         let upper_bound = self.upper_bound();
@@ -761,11 +776,15 @@ pub trait Grid1<F: BFloat>: Clone + Sync + Send {
         let size = self.size();
 
         let index;
+        let mut wrapped = false;
+
         if self.is_periodic() {
             if coord < lower_bound {
                 coord = wrap_coordinate_lower(upper_bound, extent, coord);
+                wrapped = true;
             } else if coord >= upper_bound {
                 coord = wrap_coordinate_upper(lower_bound, extent, coord);
+                wrapped = true;
             };
             index =
                 search_idx_of_coord(lower_edges, coord).expect("Coordinate index search failed");
@@ -782,7 +801,12 @@ pub trait Grid1<F: BFloat>: Clone + Sync + Send {
             self.index_is_inside(index),
             "Found inside index is actually on the outside."
         );
-        index
+
+        if wrapped {
+            GridPointQuery1::MovedInside((index, coord))
+        } else {
+            GridPointQuery1::Inside(index)
+        }
     }
 
     /// Given a coordinate that may be outside the grid boundaries, returns a new coordinate
