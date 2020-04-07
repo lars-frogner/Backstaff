@@ -1,7 +1,7 @@
 //! Interpolation of scalar and vector fields.
 
 pub mod cubic_hermite_spline;
-// pub mod poly_fit;
+pub mod poly_fit;
 
 use crate::{
     field::{ScalarField1, ScalarField2, ScalarField3, VectorField2, VectorField3},
