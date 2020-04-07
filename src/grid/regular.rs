@@ -1,6 +1,6 @@
 //! Structured grids with uniform spacing in all dimensions.
 
-use super::{CoordLocation, Grid2, Grid3, GridType};
+use super::{CoordLocation, Grid1, Grid2, Grid3, GridType};
 use crate::{
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
@@ -78,7 +78,7 @@ impl<F: BFloat> RegularGrid3<F> {
             .collect();
         let derivatives = Some(Coords3::new(derivatives_x, derivatives_y, derivatives_z));
 
-        RegularGrid3 {
+        Self {
             coords: [
                 Coords3::new(centers_x, centers_y, centers_z),
                 Coords3::new(lower_edges_x, lower_edges_y, lower_edges_z),
@@ -155,7 +155,7 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
         let cell_extent_y = super::cell_extent_from_bounds(size_y, lower_bound_y, upper_bound_y);
         let cell_extent_z = super::cell_extent_from_bounds(size_z, lower_bound_z, upper_bound_z);
 
-        RegularGrid3 {
+        Self {
             coords: [centers, lower_edges],
             is_periodic,
             shape: In3D::new(size_x, size_y, size_z),
@@ -263,7 +263,7 @@ impl<F: BFloat> RegularGrid2<F> {
         let cell_extent_y =
             super::cell_extent_from_bounds(size_y, lower_bounds[Dim2::Y], upper_bounds[Dim2::Y]);
 
-        RegularGrid2 {
+        Self {
             coords: [
                 Coords2::new(centers_x, centers_y),
                 Coords2::new(lower_edges_x, lower_edges_y),
@@ -320,7 +320,7 @@ impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
         let cell_extent_x = super::cell_extent_from_bounds(size_x, lower_bound_x, upper_bound_x);
         let cell_extent_y = super::cell_extent_from_bounds(size_y, lower_bound_y, upper_bound_y);
 
-        RegularGrid2 {
+        Self {
             coords: [centers, lower_edges],
             is_periodic,
             shape: In2D::new(size_x, size_y),
@@ -359,6 +359,70 @@ impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
     }
     fn extents(&self) -> &Vec2<F> {
         &self.extents
+    }
+}
+
+/// A regular 1D grid.
+#[derive(Clone, Debug)]
+pub struct RegularGrid1<F: BFloat> {
+    coords: [Vec<F>; 2],
+    is_periodic: bool,
+    size: usize,
+    lower_bound: F,
+    upper_bound: F,
+    extent: F,
+    cell_extent: F,
+}
+
+impl<F: BFloat> Grid1<F> for RegularGrid1<F> {
+    fn from_coords(centers: Vec<F>, lower_edges: Vec<F>, is_periodic: bool) -> Self {
+        let size = centers.len();
+
+        assert_ne!(size, 0, "Cannot create grid with size zero.");
+
+        let (lower_bound, upper_bound) = super::bounds_from_coords(size, &centers, &lower_edges);
+
+        let extent = super::extent_from_bounds(lower_bound, upper_bound);
+
+        let cell_extent = super::cell_extent_from_bounds(size, lower_bound, upper_bound);
+
+        Self {
+            coords: [centers, lower_edges],
+            is_periodic,
+            size,
+            lower_bound,
+            upper_bound,
+            extent,
+            cell_extent,
+        }
+    }
+
+    fn size(&self) -> usize {
+        self.size
+    }
+    fn is_periodic(&self) -> bool {
+        self.is_periodic
+    }
+    fn coords_by_type(&self, location: CoordLocation) -> &[F] {
+        &self.coords[location as usize]
+    }
+
+    fn regular_centers(&self) -> &[F] {
+        self.centers()
+    }
+
+    fn regular_lower_edges(&self) -> &[F] {
+        self.lower_edges()
+    }
+
+    fn lower_bound(&self) -> F {
+        self.lower_bound
+    }
+    fn upper_bound(&self) -> F {
+        self.upper_bound
+    }
+    fn extent(&self) -> F {
+        self.extent
     }
 }
 

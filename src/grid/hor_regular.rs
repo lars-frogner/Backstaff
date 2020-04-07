@@ -1,6 +1,6 @@
 //! Structured grids with uniform spacing in the horizontal dimensions.
 
-use super::{regular::RegularGrid2, CoordLocation, Grid2, Grid3, GridType};
+use super::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3, GridType};
 use crate::{
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
@@ -60,7 +60,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
         let (regular_centers_z, regular_lower_edges_z) =
             super::regular_coords_from_bounds(size_z, lower_bound_z, upper_bound_z);
 
-        HorRegularGrid3 {
+        Self {
             coords: [centers, lower_edges],
             regular_z_coords: [regular_centers_z, regular_lower_edges_z],
             is_periodic,
@@ -153,7 +153,7 @@ impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
         let (regular_centers_y, regular_lower_edges_y) =
             super::regular_coords_from_bounds(size_y, lower_bound_y, upper_bound_y);
 
-        HorRegularGrid2 {
+        Self {
             coords: [centers, lower_edges],
             regular_y_coords: [regular_centers_y, regular_lower_edges_y],
             is_periodic,
@@ -192,6 +192,69 @@ impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
     }
     fn extents(&self) -> &Vec2<F> {
         &self.extents
+    }
+}
+
+/// A 1D non-uniform grid.
+#[derive(Clone, Debug)]
+pub struct NonUniformGrid1<F: BFloat> {
+    coords: [Vec<F>; 2],
+    regular_coords: [Vec<F>; 2],
+    size: usize,
+    lower_bound: F,
+    upper_bound: F,
+    extent: F,
+}
+
+impl<F: BFloat> Grid1<F> for NonUniformGrid1<F> {
+    fn from_coords(centers: Vec<F>, lower_edges: Vec<F>, is_periodic: bool) -> Self {
+        assert!(!is_periodic, "This grid type cannot be periodic.");
+
+        let size = centers.len();
+
+        let (lower_bound, upper_bound) = super::bounds_from_coords(size, &centers, &lower_edges);
+
+        let extent = super::extent_from_bounds(lower_bound, upper_bound);
+
+        let (regular_centers, regular_lower_edges) =
+            super::regular_coords_from_bounds(size, lower_bound, upper_bound);
+
+        Self {
+            coords: [centers, lower_edges],
+            regular_coords: [regular_centers, regular_lower_edges],
+            size,
+            lower_bound,
+            upper_bound,
+            extent,
+        }
+    }
+
+    fn size(&self) -> usize {
+        self.size
+    }
+    fn is_periodic(&self) -> bool {
+        false
+    }
+    fn coords_by_type(&self, location: CoordLocation) -> &[F] {
+        &self.coords[location as usize]
+    }
+
+    fn regular_centers(&self) -> &[F] {
+        &self.regular_coords[0]
+    }
+
+    fn regular_lower_edges(&self) -> &[F] {
+        &self.regular_coords[1]
+    }
+
+    fn lower_bound(&self) -> F {
+        self.lower_bound
+    }
+    fn upper_bound(&self) -> F {
+        self.upper_bound
+    }
+    fn extent(&self) -> F {
+        self.extent
     }
 }
 
