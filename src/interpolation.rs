@@ -455,7 +455,7 @@ pub trait Interpolator1: Clone + Sync + Send {
     /// # Parameters
     ///
     /// - `field`: Scalar field to interpolate/extrapolate.
-    /// - `interp_point`: Coordinate where the interpolated/extrapolated value should be computed.
+    /// - `interp_coord`: Coordinate where the interpolated/extrapolated value should be computed.
     ///
     /// # Returns
     ///
@@ -472,7 +472,7 @@ pub trait Interpolator1: Clone + Sync + Send {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_point: F,
+        interp_coord: F,
     ) -> GridPointQuery1<F, F>
     where
         F: BFloat,
