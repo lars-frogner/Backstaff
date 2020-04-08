@@ -9,6 +9,7 @@ use crate::{
         BoundaryTangents, CubicHermiteSplineInterpolator, CubicHermiteSplineInterpolatorConfig,
         TangentScheme,
     },
+    io::snapshot::fdt,
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
 
@@ -78,7 +79,7 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .require_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help("Relative magnitudes of dz at the lower and upper z-boundaries")
+                .help("Relative magnitudes of dz at the lower and upper z-boundaries\n")
                 .takes_value(true)
                 .default_value("1.0,1.0"),
         )
@@ -90,7 +91,7 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .allow_hyphen_values(true)
                 .value_name("COORDS")
                 .help(
-                    "Control z-coordinates where relative magnitudes of dz are specified\n\
+                    "Control z-coordinates where relative magnitudes of dz are specified\n \
                      [default: no control points]",
                 )
                 .takes_value(true)
@@ -104,7 +105,7 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .allow_hyphen_values(true)
                 .value_name("VALUES")
                 .help(
-                    "Relative magnitudes of dz at the specified control z-coordinates\n\
+                    "Relative magnitudes of dz at the specified control z-coordinates\n \
                      [default: no control points]",
                 )
                 .takes_value(true)
@@ -146,11 +147,18 @@ pub fn run_horizontally_regular_subcommand(
         "Error: Boundary dz scales must be larger than zero"
     );
 
-    let mut interior_z =
-        utils::get_values_from_required_parseable_argument(arguments, "interior-z");
+    let interior_z: Vec<fdt> = utils::get_values_from_parseable_argument_with_custom_defaults(
+        arguments,
+        "interior-z",
+        &|| Vec::new(),
+    );
 
-    let mut interior_dz_scales =
-        utils::get_values_from_required_parseable_argument(arguments, "interior-dz-scales");
+    let interior_dz_scales: Vec<fdt> =
+        utils::get_values_from_parseable_argument_with_custom_defaults(
+            arguments,
+            "interior-dz-scales",
+            &|| Vec::new(),
+        );
 
     exit_on_false!(
         interior_z.len() == interior_dz_scales.len(),
@@ -174,6 +182,14 @@ pub fn run_horizontally_regular_subcommand(
     let (centers_y, lower_edges_y) =
         grid::regular_coords_from_bounds(shape[1], bounds_y[0], bounds_y[1]);
 
+    let mut coords_and_scales: Vec<_> = interior_z
+        .into_iter()
+        .zip(interior_dz_scales.into_iter())
+        .collect();
+    coords_and_scales.sort_by(|&(a, _), &(b, _)| a.partial_cmp(&b).unwrap());
+    let (mut interior_z, mut interior_dz_scales): (Vec<_>, Vec<_>) =
+        coords_and_scales.into_iter().unzip();
+
     let mut control_z = Vec::with_capacity(2 + interior_z.len());
     control_z.push(bounds_z[0]);
     control_z.append(&mut interior_z);
@@ -189,16 +205,18 @@ pub fn run_horizontally_regular_subcommand(
         boundary_tangents: BoundaryTangents::Zero,
     });
 
-    let (mut centers_z, mut lower_edges_z) = grid::create_new_grid_coords_from_control_extents(
-        shape[2],
-        bounds_z[0],
-        bounds_z[1],
-        control_z,
-        dz_scales,
-        &interpolator,
+    let (centers_z, lower_edges_z) = exit_on_error!(
+        grid::create_new_grid_coords_from_control_extents(
+            shape[2],
+            bounds_z[0],
+            bounds_z[1],
+            &control_z,
+            &dz_scales,
+            &interpolator,
+        ),
+        "Error: Could not compute new z-coordinates for grid: {}"
     );
 
-    grid::ensure_uniform_boundary_grid_cell_extents(&mut centers_z, &mut lower_edges_z);
     let (up_derivatives_x, down_derivatives_x) = grid::compute_up_and_down_derivatives(&centers_x);
     let (up_derivatives_y, down_derivatives_y) = grid::compute_up_and_down_derivatives(&centers_y);
     let (up_derivatives_z, down_derivatives_z) = grid::compute_up_and_down_derivatives(&centers_z);
