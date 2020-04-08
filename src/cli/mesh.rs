@@ -1,8 +1,14 @@
 //! Command line interface for creating Bifrost mesh files.
 
+mod horizontally_regular;
 mod regular;
 
-use self::regular::{create_regular_mesh_subcommand, run_regular_subcommand};
+use self::{
+    horizontally_regular::{
+        create_horizontally_regular_mesh_subcommand, run_horizontally_regular_subcommand,
+    },
+    regular::{create_regular_mesh_subcommand, run_regular_subcommand},
+};
 use crate::{
     create_subcommand, exit_on_error, exit_with_error,
     grid::Grid3,
@@ -33,12 +39,21 @@ pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .help("Automatically overwrite any existing file (unless listed as protected)"),
         )
         .subcommand(create_subcommand!(create_mesh, regular_mesh))
+        .subcommand(create_subcommand!(create_mesh, horizontally_regular_mesh))
 }
 
 /// Runs the actions for the `create_mesh` subcommand using the given arguments.
 pub fn run_create_mesh_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     if let Some(regular_arguments) = arguments.subcommand_matches("regular") {
         run_regular_subcommand(arguments, regular_arguments, protected_file_types);
+    } else if let Some(horizontally_regular_arguments) =
+        arguments.subcommand_matches("horizontally_regular")
+    {
+        run_horizontally_regular_subcommand(
+            arguments,
+            horizontally_regular_arguments,
+            protected_file_types,
+        );
     } else {
         exit_with_error!("Error: No resampling mode specified");
     };
