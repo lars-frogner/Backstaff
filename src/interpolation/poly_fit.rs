@@ -1925,7 +1925,7 @@ impl Interpolator1 for PolyFitInterpolator1 {
         match self.config.order {
             // 1 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 1),
             // 2 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 2),
-            3 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 3),
+            // 3 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 3),
             // 4 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 4),
             // 5 => interp_scalar_field_1d!(field, interp_coord, variation_threshold_for_linear, 5),
             order => panic!("Invalid interpolation order: {}", order),
@@ -2014,12 +2014,12 @@ impl Interpolator1 for PolyFitInterpolator1 {
             //     variation_threshold_for_linear,
             //     2
             // ),
-            // 3 => interp_extrap_scalar_field_1d!(
-            //     field,
-            //     interp_coord,
-            //     variation_threshold_for_linear,
-            //     3
-            // ),
+            3 => interp_extrap_scalar_field_1d!(
+                field,
+                interp_coord,
+                variation_threshold_for_linear,
+                3
+            ),
             // 4 => interp_extrap_scalar_field_1d!(
             //     field,
             //     interp_coord,
