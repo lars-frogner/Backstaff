@@ -11,7 +11,7 @@ use clap::{App, Arg, ArgMatches, SubCommand};
 /// Builds a representation of the `create_mesh-regular` command line subcommand.
 pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
     SubCommand::with_name("regular")
-        .about("Use a regular grid")
+        .about("Create a regular grid")
         .help_message("Print help information")
         .arg(
             Arg::with_name("shape")
@@ -69,28 +69,32 @@ pub fn run_regular_subcommand(
     protected_file_types: &[&str],
 ) {
     let shape = utils::get_values_from_required_parseable_argument(arguments, "shape");
-
-    let x_bounds = utils::get_values_from_required_parseable_argument(arguments, "x-bounds");
     exit_on_false!(
-        x_bounds[1] > x_bounds[0],
+        shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
+        "Error: All grid dimensions must be larger than zero"
+    );
+
+    let bounds_x = utils::get_values_from_required_parseable_argument(arguments, "x-bounds");
+    exit_on_false!(
+        bounds_x[1] > bounds_x[0],
         "Error: Upper bound on x must be larger than lower bound"
     );
-    let y_bounds = utils::get_values_from_required_parseable_argument(arguments, "y-bounds");
+    let bounds_y = utils::get_values_from_required_parseable_argument(arguments, "y-bounds");
     exit_on_false!(
-        y_bounds[1] > y_bounds[0],
+        bounds_y[1] > bounds_y[0],
         "Error: Upper bound on y must be larger than lower bound"
     );
-    let z_bounds = utils::get_values_from_required_parseable_argument(arguments, "z-bounds");
+    let bounds_z = utils::get_values_from_required_parseable_argument(arguments, "z-bounds");
     exit_on_false!(
-        z_bounds[1] > z_bounds[0],
+        bounds_z[1] > bounds_z[0],
         "Error: Upper bound on z must be larger than lower bound"
     );
 
     let grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),
-        Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]),
-        Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]),
-        In3D::new(false, false, false),
+        Vec3::new(bounds_x[0], bounds_y[0], bounds_z[0]),
+        Vec3::new(bounds_x[1], bounds_y[1], bounds_z[1]),
+        In3D::same(false),
     );
 
     super::write_mesh_file(root_arguments, grid, protected_file_types);
