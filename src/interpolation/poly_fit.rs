@@ -24,7 +24,7 @@ macro_rules! compute_start_offset {
         match $location {
             CoordLocation::Center => {
                 if $order % 2 != 0 && $interp_coord < $center_coords[$interp_idx] {
-                    // If coordinates are located at cell centers, interpolation order is odd
+                    // If values are located at cell centers, interpolation order is odd
                     // and interpolation coordinate is in lower half of the cell:
                     // Shift start offset one cell down.
                     DEFAULT_START_OFFSET - 1
@@ -34,7 +34,7 @@ macro_rules! compute_start_offset {
             }
             CoordLocation::LowerEdge => {
                 if $order % 2 == 0 && $interp_coord > $center_coords[$interp_idx] {
-                    // If coordinates are located at lower cell edges, interpolation order is even
+                    // If values are located at lower cell edges, interpolation order is even
                     // and interpolation coordinate is in upper half of the cell:
                     // Shift start offset one cell up.
                     DEFAULT_START_OFFSET + 1
