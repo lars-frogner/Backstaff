@@ -3,17 +3,20 @@
 pub mod hor_regular;
 pub mod regular;
 
-use self::regular::RegularGrid2;
+use self::{hor_regular::NonUniformGrid1, regular::RegularGrid2};
 use crate::{
+    field::ScalarField1,
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
         Dim3::{self, X, Y, Z},
         Idx2, Idx3, In2D, In3D, Point2, Point3, Vec2, Vec3,
     },
+    interpolation::Interpolator1,
+    io::snapshot::fdt,
     num::BFloat,
 };
 use ndarray::prelude::*;
-use std::io;
+use std::{io, sync::Arc};
 
 /// Coordinates located at center or lower edge of grid cell.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1081,16 +1084,8 @@ pub fn verify_coordinate_arrays<F: BFloat>(
     Ok(detected_grid_type)
 }
 
-fn extent_from_bounds<F: BFloat>(lower_bound: F, upper_bound: F) -> F {
-    upper_bound - lower_bound
-}
-
-fn cell_extent_from_bounds<F: BFloat>(size: usize, lower_bound: F, upper_bound: F) -> F {
-    let extent = extent_from_bounds(lower_bound, upper_bound);
-    extent / F::from_usize(size).unwrap()
-}
-
-fn regular_coords_from_bounds<F: BFloat>(
+/// Compute lower edges and centers of grid cells in a regular 1D grid.
+pub fn regular_coords_from_bounds<F: BFloat>(
     size: usize,
     lower_bound: F,
     upper_bound: F,
@@ -1105,6 +1100,178 @@ fn regular_coords_from_bounds<F: BFloat>(
     .to_vec();
     let lower_edges = Array::linspace(lower_bound, upper_bound - cell_extent, size).to_vec();
     (centers, lower_edges)
+}
+
+/// Determine center and lower edge coordinates for a grid with the given
+/// size and bounds using the given control values for grid cell extents.
+pub fn create_new_grid_coords_from_control_extents<I: Interpolator1>(
+    target_number_of_grid_cells: usize,
+    lower_bound: fdt,
+    upper_bound: fdt,
+    mut control_coords: Vec<fdt>,
+    mut control_grid_cell_extents: Vec<fdt>,
+    interpolator: &I,
+) -> (Vec<fdt>, Vec<fdt>) {
+    assert!(upper_bound > lower_bound);
+    assert!(target_number_of_grid_cells >= 2);
+    assert!(control_coords.len() >= 2);
+    assert_eq!(control_grid_cell_extents.len(), control_coords.len());
+    assert!(
+        *control_coords.first().unwrap() == lower_bound
+            && *control_coords.last().unwrap() == upper_bound
+    );
+
+    let extent = upper_bound - lower_bound;
+    let target_mean_grid_cell_extent = extent / (target_number_of_grid_cells as fdt);
+
+    // Normalize control coordinates to go from 0 to 1
+    control_coords
+        .iter_mut()
+        .for_each(|edge_coord| *edge_coord = (*edge_coord - lower_bound) / extent);
+
+    // Scale control grid cell extents to target mean value
+    let control_grid_cell_extent_sum: fdt = control_grid_cell_extents.iter().sum();
+    let mean_control_grid_cell_extent =
+        control_grid_cell_extent_sum / (control_grid_cell_extents.len() as fdt);
+    control_grid_cell_extents
+        .iter_mut()
+        .for_each(|grid_cell_extent| {
+            *grid_cell_extent *= target_mean_grid_cell_extent / mean_control_grid_cell_extent
+        });
+
+    // Compute centers in a grid with edges defined by the control coordinates (although they will not be used)
+    let mut centers: Vec<fdt> = control_coords
+        .iter()
+        .zip(control_coords.iter().skip(1))
+        .map(|(lower, upper)| lower + 0.5 * (upper - lower))
+        .collect();
+    centers.push(2.0 * control_coords.last().unwrap() - centers.last().unwrap());
+
+    // Define 1D "field" of control grid scale extents for interpolation
+    let control_grid_cell_extent_field = ScalarField1::new(
+        String::new(),
+        Arc::new(NonUniformGrid1::from_coords(centers, control_coords, false)),
+        CoordLocation::LowerEdge,
+        Array1::from(control_grid_cell_extents),
+    );
+
+    // Adjust scaling of grid cell extents until the cumulative sum of discretized
+    // grid cell extents hits the upper boundary
+    let mut scale = 1.0 / extent;
+    let mut grid_cell_edges = vec![0.0; target_number_of_grid_cells + 1];
+    loop {
+        for i in 0..target_number_of_grid_cells {
+            let grid_cell_extent = interpolator
+                .interp_extrap_scalar_field(&control_grid_cell_extent_field, grid_cell_edges[i])
+                .expect_inside()
+                * scale;
+            grid_cell_edges[i + 1] = grid_cell_edges[i] + grid_cell_extent;
+        }
+        if fdt::abs(grid_cell_edges.last().unwrap() - 1.0) > 1e-9 {
+            scale *= 1.0 / grid_cell_edges.last().unwrap();
+        } else {
+            break;
+        }
+    }
+
+    grid_cell_edges
+        .iter_mut()
+        .for_each(|coord| *coord = (*coord) * extent + lower_bound);
+
+    // Compute centers and lower edges of discretized grid
+
+    let grid_cell_extents = grid_cell_edges
+        .iter()
+        .zip(grid_cell_edges.iter().skip(1))
+        .map(|(lower, upper)| upper - lower);
+    let centers = grid_cell_extents
+        .zip(grid_cell_edges.iter())
+        .map(|(grid_cell_extent, lower_edge)| lower_edge + 0.5 * grid_cell_extent)
+        .collect();
+
+    grid_cell_edges.pop().unwrap();
+    let lower_edges = grid_cell_edges;
+
+    (centers, lower_edges)
+}
+
+/// Adjust the given grid cell centers and lower edges so that the
+/// grid cell extents near the boundary are uniform.
+pub fn ensure_uniform_boundary_grid_cell_extents(centers: &mut [fdt], lower_edges: &mut [fdt]) {
+    const OFFSET: usize = 3;
+
+    let n = centers.len();
+    assert_eq!(lower_edges.len(), n);
+    assert!(n >= OFFSET);
+
+    let mean_grid_cell_extent_lower = (lower_edges[OFFSET] - lower_edges[0]) / (OFFSET as fdt);
+    centers[0] = lower_edges[0] + 0.5 * mean_grid_cell_extent_lower;
+    for i in 1..OFFSET {
+        lower_edges[i] = lower_edges[i - 1] + mean_grid_cell_extent_lower;
+        centers[i] = lower_edges[i] + 0.5 * mean_grid_cell_extent_lower;
+    }
+
+    let upper_boundary = 2.0 * centers[n - 1] - lower_edges[n - 1];
+    let mean_grid_cell_extent_upper = (upper_boundary - lower_edges[n - OFFSET]) / (OFFSET as fdt);
+    centers[n - OFFSET] = lower_edges[n - OFFSET] + 0.5 * mean_grid_cell_extent_upper;
+    for i in n + 1 - OFFSET..n {
+        lower_edges[i] = lower_edges[i - 1] + mean_grid_cell_extent_upper;
+        centers[i] = lower_edges[i] + 0.5 * mean_grid_cell_extent_upper;
+    }
+}
+
+/// Compute upward and downward weighted derivatives of the given grid cell centers.
+pub fn compute_up_and_down_derivatives(centers: &[fdt]) -> (Vec<fdt>, Vec<fdt>) {
+    const D: fdt = -75.0 / 107520.0;
+    const C: fdt = 1029.0 / 107520.0;
+    const B: fdt = -8575.0 / 107520.0;
+    const A: fdt = 1.0 - 3.0 * B - 5.0 * C - 7.0 * D;
+
+    let n = centers.len();
+    assert!(n >= 8);
+
+    let mut up_derivatives = vec![0.0; n];
+    let mut down_derivatives = vec![0.0; n];
+
+    for i in 3..n - 4 {
+        up_derivatives[i] = A * (centers[i + 1] - centers[i])
+            + B * (centers[i + 2] - centers[i - 1])
+            + C * (centers[i + 3] - centers[i - 2])
+            + D * (centers[i + 4] - centers[i - 3]);
+    }
+    for i in 0..3 {
+        up_derivatives[i] = up_derivatives[3];
+    }
+    for i in n - 4..n {
+        up_derivatives[i] = up_derivatives[n - 5];
+    }
+
+    for i in 4..n - 3 {
+        down_derivatives[i] = A * (centers[i] - centers[i - 1])
+            + B * (centers[i + 1] - centers[i - 2])
+            + C * (centers[i + 2] - centers[i - 3])
+            + D * (centers[i + 3] - centers[i - 4]);
+    }
+    for i in 0..4 {
+        down_derivatives[i] = down_derivatives[4];
+    }
+    for i in n - 3..n {
+        down_derivatives[i] = down_derivatives[n - 4];
+    }
+
+    (
+        up_derivatives.into_iter().map(|d| 1.0 / d).collect(),
+        down_derivatives.into_iter().map(|d| 1.0 / d).collect(),
+    )
+}
+
+fn extent_from_bounds<F: BFloat>(lower_bound: F, upper_bound: F) -> F {
+    upper_bound - lower_bound
+}
+
+fn cell_extent_from_bounds<F: BFloat>(size: usize, lower_bound: F, upper_bound: F) -> F {
+    let extent = extent_from_bounds(lower_bound, upper_bound);
+    extent / F::from_usize(size).unwrap()
 }
 
 fn bounds_from_coords<F: BFloat>(size: usize, centers: &[F], lower_edges: &[F]) -> (F, F) {
