@@ -6,19 +6,16 @@ use super::{
     weighted_sample_averaging::create_weighted_sample_averaging_subcommand,
 };
 use crate::{
-    cli::snapshot::write::create_write_subcommand,
+    cli::{snapshot::write::create_write_subcommand, utils},
     create_subcommand, exit_on_error, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
-    geometry::{
-        Dim3::{X, Y, Z},
-        In3D,
-    },
+    geometry::In3D,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::Interpolator3,
     io::snapshot::{fdt, native, SnapshotReader3},
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{path::PathBuf, str::FromStr};
 
 /// Builds a representation of the `snapshot-resample-mesh_file` command line subcommand.
 pub fn create_mesh_file_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -36,6 +33,16 @@ pub fn create_mesh_file_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("MESH_FILE")
                 .help("Path to a Bifrost mesh file representing the grid to resample to")
                 .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("shape")
+                .short("s")
+                .long("shape")
+                .require_equals(true)
+                .require_delimiter(true)
+                .value_names(&["NX", "NY", "NZ"])
+                .help("Shape of the grid to resample to [default: same as in mesh file]")
                 .takes_value(true),
         )
         .subcommand(create_subcommand!(mesh_file, weighted_sample_averaging))
@@ -60,14 +67,6 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
     R: SnapshotReader3<G>,
     I: Interpolator3,
 {
-    let original_grid = reader.grid();
-
-    let original_is_periodic = In3D::new(
-        original_grid.is_periodic(X),
-        original_grid.is_periodic(Y),
-        original_grid.is_periodic(Z),
-    );
-
     let mesh_file_path = exit_on_error!(
         PathBuf::from_str(
             root_arguments
@@ -79,60 +78,64 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
 
     let write_arguments = arguments.subcommand_matches("write").unwrap();
 
+    let shape: Vec<usize> =
+        utils::get_values_from_parseable_argument_with_custom_defaults(arguments, "shape", &|| {
+            Vec::new()
+        });
+    let new_shape = if shape.is_empty() {
+        None
+    } else {
+        exit_on_false!(
+            shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
+            "Error: Grid size must be larger than zero in every dimension"
+        );
+        Some(In3D::new(shape[0], shape[1], shape[2]))
+    };
+
     let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(
         native::parse_mesh_file(mesh_file_path, is_verbose.into()),
         "Error: Could not parse mesh file: {}"
     );
     match detected_grid_type {
         GridType::Regular => {
-            let mut new_grid = RegularGrid3::from_coords(
+            let grid = RegularGrid3::from_coords(
                 center_coords,
                 lower_edge_coords,
-                original_is_periodic,
+                reader.grid().periodicity().clone(),
                 Some(up_derivatives),
                 Some(down_derivatives),
             );
-            super::correct_periodicity_for_new_grid(
-                original_grid,
-                &mut new_grid,
-                continue_on_warnings,
-                is_verbose,
-            );
-            let new_grid = Arc::new(new_grid);
-            super::resample_snapshot_for_grid(
+            super::resample_to_regular_grid(
+                grid,
+                new_shape,
                 write_arguments,
                 reader,
                 snap_num_offset,
-                &new_grid,
                 resampled_locations,
                 resampling_method,
+                continue_on_warnings,
                 is_verbose,
                 interpolator,
                 protected_file_types,
             );
         }
         GridType::HorRegular => {
-            let mut new_grid = HorRegularGrid3::from_coords(
+            let grid = HorRegularGrid3::from_coords(
                 center_coords,
                 lower_edge_coords,
-                original_is_periodic,
+                reader.grid().periodicity().clone(),
                 Some(up_derivatives),
                 Some(down_derivatives),
             );
-            super::correct_periodicity_for_new_grid(
-                original_grid,
-                &mut new_grid,
-                continue_on_warnings,
-                is_verbose,
-            );
-            let new_grid = Arc::new(new_grid);
-            super::resample_snapshot_for_grid(
+            super::resample_to_horizontally_regular_grid(
+                grid,
+                new_shape,
                 write_arguments,
                 reader,
                 snap_num_offset,
-                &new_grid,
                 resampled_locations,
                 resampling_method,
+                continue_on_warnings,
                 is_verbose,
                 interpolator,
                 protected_file_types,

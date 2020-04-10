@@ -17,10 +17,14 @@ use crate::{
     },
     create_subcommand, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
-    geometry::{Dim3, In3D},
-    grid::Grid3,
+    geometry::{
+        Coords3,
+        Dim3::{self, X, Y, Z},
+        In3D,
+    },
+    grid::{self, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
     interpolation::{
-        poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+        poly_fit::{PolyFitInterpolator1, PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
@@ -214,6 +218,147 @@ fn run_with_selected_interpolator<G, R>(
             protected_file_types,
         ),
     }
+}
+
+fn resample_to_regular_grid<G, R, I>(
+    mut grid: RegularGrid3<fdt>,
+    new_shape: Option<In3D<usize>>,
+    write_arguments: &ArgMatches,
+    reader: &R,
+    snap_num_offset: Option<u32>,
+    resampled_locations: &In3D<ResampledCoordLocation>,
+    resampling_method: ResamplingMethod,
+    continue_on_warnings: bool,
+    is_verbose: bool,
+    interpolator: I,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+    I: Interpolator3,
+{
+    if let Some(new_shape) = new_shape {
+        grid = RegularGrid3::from_bounds(
+            new_shape,
+            grid.lower_bounds().clone(),
+            grid.upper_bounds().clone(),
+            grid.periodicity().clone(),
+        );
+    }
+
+    correct_periodicity_for_new_grid(reader.grid(), &mut grid, continue_on_warnings, is_verbose);
+
+    let new_grid = Arc::new(grid);
+    resample_snapshot_for_grid(
+        write_arguments,
+        reader,
+        snap_num_offset,
+        &new_grid,
+        resampled_locations,
+        resampling_method,
+        is_verbose,
+        interpolator,
+        protected_file_types,
+    );
+}
+
+fn resample_to_horizontally_regular_grid<G, R, I>(
+    mut grid: HorRegularGrid3<fdt>,
+    new_shape: Option<In3D<usize>>,
+    write_arguments: &ArgMatches,
+    reader: &R,
+    snap_num_offset: Option<u32>,
+    resampled_locations: &In3D<ResampledCoordLocation>,
+    resampling_method: ResamplingMethod,
+    continue_on_warnings: bool,
+    is_verbose: bool,
+    interpolator: I,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+    I: Interpolator3,
+{
+    const TARGET_CONTROL_SIZE: usize = 100;
+
+    if let Some(new_shape) = new_shape {
+        let horizontal_grid = RegularGrid3::from_bounds(
+            new_shape.clone(),
+            grid.lower_bounds().clone(),
+            grid.upper_bounds().clone(),
+            grid.periodicity().clone(),
+        );
+        let horizontal_centers = horizontal_grid.centers();
+        let horizontal_lower_edges = horizontal_grid.lower_edges();
+
+        let lower_bound_z = grid.lower_bounds()[Z];
+        let upper_bound_z = grid.upper_bounds()[Z];
+        let lower_edges_z = &grid.lower_edges()[Z];
+
+        let size_z = lower_edges_z.len();
+        let stride = f32::floor((size_z as f32) / TARGET_CONTROL_SIZE as f32) as usize;
+        let mut control_coords: Vec<_> = lower_edges_z.iter().copied().step_by(stride).collect();
+        let mut control_grid_cell_extents: Vec<_> = lower_edges_z
+            .iter()
+            .step_by(stride)
+            .zip(lower_edges_z.iter().skip(1).step_by(stride))
+            .map(|(lower_edge, upper_edge)| upper_edge - lower_edge)
+            .collect();
+        *control_coords.last_mut().unwrap() = upper_bound_z;
+        *control_grid_cell_extents.last_mut().unwrap() =
+            lower_edges_z[size_z - 1] - lower_edges_z[size_z - 2];
+
+        let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig::default());
+        let (new_centers_z, new_lower_edges_z) = exit_on_error!(
+            grid::create_new_grid_coords_from_control_extents(
+                new_shape[Z],
+                lower_bound_z,
+                upper_bound_z,
+                &control_coords,
+                &control_grid_cell_extents,
+                &interpolator,
+            ),
+            "Error: Could not compute new z-coordinates for grid: {}"
+        );
+
+        let mut up_derivatives = horizontal_grid.up_derivatives().unwrap().clone();
+        let mut down_derivatives = horizontal_grid.down_derivatives().unwrap().clone();
+        let (up_derivatives_z, down_derivatives_z) =
+            grid::compute_up_and_down_derivatives(&new_centers_z);
+        up_derivatives[Z] = up_derivatives_z;
+        down_derivatives[Z] = down_derivatives_z;
+
+        grid = HorRegularGrid3::from_coords(
+            Coords3::new(
+                horizontal_centers[X].clone(),
+                horizontal_centers[Y].clone(),
+                new_centers_z,
+            ),
+            Coords3::new(
+                horizontal_lower_edges[X].clone(),
+                horizontal_lower_edges[Y].clone(),
+                new_lower_edges_z,
+            ),
+            grid.periodicity().clone(),
+            Some(up_derivatives),
+            Some(down_derivatives),
+        );
+    }
+
+    correct_periodicity_for_new_grid(reader.grid(), &mut grid, continue_on_warnings, is_verbose);
+
+    let new_grid = Arc::new(grid);
+    resample_snapshot_for_grid(
+        write_arguments,
+        reader,
+        snap_num_offset,
+        &new_grid,
+        resampled_locations,
+        resampling_method,
+        is_verbose,
+        interpolator,
+        protected_file_types,
+    );
 }
 
 fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
