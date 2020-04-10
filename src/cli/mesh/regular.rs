@@ -71,7 +71,7 @@ pub fn run_regular_subcommand(
     let shape = utils::get_values_from_required_parseable_argument(arguments, "shape");
     exit_on_false!(
         shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
-        "Error: All grid dimensions must be larger than zero"
+        "Error: Grid size must be larger than zero in every dimension"
     );
 
     let bounds_x = utils::get_values_from_required_parseable_argument(arguments, "x-bounds");

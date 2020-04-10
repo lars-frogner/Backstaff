@@ -122,7 +122,7 @@ pub fn run_horizontally_regular_subcommand(
     let shape = utils::get_values_from_required_parseable_argument(arguments, "shape");
     exit_on_false!(
         shape[0] >= 8 && shape[1] >= 8 && shape[2] >= 8,
-        "Error: All grid dimensions must have a size of at least 8"
+        "Error: Grid size must be at least 8 in every dimension"
     );
 
     let bounds_x = utils::get_values_from_required_parseable_argument(arguments, "x-bounds");
