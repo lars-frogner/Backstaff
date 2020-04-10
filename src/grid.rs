@@ -92,11 +92,16 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// Returns the 3D shape of the grid.
     fn shape(&self) -> &In3D<usize>;
 
-    /// Whether the grid is periodic along the given dimension.
-    fn is_periodic(&self, dim: Dim3) -> bool;
+    /// Returns a reference to the grid periodicity object.
+    fn periodicity(&self) -> &In3D<bool>;
 
     /// Returns a reference to either the central or lower coordinates depending on the given type value.
     fn coords_by_type(&self, location: CoordLocation) -> &Coords3<F>;
+
+    /// Whether the grid is periodic along the given dimension.
+    fn is_periodic(&self, dim: Dim3) -> bool {
+        self.periodicity()[dim]
+    }
 
     /// Returns a reference to the central coordinates.
     fn centers(&self) -> &Coords3<F> {

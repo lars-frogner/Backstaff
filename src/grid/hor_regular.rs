@@ -24,6 +24,8 @@ pub struct HorRegularGrid3<F: BFloat> {
     coord_derivatives: [Option<Coords3<F>>; 2],
 }
 
+impl<F: BFloat> HorRegularGrid3<F> {}
+
 impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     type XSliceGrid = HorRegularGrid2<F>;
     type YSliceGrid = HorRegularGrid2<F>;
@@ -107,8 +109,8 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     fn shape(&self) -> &In3D<usize> {
         &self.shape
     }
-    fn is_periodic(&self, dim: Dim3) -> bool {
-        self.is_periodic[dim]
+    fn periodicity(&self) -> &In3D<bool> {
+        &self.is_periodic
     }
     fn coords_by_type(&self, location: CoordLocation) -> &Coords3<F> {
         &self.coords[location as usize]

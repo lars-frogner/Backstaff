@@ -185,8 +185,8 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     fn shape(&self) -> &In3D<usize> {
         &self.shape
     }
-    fn is_periodic(&self, dim: Dim3) -> bool {
-        self.is_periodic[dim]
+    fn periodicity(&self) -> &In3D<bool> {
+        &self.is_periodic
     }
     fn coords_by_type(&self, location: CoordLocation) -> &Coords3<F> {
         &self.coords[location as usize]
