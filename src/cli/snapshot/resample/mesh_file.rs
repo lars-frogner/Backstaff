@@ -78,10 +78,11 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
 
     let write_arguments = arguments.subcommand_matches("write").unwrap();
 
-    let shape: Vec<usize> =
-        utils::get_values_from_parseable_argument_with_custom_defaults(arguments, "shape", &|| {
-            Vec::new()
-        });
+    let shape: Vec<usize> = utils::get_values_from_parseable_argument_with_custom_defaults(
+        root_arguments,
+        "shape",
+        &|| Vec::new(),
+    );
     let new_shape = if shape.is_empty() {
         None
     } else {
