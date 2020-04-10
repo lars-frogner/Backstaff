@@ -5,7 +5,7 @@ use crate::{
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
         Dim3::{self, X, Y, Z},
-        In2D, In3D, Vec2, Vec3,
+        Idx3, In2D, In3D, Vec2, Vec3,
     },
     num::BFloat,
 };
@@ -245,6 +245,10 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
             }
         }
         self.coord_derivatives[1] = down_derivatives;
+    }
+
+    fn grid_cell_extents(&self, _indices: &Idx3<usize>) -> Vec3<F> {
+        self.cell_extents().clone()
     }
     fn average_grid_cell_extents(&self) -> Vec3<F> {
         self.cell_extents().clone()

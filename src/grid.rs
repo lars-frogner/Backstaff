@@ -143,16 +143,13 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// Returns the lower and upper corner of the grid cell of the given 3D index.
     fn grid_cell_extremal_corners(&self, indices: &Idx3<usize>) -> (Point3<F>, Point3<F>) {
         let lower_corner = self.lower_edges().point(indices);
-        let center = self.centers().point(indices);
-        let upper_corner = &center + (&center - &lower_corner);
+        let grid_cell_extents = self.grid_cell_extents(indices);
+        let upper_corner = &lower_corner + &grid_cell_extents;
         (lower_corner, upper_corner)
     }
 
     /// Returns the coordinate extents of the grid cell at the given 3D index.
-    fn grid_cell_extents(&self, indices: &Idx3<usize>) -> Vec3<F> {
-        let (lower_corner, upper_corner) = self.grid_cell_extremal_corners(indices);
-        upper_corner - lower_corner
-    }
+    fn grid_cell_extents(&self, indices: &Idx3<usize>) -> Vec3<F>;
 
     /// Returns the average coordinate extents of the grid cells.
     fn average_grid_cell_extents(&self) -> Vec3<F> {
@@ -1340,6 +1337,21 @@ pub fn compute_up_and_down_derivatives<F: BFloat>(centers: &[F]) -> (Vec<F>, Vec
             .map(|d| F::from_f64(1.0 / d).unwrap())
             .collect(),
     )
+}
+
+fn compute_grid_cell_extents<F: BFloat>(centers: &[F], lower_edges: &[F]) -> Vec<F> {
+    assert_eq!(centers.len(), lower_edges.len());
+    let mut grid_cell_extents = Vec::with_capacity(lower_edges.len());
+    grid_cell_extents.extend(
+        lower_edges
+            .iter()
+            .zip(lower_edges.iter().skip(1))
+            .map(|(&lower, &upper)| upper - lower),
+    );
+    grid_cell_extents.push(
+        F::from_f32(2.0).unwrap() * (*centers.last().unwrap() - *lower_edges.last().unwrap()),
+    );
+    grid_cell_extents
 }
 
 fn extent_from_bounds<F: BFloat>(lower_bound: F, upper_bound: F) -> F {

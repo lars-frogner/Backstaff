@@ -5,7 +5,7 @@ use crate::{
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
         Dim3::{self, X, Y, Z},
-        In2D, In3D, Vec2, Vec3,
+        Idx3, In2D, In3D, Vec2, Vec3,
     },
     num::BFloat,
 };
@@ -14,6 +14,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct HorRegularGrid3<F: BFloat> {
     coords: [Coords3<F>; 2],
+    grid_cell_extents_z: Vec<F>,
     regular_z_coords: [Vec<F>; 2],
     is_periodic: In3D<bool>,
     shape: In3D<usize>,
@@ -81,6 +82,8 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
         let (lower_bound_z, upper_bound_z) =
             super::bounds_from_coords(size_z, &centers[Z], &lower_edges[Z]);
 
+        let grid_cell_extents_z = super::compute_grid_cell_extents(&centers[Z], &lower_edges[Z]);
+
         let extent_x = super::extent_from_bounds(lower_bound_x, upper_bound_x);
         let extent_y = super::extent_from_bounds(lower_bound_y, upper_bound_y);
         let extent_z = super::extent_from_bounds(lower_bound_z, upper_bound_z);
@@ -90,6 +93,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
 
         Self {
             coords: [centers, lower_edges],
+            grid_cell_extents_z,
             regular_z_coords: [regular_centers_z, regular_lower_edges_z],
             is_periodic,
             shape: In3D::new(size_x, size_y, size_z),
@@ -167,6 +171,16 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
             }
         }
         self.coord_derivatives[1] = down_derivatives;
+    }
+
+    fn grid_cell_extents(&self, indices: &Idx3<usize>) -> Vec3<F> {
+        let shape = self.shape();
+        let extents = self.extents();
+        Vec3::new(
+            extents[X] / F::from_usize(shape[X]).unwrap(),
+            extents[Y] / F::from_usize(shape[Y]).unwrap(),
+            self.grid_cell_extents_z[indices[Z]],
+        )
     }
 }
 
