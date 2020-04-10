@@ -155,7 +155,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         Vec3::new(
             extents[X] / F::from_usize(shape[X]).unwrap(),
             extents[Y] / F::from_usize(shape[Y]).unwrap(),
-            extents[Y] / F::from_usize(shape[Y]).unwrap(),
+            extents[Z] / F::from_usize(shape[Z]).unwrap(),
         )
     }
 
