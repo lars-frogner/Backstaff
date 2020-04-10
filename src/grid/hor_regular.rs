@@ -46,6 +46,34 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
         let size_y = centers[Y].len();
         let size_z = centers[Z].len();
 
+        assert_ne!(
+            size_x, 0,
+            "Cannot create grid with size zero along any dimension"
+        );
+        assert_ne!(
+            size_y, 0,
+            "Cannot create grid with size zero along any dimension"
+        );
+        assert_ne!(
+            size_z, 0,
+            "Cannot create grid with size zero along any dimension"
+        );
+        assert_eq!(
+            lower_edges[X].len(),
+            size_x,
+            "Centers and lower edges must have the same shape"
+        );
+        assert_eq!(
+            lower_edges[Y].len(),
+            size_y,
+            "Centers and lower edges must have the same shape"
+        );
+        assert_eq!(
+            lower_edges[Z].len(),
+            size_z,
+            "Centers and lower edges must have the same shape"
+        );
+
         let (lower_bound_x, upper_bound_x) =
             super::bounds_from_coords(size_x, &centers[X], &lower_edges[X]);
         let (lower_bound_y, upper_bound_y) =
@@ -115,6 +143,30 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
             "This grid type cannot be periodic in the z-direction."
         );
         self.is_periodic = is_periodic;
+    }
+    fn set_up_derivatives(&mut self, up_derivatives: Option<Coords3<F>>) {
+        if let Some(ref up_derivatives) = up_derivatives {
+            for &dim in &Dim3::slice() {
+                assert_eq!(
+                    up_derivatives[dim].len(),
+                    self.shape[dim],
+                    "Upward derivatives must have the same shape as the grid"
+                );
+            }
+        }
+        self.coord_derivatives[0] = up_derivatives;
+    }
+    fn set_down_derivatives(&mut self, down_derivatives: Option<Coords3<F>>) {
+        if let Some(ref down_derivatives) = down_derivatives {
+            for &dim in &Dim3::slice() {
+                assert_eq!(
+                    down_derivatives[dim].len(),
+                    self.shape[dim],
+                    "Downward derivatives must have the same shape as the grid"
+                );
+            }
+        }
+        self.coord_derivatives[1] = down_derivatives;
     }
 }
 

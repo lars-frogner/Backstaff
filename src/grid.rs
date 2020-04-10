@@ -134,6 +134,12 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// Sets the periodicity of the grid along each dimension.
     fn set_periodicity(&mut self, is_periodic: In3D<bool>);
 
+    /// Sets the upward derivatives of the grid coordinates.
+    fn set_up_derivatives(&mut self, up_derivatives: Option<Coords3<F>>);
+
+    /// Sets the downward derivatives of the grid coordinates.
+    fn set_down_derivatives(&mut self, down_derivatives: Option<Coords3<F>>);
+
     /// Returns the lower and upper corner of the grid cell of the given 3D index.
     fn grid_cell_extremal_corners(&self, indices: &Idx3<usize>) -> (Point3<F>, Point3<F>) {
         let lower_corner = self.lower_edges().point(indices);

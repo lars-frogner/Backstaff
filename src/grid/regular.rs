@@ -129,15 +129,30 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
 
         assert_ne!(
             size_x, 0,
-            "Cannot create grid with size zero along any dimension."
+            "Cannot create grid with size zero along any dimension"
         );
         assert_ne!(
             size_y, 0,
-            "Cannot create grid with size zero along any dimension."
+            "Cannot create grid with size zero along any dimension"
         );
         assert_ne!(
             size_z, 0,
-            "Cannot create grid with size zero along any dimension."
+            "Cannot create grid with size zero along any dimension"
+        );
+        assert_eq!(
+            lower_edges[X].len(),
+            size_x,
+            "Centers and lower edges must have the same shape"
+        );
+        assert_eq!(
+            lower_edges[Y].len(),
+            size_y,
+            "Centers and lower edges must have the same shape"
+        );
+        assert_eq!(
+            lower_edges[Z].len(),
+            size_z,
+            "Centers and lower edges must have the same shape"
         );
 
         let (lower_bound_x, upper_bound_x) =
@@ -206,6 +221,30 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     }
     fn set_periodicity(&mut self, is_periodic: In3D<bool>) {
         self.is_periodic = is_periodic;
+    }
+    fn set_up_derivatives(&mut self, up_derivatives: Option<Coords3<F>>) {
+        if let Some(ref up_derivatives) = up_derivatives {
+            for &dim in &Dim3::slice() {
+                assert_eq!(
+                    up_derivatives[dim].len(),
+                    self.shape[dim],
+                    "Upward derivatives must have the same shape as the grid"
+                );
+            }
+        }
+        self.coord_derivatives[0] = up_derivatives;
+    }
+    fn set_down_derivatives(&mut self, down_derivatives: Option<Coords3<F>>) {
+        if let Some(ref down_derivatives) = down_derivatives {
+            for &dim in &Dim3::slice() {
+                assert_eq!(
+                    down_derivatives[dim].len(),
+                    self.shape[dim],
+                    "Downward derivatives must have the same shape as the grid"
+                );
+            }
+        }
+        self.coord_derivatives[1] = down_derivatives;
     }
     fn average_grid_cell_extents(&self) -> Vec3<F> {
         self.cell_extents().clone()
