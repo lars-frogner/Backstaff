@@ -18,7 +18,6 @@ use crate::{
     io::snapshot::{fdt, SnapshotReader3},
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::sync::Arc;
 
 /// Builds a representation of the `snapshot-resample-regular_grid` command line subcommand.
 pub fn create_regular_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
@@ -112,12 +111,6 @@ pub fn run_resampling_for_regular_grid<G, R, I>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let original_is_periodic = In3D::new(
-        original_grid.is_periodic(X),
-        original_grid.is_periodic(Y),
-        original_grid.is_periodic(Z),
-    );
-
     let write_arguments = arguments.subcommand_matches("write").unwrap();
 
     let shape = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
@@ -158,26 +151,22 @@ pub fn run_resampling_for_regular_grid<G, R, I>(
     );
     let new_lower_bounds = Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]);
     let new_upper_bounds = Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]);
-    let mut new_grid = RegularGrid3::from_bounds(
+
+    let grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),
         new_lower_bounds,
         new_upper_bounds,
-        original_is_periodic,
+        original_grid.periodicity().clone(),
     );
-    super::correct_periodicity_for_new_grid(
-        original_grid,
-        &mut new_grid,
-        continue_on_warnings,
-        is_verbose,
-    );
-    let new_grid = Arc::new(new_grid);
-    super::resample_snapshot_for_grid(
+    super::resample_to_regular_grid(
+        grid,
+        None,
         write_arguments,
         reader,
         snap_num_offset,
-        &new_grid,
         resampled_locations,
         resampling_method,
+        continue_on_warnings,
         is_verbose,
         interpolator,
         protected_file_types,
