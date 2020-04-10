@@ -1034,6 +1034,12 @@ impl<F: BFloat> Index<Dim3> for Coords3<F> {
     }
 }
 
+impl<F: BFloat> IndexMut<Dim3> for Coords3<F> {
+    fn index_mut(&mut self, dim: Dim3) -> &mut Self::Output {
+        &mut self.0[dim]
+    }
+}
+
 /// 2D spatial coordinate arrays.
 #[derive(Clone, Debug, Serialize)]
 pub struct Coords2<F: BFloat>(In2D<Vec<F>>);
@@ -1057,6 +1063,12 @@ impl<F: BFloat> Index<Dim2> for Coords2<F> {
     type Output = Vec<F>;
     fn index(&self, dim: Dim2) -> &Self::Output {
         &self.0[dim]
+    }
+}
+
+impl<F: BFloat> IndexMut<Dim2> for Coords2<F> {
+    fn index_mut(&mut self, dim: Dim2) -> &mut Self::Output {
+        &mut self.0[dim]
     }
 }
 
