@@ -89,6 +89,11 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         down_derivatives: Option<Coords3<F>>,
     ) -> Self;
 
+    /// Returns the type of the grid.
+    fn grid_type(&self) -> GridType {
+        Self::TYPE
+    }
+
     /// Returns the 3D shape of the grid.
     fn shape(&self) -> &In3D<usize>;
 
