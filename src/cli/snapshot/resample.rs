@@ -3,12 +3,14 @@
 mod direct_sampling;
 mod mesh_file;
 mod regular_grid;
+mod reshaped_grid;
 mod weighted_cell_averaging;
 mod weighted_sample_averaging;
 
 use self::{
     mesh_file::{create_mesh_file_subcommand, run_resampling_for_mesh_file},
     regular_grid::{create_regular_grid_subcommand, run_resampling_for_regular_grid},
+    reshaped_grid::{create_reshaped_grid_subcommand, run_resampling_for_reshaped_grid},
 };
 use crate::{
     cli::{
@@ -69,11 +71,13 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .help("Print status messages related to resampling"),
         )
         .subcommand(create_subcommand!(resample, regular_grid))
+        .subcommand(create_subcommand!(resample, reshaped_grid))
         .subcommand(create_subcommand!(resample, mesh_file))
 }
 
 enum ResampleGridType {
     Regular,
+    Reshaped,
     MeshFile,
 }
 
@@ -99,14 +103,17 @@ pub fn run_resample_subcommand<G, R>(
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let is_verbose = arguments.is_present("verbose");
 
-    let (resample_grid_type, grid_type_arguments) =
-        if let Some(regular_grid_arguments) = arguments.subcommand_matches("regular_grid") {
-            (ResampleGridType::Regular, regular_grid_arguments)
-        } else if let Some(mesh_file_arguments) = arguments.subcommand_matches("mesh_file") {
-            (ResampleGridType::MeshFile, mesh_file_arguments)
-        } else {
-            unreachable!()
-        };
+    let (resample_grid_type, grid_type_arguments) = if let Some(regular_grid_arguments) =
+        arguments.subcommand_matches("regular_grid")
+    {
+        (ResampleGridType::Regular, regular_grid_arguments)
+    } else if let Some(reshaped_grid_arguments) = arguments.subcommand_matches("reshaped_grid") {
+        (ResampleGridType::Reshaped, reshaped_grid_arguments)
+    } else if let Some(mesh_file_arguments) = arguments.subcommand_matches("mesh_file") {
+        (ResampleGridType::MeshFile, mesh_file_arguments)
+    } else {
+        unreachable!()
+    };
 
     run_with_selected_method(
         grid_type_arguments,
@@ -194,6 +201,18 @@ fn run_with_selected_interpolator<G, R>(
 
     match resample_grid_type {
         ResampleGridType::Regular => run_resampling_for_regular_grid(
+            grid_type_arguments,
+            arguments,
+            reader,
+            snap_num_offset,
+            resampled_locations,
+            resampling_method,
+            continue_on_warnings,
+            is_verbose,
+            interpolator,
+            protected_file_types,
+        ),
+        ResampleGridType::Reshaped => run_resampling_for_reshaped_grid(
             grid_type_arguments,
             arguments,
             reader,
