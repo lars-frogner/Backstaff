@@ -10,6 +10,21 @@ The purpose of this project is to provide a fast, reliable and flexible framewor
 
 Rust is highly suited for this project, for a number of reasons. It is a low-level systems language with performance on par with C++. It has a strong focus on memory safety, with a unique ownership system that can guarantee the absence of undefined behaviour (i.e. no segfaults). This also makes it easy to parallelize in a reliable manner, as issues like data races can be detected at compile time. Despite the focus on performance it is easy to write modular and elegant code thanks to the presence of zero-cost abstractions and elements from functional programming. The included `cargo` package manager makes it strightforward to download dependencies, compile and run the code and generate documentation. These advantages, helped by the excellent free introductory book [The Rust Programming Language](https://doc.rust-lang.org/book/), mean that the language rapidly is gaining popularity.
 
+## Features
+
+The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` flag to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be use to include all features.
+
+Currently the available features are:
+* `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
+* `netcdf`: Support for reading and writing snapshot data in the [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) format (using the [CF conventions](http://cfconventions.org/)).
+* `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
+* `hdf5`: Support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, in particular for writing field line data using the [H5Part](https://dav.lbl.gov/archive/Research/AcceleratorSAPP/) conventions.
+* `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI. Requires `tracing`.
+
+## API documentation
+
+The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` flag in order for them to be included in the documentation.
+
 ## Prerequesites
 
 You need to have the Rust toolchain installed in order to build the binaries. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
@@ -18,7 +33,7 @@ If you want to work with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/)
 
 Similarly, support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format requires the `HDF5` library, which can be obtained [here](https://www.hdfgroup.org/downloads/hdf5/).
 
-## Installation
+## Installing the command line program
 
 ### Using `cargo install`
 
@@ -28,7 +43,7 @@ $ cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
 By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root=<DIR>`.
 
-If installing with the `netcdf` feature (see the [Features](#features) section), you may have to inform the linker about the path to the external NetCDF library. This is easily done through the `RUSTFLAGS` environment variable:
+If installing with the `netcdf` feature, you may have to inform the linker about the path to the external NetCDF library. This is easily done through the `RUSTFLAGS` environment variable:
 ```
 $ RUSTFLAGS='-L/path/to/netcdf/lib' cargo install ...
 ```
@@ -43,17 +58,6 @@ $ HDF5_DIR=/path/to/hdf5 cargo install ...
 ### Compiling from source
 
 You can compile the code in this repository using the `cargo build` command. Make sure to add the `--release` flag so that optimizations are turned on.
-
-## Features
-
-The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` flag to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be use to include all features.
-
-Currently the available features are:
-* `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
-* `netcdf`: Support for reading and writing snapshot data in the [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) format (using the [CF conventions](http://cfconventions.org/)).
-* `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
-* `hdf5`: Support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, in particular for writing field line data using the [H5Part](https://dav.lbl.gov/archive/Research/AcceleratorSAPP/) conventions.
-* `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI. Requires `tracing`.
 
 ## Using the command line program
 
@@ -97,10 +101,6 @@ Here is a graph of the command hierarchy available when all features are enabled
 ![command_graph](figures/command_graph.png "Command graph")
 
 This graph was created with the hidden `backstaff-command_graph` command, which outputs the command hierarchy graph in DOT format for rendering with [Graphviz](https://www.graphviz.org/).
-
-## API documentation
-
-The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` flag in order for them to be included in the documentation.
 
 ## Examples
 
