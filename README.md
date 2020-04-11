@@ -166,13 +166,39 @@ Average value:       5080.4008789
 --------------------------------------------------------------------------------
 ```
 
+### Resampling a snapshot
+
+Here is an example of how an existing simulation snapshot can be resampled to a 1024<sup>3</sup> version of the original grid:
+```
+$ backstaff \
+    snapshot -v photo_tr_001.idl \
+    resample -v --sample-location=original reshaped_grid --shape=1024,1024,1024 \
+    write -v --included-quantities=r,px,py,pz,e,bx,by,bz photo_tr_hires_001.idl
+```
+```
+Reading parameters from photo_tr_001.idl
+Reading grid from photo_tr.mesh
+Detected horizontally regular grid
+Writing parameters to photo_tr_hires_001.idl
+Writing grid to photo_tr_hires.mesh
+Reading r from photo_tr_001.snap
+Resampling r
+Writing r to photo_tr_hires_001.snap
+...
+Reading bz from photo_tr_001.snap
+Resampling bz
+Writing bz to photo_tr_hires_001.snap
+```
+
+Here the purpose was to produce a high-resolution version of the `photo_tr_001` snapshot to continue the simulation from, so only the primary variables were included (using the `--included-quantities` flag), and the staggered locations of the variables were set to be preserved (`--sample-location=original`). The generated files are `photo_tr_hires.mesh`, `photo_tr_hires_001.idl` and `photo_tr_hires_001.snap`.
+
 ### Tracing magnetic field lines
 
 The following command traces a set of magnetic field lines from 100x100 regularly spaced locations in the upper chromosphere, and extract the mass density and temperature along the field lines:
 ```
 $ backstaff --timing \
     snapshot photo_tr_001.idl \
-    trace --verbose --extracted-quantities=r,tg field_lines.h5part \
+    trace -v --extracted-quantities=r,tg field_lines.h5part \
         basic_tracer --max-length=100.0 \
         slice_seeder --axis=z --coord=-2.0 \
             regular --shape=100,100
