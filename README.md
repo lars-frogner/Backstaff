@@ -172,7 +172,9 @@ Here is an example of how an existing simulation snapshot can be resampled to a 
 ```
 $ backstaff \
     snapshot -v photo_tr_001.idl \
-    resample -v --sample-location=original reshaped_grid --shape=1024,1024,1024 \
+    resample -v --sample-location=original \
+        reshaped_grid --shape=1024,1024,1024 \
+        weighted_sample_averaging \
     write -v --included-quantities=r,px,py,pz,e,bx,by,bz photo_tr_hires_001.idl
 ```
 ```
@@ -190,7 +192,9 @@ Resampling bz
 Writing bz to photo_tr_hires_001.snap
 ```
 
-Here the purpose was to produce a high-resolution version of the `photo_tr_001` snapshot to continue the simulation from, so only the primary variables were included (using the `--included-quantities` flag), and the staggered locations of the variables were set to be preserved (`--sample-location=original`). The generated files are `photo_tr_hires.mesh`, `photo_tr_hires_001.idl` and `photo_tr_hires_001.snap`.
+Here the purpose was to produce a high-resolution version of the `photo_tr_001` snapshot to continue the simulation from, so only the primary variables were included (using the `--included-quantities` flag), and the staggered locations of the variables were set to be preserved (`--sample-location=original`, which is the default and could be omitted). The generated files are `photo_tr_hires.mesh`, `photo_tr_hires_001.idl` and `photo_tr_hires_001.snap`.
+
+**_NOTE:_** The default resampling method, `weighted_sample_averaging` (which, being the default, could have been omitted above), where the resampled value is computed in each new grid cell by averaging samples of the original field from each overlapped segment of the old grid, is highly robust and works well for any kind of resampling. However, it can be time consuming, so if you are in a hurry you can use `weighted_cell_averaging` (only suitable for downsampling) or `direct_sampling` (only suitable for upsampling).
 
 ### Tracing magnetic field lines
 
