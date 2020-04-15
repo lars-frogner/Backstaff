@@ -45,7 +45,7 @@ impl NativeSnapshotParameters {
         self.original_path.as_path()
     }
 
-    pub fn determine_snap_num(&self) -> io::Result<u32> {
+    pub fn determine_snap_num(&self) -> io::Result<i32> {
         self.parameter_set.get_numerical_param("isnap")
     }
 
@@ -56,16 +56,30 @@ impl NativeSnapshotParameters {
     }
 
     pub fn determine_snap_path(&self) -> io::Result<(PathBuf, PathBuf)> {
-        let width = super::super::determine_length_of_snap_num_in_file_name(&self.original_path)
-            .unwrap_or(3);
-        let snap_path = self.original_path.with_file_name(format!(
-            "{}_{:0width$}.snap",
-            self.parameter_set.get_str_param("snapname")?,
-            self.determine_snap_num()?,
-            width = width as usize
-        ));
-        let aux_path = snap_path.with_extension("aux");
-        Ok((snap_path, aux_path))
+        let snap_num = self.determine_snap_num()?;
+        let is_scratch = snap_num < 0;
+        if is_scratch {
+            let snap_name = self.parameter_set.get_str_param("snapname")?;
+            let snap_path = self
+                .original_path
+                .with_file_name(format!("{}.snap.scr", snap_name));
+            let aux_path = self
+                .original_path
+                .with_file_name(format!("{}.aux.scr", snap_name));
+            Ok((snap_path, aux_path))
+        } else {
+            let width =
+                super::super::determine_length_of_snap_num_in_file_name(&self.original_path)
+                    .unwrap_or(3);
+            let snap_path = self.original_path.with_file_name(format!(
+                "{}_{:0width$}.snap",
+                self.parameter_set.get_str_param("snapname")?,
+                snap_num,
+                width = width as usize
+            ));
+            let aux_path = snap_path.with_extension("aux");
+            Ok((snap_path, aux_path))
+        }
     }
 
     pub fn determine_grid_periodicity(&self) -> io::Result<In3D<bool>> {

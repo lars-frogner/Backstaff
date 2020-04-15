@@ -26,7 +26,13 @@ use crate::{
     },
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::{collections::HashMap, path::PathBuf, process, str::FromStr};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process,
+    str::FromStr,
+};
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
@@ -294,14 +300,15 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
         "Error: Could not interpret path to input file: {}"
     );
 
-    let input_extension = input_file_path
-        .extension()
-        .unwrap_or_else(|| exit_with_error!("Error: Missing extension for input-file"))
-        .to_string_lossy()
-        .to_string();
+    let input_type = InputType::from_path(&input_file_path);
 
     let input_snap_paths_and_num_offsets = match arguments.values_of("snap-range") {
         Some(value_strings) => {
+            exit_on_false!(
+                !input_type.is_scratch(),
+                "Error: snap-range not supported for scratch files"
+            );
+
             let snap_num_range: Vec<u32> = value_strings
                 .map(|value_string| cli_utils::parse_value_string("snap-range", value_string))
                 .collect();
@@ -321,7 +328,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                             snapshot::create_new_snapshot_file_name_from_path(
                                 &input_file_path,
                                 snap_num,
-                                &input_extension,
+                                input_type.string(),
                                 false,
                             ),
                         ),
@@ -345,8 +352,8 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
 
     let verbose = arguments.is_present("verbose").into();
 
-    match input_extension.as_ref() {
-        "idl" => {
+    match input_type {
+        InputType::Native(_) => {
             for (file_path, snap_num_offset) in input_snap_paths_and_num_offsets {
                 let reader_config = NativeSnapshotReaderConfig::new(file_path, endianness, verbose);
                 create_native_reader_and_run!(
@@ -356,23 +363,102 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                 );
             }
         }
-        "nc" => {
-            #[cfg(feature = "netcdf")]
-            {
-                for (file_path, snap_num_offset) in input_snap_paths_and_num_offsets {
-                    let reader_config = NetCDFSnapshotReaderConfig::new(file_path, verbose);
-                    create_netcdf_reader_and_run!(
-                        reader_config,
-                        snap_num_offset,
-                        run_subcommands_for_reader
-                    );
-                }
+        #[cfg(feature = "netcdf")]
+        InputType::NetCDF => {
+            for (file_path, snap_num_offset) in input_snap_paths_and_num_offsets {
+                let reader_config = NetCDFSnapshotReaderConfig::new(file_path, verbose);
+                create_netcdf_reader_and_run!(
+                    reader_config,
+                    snap_num_offset,
+                    run_subcommands_for_reader
+                );
             }
-            #[cfg(not(feature = "netcdf"))]
-            exit_with_error!("Error: Compile with netcdf feature in order to read NetCDF files\n\
-                              Tip: Use cargo flag --features=netcdf and make sure the NetCDF library is available");
         }
-        invalid => exit_with_error!("Error: Invalid extension {} for input-file", invalid),
+    }
+}
+
+#[derive(Clone, Debug)]
+enum InputType {
+    Native(NativeType),
+    #[cfg(feature = "netcdf")]
+    NetCDF,
+}
+
+#[derive(Copy, Clone, Debug)]
+enum NativeType {
+    Snap,
+    Scratch,
+}
+
+impl InputType {
+    fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
+        let file_name = Path::new(file_path.as_ref().file_name().unwrap_or_else(|| {
+            exit_with_error!(
+                "Error: Missing extension for input file\n\
+                         Valid extensions are: {}",
+                Self::valid_extensions_string()
+            )
+        }));
+        let final_extension = file_name.extension().unwrap().to_string_lossy();
+        let extension = if final_extension.as_ref() == "scr" {
+            match Path::new(file_name.file_stem().unwrap()).extension() {
+                Some(extension) => Cow::Owned(format!(
+                    "{}.{}",
+                    extension.to_string_lossy(),
+                    final_extension
+                )),
+                None => final_extension,
+            }
+        } else {
+            final_extension
+        };
+        Self::from_extension(extension.as_ref())
+    }
+
+    fn from_extension(extension: &str) -> Self {
+        match extension {
+            "idl" => Self::Native(NativeType::Snap),
+            "idl.scr" => Self::Native(NativeType::Scratch),
+            "nc" => {
+                #[cfg(feature = "netcdf")]
+                {
+                    Self::NetCDF
+                }
+                #[cfg(not(feature = "netcdf"))]
+                exit_with_error!("Error: Compile with netcdf feature in order to read NetCDF files\n\
+                                  Tip: Use cargo flag --features=netcdf and make sure the NetCDF library is available");
+            }
+            invalid => exit_with_error!(
+                "Error: Invalid extension {} for input file\n\
+                 Valid extensions are: {}",
+                invalid,
+                Self::valid_extensions_string()
+            ),
+        }
+    }
+
+    fn valid_extensions_string() -> String {
+        format!(
+            "idl[.scr]{}",
+            if cfg!(feature = "netcdf") { ", nc" } else { "" }
+        )
+    }
+
+    fn is_scratch(&self) -> bool {
+        if let Self::Native(NativeType::Scratch) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn string(&self) -> &'static str {
+        match self {
+            Self::Native(NativeType::Snap) => "idl",
+            Self::Native(NativeType::Scratch) => "idl.scr",
+            #[cfg(feature = "netcdf")]
+            Self::NetCDF => "nc",
+        }
     }
 }
 
