@@ -418,6 +418,10 @@ pub fn create_new_snapshot_file_name_from_path<P: AsRef<Path>>(
 
 fn parse_snapshot_file_path<P: AsRef<Path>>(file_path: P) -> (String, Option<String>) {
     let file_path = file_path.as_ref();
+    let file_path = match file_path.extension() {
+        Some(extension) if extension == "scr" => Path::new(file_path.file_stem().unwrap()),
+        _ => file_path,
+    };
     let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
     let regex = Regex::new(r"^(.+?)_(\d+)$").unwrap();
     regex

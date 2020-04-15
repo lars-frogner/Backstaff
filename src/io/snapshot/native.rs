@@ -378,6 +378,7 @@ pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
     mut modified_parameters: HashMap<&str, ParameterValue>,
     field_producer: FP,
     output_param_path: P,
+    is_scratch: bool,
     write_mesh_file: bool,
     automatic_overwrite: bool,
     protected_file_types: &[&str],
@@ -393,13 +394,16 @@ where
     let output_param_path = output_param_path.as_ref();
 
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_param_path);
-    let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
+    let snap_num = snap_num.unwrap_or(if is_scratch { 1 } else { FALLBACK_SNAP_NUM });
 
     modified_parameters.insert(
         "snapname",
         ParameterValue::Str(format!("\"{}\"", snap_name)),
     );
-    modified_parameters.insert("isnap", ParameterValue::Str(format!("{}", snap_num)));
+    modified_parameters.insert(
+        "isnap",
+        ParameterValue::Str(format!("{}{}", if is_scratch { "-" } else { "" }, snap_num)),
+    );
     modified_parameters.insert(
         "meshfile",
         ParameterValue::Str(format!("\"{}.mesh\"", snap_name)),
@@ -429,10 +433,20 @@ where
     } else {
         None
     };
-    let atomic_snap_path =
-        AtomicOutputPath::new(atomic_param_path.target_path().with_extension("snap"))?;
-    let atomic_aux_path =
-        AtomicOutputPath::new(atomic_param_path.target_path().with_extension("aux"))?;
+    let atomic_snap_path = AtomicOutputPath::new(if is_scratch {
+        atomic_param_path
+            .target_path()
+            .with_file_name(format!("{}.snap.scr", snap_name))
+    } else {
+        atomic_param_path.target_path().with_extension("snap")
+    })?;
+    let atomic_aux_path = AtomicOutputPath::new(if is_scratch {
+        atomic_param_path
+            .target_path()
+            .with_file_name(format!("{}.aux.scr", snap_name))
+    } else {
+        atomic_param_path.target_path().with_extension("aux")
+    })?;
 
     let write_param_file =
         !atomic_param_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
@@ -442,9 +456,9 @@ where
         false
     };
     let write_snap_file = has_primary
-        && !atomic_aux_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
-    let write_aux_file = has_auxiliary
         && !atomic_snap_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
+    let write_aux_file = has_auxiliary
+        && !atomic_aux_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
 
     let output_param_file_name = atomic_param_path
         .target_path()

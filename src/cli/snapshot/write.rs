@@ -8,6 +8,7 @@ use crate::{
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fmt, io,
     path::{Path, PathBuf},
@@ -135,6 +136,10 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     let mut write_mesh_file = true;
 
     if let Some(snap_num_offset) = snap_num_offset {
+        exit_on_false!(
+            !output_type.is_scratch(),
+            "Error: snap-range not supported for scratch files"
+        );
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
             snap_num_offset,
@@ -180,13 +185,14 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
 
     exit_on_error!(
         match output_type {
-            OutputType::Native => native::write_modified_snapshot(
+            OutputType::Native(native_type) => native::write_modified_snapshot(
                 reader,
                 new_grid,
                 &quantity_names,
                 modified_parameters,
                 modified_field_producer!(),
                 &output_file_path,
+                native_type == NativeType::Scratch,
                 write_mesh_file,
                 automatic_overwrite,
                 protected_file_types,
@@ -213,34 +219,48 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     );
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 enum OutputType {
-    Native,
+    Native(NativeType),
     #[cfg(feature = "netcdf")]
     NetCDF,
 }
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+enum NativeType {
+    Snap,
+    Scratch,
+}
+
 impl OutputType {
     fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
-        Self::from_extension(
-            file_path
-                .as_ref()
-                .extension()
-                .unwrap_or_else(|| {
-                    exit_with_error!(
-                        "Error: Missing extension for output file\n\
+        let file_name = Path::new(file_path.as_ref().file_name().unwrap_or_else(|| {
+            exit_with_error!(
+                "Error: Missing extension for output file\n\
                          Valid extensions are: {}",
-                        Self::valid_extensions_string()
-                    )
-                })
-                .to_string_lossy()
-                .as_ref(),
-        )
+                Self::valid_extensions_string()
+            )
+        }));
+        let final_extension = file_name.extension().unwrap().to_string_lossy();
+        let extension = if final_extension.as_ref() == "scr" {
+            match Path::new(file_name.file_stem().unwrap()).extension() {
+                Some(extension) => Cow::Owned(format!(
+                    "{}.{}",
+                    extension.to_string_lossy(),
+                    final_extension
+                )),
+                None => final_extension,
+            }
+        } else {
+            final_extension
+        };
+        Self::from_extension(extension.as_ref())
     }
 
     fn from_extension(extension: &str) -> Self {
         match extension {
-            "idl" => Self::Native,
+            "idl" => Self::Native(NativeType::Snap),
+            "idl.scr" => Self::Native(NativeType::Scratch),
             "nc" => {
                 #[cfg(feature = "netcdf")]
                 {
@@ -260,7 +280,18 @@ impl OutputType {
     }
 
     fn valid_extensions_string() -> String {
-        format!("idl{}", if cfg!(feature = "netcdf") { ", nc" } else { "" })
+        format!(
+            "idl[.scr]{}",
+            if cfg!(feature = "netcdf") { ", nc" } else { "" }
+        )
+    }
+
+    fn is_scratch(&self) -> bool {
+        if let Self::Native(NativeType::Scratch) = self {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -270,7 +301,8 @@ impl fmt::Display for OutputType {
             f,
             "{}",
             match self {
-                Self::Native => "idl",
+                Self::Native(NativeType::Snap) => "idl",
+                Self::Native(NativeType::Scratch) => "idl.scr",
                 #[cfg(feature = "netcdf")]
                 Self::NetCDF => "nc",
             }
