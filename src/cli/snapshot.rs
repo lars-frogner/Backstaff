@@ -29,6 +29,7 @@ use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use std::{
     borrow::Cow,
     collections::HashMap,
+    fmt,
     path::{Path, PathBuf},
     process,
     str::FromStr,
@@ -328,7 +329,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                             snapshot::create_new_snapshot_file_name_from_path(
                                 &input_file_path,
                                 snap_num,
-                                input_type.string(),
+                                &input_type.to_string(),
                                 false,
                             ),
                         ),
@@ -451,14 +452,20 @@ impl InputType {
             false
         }
     }
+}
 
-    fn string(&self) -> &'static str {
-        match self {
-            Self::Native(NativeType::Snap) => "idl",
-            Self::Native(NativeType::Scratch) => "idl.scr",
-            #[cfg(feature = "netcdf")]
-            Self::NetCDF => "nc",
-        }
+impl fmt::Display for InputType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Native(NativeType::Snap) => "idl",
+                Self::Native(NativeType::Scratch) => "idl.scr",
+                #[cfg(feature = "netcdf")]
+                Self::NetCDF => "nc",
+            }
+        )
     }
 }
 
