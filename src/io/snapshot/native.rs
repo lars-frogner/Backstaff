@@ -390,9 +390,9 @@ where
     GOUT: Grid3<fdt>,
     FP: Fn(&str) -> io::Result<ScalarField3<fdt, GOUT>>,
 {
-    let output_param_path = output_param_path.as_ref().with_extension("idl");
+    let output_param_path = output_param_path.as_ref();
 
-    let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(&output_param_path);
+    let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_param_path);
     let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
 
     modified_parameters.insert(

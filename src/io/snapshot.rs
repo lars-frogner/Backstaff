@@ -32,7 +32,7 @@ pub enum SnapshotFormat {
 }
 
 /// Snapshot number to assume when not inferrable.
-pub const FALLBACK_SNAP_NUM: u32 = 1;
+pub const FALLBACK_SNAP_NUM: u32 = 0;
 
 /// Standard names of coordinate arrays
 pub const COORDINATE_NAMES: [&'static str; 12] = [
@@ -394,22 +394,24 @@ pub fn create_new_snapshot_file_name_from_path<P: AsRef<Path>>(
             } else {
                 snap_num
             };
-            format!(
-                "{}_{:0width$}.{}",
-                orig_snap_name,
-                new_snap_num,
-                extension,
-                width = orig_snap_num_string.len()
-            )
+            if new_snap_num == 0 {
+                format!("{}.{}", orig_snap_name, extension)
+            } else {
+                format!(
+                    "{}_{:0width$}.{}",
+                    orig_snap_name,
+                    new_snap_num,
+                    extension,
+                    width = orig_snap_num_string.len()
+                )
+            }
         }
         (orig_snap_name, None) => {
-            let orig_snap_num = FALLBACK_SNAP_NUM;
-            let new_snap_num = if use_snap_num_as_offset {
-                orig_snap_num + snap_num
+            if snap_num == 0 {
+                format!("{}.{}", orig_snap_name, extension)
             } else {
-                snap_num
-            };
-            format!("{}_{:03}.{}", orig_snap_name, new_snap_num, extension)
+                format!("{}_{:03}.{}", orig_snap_name, snap_num, extension)
+            }
         }
     }
 }
