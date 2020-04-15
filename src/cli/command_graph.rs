@@ -88,7 +88,10 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types
         Dot::with_config(&command_graph, &[Config::EdgeNoLabel])
     );
 
-    utils::ensure_write_allowed(&output_file_path, automatic_overwrite, protected_file_types);
+    if utils::write_should_be_skipped(&output_file_path, automatic_overwrite, protected_file_types)
+    {
+        return;
+    }
 
     exit_on_error!(
         utils::write_text_file(&dot_text, output_file_path),

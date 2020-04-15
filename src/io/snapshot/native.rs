@@ -420,7 +420,7 @@ where
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
 
     let atomic_param_path = AtomicOutputPath::new(output_param_path)?;
-    let atomic_mesh_path = if write_mesh_file {
+    let mut atomic_mesh_path = if write_mesh_file {
         Some(AtomicOutputPath::new(
             atomic_param_path
                 .target_path()
@@ -434,16 +434,17 @@ where
     let atomic_aux_path =
         AtomicOutputPath::new(atomic_param_path.target_path().with_extension("aux"))?;
 
-    atomic_param_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
-    if let Some(atomic_mesh_path) = &atomic_mesh_path {
-        atomic_mesh_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
-    }
-    if has_primary {
-        atomic_aux_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
-    }
-    if has_auxiliary {
-        atomic_snap_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
-    }
+    let write_param_file =
+        !atomic_param_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
+    let write_mesh_file = if let Some(atomic_mesh_path) = &atomic_mesh_path {
+        !atomic_mesh_path.write_should_be_skipped(automatic_overwrite, protected_file_types)
+    } else {
+        false
+    };
+    let write_snap_file = has_primary
+        && !atomic_aux_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
+    let write_aux_file = has_auxiliary
+        && !atomic_snap_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
 
     let output_param_file_name = atomic_param_path
         .target_path()
@@ -463,18 +464,20 @@ where
 
     macro_rules! perform_writing {
         ($grid:expr) => {{
-            let mut new_parameters = reader.parameters().clone();
-            new_parameters.modify_values(modified_parameters);
+            if write_param_file {
+                let mut new_parameters = reader.parameters().clone();
+                new_parameters.modify_values(modified_parameters);
 
-            if verbose.is_yes() {
-                println!("Writing parameters to {}", output_param_file_name);
+                if verbose.is_yes() {
+                    println!("Writing parameters to {}", output_param_file_name);
+                }
+                utils::write_text_file(
+                    &new_parameters.native_text_representation(),
+                    atomic_param_path.temporary_path(),
+                )?;
             }
-            utils::write_text_file(
-                &new_parameters.native_text_representation(),
-                atomic_param_path.temporary_path(),
-            )?;
-
-            if let Some(atomic_mesh_path) = &atomic_mesh_path {
+            if write_mesh_file {
+                let atomic_mesh_path = atomic_mesh_path.as_ref().unwrap();
                 if verbose.is_yes() {
                     println!(
                         "Writing grid to {}",
@@ -487,8 +490,7 @@ where
                 }
                 mesh::write_mesh_file_from_grid($grid, atomic_mesh_path.temporary_path())?;
             }
-
-            if has_primary {
+            if write_snap_file {
                 write_3d_snapfile(
                     atomic_snap_path.temporary_path(),
                     &included_primary_variable_names,
@@ -503,7 +505,7 @@ where
                     reader.endianness(),
                 )?;
             }
-            if has_auxiliary {
+            if write_aux_file {
                 write_3d_snapfile(
                     atomic_aux_path.temporary_path(),
                     &included_auxiliary_variable_names,
@@ -519,14 +521,16 @@ where
                 )?;
             }
 
-            atomic_param_path.perform_replace()?;
-            if let Some(atomic_mesh_path) = atomic_mesh_path {
-                atomic_mesh_path.perform_replace()?;
+            if write_param_file {
+                atomic_param_path.perform_replace()?;
             }
-            if has_primary {
+            if write_mesh_file {
+                atomic_mesh_path.take().unwrap().perform_replace()?;
+            }
+            if write_snap_file {
                 atomic_snap_path.perform_replace()?;
             }
-            if has_auxiliary {
+            if write_aux_file {
                 atomic_aux_path.perform_replace()?;
             }
         }};

@@ -502,7 +502,10 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
-    atomic_output_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+
+    if atomic_output_path.write_should_be_skipped(automatic_overwrite, protected_file_types) {
+        return;
+    }
 
     let quantity = root_arguments
         .value_of("vector-quantity")

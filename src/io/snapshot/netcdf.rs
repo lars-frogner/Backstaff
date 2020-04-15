@@ -292,7 +292,9 @@ where
     );
 
     let atomic_output_path = AtomicOutputPath::new(output_file_path)?;
-    atomic_output_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+    if atomic_output_path.write_should_be_skipped(automatic_overwrite, protected_file_types) {
+        return Ok(());
+    }
 
     let output_file_name = atomic_output_path
         .target_path()

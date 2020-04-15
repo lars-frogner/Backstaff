@@ -83,7 +83,10 @@ fn write_mesh_file<G: Grid3<fdt>>(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
-    atomic_output_path.ensure_write_allowed(automatic_overwrite, protected_file_types);
+
+    if atomic_output_path.write_should_be_skipped(automatic_overwrite, protected_file_types) {
+        return;
+    }
 
     exit_on_error!(
         native::write_mesh_file_from_grid(&grid, atomic_output_path.temporary_path()),

@@ -1,7 +1,6 @@
 //! Utilities for input/output.
 
 use super::Endianness;
-use crate::exit_with_error;
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use serde::Serialize;
 use serde_json;
@@ -63,14 +62,18 @@ impl AtomicOutputPath {
         &self.temp_output_file_path
     }
 
-    /// Makes sure that the target output file can be overwritten, either automatically
-    /// or with user's consent. If not, aborts the program.
-    pub fn ensure_write_allowed(&self, automatic_overwrite: bool, protected_file_types: &[&str]) {
-        ensure_write_allowed(
+    /// Check if the file at the given path exists, and if so, ask user whether it
+    /// can be overwritten.
+    pub fn write_should_be_skipped(
+        &self,
+        automatic_overwrite: bool,
+        protected_file_types: &[&str],
+    ) -> bool {
+        write_should_be_skipped(
             self.target_path(),
             automatic_overwrite,
             protected_file_types,
-        );
+        )
     }
 
     /// Moves the temporary file to the target output file path.
@@ -142,20 +145,26 @@ pub fn write_allowed<P: AsRef<Path>>(file_path: P) -> bool {
     }
 }
 
-/// Makes sure that the file at the given path can be overwritten, either automatically
-/// or with user's consent. If not, aborts the program.
-pub fn ensure_write_allowed<P: AsRef<Path>>(
+/// Checks whether the file at the given path can be overwritten, either automatically
+/// or with user's consent.
+pub fn write_should_be_skipped<P: AsRef<Path>>(
     file_path: P,
     automatic_overwrite: bool,
     protected_file_types: &[&str],
-) {
+) -> bool {
     let file_path = file_path.as_ref();
     let is_protected = match file_path.extension() {
         Some(extension) => protected_file_types.contains(&extension.to_string_lossy().as_ref()),
         None => false,
     };
     if (!automatic_overwrite || is_protected) && !write_allowed(file_path) {
-        exit_with_error!("Aborted");
+        println!(
+            "Skipping {}",
+            file_path.file_name().unwrap().to_string_lossy()
+        );
+        true
+    } else {
+        false
     }
 }
 
