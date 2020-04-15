@@ -131,14 +131,33 @@ def create_colorbar_axis(ax, loc='right', pad=0.05):
     return cax
 
 
-def add_2d_colorbar(fig, ax, mappeable, loc='right', pad=0.05, label=''):
+def add_2d_colorbar(fig,
+                    ax,
+                    mappeable,
+                    loc='right',
+                    pad=0.05,
+                    minorticks_on=False,
+                    opposite_side_ticks=False,
+                    label=''):
     cax = create_colorbar_axis(ax, loc=loc, pad=pad)
-    fig.colorbar(
+    cb = fig.colorbar(
         mappeable,
         cax=cax,
         label=label,
         orientation=('vertical' if loc in ['left', 'right'] else 'horizontal'),
         ticklocation=loc)
+    if minorticks_on:
+        cb.ax.minorticks_on()
+    if opposite_side_ticks:
+        side = {
+            'left': 'right',
+            'right': 'left',
+            'bottom': 'top',
+            'top': 'bottom'
+        }[loc]
+        tick_ax = cb.ax.yaxis if loc in ['left', 'right'] else cb.ax.xaxis
+        tick_ax.set_label_position(side)
+        tick_ax.set_ticks_position(side)
 
 
 def add_2d_colorbar_from_cmap_and_norm(fig,
@@ -147,16 +166,30 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
                                        cmap,
                                        loc='right',
                                        pad=0.05,
+                                       minorticks_on=False,
+                                       opposite_side_ticks=False,
                                        label=''):
     cax = create_colorbar_axis(ax, loc=loc, pad=pad)
     sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
-    fig.colorbar(
+    cb = fig.colorbar(
         sm,
         cax=cax,
         label=label,
         orientation=('vertical' if loc in ['left', 'right'] else 'horizontal'),
         ticklocation=loc)
+    if minorticks_on:
+        cb.ax.minorticks_on()
+    if opposite_side_ticks:
+        side = {
+            'left': 'right',
+            'right': 'left',
+            'bottom': 'top',
+            'top': 'bottom'
+        }[loc]
+        tick_ax = cb.ax.yaxis if loc in ['left', 'right'] else cb.ax.xaxis
+        tick_ax.set_label_position(side)
+        tick_ax.set_ticks_position(side)
 
 
 def add_3d_colorbar(fig, norm, cmap, label=''):
@@ -204,6 +237,10 @@ def plot_2d_field(hor_coords,
                   linscale=1.0,
                   cmap_name='viridis',
                   cmap_bad_color='white',
+                  cbar_loc='right',
+                  cbar_pad=0.05,
+                  cbar_minorticks_on=False,
+                  cbar_opposite_side_ticks=False,
                   contour_levels=None,
                   contour_colors='r',
                   contour_alpha=1.0,
@@ -211,6 +248,7 @@ def plot_2d_field(hor_coords,
                   vmin_contour=None,
                   vmax_contour=None,
                   contour_cmap_name='viridis',
+                  extra_artists=[],
                   xlabel=None,
                   ylabel=None,
                   clabel='',
@@ -248,10 +286,21 @@ def plot_2d_field(hor_coords,
                     alpha=contour_alpha,
                     rasterized=rasterized)
 
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
+
     set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
                        (vert_coords[0], vert_coords[-1]))
     set_2d_axis_labels(ax, xlabel, ylabel)
-    add_2d_colorbar(fig, ax, mesh, label=clabel)
+    add_2d_colorbar(fig,
+                    ax,
+                    mesh,
+                    loc=cbar_loc,
+                    pad=cbar_pad,
+                    minorticks_on=cbar_minorticks_on,
+                    opposite_side_ticks=cbar_opposite_side_ticks,
+                    label=clabel)
 
     ax.set_aspect('equal')
 
