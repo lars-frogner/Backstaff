@@ -642,6 +642,27 @@ where G: Grid3<fdt>,
         return;
     }
 
+    let extra_atomic_output_path = match output_type {
+        #[cfg(feature = "hdf5")]
+        OutputType::H5Part => {
+            let extra_atomic_output_path = exit_on_error!(
+                AtomicOutputPath::new(
+                    atomic_output_path
+                        .target_path()
+                        .with_extension("sites.h5part")
+                ),
+                "Error: Could not create temporary output file: {}"
+            );
+            if extra_atomic_output_path
+                .write_should_be_skipped(automatic_overwrite, protected_file_types)
+            {
+                return;
+            }
+            Some(extra_atomic_output_path)
+        }
+        _ => None,
+    };
+
     let verbose = root_arguments.is_present("verbose").into();
     let beams = match stepper_type {
         RKFStepperType::RKF23 => {
@@ -694,6 +715,7 @@ where G: Grid3<fdt>,
         root_arguments,
         output_type,
         atomic_output_path,
+        extra_atomic_output_path,
         snapshot,
         interpolator,
         beams,
@@ -704,6 +726,7 @@ fn perform_post_simulation_actions<G, R, A, I>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_path: AtomicOutputPath,
+    extra_atomic_output_path: Option<AtomicOutputPath>,
     snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
@@ -798,6 +821,7 @@ fn perform_post_simulation_actions<G, R, A, I>(
             #[cfg(feature = "hdf5")]
             OutputType::H5Part => beams.save_as_h5part(
                 atomic_output_path.temporary_path(),
+                extra_atomic_output_path.as_ref().unwrap().temporary_path(),
                 root_arguments.is_present("drop-h5part-id"),
             ),
         },
@@ -808,4 +832,10 @@ fn perform_post_simulation_actions<G, R, A, I>(
         atomic_output_path.perform_replace(),
         "Error: Could not move temporary output file to target path: {}"
     );
+    if let Some(extra_atomic_output_path) = extra_atomic_output_path {
+        exit_on_error!(
+            extra_atomic_output_path.perform_replace(),
+            "Error: Could not move temporary output file to target path: {}"
+        );
+    }
 }

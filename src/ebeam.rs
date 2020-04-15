@@ -663,10 +663,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn save_as_h5part<P: AsRef<Path>>(
         &self,
         output_file_path: P,
+        output_acceleration_site_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
         field_line::save_field_line_data_as_h5part(
             output_file_path,
+            output_acceleration_site_file_path,
             self.properties.clone().into_field_line_set_properties(),
             drop_id,
         )
@@ -690,10 +692,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn save_into_h5part<P: AsRef<Path>>(
         self,
         output_file_path: P,
+        output_acceleration_site_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
         field_line::save_field_line_data_as_h5part(
             output_file_path,
+            output_acceleration_site_file_path,
             self.properties.into_field_line_set_properties(),
             drop_id,
         )

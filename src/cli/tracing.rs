@@ -507,6 +507,27 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         return;
     }
 
+    let extra_atomic_output_path = match output_type {
+        #[cfg(feature = "hdf5")]
+        OutputType::H5Part => {
+            let extra_atomic_output_path = exit_on_error!(
+                AtomicOutputPath::new(
+                    atomic_output_path
+                        .target_path()
+                        .with_extension("seeds.h5part")
+                ),
+                "Error: Could not create temporary output file: {}"
+            );
+            if extra_atomic_output_path
+                .write_should_be_skipped(automatic_overwrite, protected_file_types)
+            {
+                return;
+            }
+            Some(extra_atomic_output_path)
+        }
+        _ => None,
+    };
+
     let quantity = root_arguments
         .value_of("vector-quantity")
         .expect("No value for argument with default");
@@ -530,6 +551,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         root_arguments,
         output_type,
         atomic_output_path,
+        extra_atomic_output_path,
         snapshot,
         interpolator,
         field_lines,
@@ -540,6 +562,7 @@ fn perform_post_tracing_actions<G, R, I>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_path: AtomicOutputPath,
+    extra_atomic_output_path: Option<AtomicOutputPath>,
     snapshot: &mut SnapshotCacher3<G, R>,
     interpolator: I,
     mut field_lines: FieldLineSet3,
@@ -583,7 +606,7 @@ fn perform_post_tracing_actions<G, R, I>(
 
     if field_lines.verbose().is_yes() {
         println!(
-            "Saving beams in {}",
+            "Saving field lines in {}",
             atomic_output_path
                 .target_path()
                 .file_name()
@@ -602,6 +625,7 @@ fn perform_post_tracing_actions<G, R, I>(
             #[cfg(feature = "hdf5")]
             OutputType::H5Part => field_lines.save_as_h5part(
                 atomic_output_path.temporary_path(),
+                extra_atomic_output_path.as_ref().unwrap().temporary_path(),
                 root_arguments.is_present("drop-h5part-id"),
             ),
         },
@@ -612,4 +636,10 @@ fn perform_post_tracing_actions<G, R, I>(
         atomic_output_path.perform_replace(),
         "Error: Could not move temporary output file to target path: {}"
     );
+    if let Some(extra_atomic_output_path) = extra_atomic_output_path {
+        exit_on_error!(
+            extra_atomic_output_path.perform_replace(),
+            "Error: Could not move temporary output file to target path: {}"
+        );
+    }
 }

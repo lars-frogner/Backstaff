@@ -450,9 +450,15 @@ impl FieldLineSet3 {
     pub fn save_as_h5part<P: AsRef<Path>>(
         &self,
         output_file_path: P,
+        output_seed_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
-        save_field_line_data_as_h5part(output_file_path, self.properties.clone(), drop_id)
+        save_field_line_data_as_h5part(
+            output_file_path,
+            output_seed_file_path,
+            self.properties.clone(),
+            drop_id,
+        )
     }
 
     /// Serializes the field line data into a custom binary format and writes to the given writer,
@@ -484,9 +490,15 @@ impl FieldLineSet3 {
     pub fn save_into_h5part<P: AsRef<Path>>(
         self,
         output_file_path: P,
+        output_seed_file_path: P,
         drop_id: bool,
     ) -> io::Result<()> {
-        save_field_line_data_as_h5part(output_file_path, self.properties, drop_id)
+        save_field_line_data_as_h5part(
+            output_file_path,
+            output_seed_file_path,
+            self.properties,
+            drop_id,
+        )
     }
 }
 
@@ -841,6 +853,7 @@ pub fn write_field_line_data_as_custom_binary<W: io::Write>(
 #[cfg(feature = "hdf5")]
 pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
     file_path: P,
+    seed_file_path: P,
     properties: FieldLineSetProperties3,
     drop_id: bool,
 ) -> io::Result<()> {
@@ -864,22 +877,10 @@ pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
         return Ok(());
     }
 
-    utils::create_directory_if_missing(&file_path)?;
-    let group = io_result!(io_result!(hdf5::File::create(file_path))?.create_group("Step#0"))?;
-
-    let mut max_number_of_particles: u64 = 0;
-
-    if number_of_fixed_scalar_quantities > 0 {
-        for (name, values) in fixed_scalar_values {
-            let dataset = io_result!(group
-                .new_dataset::<ftr>()
-                .create(&name, number_of_field_lines))?;
-            io_result!(dataset.write_raw(&values))?;
-        }
-        max_number_of_particles = number_of_field_lines as u64;
-    }
-
     if number_of_varying_scalar_quantities > 0 {
+        utils::create_directory_if_missing(&file_path)?;
+        let group = io_result!(io_result!(hdf5::File::create(file_path))?.create_group("Step#0"))?;
+
         let number_of_field_line_elements: usize = varying_scalar_values
             .iter()
             .next()
@@ -904,15 +905,34 @@ pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
                 concatenated_values.clear();
             }
 
-            max_number_of_particles = number_of_field_line_elements as u64;
+            if !drop_id {
+                let dataset = io_result!(group
+                    .new_dataset::<u64>()
+                    .create("id", number_of_field_line_elements))?;
+                io_result!(dataset
+                    .write_raw(&(0..number_of_field_line_elements as u64).collect::<Vec<_>>()))?;
+            }
         }
     }
 
-    if !drop_id {
-        let dataset = io_result!(group
-            .new_dataset::<u64>()
-            .create("id", max_number_of_particles as usize))?;
-        io_result!(dataset.write_raw(&(0..max_number_of_particles).collect::<Vec<_>>()))?;
+    if number_of_fixed_scalar_quantities > 0 {
+        utils::create_directory_if_missing(&seed_file_path)?;
+        let group =
+            io_result!(io_result!(hdf5::File::create(seed_file_path))?.create_group("Step#0"))?;
+
+        for (name, values) in fixed_scalar_values {
+            let dataset = io_result!(group
+                .new_dataset::<ftr>()
+                .create(&name, number_of_field_lines))?;
+            io_result!(dataset.write_raw(&values))?;
+        }
+
+        if !drop_id {
+            let dataset = io_result!(group
+                .new_dataset::<u64>()
+                .create("id", number_of_field_lines))?;
+            io_result!(dataset.write_raw(&(0..number_of_field_lines as u64).collect::<Vec<_>>()))?;
+        }
     }
 
     Ok(())
