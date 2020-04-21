@@ -18,6 +18,12 @@ pub fn create_inspect_subcommand<'a, 'b>() -> App<'a, 'b> {
         .help_message("Print help information")
         .setting(AppSettings::SubcommandRequired)
         .arg(
+            Arg::with_name("all-quantities")
+                .long("all-quantities")
+                .help("Include all original quantities in the output snapshot")
+                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
+        )
+        .arg(
             Arg::with_name("included-quantities")
                 .long("included-quantities")
                 .require_equals(true)
@@ -25,11 +31,11 @@ pub fn create_inspect_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("NAMES")
                 .help(
                     "List of all the original quantities to inspect (comma-separated)\n\
-                     [default: all original quantities]",
+                     [default: none]",
                 )
                 .takes_value(true)
                 .multiple(true)
-                .conflicts_with("excluded-quantities"),
+                .conflicts_with_all(&["all-quantities", "excluded-quantities"]),
         )
         .arg(
             Arg::with_name("excluded-quantities")
@@ -40,7 +46,7 @@ pub fn create_inspect_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .help("List of original quantities to ignore (comma-separated) [default: none]")
                 .takes_value(true)
                 .multiple(true)
-                .conflicts_with("included-quantities"),
+                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
         )
         .arg(
             Arg::with_name("derived-quantities")

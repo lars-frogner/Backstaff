@@ -44,6 +44,12 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .help("Automatically overwrite any existing files (unless listed as protected)"),
         )
         .arg(
+            Arg::with_name("all-quantities")
+                .long("all-quantities")
+                .help("Include all original quantities in the output snapshot")
+                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
+        )
+        .arg(
             Arg::with_name("included-quantities")
                 .long("included-quantities")
                 .require_equals(true)
@@ -51,11 +57,11 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .value_name("NAMES")
                 .help(
                     "List of all the original quantities to include in the output snapshot\n\
-                    (comma-separated) [default: all original quantities]",
+                    (comma-separated) [default: none]",
                 )
                 .takes_value(true)
                 .multiple(true)
-                .conflicts_with("excluded-quantities"),
+                .conflicts_with_all(&["all-quantities", "excluded-quantities"]),
         )
         .arg(
             Arg::with_name("excluded-quantities")
@@ -69,7 +75,7 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
                 )
                 .takes_value(true)
                 .multiple(true)
-                .conflicts_with("included-quantities"),
+                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
         )
         .arg(
             Arg::with_name("derived-quantities")

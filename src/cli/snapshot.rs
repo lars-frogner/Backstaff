@@ -478,7 +478,9 @@ where
     G: Grid3<fdt>,
     R: SnapshotReader3<G>,
 {
-    let included_quantities = if let Some(included_quantities) = arguments
+    let included_quantities = if arguments.is_present("all-quantities") {
+        reader.all_variable_names()
+    } else if let Some(included_quantities) = arguments
         .values_of("included-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
@@ -501,7 +503,7 @@ where
     {
         reader.all_variable_names_except(&excluded_quantities)
     } else {
-        reader.all_variable_names()
+        Vec::new()
     };
 
     let derived_quantities: Vec<_> = arguments
