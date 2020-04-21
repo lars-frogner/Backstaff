@@ -469,9 +469,9 @@ fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<F>>(
     );
 
     let shape = (
-        dimensions[0].len(),
-        dimensions[1].len(),
         dimensions[2].len(),
+        dimensions[1].len(),
+        dimensions[0].len(),
     );
     let grid_shape = grid.shape();
     if shape.0 != grid_shape[X] || shape.1 != grid_shape[Y] || shape.2 != grid_shape[Z] {
