@@ -248,7 +248,7 @@ impl SimplePowerLawAccelerator {
     /// distribution.
     ///
     /// More precisely, the method determines the cut-off energy `Ec` such that
-    /// `ne*P_MB(Ec) = n_acc(Ec)*P_PL(Ec)`, where `n_acc(Ec) = e_acc/(Ec*(delta - 1)/(delta - 2))`
+    /// `ne*P_MB(Ec) = n_acc(Ec)*P_PL(Ec)`, where `n_acc(Ec) = e_acc/(Ec*(2*delta - 1)/(2*delta - 3))`
     /// is the number density of non-thermal electrons, `e_acc` is their energy density and
     /// `P_MB` and `P_PL` are respectively the Maxwell-Boltzmann and power-law probability
     /// distributions.
@@ -265,7 +265,7 @@ impl SimplePowerLawAccelerator {
         let beta = KEV_TO_ERG / (KBOLTZMANN * temperature); // [1/keV]
         let thermal_fraction =
             KEV_TO_ERG * electron_density * feb::sqrt(4.0 * feb::powi(beta, 3) / PI)
-                / (total_energy_density * (self.config.power_law_delta - 2.0)); // [1/keV^(5/2)]
+                / (total_energy_density * (self.config.power_law_delta - 1.5)); // [1/keV^(5/2)]
         let ln_thermal_fraction = feb::ln(thermal_fraction);
 
         // Make sure the initial guess satisfies E > 5/(2*beta), so that we find the solution
@@ -315,7 +315,7 @@ impl SimplePowerLawAccelerator {
         lower_cutoff_energy: feb,
     ) -> Option<feb> {
         let squared_perpendicular_fraction = (8.0 * KBOLTZMANN * temperature / PI)
-            / (feb::powi((2.0 * delta - 2.0) / (2.0 * delta - 3.0), 2)
+            / (feb::powi((delta - 0.5) / (delta - 1.0), 2)
                 * 2.0
                 * lower_cutoff_energy
                 * KEV_TO_ERG);

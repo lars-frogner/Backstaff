@@ -22,6 +22,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'z0': 'Initial height [Mm]',
         's': r'$s$ [Mm]',
         'initial_pitch_angle_cosine': r'$\mu_0$',
+        'pitch_angle_cosine': r'$\mu$',
         'initial_pitch_angle': r'$\beta_0$ [deg]',
         'electric_field_angle_cosine': 'Electric field angle cosine',
         'total_power': 'Total power [erg/s]',
@@ -46,7 +47,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'beam_flux': r'Energy flux [erg/s/cm$^2$]',
         'conduction_flux': r'Energy flux [erg/s/cm$^2$]',
         'remaining_power': 'Remaining power [erg/s]',
-        'relative_cumulative_power': r'$\mathcal{{E}}/P_\mathrm{{beam}}$',
+        'relative_cumulative_power':
+        r'$\mathcal{{E}}/P_\mathrm{{beam}}$ [$\%$]',
         'r': r'$\rho$ [g/cm$^3$]',
         'tg': r'$T$ [K]',
         'nel': r'$n_\mathrm{{e}}$ [electrons/cm$^3$]',
@@ -59,6 +61,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     VALUE_UNIT_CONVERTERS = {
         'r': lambda f: f*units.U_R,
         'qspitz': lambda f: f*(units.U_E/units.U_T),
+        'qjoule': lambda f: f*(units.U_E/units.U_T),
+        'dedt': lambda f: f*(units.U_E/units.U_T),
         'r0': lambda f: f*units.U_R,
         'z': lambda f: -f,
         'z0': lambda f: -f,
@@ -274,6 +278,16 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                         'total_power')[i]/self.get_fixed_scalar_values(
                             'acceleration_volume')[i]
 
+        if 'padded_total_power_density' in derived_quantities:
+            self.varying_scalar_values['padded_total_power_density'] = [
+                np.zeros_like(arr) for arr in self.varying_scalar_values['x']
+            ]
+            for i in range(self.get_number_of_beams()):
+                self.varying_scalar_values['padded_total_power_density'][i][
+                    0] += self.get_fixed_scalar_values(
+                        'total_power')[i]/self.get_fixed_scalar_values(
+                            'acceleration_volume')[i]
+
         if 'beam_flux' in derived_quantities:
             self.varying_scalar_values['beam_flux'] = [
                 arr.copy() for arr in
@@ -304,6 +318,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
         if 'relative_cumulative_power' in derived_quantities:
             self.varying_scalar_values['relative_cumulative_power'] = [
+                100*
                 np.cumsum(self.varying_scalar_values['deposited_power'][i])/
                 self.fixed_scalar_values['total_power'][i]
                 for i in range(self.get_number_of_beams())
@@ -316,12 +331,20 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 for i in range(self.get_number_of_beams())
             ]
 
+        if 'pitch_angle_cosine' in derived_quantities:
+            self.varying_scalar_values['pitch_angle_cosine'] = [
+                np.sqrt(np.maximum(0.0, 1.0 - b*(1.0 - mu0**2)/b[0]))
+                for mu0, b in zip(
+                    self.get_fixed_scalar_values('initial_pitch_angle_cosine'),
+                    self.get_varying_scalar_values('b'))
+            ]
+
     def _obtain_mean_electron_energies(self):
         if not self.has_fixed_scalar_values('mean_electron_energy'):
             assert self.has_param('power_law_delta')
             delta = self.get_param('power_law_delta')
             self.fixed_scalar_values['mean_electron_energy'] = (
-                (delta - 1.0)/(delta - 2.0)
+                (delta - 0.5)/(delta - 1.5)
             )*self.get_fixed_scalar_values('lower_cutoff_energy')
 
         return self.get_fixed_scalar_values('mean_electron_energy')

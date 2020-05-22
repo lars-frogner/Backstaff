@@ -56,7 +56,7 @@ def compute_equilibrium_neutral_hydrogen_density(
 
 
 def compute_mean_energy(delta, lower_cutoff_energy):
-    return lower_cutoff_energy*(delta - 1.0)/(delta - 2.0)
+    return lower_cutoff_energy*(delta - 0.5)/(delta - 1.5)
 
 
 def compute_total_hydrogen_density(mass_density):
