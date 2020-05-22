@@ -105,7 +105,7 @@ pub struct PowerLawDistributionPropertiesCollection {
 /// and a `lower_cutoff_energy`.
 ///
 /// The probability density for an electron energy `E` is
-/// `P(E) = (delta - 1)*lower_cutoff_energy^(delta - 1)*E^(-delta)`.
+/// `P(E) = (delta - 1/2)*lower_cutoff_energy^(delta - 1/2)*E^(-(delta + 1/2))`.
 #[derive(Clone, Debug)]
 pub struct PowerLawDistribution {
     config: PowerLawDistributionConfig,
@@ -147,7 +147,7 @@ impl PowerLawDistribution {
     }
 
     fn compute_mean_energy(delta: feb, lower_cutoff_energy: feb) -> feb {
-        lower_cutoff_energy * (delta - 1.0) / (delta - 2.0)
+        lower_cutoff_energy * (delta - 0.5) / (delta - 1.5)
     }
 
     fn compute_total_hydrogen_density(mass_density: feb) -> feb {
