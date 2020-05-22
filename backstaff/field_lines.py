@@ -1147,6 +1147,15 @@ def find_field_line_points_between_depths(min_depth, max_depth,
         varying_scalar_values['z'][field_line_idx] < max_depth)
 
 
+def find_field_line_points_between_quantity_values(quantity_name, min_value,
+                                                   max_value,
+                                                   varying_scalar_values,
+                                                   field_line_idx):
+    return np.logical_and(
+        varying_scalar_values[quantity_name][field_line_idx] >= min_value,
+        varying_scalar_values[quantity_name][field_line_idx] < max_value)
+
+
 def find_field_line_points_after_distance(min_distance, varying_scalar_values,
                                           field_line_idx):
     return varying_scalar_values['s'][field_line_idx] > min_distance
@@ -1269,6 +1278,7 @@ def plot_field_line_properties(field_line_set,
                                cbar_pad=0.05,
                                cbar_minorticks_on=False,
                                cbar_opposite_side_ticks=False,
+                               cbar_tick_formatter=None,
                                no_colorbar=False,
                                title=None,
                                render=True,
@@ -1329,6 +1339,7 @@ def plot_field_line_properties(field_line_set,
             pad=cbar_pad,
             minorticks_on=cbar_minorticks_on,
             opposite_side_ticks=cbar_opposite_side_ticks,
+            tick_formatter=cbar_tick_formatter,
             label=field_line_set.process_value_description(
                 value_name_color, value_description_color))
 
@@ -1535,10 +1546,16 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        figure_aspect=4.0/3.0,
                                        invert_xaxis=False,
                                        invert_yaxis=False,
+                                       minorticks_on=False,
                                        aspect='auto',
                                        value_description_x=None,
                                        value_description_y=None,
                                        value_description_weights=None,
+                                       cbar_loc='right',
+                                       cbar_pad=0.05,
+                                       cbar_minorticks_on=False,
+                                       cbar_opposite_side_ticks=False,
+                                       cbar_tick_formatter=None,
                                        title=None,
                                        render=True,
                                        output_path=None,
@@ -1589,6 +1606,9 @@ def plot_field_line_value_2d_histogram(field_line_set,
     if invert_yaxis:
         ax.invert_yaxis()
 
+    if minorticks_on:
+        ax.minorticks_on()
+
     ax.set_aspect(aspect)
 
     plotting.set_2d_axis_labels(
@@ -1604,6 +1624,11 @@ def plot_field_line_value_2d_histogram(field_line_set,
         fig,
         ax,
         im,
+        loc=cbar_loc,
+        pad=cbar_pad,
+        minorticks_on=cbar_minorticks_on,
+        opposite_side_ticks=cbar_opposite_side_ticks,
+        tick_formatter=cbar_tick_formatter,
         label=('Number of values' if value_name_weights is None else
                field_line_set.process_value_description(
                    value_name_weights, value_description_weights)))
@@ -1626,10 +1651,16 @@ def plot_field_line_value_2d_histogram_difference(
         figure_aspect=4.0/3.0,
         invert_xaxis=False,
         invert_yaxis=False,
+        minorticks_on=False,
         aspect='auto',
         value_description_x=None,
         value_description_y=None,
         value_description_weights=None,
+        cbar_loc='right',
+        cbar_pad=0.05,
+        cbar_minorticks_on=False,
+        cbar_opposite_side_ticks=False,
+        cbar_tick_formatter=None,
         title=None,
         render=True,
         output_path=None,
@@ -1682,6 +1713,9 @@ def plot_field_line_value_2d_histogram_difference(
     if invert_yaxis:
         ax.invert_yaxis()
 
+    if minorticks_on:
+        ax.minorticks_on()
+
     ax.set_aspect(aspect)
 
     plotting.set_2d_axis_labels(
@@ -1697,6 +1731,11 @@ def plot_field_line_value_2d_histogram_difference(
         fig,
         ax,
         im,
+        loc=cbar_loc,
+        pad=cbar_pad,
+        minorticks_on=cbar_minorticks_on,
+        opposite_side_ticks=cbar_opposite_side_ticks,
+        tick_formatter=cbar_tick_formatter,
         label=('Number of values' if value_names_weights[0] is None else
                field_line_set.process_value_description(
                    value_names_weights[0], value_description_weights)))
