@@ -773,15 +773,27 @@ fn perform_post_simulation_actions<G, R, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
-            beams.extract_varying_scalars(
-                exit_on_error!(
-                    snapshot.obtain_scalar_field(name),
-                    "Error: Could not read quantity {0} from snapshot: {1}",
-                    name
-                ),
-                &interpolator,
-            );
-            snapshot.drop_scalar_field(name);
+            if let Some(name) = extract_magnitude_name(name) {
+                beams.extract_varying_vector_magnitudes(
+                    exit_on_error!(
+                        snapshot.obtain_vector_field(name),
+                        "Error: Could not read quantity {0} from snapshot: {1}",
+                        name
+                    ),
+                    &interpolator,
+                );
+                snapshot.drop_vector_field(name);
+            } else {
+                beams.extract_varying_scalars(
+                    exit_on_error!(
+                        snapshot.obtain_scalar_field(name),
+                        "Error: Could not read quantity {0} from snapshot: {1}",
+                        name
+                    ),
+                    &interpolator,
+                );
+                snapshot.drop_scalar_field(name);
+            }
         }
     }
     if let Some(extra_varying_vectors) = root_arguments
@@ -838,4 +850,13 @@ fn perform_post_simulation_actions<G, R, A, I>(
             "Error: Could not move temporary output file to target path: {}"
         );
     }
+}
+
+fn extract_magnitude_name(name: &str) -> Option<&str> {
+    if let (Some('|'), Some('|')) = (name.chars().next(), name.chars().last()) {
+        if name.len() > 2 {
+            return Some(&name[1..name.len() - 1]);
+        }
+    }
+    None
 }
