@@ -581,6 +581,47 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .insert(field.name().to_string(), vectors);
     }
 
+    /// Extracts and stores the magnitude of the given vector field at each position for each beam.
+    pub fn extract_varying_vector_magnitudes<F, G, I>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+    ) where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+    {
+        if self.verbose.is_yes() {
+            println!("Extracting |{}| along beam trajectories", field.name());
+        }
+        let coords_x = &self.properties.varying_scalar_values["x"];
+        let coords_y = &self.properties.varying_scalar_values["y"];
+        let coords_z = &self.properties.varying_scalar_values["z"];
+        let values = coords_x
+            .into_par_iter()
+            .zip(coords_y)
+            .zip(coords_z)
+            .map(|((beam_coords_x, beam_coords_y), beam_coords_z)| {
+                beam_coords_x
+                    .iter()
+                    .zip(beam_coords_y)
+                    .zip(beam_coords_z)
+                    .map(|((&beam_x, &beam_y), &beam_z)| {
+                        let position = Point3::from_components(beam_x, beam_y, beam_z);
+                        let value = interpolator
+                            .interp_vector_field(field, &position)
+                            .expect_inside()
+                            .length();
+                        num::NumCast::from(value).expect("Conversion failed")
+                    })
+                    .collect()
+            })
+            .collect();
+        self.properties
+            .varying_scalar_values
+            .insert(field.name().to_string(), values);
+    }
+
     /// Serializes the electron beam data into JSON format and saves at the given path.
     pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         utils::save_data_as_json(output_file_path, &self)
