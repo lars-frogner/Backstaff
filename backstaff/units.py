@@ -59,6 +59,8 @@ MEGABARN_TO_M2 = 1e-22
 ATM_TO_PA = 1.0135e5
 # Conversion factor from dynes per square centimeter to Pascal.
 DYNE_CM2_TO_PASCAL = 0.1
+# Conversion factor from statvolts to volts.
+STATV_TO_V = 299.792458
 
 # Fraction of a mass of plasma assumed to be made up of hydrogen.
 HYDROGEN_MASS_FRACTION = 0.735
