@@ -20,6 +20,10 @@ class FieldLineSet3:
         'tg': 'Temperature [K]',
         'r0': r'Mass density [g/cm$^3$]',
         'tg0': 'Temperature [K]',
+        's_ref': r'$s$ [Mm]',
+        'beam_en': r'Total power density [erg/s/cm$^3$]',
+        'cut_en': r'$E_\mathrm{{c}}$ [keV]',
+        'F_beam': r'$\mathcal{{F}}_\mathrm{{beam}}$ [erg/s/cm$^2$]',
     }
 
     VALUE_UNIT_CONVERTERS = {
@@ -30,6 +34,9 @@ class FieldLineSet3:
         'bx': lambda f: f*units.U_B,
         'by': lambda f: f*units.U_B,
         'bz': lambda f: f*units.U_B,
+        'bz': lambda f: f*units.U_B,
+        'beam_en': lambda f: f*(units.U_E/units.U_T),
+        'F_beam': lambda f: f*(units.U_L*units.U_E/units.U_T)
     }
 
     @staticmethod
@@ -99,83 +106,118 @@ class FieldLineSet3:
                 self.params.keys())))
 
     def get_subset(self,
-                   quantities,
                    *args,
+                   only_quantities=None,
                    included_field_lines_finder=None,
                    **kwargs):
-        derived_quantities = list(quantities)
         if included_field_lines_finder is None:
-            return self.__class__(
-                self.get_domain_bounds(),
-                self.get_number_of_field_lines(), {
-                    derived_quantities.pop(derived_quantities.index(k)): v
-                    for k, v in self.fixed_scalar_values.items()
-                    if k in derived_quantities
-                }, {
-                    derived_quantities.pop(derived_quantities.index(k)): v
-                    for k, v in self.fixed_vector_values.items()
-                    if k in derived_quantities
-                }, {
-                    derived_quantities.pop(derived_quantities.index(k)): v
-                    for k, v in self.varying_scalar_values.items()
-                    if k in derived_quantities
-                }, {
-                    derived_quantities.pop(derived_quantities.index(k)): v
-                    for k, v in self.varying_vector_values.items()
-                    if k in derived_quantities
-                },
-                *args,
-                params=self.params,
-                derived_quantities=derived_quantities,
-                verbose=self.verbose,
-                **kwargs)
+            if only_quantities is None:
+                return self
+            else:
+                return self.__class__(
+                    self.get_domain_bounds(),
+                    self.get_number_of_field_lines(), {
+                        only_quantities.pop(only_quantities.index(k)): v
+                        for k, v in self.fixed_scalar_values.items()
+                        if k in only_quantities
+                    }, {
+                        only_quantities.pop(only_quantities.index(k)): v
+                        for k, v in self.fixed_vector_values.items()
+                        if k in only_quantities
+                    }, {
+                        only_quantities.pop(only_quantities.index(k)): v
+                        for k, v in self.varying_scalar_values.items()
+                        if k in only_quantities
+                    }, {
+                        only_quantities.pop(only_quantities.index(k)): v
+                        for k, v in self.varying_vector_values.items()
+                        if k in only_quantities
+                    },
+                    *args,
+                    params=self.params,
+                    verbose=self.verbose,
+                    **kwargs)
         else:
             included_field_line_indices = included_field_lines_finder(
                 self.fixed_scalar_values, self.varying_scalar_values)
-            return self.__class__(
-                self.get_domain_bounds(),
-                len(included_field_line_indices), {
-                    derived_quantities.pop(derived_quantities.index(k)):
-                    v[included_field_line_indices]
-                    for k, v in self.fixed_scalar_values.items()
-                    if k in derived_quantities
-                }, {
-                    derived_quantities.pop(derived_quantities.index(k)):
-                    v[included_field_line_indices]
-                    for k, v in self.fixed_vector_values.items()
-                    if k in derived_quantities
-                }, {
-                    derived_quantities.pop(derived_quantities.index(k)):
-                    [v[i] for i in included_field_line_indices]
-                    for k, v in self.varying_scalar_values.items()
-                    if k in derived_quantities
-                }, {
-                    derived_quantities.pop(derived_quantities.index(k)):
-                    [v[i] for i in included_field_line_indices]
-                    for k, v in self.varying_vector_values.items()
-                    if k in derived_quantities
-                },
-                *args,
-                params=self.params,
-                derived_quantities=derived_quantities,
-                verbose=self.verbose,
-                **kwargs)
+            if only_quantities is None:
+                return self.__class__(
+                    self.get_domain_bounds(),
+                    len(included_field_line_indices), {
+                        k: v[included_field_line_indices]
+                        for k, v in self.fixed_scalar_values.items()
+                    }, {
+                        k: v[included_field_line_indices]
+                        for k, v in self.fixed_vector_values.items()
+                    }, {
+                        k: [v[i] for i in included_field_line_indices]
+                        for k, v in self.varying_scalar_values.items()
+                    }, {
+                        k: [v[i] for i in included_field_line_indices]
+                        for k, v in self.varying_vector_values.items()
+                    },
+                    *args,
+                    params=self.params,
+                    verbose=self.verbose,
+                    **kwargs)
+            else:
+                return self.__class__(
+                    self.get_domain_bounds(),
+                    len(included_field_line_indices), {
+                        only_quantities.pop(only_quantities.index(k)):
+                        v[included_field_line_indices]
+                        for k, v in self.fixed_scalar_values.items()
+                        if k in only_quantities
+                    }, {
+                        only_quantities.pop(only_quantities.index(k)):
+                        v[included_field_line_indices]
+                        for k, v in self.fixed_vector_values.items()
+                        if k in only_quantities
+                    }, {
+                        only_quantities.pop(only_quantities.index(k)):
+                        [v[i] for i in included_field_line_indices]
+                        for k, v in self.varying_scalar_values.items()
+                        if k in only_quantities
+                    }, {
+                        only_quantities.pop(only_quantities.index(k)):
+                        [v[i] for i in included_field_line_indices]
+                        for k, v in self.varying_vector_values.items()
+                        if k in only_quantities
+                    },
+                    *args,
+                    params=self.params,
+                    verbose=self.verbose,
+                    **kwargs)
 
     def compute_aggregate_value(self,
                                 value_name,
-                                aggregator,
+                                aggregator=np.sum,
+                                value_name_weights=None,
+                                weighted_average=False,
                                 do_conversion=True,
                                 included_field_lines_finder=None,
                                 included_points_finder=None,
                                 result_if_empty=np.nan):
-        values, = self.get_scalar_values(
+        values, weights = self.get_scalar_values(
             value_name,
+            value_name_weights,
             included_field_lines_finder=included_field_lines_finder,
             included_points_finder=included_points_finder)
+
         if values is None:
             return result_if_empty
         values = self._convert_values(value_name, values, do_conversion)
-        return aggregator(values)
+
+        if weights is None:
+            result = aggregator(values)
+        else:
+            weights = self._convert_values(value_name_weights, weights,
+                                           do_conversion)
+            result = aggregator(values*weights)
+            if weighted_average:
+                result /= aggregator(weights)
+
+        return result
 
     def add_values_to_3d_plot(self,
                               ax,
@@ -656,7 +698,7 @@ class FieldLineSet3:
         else:
             return value_description
 
-    def _convert_values(self, value_name, values, do_conversion):
+    def _convert_values(self, value_name, values, do_conversion=True):
         if do_conversion and value_name in self.VALUE_UNIT_CONVERTERS:
             return self.VALUE_UNIT_CONVERTERS[value_name](values)
         else:
@@ -673,6 +715,94 @@ class FieldLineSet3:
                 values[0]
                 for values in self.get_varying_scalar_values(value_name[:-1])
             ])
+
+        if 's' in derived_quantities:
+            assert self.has_param('dense_step_length')
+            ds = self.get_param('dense_step_length')
+            self.varying_scalar_values['s'] = [
+                np.arange(len(z))*ds
+                for z in self.get_varying_scalar_values('z')
+            ]
+
+        if 's_ref' in derived_quantities:
+            assert self.has_param('reference_coords')
+            self.varying_scalar_values['s_ref'] = [
+                s[np.argmin((x - ref[0])**2 + (y - ref[1])**2 +
+                            (z - ref[2])**2)] - s
+                for x, y, z, s, ref in zip(self.get_varying_scalar_values('x'),
+                                           self.get_varying_scalar_values('y'),
+                                           self.get_varying_scalar_values('z'),
+                                           self.get_varying_scalar_values('s'),
+                                           self.get_param('reference_coords'))
+            ]
+
+        if 'sz0' in derived_quantities:
+            self.varying_scalar_values['sz0'] = [
+                np.interp(0.0, z, s) - s
+                for s, z in zip(self.get_varying_scalar_values('s'),
+                                self.get_varying_scalar_values('z'))
+            ]
+
+        if 'b' in derived_quantities:
+            self.varying_scalar_values['b'] = [
+                np.sqrt(bx*bx + by*by + bz*bz)
+                for bx, by, bz in zip(self.get_varying_scalar_values('bx'),
+                                      self.get_varying_scalar_values('by'),
+                                      self.get_varying_scalar_values('bz'))
+            ]
+
+        if 'beta' in derived_quantities:
+            self.varying_scalar_values['beta'] = [
+                p*units.U_E/((b*units.U_B)**2/(8*np.pi))
+                for p, b in zip(self.get_varying_scalar_values('p'),
+                                self.get_varying_scalar_values('b'))
+            ]
+
+        for dim in ('x', 'y', 'z'):
+            if f'u{dim}' in derived_quantities:
+                self.varying_scalar_values[f'u{dim}'] = [
+                    pxyz/r for pxyz, r in zip(
+                        self.get_varying_scalar_values(f'p{dim}'),
+                        self.get_varying_scalar_values('r'))
+                ]
+
+        if 'uhor' in derived_quantities:
+            self.varying_scalar_values['uhor'] = [
+                np.sqrt(ux**2 + uy**2)
+                for ux, uy in zip(self.get_varying_scalar_values('ux'),
+                                  self.get_varying_scalar_values('uy'))
+            ]
+
+        if 'us' in derived_quantities:
+            self.varying_scalar_values['us'] = [
+                (ux*bx + uy*by + uz*bz)/np.sqrt(bx*bx + by*by + bz*bz)
+                for bx, by, bz, ux, uy, uz in zip(
+                    self.get_varying_scalar_values('bx'),
+                    self.get_varying_scalar_values('by'),
+                    self.get_varying_scalar_values('bz'),
+                    self.get_varying_scalar_values('ux'),
+                    self.get_varying_scalar_values('uy'),
+                    self.get_varying_scalar_values('uz'))
+            ]
+
+        if 'binc' in derived_quantities:
+            self.varying_scalar_values['binc'] = [
+                bz/np.sqrt(bx*bx + by*by + bz*bz)
+                for bx, by, bz in zip(self.get_varying_scalar_values('bx'),
+                                      self.get_varying_scalar_values('by'),
+                                      self.get_varying_scalar_values('bz'))
+            ]
+
+        if 'F_beam' in derived_quantities:
+            assert self.has_varying_scalar_values('beam_en')
+            assert self.has_param('dense_step_length')
+            ds = self.get_param('dense_step_length')
+            # F_beam [power/area] = beam_en [power/volume] * ds [length]
+            self.varying_scalar_values['F_beam'] = [
+                beam_en*ds for beam_en, z in zip(
+                    self.get_varying_scalar_values('beam_en'),
+                    self.get_varying_scalar_values('z'))
+            ]
 
     def __find_nonwrapping_segments(self,
                                     path_x,
@@ -1088,6 +1218,14 @@ class FieldLineSet3:
                                  rasterized=rasterized)
 
 
+def find_field_lines_with_propagation_senses(propagation_senses,
+                                             fixed_scalar_values):
+    return [
+        i for i, sense in enumerate(fixed_scalar_values['propagation_sense'])
+        if sense == propagation_senses[i]
+    ]
+
+
 def find_field_lines_passing_near_point(point, max_distance,
                                         initial_position_bounds,
                                         fixed_scalar_values,
@@ -1117,9 +1255,19 @@ def find_field_lines_starting_in_coords(x_coords,
     return [
         i for i, (x, y, z) in enumerate(
             zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
+                fixed_scalar_values['z0'])) if (x - x_coords)**2 +
+        (y - y_coords)**2 + (z - z_coords)**2 <= max_distance**2
+    ]
+
+
+def find_field_lines_starting_in_box(x_lims, y_lims, z_lims,
+                                     fixed_scalar_values):
+    return [
+        i for i, (x, y, z) in enumerate(
+            zip(fixed_scalar_values['x0'], fixed_scalar_values['y0'],
                 fixed_scalar_values['z0']))
-        if np.any((x - x_coords)**2 + (y - y_coords)**2 +
-                  (z - z_coords)**2 <= max_distance**2)
+        if x >= x_lims[0] and x <= x_lims[1] and y >= y_lims[0]
+        and y <= y_lims[1] and z >= z_lims[0] and z <= z_lims[1]
     ]
 
 
@@ -1134,9 +1282,33 @@ def find_field_lines_contained_in_box(x_lims, y_lims, z_lims,
     ]
 
 
+def find_field_lines_passing_through_box(x_lims, y_lims, z_lims,
+                                         varying_scalar_values):
+    return [
+        i for i, (x, y, z) in enumerate(
+            zip(varying_scalar_values['x'], varying_scalar_values['y'],
+                varying_scalar_values['z']))
+        if np.any((x >= x_lims[0])*(x <= x_lims[1])*(y >= y_lims[0])*
+                  (y <= y_lims[1])*(z >= z_lims[0])*(z <= z_lims[1]))
+    ]
+
+
 def find_field_line_points_below_depth(min_depth, varying_scalar_values,
                                        field_line_idx):
     return varying_scalar_values['z'][field_line_idx] > min_depth
+
+
+def find_field_line_points_above_s_ref(min_s_ref, varying_scalar_values,
+                                       field_line_idx):
+    return varying_scalar_values['s_ref'][field_line_idx] >= min_s_ref
+
+
+def find_field_line_points_between_s_ref(min_s_ref, max_s_ref,
+                                         varying_scalar_values,
+                                         field_line_idx):
+    return np.logical_and(
+        varying_scalar_values['s_ref'][field_line_idx] >= min_s_ref,
+        varying_scalar_values['s_ref'][field_line_idx] <= max_s_ref)
 
 
 def find_field_line_points_between_depths(min_depth, max_depth,
@@ -1178,6 +1350,11 @@ def find_field_line_point_at_max_depth(varying_scalar_values, field_line_idx):
 
 def find_last_field_line_point(_varying_scalar_values, _field_line_idx):
     return slice(-1, None, None)
+
+
+def find_skipped_field_line_points(skips, _varying_scalar_values,
+                                   _field_line_idx):
+    return slice(None, None, skips)
 
 
 def resample_varying_points(resample_coords,
@@ -1269,6 +1446,7 @@ def plot_field_line_properties(field_line_set,
                                figure_aspect=4.0/3.0,
                                invert_xaxis=False,
                                invert_yaxis=False,
+                               minorticks_on=False,
                                value_description_x=None,
                                value_description_y=None,
                                value_description_color=None,
@@ -1329,6 +1507,9 @@ def plot_field_line_properties(field_line_set,
     if invert_yaxis:
         ax.invert_yaxis()
 
+    if minorticks_on:
+        ax.minorticks_on()
+
     if norm is not None and cmap is not None and not no_colorbar:
         plotting.add_2d_colorbar_from_cmap_and_norm(
             fig,
@@ -1358,6 +1539,8 @@ def plot_field_line_properties(field_line_set,
     if render:
         plotting.render(fig, output_path=output_path)
 
+    return fig, ax
+
 
 def plot_field_line_value_histogram(field_line_set,
                                     value_name,
@@ -1368,6 +1551,7 @@ def plot_field_line_value_histogram(field_line_set,
                                     figure_aspect=4.0/3.0,
                                     invert_xaxis=False,
                                     invert_yaxis=False,
+                                    minorticks_on=False,
                                     value_description=None,
                                     value_description_weights=None,
                                     set_axis_labels=True,
@@ -1425,6 +1609,9 @@ def plot_field_line_value_histogram(field_line_set,
         ax.invert_xaxis()
     if invert_yaxis:
         ax.invert_yaxis()
+
+    if minorticks_on:
+        ax.minorticks_on()
 
     if set_axis_labels:
         plotting.set_2d_axis_labels(
