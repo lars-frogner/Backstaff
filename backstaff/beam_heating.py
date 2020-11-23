@@ -24,6 +24,46 @@ NEUTRAL_HYDROGEN_COULOMB_OFFSET = np.log(2/(1.105*units.XI_H*1e-3))
 MIN_ELECTRON_ENERGY_FOR_COULOMB_LOG = 0.1  # [keV]
 
 
+def compute_hydrogen_level_energy(n):
+    return units.XI_H*1e-3*units.KEV_TO_ERG/n**2  # [erg]
+
+
+def compute_hydrogen_level_degeneracy(n):
+    return n**2
+
+
+def compute_relative_hydrogen_level_populations(temperature,
+                                                highest_energy_level=5):
+    P = np.ones(highest_energy_level)
+    for na in range(1, highest_energy_level):
+        nb = na + 1
+        ga = compute_hydrogen_level_degeneracy(na)
+        gb = compute_hydrogen_level_degeneracy(nb)
+        Ea = compute_hydrogen_level_energy(na)
+        Eb = compute_hydrogen_level_energy(nb)
+        P[na] = P[na - 1]*(gb/ga)*np.exp(-(Eb - Ea)/
+                                         (units.KBOLTZMANN*temperature))
+    return P
+
+
+def compute_equilibrium_hydrogen_populations(mass_density,
+                                             temperature,
+                                             electron_density,
+                                             highest_energy_level=5):
+    neutral_hydrogen_density = compute_equilibrium_neutral_hydrogen_density(
+        mass_density,
+        temperature,
+        electron_density,
+    )
+    total_hydrogen_density = compute_total_hydrogen_density(mass_density)
+    populations = compute_relative_hydrogen_level_populations(
+        temperature, highest_energy_level)
+    neutral_population_densities = populations*neutral_hydrogen_density/np.sum(
+        populations)
+    proton_density = total_hydrogen_density - neutral_hydrogen_density
+    return neutral_population_densities, proton_density
+
+
 # Evaluates the beta function B(a, b) = int t^(a-1)*(1-t)^(b-1) dt from t=0 to t=1.
 def compute_beta(a, b):
     return special.beta(a, b)
@@ -36,8 +76,8 @@ def compute_incomplete_beta(x, a, b):
 
 
 def compute_equilibrium_hydrogen_ionization_fraction(
-        temperature,
-        electron_density,
+    temperature,
+    electron_density,
 ):
     tmp = electron_density*SAHA_SCALE/temperature**1.5
     return 1.0/(1.0 + tmp*np.exp(units.XI_H*units.EV_TO_ERG/
@@ -45,9 +85,9 @@ def compute_equilibrium_hydrogen_ionization_fraction(
 
 
 def compute_equilibrium_neutral_hydrogen_density(
-        mass_density,
-        temperature,
-        electron_density,
+    mass_density,
+    temperature,
+    electron_density,
 ):
     tmp = electron_density*SAHA_SCALE/temperature**1.5
     return mass_density*HYDROGEN_MASS_FRACTION*tmp/(
@@ -75,28 +115,28 @@ def compute_neutral_hydrogen_coulomb_logarithm(electron_energy):
 
 
 def compute_effective_coulomb_logarithm(
-        ionization_fraction,
-        electron_coulomb_logarithm,
-        neutral_hydrogen_coulomb_logarithm,
+    ionization_fraction,
+    electron_coulomb_logarithm,
+    neutral_hydrogen_coulomb_logarithm,
 ):
     return ionization_fraction * electron_coulomb_logarithm \
         + (1.0 - ionization_fraction) * neutral_hydrogen_coulomb_logarithm
 
 
 def compute_stopping_column_depth(
-        pitch_angle_cosine,
-        electron_energy,
-        coulomb_logarithm,
+    pitch_angle_cosine,
+    electron_energy,
+    coulomb_logarithm,
 ):
     return np.abs(pitch_angle_cosine) * electron_energy**2 \
         / (3.0 * COLLISION_SCALE * coulomb_logarithm)
 
 
 def compute_heating_scale(
-        total_power,
-        delta,
-        pitch_angle_cosine,
-        lower_cutoff_energy,
+    total_power,
+    delta,
+    pitch_angle_cosine,
+    lower_cutoff_energy,
 ):
     return COLLISION_SCALE * total_power * (delta - 2.0) \
         / (2.0 * np.abs(pitch_angle_cosine) * lower_cutoff_energy**2)
@@ -111,9 +151,9 @@ def compute_cumulative_heat_power(distances, beam_heating):
 
 
 def compute_collisional_coef_SFP(
-        electron_density,
-        neutral_hydrogen_density,
-        electron_energy,
+    electron_density,
+    neutral_hydrogen_density,
+    electron_energy,
 ):
     return 4.989_344e-25*(
         electron_density*compute_electron_coulomb_logarithm(
@@ -122,10 +162,10 @@ def compute_collisional_coef_SFP(
 
 
 def compute_collisional_depth_derivative_SFP(
-        electron_density,
-        neutral_hydrogen_density,
-        pitch_angle_factor,
-        mean_energy,
+    electron_density,
+    neutral_hydrogen_density,
+    pitch_angle_factor,
+    mean_energy,
 ):
     return pitch_angle_factor*compute_collisional_coef_SFP(
         electron_density, neutral_hydrogen_density, mean_energy)
@@ -142,10 +182,10 @@ def compute_beam_heating_SFP(delta, total_power, lower_cutoff_energy,
 
 
 def compute_remaining_power_SFP(
-        delta,
-        total_power,
-        lower_cutoff_energy,
-        collisional_depth,
+    delta,
+    total_power,
+    lower_cutoff_energy,
+    collisional_depth,
 ):
     return total_power*(1.0 + collisional_depth/
                         (lower_cutoff_energy*units.KEV_TO_ERG/
