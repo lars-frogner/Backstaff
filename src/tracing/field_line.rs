@@ -341,6 +341,48 @@ impl FieldLineSet3 {
             .insert(field.name().to_string(), vectors);
     }
 
+    /// Extracts and stores the magnitude of the given vector field at each position for each field line.
+    pub fn extract_varying_vector_magnitudes<F, G, I>(
+        &mut self,
+        field: &VectorField3<F, G>,
+        interpolator: &I,
+    ) where
+        F: BFloat,
+        G: Grid3<F>,
+        I: Interpolator3,
+    {
+        if self.verbose.is_yes() {
+            println!("Extracting |{}| along field line paths", field.name());
+        }
+        let coords_x = &self.properties.varying_scalar_values["x"];
+        let coords_y = &self.properties.varying_scalar_values["y"];
+        let coords_z = &self.properties.varying_scalar_values["z"];
+        let values = coords_x
+            .into_par_iter()
+            .zip(coords_y)
+            .zip(coords_z)
+            .map(|((field_line_coords_x, field_line_coords_y), field_line_coords_z)| {
+                field_line_coords_x
+                    .iter()
+                    .zip(field_line_coords_y)
+                    .zip(field_line_coords_z)
+                    .map(|((&field_line_x, &field_line_y), &field_line_z)| {
+                        let position =
+                            Point3::from_components(field_line_x, field_line_y, field_line_z);
+                        let value = interpolator
+                            .interp_vector_field(field, &position)
+                            .expect_inside()
+                            .length();
+                        num::NumCast::from(value).expect("Conversion failed")
+                    })
+                    .collect()
+            })
+            .collect();
+        self.properties
+            .varying_scalar_values
+            .insert(field.name().to_string(), values);
+    }
+
     /// Serializes the field line data into JSON format and writes to the given writer.
     pub fn write_as_json<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         utils::write_data_as_json(writer, &self)

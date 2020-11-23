@@ -26,8 +26,11 @@ use crate::{
             construct_poly_fit_interpolator_config_from_options,
             create_poly_fit_interpolator_subcommand,
         },
-        tracing::stepping::rkf::{
-            construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand,
+        tracing::{
+            extract_magnitude_name,
+            stepping::rkf::{
+                construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand,
+            }
         },
     },
     create_subcommand,
@@ -850,13 +853,4 @@ fn perform_post_simulation_actions<G, R, A, I>(
             "Error: Could not move temporary output file to target path: {}"
         );
     }
-}
-
-fn extract_magnitude_name(name: &str) -> Option<&str> {
-    if let (Some('|'), Some('|')) = (name.chars().next(), name.chars().last()) {
-        if name.len() > 2 {
-            return Some(&name[1..name.len() - 1]);
-        }
-    }
-    None
 }

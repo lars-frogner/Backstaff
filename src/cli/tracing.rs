@@ -592,15 +592,27 @@ fn perform_post_tracing_actions<G, R, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
-            field_lines.extract_varying_scalars(
-                exit_on_error!(
-                    snapshot.obtain_scalar_field(name),
-                    "Error: Could not read quantity {0} in snapshot: {1}",
-                    name
-                ),
-                &interpolator,
-            );
-            snapshot.drop_scalar_field(name);
+            if let Some(name) = extract_magnitude_name(name) {
+                field_lines.extract_varying_vector_magnitudes(
+                    exit_on_error!(
+                        snapshot.obtain_vector_field(name),
+                        "Error: Could not read quantity {0} from snapshot: {1}",
+                        name
+                    ),
+                    &interpolator,
+                );
+                snapshot.drop_vector_field(name);
+            } else {
+                field_lines.extract_varying_scalars(
+                    exit_on_error!(
+                        snapshot.obtain_scalar_field(name),
+                        "Error: Could not read quantity {0} from snapshot: {1}",
+                        name
+                    ),
+                    &interpolator,
+                );
+                snapshot.drop_scalar_field(name);
+            }
         }
     }
 
@@ -642,4 +654,13 @@ fn perform_post_tracing_actions<G, R, I>(
             "Error: Could not move temporary output file to target path: {}"
         );
     }
+}
+
+pub fn extract_magnitude_name(name: &str) -> Option<&str> {
+    if let (Some('|'), Some('|')) = (name.chars().next(), name.chars().last()) {
+        if name.len() > 2 {
+            return Some(&name[1..name.len() - 1]);
+        }
+    }
+    None
 }
