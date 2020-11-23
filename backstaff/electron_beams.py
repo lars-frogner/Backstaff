@@ -21,6 +21,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'z': 'Height [Mm]',
         'z0': 'Initial height [Mm]',
         's': r'$s$ [Mm]',
+        'sz0': r'$s(z=0) - s$ [Mm]',
         'initial_pitch_angle_cosine': r'$\mu_0$',
         'pitch_angle_cosine': r'$\mu$',
         'initial_pitch_angle': r'$\beta_0$ [deg]',
@@ -56,6 +57,14 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'qspitz': r'Power density change [erg/s/cm$^3$]',
         'r0': r'$\rho$ [g/cm$^3$]',
         'tg0': r'$T$ [K]',
+        'p': r'$P$ [dyn/cm$^2$]',
+        'b': r'$|B|$ [G]',
+        'beta': r'$\beta$',
+        'ux': r'$u_x$ [cm/s]',
+        'uy': r'$u_y$ [cm/s]',
+        'uz': r'$u_z$ [cm/s]',
+        'us': r'$u_s$ [cm/s]',
+        'uhor': r'$u_\mathrm{h}$ [cm/s]',
     }
 
     VALUE_UNIT_CONVERTERS = {
@@ -70,6 +79,12 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         'by': lambda f: f*units.U_B,
         'bz': lambda f: f*units.U_B,
         'b': lambda f: f*units.U_B,
+        'p': lambda f: f*units.U_E,
+        'ux': lambda f: f*units.U_U,
+        'uy': lambda f: f*units.U_U,
+        'uz': lambda f: f*units.U_U,
+        'us': lambda f: f*units.U_U,
+        'uhor': lambda f: f*units.U_U,
     }
 
     @staticmethod
@@ -135,14 +150,12 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 self.acceleration_data.keys())))
 
     def get_subset(self,
-                   quantities,
-                   *args,
+                   only_quantities=None,
                    included_field_lines_finder=None,
                    **kwargs):
         return super().get_subset(
-            quantities,
             self.acceleration_data,
-            *args,
+            only_quantities=only_quantities,
             included_field_lines_finder=included_field_lines_finder,
             **kwargs)
 
@@ -164,15 +177,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
     def _derive_quantities(self, derived_quantities):
 
-        for value_name in filter(
-                lambda name: name[-1] == '0' and self.
-                has_varying_scalar_values(name[:-1]) and not self.
-                has_fixed_scalar_values(name[:-1]), derived_quantities):
-
-            self.fixed_scalar_values[value_name] = np.asfarray([
-                values[0]
-                for values in self.get_varying_scalar_values(value_name[:-1])
-            ])
+        super()._derive_quantities(derived_quantities)
 
         if 'initial_pitch_angle' in derived_quantities:
             self.fixed_scalar_values['initial_pitch_angle'] = np.arccos(
@@ -233,22 +238,6 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 self.varying_scalar_values['r'][i]*units.U_R*
                 units.MASS_DENSITY_TO_ELECTRON_DENSITY
                 for i in range(self.get_number_of_beams())
-            ]
-
-        if 's' in derived_quantities:
-            assert self.has_param('dense_step_length')
-            ds = self.get_param('dense_step_length')
-            self.varying_scalar_values['s'] = [
-                np.arange(len(x))*ds
-                for x in self.get_varying_scalar_values('x')
-            ]
-
-        if 'b' in derived_quantities:
-            self.varying_scalar_values['b'] = [
-                np.sqrt(bx*bx + by*by + bz*bz)
-                for bx, by, bz in zip(self.get_varying_scalar_values('bx'),
-                                      self.get_varying_scalar_values('by'),
-                                      self.get_varying_scalar_values('bz'))
             ]
 
         if 'deposited_power_per_dist' in derived_quantities:
@@ -468,28 +457,31 @@ def find_peak_deposition_point(varying_scalar_values, field_line_idx):
 
 
 def plot_electron_beams(*args, **kwargs):
-    field_lines.plot_field_lines(*args, **kwargs)
+    return field_lines.plot_field_lines(*args, **kwargs)
 
 
 def plot_electron_beam_properties(*args, **kwargs):
-    field_lines.plot_field_line_properties(*args, **kwargs)
+    return field_lines.plot_field_line_properties(*args, **kwargs)
 
 
 def plot_beam_value_histogram(*args, **kwargs):
-    field_lines.plot_field_line_value_histogram(*args, **kwargs)
+    return field_lines.plot_field_line_value_histogram(*args, **kwargs)
 
 
 def plot_beam_value_histogram_difference(*args, **kwargs):
-    field_lines.plot_field_line_value_histogram_difference(*args, **kwargs)
+    return field_lines.plot_field_line_value_histogram_difference(
+        *args, **kwargs)
 
 
 def plot_beam_value_2d_histogram(*args, **kwargs):
-    field_lines.plot_field_line_value_2d_histogram(*args, **kwargs)
+    return field_lines.plot_field_line_value_2d_histogram(*args, **kwargs)
 
 
 def plot_beam_value_2d_histogram_difference(*args, **kwargs):
-    field_lines.plot_field_line_value_2d_histogram_difference(*args, **kwargs)
+    return field_lines.plot_field_line_value_2d_histogram_difference(
+        *args, **kwargs)
 
 
 def plot_beam_value_2d_histogram_comparison(*args, **kwargs):
-    field_lines.plot_field_line_value_2d_histogram_comparison(*args, **kwargs)
+    return field_lines.plot_field_line_value_2d_histogram_comparison(
+        *args, **kwargs)
