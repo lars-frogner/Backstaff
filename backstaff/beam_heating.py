@@ -105,13 +105,13 @@ def compute_total_hydrogen_density(mass_density):
 
 def compute_electron_coulomb_logarithm(electron_density, electron_energy):
     return ELECTRON_COULOMB_OFFSET + 0.5*np.log(
-        max(electron_energy, MIN_ELECTRON_ENERGY_FOR_COULOMB_LOG)**3/
+        np.maximum(electron_energy, MIN_ELECTRON_ENERGY_FOR_COULOMB_LOG)**3/
         electron_density)
 
 
 def compute_neutral_hydrogen_coulomb_logarithm(electron_energy):
     return NEUTRAL_HYDROGEN_COULOMB_OFFSET + np.log(
-        max(electron_energy, MIN_ELECTRON_ENERGY_FOR_COULOMB_LOG))
+        np.maximum(electron_energy, MIN_ELECTRON_ENERGY_FOR_COULOMB_LOG))
 
 
 def compute_effective_coulomb_logarithm(
