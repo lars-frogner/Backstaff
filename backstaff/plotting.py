@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import matplotlib as mpl
 mpl.use('agg')
@@ -93,8 +94,8 @@ def get_normalizer(vmin, vmax, clip=False, log=False):
 
 
 def get_cmap(name, bad_color='w'):
-    cmap = CUSTOM_COLORMAPS[
-        name] if name in CUSTOM_COLORMAPS else plt.get_cmap(name)
+    cmap = copy.copy(CUSTOM_COLORMAPS[name] if name in
+                     CUSTOM_COLORMAPS else plt.get_cmap(name))
     cmap.set_bad(bad_color)
     return cmap
 
@@ -283,9 +284,8 @@ def plot_2d_field(hor_coords,
 
     mesh = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
                          values.T,
+                         shading='auto',
                          norm=norm,
-                         vmin=vmin,
-                         vmax=vmax,
                          cmap=get_cmap(cmap_name, bad_color=cmap_bad_color),
                          rasterized=rasterized)
 
