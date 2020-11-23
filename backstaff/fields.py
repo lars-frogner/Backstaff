@@ -53,18 +53,21 @@ class ScalarField2:
 
         hor_coords = all_coords[0]
         vert_coords = all_coords[1]
-        values = bifrost_data.get_var(
-            quantity)[:, :, ::-1][all_slices[0], all_slices[1], all_slices[2]]
+        values = bifrost_data.get_var(quantity)[:, :, ::-1][all_slices[0],
+                                                            all_slices[1],
+                                                            all_slices[2]]
         if scale is not None:
-            values *= scale
+            values = values*scale
 
         return ScalarField2(Coords2(hor_coords, vert_coords), values)
 
     @staticmethod
     def accumulated_from_bifrost_data(bifrost_data,
-                                      quantity,
+                                      quantities,
                                       accum_axis=1,
-                                      scale=None):
+                                      scale=None,
+                                      value_processor=lambda x: x,
+                                      accum_operator=np.sum):
         all_coords = [
             bifrost_data.xdn, bifrost_data.ydn,
             -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
@@ -72,8 +75,12 @@ class ScalarField2:
         all_coords.pop(accum_axis)
         hor_coords = all_coords[0]
         vert_coords = all_coords[1]
-        values = np.sum(bifrost_data.get_var(quantity)[:, :, ::-1],
-                        axis=accum_axis)
+        if not isinstance(quantities, list):
+            quantities = [quantities]
+        all_values = value_processor(*(
+            bifrost_data.get_var(quantity)[:, :, ::-1]
+            for quantity in quantities))
+        values = accum_operator(all_values, axis=accum_axis)
         if scale is not None:
             values *= scale
 
@@ -109,7 +116,7 @@ class ScalarField2:
         else:
             return ScalarField2(self.coords, self.values*factor)
 
-    def __div__(self, divisor):
+    def __truediv__(self, divisor):
         if isinstance(divisor, self.__class__):
             assert np.allclose(self.coords.x, divisor.coords.x)
             assert np.allclose(self.coords.y, divisor.coords.y)
