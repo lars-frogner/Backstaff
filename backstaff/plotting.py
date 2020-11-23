@@ -624,6 +624,22 @@ CUSTOM_COLORMAPS = {
              plt.get_cmap('Oranges')(np.linspace(0, 1, 256)))),
         bad_color='white',
         N=513),
+    'transport_inv':
+    define_linear_segmented_colormap(
+        '',
+        np.vstack(([[1.0, 1.0, 1.0,
+                     1.0]], plt.get_cmap('Blues_r')(np.linspace(1, 0, 256)),
+                   plt.get_cmap('Oranges_r')(np.linspace(0, 1, 256)),
+                   [[1.0, 1.0, 1.0, 1.0]])),
+        bad_color='white',
+        N=514),
+    'Orangesw_r':
+    define_linear_segmented_colormap('',
+                                     np.vstack((plt.get_cmap('Oranges_r')(
+                                         np.linspace(0, 1, 256)),
+                                                [[1.0, 1.0, 1.0, 1.0]])),
+                                     bad_color='white',
+                                     N=257),
     'afternoon':
     define_linear_segmented_colormap(
         '', ['#8C0004', '#C8000A', '#E8A735', '#E2C499']),
