@@ -142,7 +142,7 @@ impl ParameterFile {
 
     /// Parses the parameter file and returns the corresponding parameter set.
     fn parse(&self) -> ParameterSet {
-        let regex = Regex::new(r"(?m)^\s*([_\w]+)\s*=\s*(.+?)\s*$").unwrap();
+        let regex = Regex::new(r"(?m)^\s*([_\w]+)\s*=\s*(.+?)\s*(?:;|$)").unwrap();
         ParameterSet {
             values: regex
                 .captures_iter(&self.text)
