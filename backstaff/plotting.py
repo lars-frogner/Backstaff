@@ -1,7 +1,7 @@
 import copy
 import numpy as np
 import matplotlib as mpl
-mpl.use('agg')
+#mpl.use('agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import matplotlib.cm as mpl_cm
@@ -9,7 +9,15 @@ import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.offsetbox import AnchoredText
+
+
+def create_figure(width=6.0, aspect_ratio=4.0/3.0, dpi=300, **kwargs):
+    return plt.figure(figsize=kwargs.pop('figsize',
+                                         (width, width/aspect_ratio)),
+                      dpi=dpi,
+                      **kwargs)
 
 
 def create_2d_subplots(width=6.0, aspect_ratio=4.0/3.0, dpi=300, **kwargs):
@@ -26,8 +34,11 @@ def set_2d_plot_extent(ax, x_lims, y_lims):
         ax.set_ylim(*y_lims)
 
 
-def create_3d_plot(dpi=200, **kwargs):
-    fig = plt.figure(dpi=dpi, **kwargs)
+def create_3d_plot(width=6.0, aspect_ratio=4.0/3.0, dpi=200, **kwargs):
+    fig = plt.figure(figsize=kwargs.pop('figsize',
+                                        (width, width/aspect_ratio)),
+                     dpi=dpi,
+                     **kwargs)
     ax = fig.add_subplot(111, projection='3d')
     return fig, ax
 
@@ -84,7 +95,8 @@ def get_symlog_normalizer(vmin, vmax, linthresh, linscale=1.0, clip=False):
                                  linscale=linscale,
                                  vmin=vmin,
                                  vmax=vmax,
-                                 clip=clip)
+                                 clip=clip,
+                                 base=np.e)
 
 
 def get_normalizer(vmin, vmax, clip=False, log=False):
@@ -126,6 +138,12 @@ def colors_from_values(values, norm, cmap, alpha=1.0, relative_alpha=True):
     return colors
 
 
+def size_from_values(values, norm, max_size, min_size=1):
+    normalized_values = norm(values)
+    return np.maximum(min_size,
+                      np.minimum(max_size, max_size*normalized_values**2))
+
+
 def create_colorbar_axis(ax, loc='right', pad=0.05):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes(loc, size='5%', pad=pad)
@@ -164,6 +182,44 @@ def add_2d_colorbar(fig,
         }[loc]
         tick_ax.set_label_position(side)
         tick_ax.set_ticks_position(side)
+
+    if tick_formatter is not None:
+        tick_ax.set_major_formatter(tick_formatter)
+
+
+def add_2d_colorbar_inside_from_cmap_and_norm(fig,
+                                              ax,
+                                              norm,
+                                              cmap,
+                                              loc='upper left',
+                                              tick_loc='bottom',
+                                              width='30%',
+                                              height='3%',
+                                              orientation='horizontal',
+                                              label='',
+                                              fontsize='small',
+                                              minorticks_on=False,
+                                              tick_formatter=None):
+
+    cax = inset_axes(ax, width=width, height=height, loc=loc)
+
+    sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+
+    cb = fig.colorbar(sm,
+                      cax=cax,
+                      orientation=orientation,
+                      ticklocation=tick_loc,
+                      label=label)
+
+    cb.set_label(label=label, fontsize=fontsize)
+
+    if minorticks_on:
+        cb.ax.minorticks_on()
+
+    tick_ax = cb.ax.yaxis if tick_loc in ['left', 'right'] else cb.ax.xaxis
+
+    cb.ax.tick_params(labelsize=fontsize)
 
     if tick_formatter is not None:
         tick_ax.set_major_formatter(tick_formatter)
@@ -227,7 +283,11 @@ def add_textbox(ax, text, loc, pad=0.4):
     ax.add_artist(textbox)
 
 
-def render(fig, tight_layout=True, output_path=None, force_show=False):
+def render(fig,
+           tight_layout=True,
+           output_path=None,
+           force_show=False,
+           close=True):
     if tight_layout:
         fig.tight_layout()
     if output_path is not None:
@@ -236,6 +296,8 @@ def render(fig, tight_layout=True, output_path=None, force_show=False):
             plt.show()
     else:
         plt.show()
+    if close:
+        plt.close(fig)
 
 
 def plot_2d_field(hor_coords,
@@ -329,6 +391,365 @@ def plot_2d_field(hor_coords,
     render(fig, output_path=output_path)
 
     return fig, ax, mesh
+
+
+def plot_histogram(values,
+                   fig=None,
+                   ax=None,
+                   weighted=False,
+                   divided_by_bin_size=False,
+                   hist_scale=1.0,
+                   bins='auto',
+                   log_x=False,
+                   log_y=False,
+                   vmin=None,
+                   vmax=None,
+                   plot_type='steps',
+                   horizontal=False,
+                   fit_limits=None,
+                   color='k',
+                   lw=1.0,
+                   ls='-',
+                   alpha=1.0,
+                   xlabel=None,
+                   ylabel=None,
+                   xlabel_color='k',
+                   ylabel_color='k',
+                   minorticks_on=False,
+                   output_path=None,
+                   fig_kwargs={},
+                   render_now=True):
+
+    if fig is None or ax is None:
+        fig, ax = create_2d_subplots(**fig_kwargs)
+
+    weights = values if weighted else None
+
+    hist, bin_edges, bin_centers = compute_histogram(
+        values,
+        weights=weights,
+        bins=bins,
+        vmin=vmin,
+        vmax=vmax,
+        decide_bins_in_log_space=(log_y if horizontal else log_x))
+
+    hist = np.asfarray(hist)
+
+    bin_sizes = bin_edges[1:] - bin_edges[:-1]
+
+    if divided_by_bin_size:
+        hist /= bin_sizes
+
+    if hist_scale != 1.0:
+        hist *= hist_scale
+
+    if plot_type == 'steps':
+        if horizontal:
+            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, alpha=alpha)
+        else:
+            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, alpha=alpha)
+    elif plot_type == 'bar':
+        if horizontal:
+            ax.barh(bin_edges[:-1],
+                    hist,
+                    align='edge',
+                    height=bin_sizes,
+                    log=log_x,
+                    color=color,
+                    alpha=alpha,
+                    linewidth=lw)
+        else:
+            ax.bar(bin_edges[:-1],
+                   hist,
+                   align='edge',
+                   width=bin_sizes,
+                   log=log_y,
+                   color=color,
+                   alpha=alpha,
+                   linewidth=lw)
+    elif plot_type == 'fillstep':
+        if horizontal:
+            ax.fill_betweenx(bin_edges[:-1],
+                             hist,
+                             step='pre',
+                             color=color,
+                             alpha=alpha)
+        else:
+            ax.fill_between(bin_edges[:-1],
+                            hist,
+                            step='pre',
+                            color=color,
+                            alpha=alpha)
+        if horizontal:
+            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, alpha=alpha)
+        else:
+            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, alpha=alpha)
+    elif plot_type == 'fill':
+        if horizontal:
+            ax.fill_betweenx(bin_centers, hist, color=color, alpha=alpha)
+        else:
+            ax.fill_between(bin_centers, hist, color=color, alpha=alpha)
+        if horizontal:
+            ax.plot(hist, bin_centers, c=color, ls=ls, lw=lw, alpha=alpha)
+        else:
+            ax.plot(bin_centers, hist, c=color, ls=ls, lw=lw, alpha=alpha)
+    elif plot_type == 'points':
+        if horizontal:
+            ax.plot(hist,
+                    bin_centers,
+                    c=color,
+                    ls=ls,
+                    lw=lw,
+                    alpha=alpha,
+                    marker='o')
+        else:
+            ax.plot(bin_centers,
+                    hist,
+                    c=color,
+                    ls=ls,
+                    lw=lw,
+                    alpha=alpha,
+                    marker='o')
+    else:
+        raise ValueError(f'Invalid plot type {plot_type}')
+
+    if log_x:
+        ax.set_xscale('log')
+    if log_y:
+        ax.set_yscale('log')
+
+    if fit_limits is not None:
+        start_idx = np.argmin(np.abs(bin_centers - fit_limits[0]))
+        end_idx = np.argmin(np.abs(bin_centers - fit_limits[1]))
+
+        coefs = np.polyfit(
+            np.log10(bin_centers[start_idx:end_idx])
+            if log_x else bin_centers[start_idx:end_idx],
+            np.log10(hist[start_idx:end_idx])
+            if log_y else hist[start_idx:end_idx], 1)
+        print(f'Slope of fitted line: {coefs[0]}')
+
+        fit_values = np.poly1d(coefs)(
+            np.log10(bin_centers) if log_x else bin_centers)
+        if log_y:
+            fit_values = 10**fit_values
+        ax.plot(bin_centers, fit_values, 'k--', alpha=0.3, lw=1.0)
+
+        shift = 3
+        xylabel = ((bin_centers[shift] + bin_centers[shift + 1])/2,
+                   (fit_values[shift] + fit_values[shift + 1])/2)
+        p1 = ax.transData.transform_point(
+            (bin_centers[shift], fit_values[shift]))
+        p2 = ax.transData.transform_point(
+            (bin_centers[shift + 1], fit_values[shift + 1]))
+        dy = (p2[1] - p1[1])
+        dx = (p2[0] - p1[0])
+        rotn = np.degrees(np.arctan2(dy, dx))
+        ax.annotate(f'{coefs[0]:.1f}',
+                    xy=xylabel,
+                    ha='center',
+                    va='center',
+                    rotation=rotn,
+                    backgroundcolor='w',
+                    alpha=0.5,
+                    fontsize='x-small')
+
+    if minorticks_on:
+        ax.minorticks_on()
+
+    set_2d_axis_labels(ax,
+                       xlabel,
+                       ylabel,
+                       xcolor=xlabel_color,
+                       ycolor=ylabel_color)
+
+    ax.tick_params(axis='x', labelcolor=xlabel_color)
+    ax.tick_params(axis='y', labelcolor=ylabel_color)
+
+    if render_now:
+        render(fig, output_path=output_path)
+
+    return fig, ax
+
+
+def plot_scatter_with_histograms(values_x,
+                                 values_y,
+                                 values_c=None,
+                                 hist_x_scale=1.0,
+                                 hist_y_scale=1.0,
+                                 bins_x='auto',
+                                 bins_y='auto',
+                                 hist_x_divided_by_bin_size=False,
+                                 hist_y_divided_by_bin_size=False,
+                                 log_x=False,
+                                 log_y=False,
+                                 log_c=False,
+                                 log_hist_x=False,
+                                 log_hist_y=False,
+                                 vmin_x=None,
+                                 vmax_x=None,
+                                 vmin_y=None,
+                                 vmax_y=None,
+                                 vmin_c=None,
+                                 vmax_c=None,
+                                 cmap_name='viridis',
+                                 marker='o',
+                                 s=5.0,
+                                 relative_s=False,
+                                 color='k',
+                                 edgecolors='none',
+                                 alpha=1.0,
+                                 relative_alpha=False,
+                                 hist_x_alpha=1.0,
+                                 hist_y_alpha=1.0,
+                                 hist_x_color='k',
+                                 hist_y_color='k',
+                                 hist_linewidth=0,
+                                 xlabel=None,
+                                 ylabel=None,
+                                 hist_x_plot_type='bar',
+                                 hist_y_plot_type='bar',
+                                 hist_x_label=None,
+                                 hist_y_label=None,
+                                 hist_x_label_color='k',
+                                 hist_y_label_color='k',
+                                 hist_x_fit_limits=None,
+                                 hist_y_fit_limits=None,
+                                 spacing=0.015,
+                                 hist_size_x=0.3,
+                                 hist_size_y=0.3,
+                                 left_padding=0.12,
+                                 bottom_padding=0.1,
+                                 minorticks_on=False,
+                                 internal_cbar=False,
+                                 cbar_loc='upper left',
+                                 cbar_tick_loc='right',
+                                 cbar_width='3%',
+                                 cbar_height='60%',
+                                 cbar_orientation='vertical',
+                                 clabel='',
+                                 output_path=None,
+                                 fig_kwargs={},
+                                 render_now=True):
+
+    left = left_padding  # > 0 to make space for labels
+    bottom = bottom_padding  # > 0 to make space for labels
+    width = 1 - 1.5*left - spacing - hist_size_y
+    height = 1 - 1.5*bottom - spacing - hist_size_x
+
+    fig = create_figure(**fig_kwargs)
+    ax = fig.add_axes([left, bottom, width, height])
+    ax_hist_x = fig.add_axes(
+        [left, bottom + height + spacing, width, hist_size_x], sharex=ax)
+    ax_hist_y = fig.add_axes(
+        [left + width + spacing, bottom, hist_size_y, height], sharey=ax)
+
+    ax_hist_x.tick_params(axis='x', labelbottom=False)
+    ax_hist_y.tick_params(axis='y', labelleft=False)
+
+    ax_hist_x.tick_params(axis='y', labelcolor=hist_x_label_color)
+    ax_hist_y.tick_params(axis='x', labelcolor=hist_y_label_color)
+
+    if log_x:
+        ax.set_xscale('log')
+    if log_y:
+        ax.set_yscale('log')
+
+    if values_c is None:
+        c = color
+    else:
+        if vmin_c is None:
+            vmin_c = np.nanmin(values_c)
+        if vmax_c is None:
+            vmax_c = np.nanmax(values_c)
+
+        norm = get_normalizer(vmin_c, vmax_c, log=log_c)
+        cmap = get_cmap(cmap_name)
+        c = colors_from_values(values_c,
+                               norm,
+                               cmap,
+                               alpha=alpha,
+                               relative_alpha=relative_alpha)
+
+        if relative_s:
+            s = size_from_values(values_c, norm, s)
+
+        if internal_cbar:
+            add_2d_colorbar_inside_from_cmap_and_norm(
+                fig,
+                ax,
+                norm,
+                cmap,
+                loc=cbar_loc,
+                tick_loc=cbar_tick_loc,
+                width=cbar_width,
+                height=cbar_height,
+                orientation=cbar_orientation,
+                label=clabel)
+
+    ax.scatter(values_x,
+               values_y,
+               c=c,
+               s=s,
+               marker=marker,
+               edgecolors=edgecolors,
+               alpha=alpha)
+
+    if minorticks_on:
+        ax.minorticks_on()
+
+    plot_histogram(values_x,
+                   fig=fig,
+                   ax=ax_hist_x,
+                   hist_scale=hist_x_scale,
+                   weighted=False,
+                   divided_by_bin_size=hist_x_divided_by_bin_size,
+                   bins=bins_x,
+                   log_x=log_x,
+                   log_y=log_hist_x,
+                   vmin=vmin_x,
+                   vmax=vmax_x,
+                   plot_type=hist_x_plot_type,
+                   horizontal=False,
+                   color=hist_x_color,
+                   lw=hist_linewidth,
+                   ls='-',
+                   alpha=hist_x_alpha,
+                   fit_limits=hist_x_fit_limits,
+                   minorticks_on=minorticks_on,
+                   ylabel=hist_x_label,
+                   ylabel_color=hist_x_label_color,
+                   render_now=False)
+
+    plot_histogram(values_y,
+                   fig=fig,
+                   ax=ax_hist_y,
+                   hist_scale=hist_y_scale,
+                   weighted=False,
+                   divided_by_bin_size=hist_y_divided_by_bin_size,
+                   bins=bins_y,
+                   log_x=log_hist_y,
+                   log_y=log_y,
+                   vmin=vmin_y,
+                   vmax=vmax_y,
+                   plot_type=hist_y_plot_type,
+                   horizontal=True,
+                   color=hist_y_color,
+                   lw=hist_linewidth,
+                   ls='-',
+                   alpha=hist_y_alpha,
+                   fit_limits=hist_y_fit_limits,
+                   minorticks_on=minorticks_on,
+                   xlabel=hist_y_label,
+                   xlabel_color=hist_y_label_color,
+                   render_now=False)
+
+    set_2d_axis_labels(ax, xlabel, ylabel)
+
+    if render_now:
+        render(fig, output_path=output_path)
+
+    return fig, ax, ax_hist_x, ax_hist_y
 
 
 def setup_line_animation(fig,
