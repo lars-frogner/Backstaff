@@ -55,6 +55,18 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("outside-deposition-threshold")
+                .long("outside-deposition-threshold")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Maximum distance outside the initial extended acceleration region the\n\
+                     distribution can propagate before energy deposition starts [Mm]\n\
+                     [default: from param file]",
+                )
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("continue-depleted-beams")
                 .long("continue-depleted-beams")
                 .help("Keep propagating beams even after they are considered depleted"),
@@ -95,12 +107,21 @@ where
         &|max_dist| max_dist,
         PowerLawDistributionConfig::DEFAULT_MAX_PROPAGATION_DISTANCE,
     );
+    let outside_deposition_threshold = utils::get_value_from_param_file_argument_with_default(
+        reader,
+        arguments,
+        "outside-deposition-threshold",
+        "out_dep_thresh",
+        &|out_dep_thresh| out_dep_thresh,
+        PowerLawDistributionConfig::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
+    );
     let continue_depleted_beams = arguments.is_present("continue-depleted-beams");
 
     PowerLawDistributionConfig {
         min_residual_factor,
         min_deposited_power_per_distance,
         max_propagation_distance,
+        outside_deposition_threshold,
         continue_depleted_beams,
     }
 }

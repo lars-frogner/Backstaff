@@ -30,6 +30,7 @@ use crate::{
         TracerResult,
     },
 };
+use ndarray::prelude::*;
 use rayon::prelude::*;
 use serde::{
     ser::{SerializeStruct, Serializer},
@@ -389,6 +390,13 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
+        let mut acceleration_map = Array::from_elem(snapshot.reader().grid().shape().to_tuple(), false);
+
+        for distribution in distributions.iter() {
+            let indices = distribution.acceleration_indices();
+            acceleration_map[(indices[X], indices[Y], indices[Z])] = true;
+        }
+
         if verbose.is_yes() {
             println!(
                 "Attempting to propagate {} electron beams",
@@ -402,6 +410,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                 PropagatedElectronBeam::<A::DistributionType>::generate(
                     distribution,
                     snapshot,
+                    &acceleration_map,
                     interpolator,
                     stepper_factory.produce(),
                 )
@@ -759,6 +768,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
     fn generate<G, R, I, S>(
         mut distribution: D,
         snapshot: &SnapshotCacher3<G, R>,
+        acceleration_map: &Array3<bool>,
         interpolator: &I,
         stepper: S,
     ) -> Option<Self>
@@ -797,7 +807,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                         deposited_power_density,
                         deposition_position,
                         depletion_status,
-                    } = distribution.propagate(snapshot, interpolator, displacement, position);
+                    } = distribution.propagate(snapshot, acceleration_map, interpolator, displacement, position);
 
                     trajectory.0.push(deposition_position[X]);
                     trajectory.1.push(deposition_position[Y]);

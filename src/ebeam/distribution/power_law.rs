@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     constants::{KEV_TO_ERG, M_H, PI, Q_ELECTRON},
-    geometry::{Point3, Vec3},
+    geometry::{Dim3::{X, Y, Z}, Idx3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3},
@@ -17,6 +17,7 @@ use crate::{
     tracing::{ftr, stepping::SteppingSense},
     units::solar::{U_L, U_L3, U_R},
 };
+use ndarray::prelude::*;
 use rayon::prelude::*;
 
 /// Configuration parameters for power-law distributions.
@@ -32,6 +33,9 @@ pub struct PowerLawDistributionConfig {
     pub min_deposited_power_per_distance: feb,
     /// Maximum distance the distribution can propagate before propagation should be terminated [Mm].
     pub max_propagation_distance: ftr,
+    /// Maximum distance outside the initial extended acceleration region the
+    /// distribution can propagate before energy deposition starts [Mm].
+    pub outside_deposition_threshold: feb,
     /// Whether to keep propagating beams even after they are considered depleted.
     pub continue_depleted_beams: bool,
 }
@@ -51,6 +55,8 @@ pub struct PowerLawDistributionData {
     lower_cutoff_energy: feb,
     /// Position where the distribution originates [Mm].
     acceleration_position: Point3<fdt>,
+    /// Indices of position where the distribution originates [Mm].
+    acceleration_indices: Idx3<usize>,
     /// Volume of the grid cell where the distribution originates [cm^3].
     acceleration_volume: feb,
     /// Direction of propagation of the electrons relative to the magnetic field direction.
@@ -114,6 +120,8 @@ pub struct PowerLawDistribution {
     hydrogen_column_depth: feb,
     /// Equivalent ionized column depth (Hawley & Fisher, 1994) traversed by the distribution [hydrogen/cm^2].
     equivalent_ionized_column_depth: feb,
+    /// How far outside the acceleration region the distribution has propagated [Mm].
+    outside_distance: feb,
 }
 
 impl PowerLawDistribution {
@@ -133,12 +141,14 @@ impl PowerLawDistribution {
     fn new(config: PowerLawDistributionConfig, data: PowerLawDistributionData) -> Self {
         let hydrogen_column_depth = 0.0;
         let equivalent_ionized_column_depth = 0.0;
+        let outside_distance = 0.0;
 
         PowerLawDistribution {
             config,
             data,
             hydrogen_column_depth,
             equivalent_ionized_column_depth,
+            outside_distance,
         }
     }
 
@@ -380,6 +390,10 @@ impl Distribution for PowerLawDistribution {
         &self.data.acceleration_position
     }
 
+    fn acceleration_indices(&self) -> &Idx3<usize> {
+        &self.data.acceleration_indices
+    }
+
     fn propagation_sense(&self) -> SteppingSense {
         self.data.propagation_sense
     }
@@ -406,6 +420,7 @@ impl Distribution for PowerLawDistribution {
     fn propagate<G, R, I>(
         &mut self,
         snapshot: &SnapshotCacher3<G, R>,
+        acceleration_map: &Array3<bool>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
@@ -423,79 +438,94 @@ impl Distribution for PowerLawDistribution {
             .find_grid_cell(&Point3::from(&deposition_position))
             .unwrap_and_update_position(&mut deposition_position);
 
-        let electron_density_field = snapshot.cached_scalar_field("nel");
-        let mass_density_field = snapshot.cached_scalar_field("r");
-        let temperature_field = snapshot.cached_scalar_field("tg");
-
-        let electron_density = feb::from(interpolator.interp_scalar_field_known_cell(
-            electron_density_field,
-            &Point3::from(&deposition_position),
-            &deposition_indices,
-        ));
-
-        let mass_density = feb::from(interpolator.interp_scalar_field_known_cell(
-            mass_density_field,
-            &Point3::from(&deposition_position),
-            &deposition_indices,
-        )) * U_R;
-
-        let temperature = feb::from(interpolator.interp_scalar_field_known_cell(
-            temperature_field,
-            &Point3::from(&deposition_position),
-            &deposition_indices,
-        ));
-
-        let total_hydrogen_density = Self::compute_total_hydrogen_density(mass_density);
-
-        let ionization_fraction = ionization::compute_equilibrium_hydrogen_ionization_fraction(
-            temperature,
-            electron_density,
-        );
-        let effective_coulomb_logarithm = Self::compute_effective_coulomb_logarithm(
-            ionization_fraction,
-            self.data.electron_coulomb_logarithm,
-            self.data.neutral_hydrogen_coulomb_logarithm,
-        );
-
-        let step_length = displacement.length() * U_L; // [cm]
-
-        let (
-            deposited_power,
-            new_hydrogen_column_depth,
-            new_equivalent_ionized_column_depth,
-            residual_factor,
-        ) = self.compute_uniform_plasma_heating_integral(
-            total_hydrogen_density,
-            effective_coulomb_logarithm,
-            step_length,
-        );
-
-        self.hydrogen_column_depth = new_hydrogen_column_depth;
-        self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
-
-        let volume = feb::from(
-            snapshot
-                .reader()
-                .grid()
-                .grid_cell_volume(&deposition_indices),
-        ) * U_L3;
-        let deposited_power_density = deposited_power / volume;
-
-        let depletion_status = if self.config.continue_depleted_beams
-            || residual_factor >= self.config.min_residual_factor
-            || deposited_power / step_length >= self.config.min_deposited_power_per_distance
-        {
-            DepletionStatus::Undepleted
+        if self.outside_distance < self.config.outside_deposition_threshold {
+            if acceleration_map[(deposition_indices[X], deposition_indices[Y], deposition_indices[Z])] {
+                self.outside_distance = 0.0;
+            } else {
+                self.outside_distance += displacement.length();
+            }
+            PropagationResult {
+                residual_factor: 0.0,
+                deposited_power: 0.0,
+                deposited_power_density: 0.0,
+                deposition_position,
+                depletion_status: DepletionStatus::Undepleted,
+            }
         } else {
-            DepletionStatus::Depleted
-        };
+            let electron_density_field = snapshot.cached_scalar_field("nel");
+            let mass_density_field = snapshot.cached_scalar_field("r");
+            let temperature_field = snapshot.cached_scalar_field("tg");
 
-        PropagationResult {
-            residual_factor,
-            deposited_power,
-            deposited_power_density,
-            deposition_position,
-            depletion_status,
+            let electron_density = feb::from(interpolator.interp_scalar_field_known_cell(
+                electron_density_field,
+                &Point3::from(&deposition_position),
+                &deposition_indices,
+            ));
+
+            let mass_density = feb::from(interpolator.interp_scalar_field_known_cell(
+                mass_density_field,
+                &Point3::from(&deposition_position),
+                &deposition_indices,
+            )) * U_R;
+
+            let temperature = feb::from(interpolator.interp_scalar_field_known_cell(
+                temperature_field,
+                &Point3::from(&deposition_position),
+                &deposition_indices,
+            ));
+
+            let total_hydrogen_density = Self::compute_total_hydrogen_density(mass_density);
+
+            let ionization_fraction = ionization::compute_equilibrium_hydrogen_ionization_fraction(
+                temperature,
+                electron_density,
+            );
+            let effective_coulomb_logarithm = Self::compute_effective_coulomb_logarithm(
+                ionization_fraction,
+                self.data.electron_coulomb_logarithm,
+                self.data.neutral_hydrogen_coulomb_logarithm,
+            );
+
+            let step_length = displacement.length() * U_L; // [cm]
+
+            let (
+                deposited_power,
+                new_hydrogen_column_depth,
+                new_equivalent_ionized_column_depth,
+                residual_factor,
+            ) = self.compute_uniform_plasma_heating_integral(
+                total_hydrogen_density,
+                effective_coulomb_logarithm,
+                step_length,
+            );
+
+            self.hydrogen_column_depth = new_hydrogen_column_depth;
+            self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
+
+            let volume = feb::from(
+                snapshot
+                    .reader()
+                    .grid()
+                    .grid_cell_volume(&deposition_indices),
+            ) * U_L3;
+            let deposited_power_density = deposited_power / volume;
+
+            let depletion_status = if self.config.continue_depleted_beams
+                || residual_factor >= self.config.min_residual_factor
+                || deposited_power / step_length >= self.config.min_deposited_power_per_distance
+            {
+                DepletionStatus::Undepleted
+            } else {
+                DepletionStatus::Depleted
+            };
+
+            PropagationResult {
+                residual_factor,
+                deposited_power,
+                deposited_power_density,
+                deposition_position,
+                depletion_status,
+            }
         }
     }
 }
@@ -504,6 +534,7 @@ impl PowerLawDistributionConfig {
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-5;
     pub const DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE: feb = 1e5; // [erg/s/cm]
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
+    pub const DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD: feb = 0.1; // [Mm]
     pub const DEFAULT_CONTINUE_DEPLETED_BEAMS: bool = false;
 
     /// Creates a set of power law distribution configuration parameters with
@@ -538,10 +569,19 @@ impl PowerLawDistributionConfig {
                 &|max_dist| max_dist,
                 Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             );
+        let outside_deposition_threshold = reader
+            .parameters()
+            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                "outside_deposition_threshold",
+                "out_dep_thresh",
+                &|out_dep_thresh| out_dep_thresh,
+                Self::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
+            );
         PowerLawDistributionConfig {
             min_residual_factor,
             min_deposited_power_per_distance,
             max_propagation_distance,
+            outside_deposition_threshold,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
     }
@@ -560,6 +600,10 @@ impl PowerLawDistributionConfig {
             self.max_propagation_distance >= 0.0,
             "Maximum propagation distance must be larger than or equal to zero."
         );
+        assert!(
+            self.outside_deposition_threshold >= 0.0,
+            "Outside deposition threshold must be larger than or equal to zero."
+        );
     }
 }
 
@@ -569,6 +613,7 @@ impl Default for PowerLawDistributionConfig {
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             min_deposited_power_per_distance: Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
+            outside_deposition_threshold: Self::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
     }

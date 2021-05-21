@@ -4,12 +4,13 @@ pub mod power_law;
 
 use super::{feb, BeamPropertiesCollection};
 use crate::{
-    geometry::{Point3, Vec3},
+    geometry::{Idx3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
     tracing::{ftr, stepping::SteppingSense},
 };
+use ndarray::prelude::*;
 
 /// Whether or not a distribution is depleted.
 #[derive(Clone, Copy, Debug)]
@@ -40,6 +41,9 @@ pub trait Distribution {
     /// Returns the position where the distribution originates.
     fn acceleration_position(&self) -> &Point3<fdt>;
 
+    /// Returns the indices of the position where the distribution originates.
+    fn acceleration_indices(&self) -> &Idx3<usize>;
+
     /// Returns the direction of propagation of the electrons relative to the magnetic field direction.
     fn propagation_sense(&self) -> SteppingSense;
 
@@ -54,6 +58,7 @@ pub trait Distribution {
     fn propagate<G, R, I>(
         &mut self,
         snapshot: &SnapshotCacher3<G, R>,
+        acceleration_map: &Array3<bool>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
