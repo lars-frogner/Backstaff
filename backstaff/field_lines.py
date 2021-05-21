@@ -18,8 +18,11 @@ class FieldLineSet3:
         'z': 'Height [Mm]',
         'r': r'Mass density [g/cm$^3$]',
         'tg': 'Temperature [K]',
+        'p': r'Gas pressure [dyn/cm$^2$]',
         'r0': r'Mass density [g/cm$^3$]',
         'tg0': 'Temperature [K]',
+        'p0': r'Gas pressure [dyn/cm$^2$]',
+        's': 'Distance [Mm]',
         's_ref': r'$s$ [Mm]',
         'beam_en': r'Total power density [erg/s/cm$^3$]',
         'cut_en': r'$E_\mathrm{{c}}$ [keV]',
@@ -29,6 +32,8 @@ class FieldLineSet3:
     VALUE_UNIT_CONVERTERS = {
         'r': lambda f: f*units.U_R,
         'r0': lambda f: f*units.U_R,
+        'p': lambda f: f*units.U_P,
+        'p0': lambda f: f*units.U_P,
         'z': lambda f: -f,
         'z0': lambda f: -f,
         'bx': lambda f: f*units.U_B,
@@ -842,6 +847,7 @@ class FieldLineSet3:
                                          edgecolors='none',
                                          alpha=1.0,
                                          relative_alpha=True,
+                                         label='',
                                          rasterized=None):
 
         if values_color is None and not force_scatter:
@@ -850,6 +856,7 @@ class FieldLineSet3:
                     c=color,
                     lw=lw,
                     alpha=alpha,
+                    label=label,
                     rasterized=rasterized)
             return (None, None)
 
@@ -888,6 +895,7 @@ class FieldLineSet3:
                        marker=marker,
                        edgecolors=edgecolors,
                        alpha=alpha,
+                       label=label,
                        rasterized=rasterized)
 
             return (norm, cmap)
@@ -909,7 +917,7 @@ class FieldLineSet3:
                                        ls='-',
                                        s=1.0,
                                        alpha=1.0,
-                                       legend_label=None,
+                                       label=None,
                                        zorder=2,
                                        rasterized=None,
                                        mode='instant',
@@ -946,6 +954,7 @@ class FieldLineSet3:
                                   c=c,
                                   s=s,
                                   alpha=alpha,
+                                  label=label,
                                   zorder=zorder,
                                   rasterized=rasterized)
             else:
@@ -956,7 +965,7 @@ class FieldLineSet3:
                                    ls=ls,
                                    lw=lw,
                                    alpha=alpha,
-                                   label=legend_label,
+                                   label=label,
                                    zorder=zorder,
                                    rasterized=rasterized)[0]
                 else:
@@ -966,7 +975,7 @@ class FieldLineSet3:
                                    ls=ls,
                                    lw=lw,
                                    alpha=alpha,
-                                   label=legend_label,
+                                   label=label,
                                    zorder=zorder,
                                    rasterized=rasterized)[0]
 
@@ -1459,6 +1468,7 @@ def plot_field_line_properties(field_line_set,
                                cbar_tick_formatter=None,
                                no_colorbar=False,
                                title=None,
+                               legend_loc=None,
                                render=True,
                                output_path=None,
                                log_x=False,
@@ -1535,6 +1545,9 @@ def plot_field_line_properties(field_line_set,
 
     if title is not None:
         ax.set_title(title)
+
+    if legend_loc is not None:
+        ax.legend(loc=legend_loc)
 
     if render:
         plotting.render(fig, output_path=output_path)
@@ -1636,6 +1649,8 @@ def plot_field_line_value_histogram(field_line_set,
 
     if render:
         plotting.render(fig, output_path=output_path)
+
+    return fig, ax
 
 
 def plot_field_line_value_histogram_difference(field_line_set,

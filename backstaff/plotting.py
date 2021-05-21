@@ -43,11 +43,15 @@ def create_3d_plot(width=6.0, aspect_ratio=4.0/3.0, dpi=200, **kwargs):
     return fig, ax
 
 
-def set_3d_plot_extent(ax, x_lims, y_lims, z_lims):
-    ax.set_xlim(*x_lims)
-    ax.set_ylim(*y_lims)
-    ax.set_zlim(*z_lims)
-    set_3d_axes_equal(ax)
+def set_3d_plot_extent(ax, x_lims, y_lims, z_lims, axes_equal=True):
+    if x_lims is not None:
+        ax.set_xlim(*x_lims)
+    if y_lims is not None:
+        ax.set_ylim(*y_lims)
+    if z_lims is not None:
+        ax.set_zlim(*z_lims)
+    if axes_equal:
+        set_3d_axes_equal(ax)
 
 
 def set_3d_axes_equal(ax):
@@ -333,7 +337,8 @@ def plot_2d_field(hor_coords,
                   clabel='',
                   title=None,
                   rasterized=None,
-                  output_path=None):
+                  output_path=None,
+                  render_now=True):
 
     if fig is None or ax is None:
         fig, ax = create_2d_subplots(width=figure_width,
@@ -371,14 +376,16 @@ def plot_2d_field(hor_coords,
     set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
                        (vert_coords[0], vert_coords[-1]))
     set_2d_axis_labels(ax, xlabel, ylabel)
-    add_2d_colorbar(fig,
-                    ax,
-                    mesh,
-                    loc=cbar_loc,
-                    pad=cbar_pad,
-                    minorticks_on=cbar_minorticks_on,
-                    opposite_side_ticks=cbar_opposite_side_ticks,
-                    label=clabel)
+
+    if cbar_loc is not None:
+        add_2d_colorbar(fig,
+                        ax,
+                        mesh,
+                        loc=cbar_loc,
+                        pad=cbar_pad,
+                        minorticks_on=cbar_minorticks_on,
+                        opposite_side_ticks=cbar_opposite_side_ticks,
+                        label=clabel)
 
     if minorticks_on:
         ax.minorticks_on()
@@ -388,7 +395,8 @@ def plot_2d_field(hor_coords,
     if title is not None:
         ax.set_title(title)
 
-    render(fig, output_path=output_path)
+    if render_now:
+        render(fig, output_path=output_path)
 
     return fig, ax, mesh
 
@@ -407,10 +415,15 @@ def plot_histogram(values,
                    plot_type='steps',
                    horizontal=False,
                    fit_limits=None,
+                   extra_artists=[],
                    color='k',
                    lw=1.0,
                    ls='-',
                    alpha=1.0,
+                   x_lims=None,
+                   y_lims=None,
+                   label=None,
+                   legend_loc=None,
                    xlabel=None,
                    ylabel=None,
                    xlabel_color='k',
@@ -423,11 +436,9 @@ def plot_histogram(values,
     if fig is None or ax is None:
         fig, ax = create_2d_subplots(**fig_kwargs)
 
-    weights = values if weighted else None
-
     hist, bin_edges, bin_centers = compute_histogram(
         values,
-        weights=weights,
+        weights=None,
         bins=bins,
         vmin=vmin,
         vmax=vmax,
@@ -440,14 +451,17 @@ def plot_histogram(values,
     if divided_by_bin_size:
         hist /= bin_sizes
 
+    if weighted:
+        hist *= bin_centers*bin_sizes
+
     if hist_scale != 1.0:
         hist *= hist_scale
 
     if plot_type == 'steps':
         if horizontal:
-            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, alpha=alpha)
+            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, label=label)
         else:
-            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, alpha=alpha)
+            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, label=label)
     elif plot_type == 'bar':
         if horizontal:
             ax.barh(bin_edges[:-1],
@@ -457,7 +471,8 @@ def plot_histogram(values,
                     log=log_x,
                     color=color,
                     alpha=alpha,
-                    linewidth=lw)
+                    linewidth=lw,
+                    label=label)
         else:
             ax.bar(bin_edges[:-1],
                    hist,
@@ -466,7 +481,8 @@ def plot_histogram(values,
                    log=log_y,
                    color=color,
                    alpha=alpha,
-                   linewidth=lw)
+                   linewidth=lw,
+                   label=label)
     elif plot_type == 'fillstep':
         if horizontal:
             ax.fill_betweenx(bin_edges[:-1],
@@ -481,18 +497,38 @@ def plot_histogram(values,
                             color=color,
                             alpha=alpha)
         if horizontal:
-            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, alpha=alpha)
+            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, label=label)
         else:
-            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, alpha=alpha)
+            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, label=label)
     elif plot_type == 'fill':
         if horizontal:
-            ax.fill_betweenx(bin_centers, hist, color=color, alpha=alpha)
+            ax.fill_betweenx(bin_centers,
+                             hist,
+                             color=color,
+                             alpha=alpha,
+                             label=label)
         else:
-            ax.fill_between(bin_centers, hist, color=color, alpha=alpha)
+            ax.fill_between(bin_centers,
+                            hist,
+                            color=color,
+                            alpha=alpha,
+                            label=label)
         if horizontal:
-            ax.plot(hist, bin_centers, c=color, ls=ls, lw=lw, alpha=alpha)
+            ax.plot(hist,
+                    bin_centers,
+                    c=color,
+                    ls=ls,
+                    lw=lw,
+                    alpha=alpha,
+                    label=label)
         else:
-            ax.plot(bin_centers, hist, c=color, ls=ls, lw=lw, alpha=alpha)
+            ax.plot(bin_centers,
+                    hist,
+                    c=color,
+                    ls=ls,
+                    lw=lw,
+                    alpha=alpha,
+                    label=label)
     elif plot_type == 'points':
         if horizontal:
             ax.plot(hist,
@@ -512,6 +548,10 @@ def plot_histogram(values,
                     marker='o')
     else:
         raise ValueError(f'Invalid plot type {plot_type}')
+
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
 
     if log_x:
         ax.set_xscale('log')
@@ -557,6 +597,7 @@ def plot_histogram(values,
     if minorticks_on:
         ax.minorticks_on()
 
+    set_2d_plot_extent(ax, x_lims, y_lims)
     set_2d_axis_labels(ax,
                        xlabel,
                        ylabel,
@@ -565,6 +606,132 @@ def plot_histogram(values,
 
     ax.tick_params(axis='x', labelcolor=xlabel_color)
     ax.tick_params(axis='y', labelcolor=ylabel_color)
+
+    if legend_loc:
+        ax.legend(loc=legend_loc)
+
+    if render_now:
+        render(fig, output_path=output_path)
+
+    return fig, ax
+
+
+def plot_scatter(values_x,
+                 values_y,
+                 values_c=None,
+                 fig=None,
+                 ax=None,
+                 log_x=False,
+                 log_y=False,
+                 log_c=False,
+                 vmin_c=None,
+                 vmax_c=None,
+                 cmap_name='viridis',
+                 marker='o',
+                 s=5.0,
+                 relative_s=False,
+                 color='k',
+                 edgecolors='none',
+                 alpha=1.0,
+                 relative_alpha=False,
+                 x_lims=None,
+                 y_lims=None,
+                 xlabel=None,
+                 ylabel=None,
+                 aspect='auto',
+                 minorticks_on=False,
+                 internal_cbar=False,
+                 cbar_loc='right',
+                 cbar_pad=0.05,
+                 cbar_minorticks_on=False,
+                 cbar_opposite_side_ticks=False,
+                 cbar_tick_loc='right',
+                 cbar_width='3%',
+                 cbar_height='60%',
+                 cbar_orientation='vertical',
+                 clabel='',
+                 label=None,
+                 legend_loc=None,
+                 extra_artists=None,
+                 output_path=None,
+                 fig_kwargs={},
+                 render_now=True):
+
+    if fig is None or ax is None:
+        fig, ax = create_2d_subplots(**fig_kwargs)
+
+    if log_x:
+        ax.set_xscale('log')
+    if log_y:
+        ax.set_yscale('log')
+
+    if values_c is None:
+        c = color
+    else:
+        if vmin_c is None:
+            vmin_c = np.nanmin(values_c)
+        if vmax_c is None:
+            vmax_c = np.nanmax(values_c)
+
+        norm = get_normalizer(vmin_c, vmax_c, log=log_c)
+        cmap = get_cmap(cmap_name)
+        c = colors_from_values(values_c,
+                               norm,
+                               cmap,
+                               alpha=alpha,
+                               relative_alpha=relative_alpha)
+
+        if relative_s:
+            s = size_from_values(values_c, norm, s)
+
+        if cbar_loc is not None:
+            if internal_cbar:
+                add_2d_colorbar_inside_from_cmap_and_norm(
+                    fig,
+                    ax,
+                    norm,
+                    cmap,
+                    loc=cbar_loc,
+                    tick_loc=cbar_tick_loc,
+                    width=cbar_width,
+                    height=cbar_height,
+                    orientation=cbar_orientation,
+                    label=clabel)
+            else:
+                add_2d_colorbar_from_cmap_and_norm(
+                    fig,
+                    ax,
+                    norm,
+                    cmap,
+                    loc=cbar_loc,
+                    pad=cbar_pad,
+                    minorticks_on=cbar_minorticks_on,
+                    opposite_side_ticks=cbar_opposite_side_ticks,
+                    label=clabel)
+
+    ax.scatter(values_x,
+               values_y,
+               c=c,
+               s=s,
+               marker=marker,
+               edgecolors=edgecolors,
+               alpha=alpha,
+               label=label)
+
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
+
+    if minorticks_on:
+        ax.minorticks_on()
+
+    ax.set_aspect(aspect)
+
+    set_2d_plot_extent(ax, x_lims, y_lims)
+    set_2d_axis_labels(ax, xlabel, ylabel)
+
+    if legend_loc is not None:
+        ax.legend(loc=legend_loc)
 
     if render_now:
         render(fig, output_path=output_path)
