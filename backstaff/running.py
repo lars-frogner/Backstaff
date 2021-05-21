@@ -1,10 +1,11 @@
 import subprocess
 
 
-def run_command(*args, return_immediately=False):
+def run_command(*args, cwd=None, return_immediately=False):
     process = subprocess.Popen(args,
                                stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
+                               stderr=subprocess.PIPE,
+                               cwd=cwd)
     print(subprocess.list2cmdline(process.args))
 
     if return_immediately:
@@ -23,12 +24,12 @@ def run_command(*args, return_immediately=False):
     return return_code
 
 
-def run_backstaff(*args, pre_cargo_args=[], features=['cli']):
+def run_backstaff(*args, pre_cargo_args=[], cwd=None, features=['cli']):
     args = pre_cargo_args + [
         'cargo', 'run', '--release', '--no-default-features', '--features',
         ' '.join(features), '--'
     ] + list(args)
-    return run_command(*args)
+    return run_command(*args, cwd=cwd)
 
 
 def run_backstaff_remotely(destination_machine,
