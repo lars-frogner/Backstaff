@@ -75,7 +75,7 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
                 )
                 .takes_value(true)
                 .multiple(true)
-                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
+                .conflicts_with_all(&["all-quantities", "included-quantities"]),
         )
         .arg(
             Arg::with_name("derived-quantities")
