@@ -103,6 +103,11 @@ def compute_total_hydrogen_density(mass_density):
     return (HYDROGEN_MASS_FRACTION/units.M_H)*mass_density  # [hydrogen/cm^3]
 
 
+def compute_total_helium_density_no_metals(mass_density):
+    return (
+        (1 - HYDROGEN_MASS_FRACTION)/units.M_HE)*mass_density  # [helium/cm^3]
+
+
 def compute_electron_coulomb_logarithm(electron_density, electron_energy):
     return ELECTRON_COULOMB_OFFSET + 0.5*np.log(
         np.maximum(electron_energy, MIN_ELECTRON_ENERGY_FOR_COULOMB_LOG)**3/
