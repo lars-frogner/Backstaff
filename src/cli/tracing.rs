@@ -20,6 +20,7 @@ use crate::{
             manual::{create_manual_seeder_from_arguments, create_manual_seeder_subcommand},
             slice::{create_slice_seeder_from_arguments, create_slice_seeder_subcommand},
         },
+        snapshot::SnapNumInRange,
     },
     create_subcommand, exit_on_error, exit_with_error,
     grid::Grid3,
@@ -191,13 +192,13 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn run_trace_subcommand<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
-    run_with_selected_tracer(arguments, snapshot, snap_num_offset, protected_file_types);
+    run_with_selected_tracer(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -281,7 +282,7 @@ impl fmt::Display for OutputType {
 fn run_with_selected_tracer<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
@@ -307,7 +308,7 @@ fn run_with_selected_tracer<G, R>(
         arguments,
         tracer_arguments,
         snapshot,
-        snap_num_offset,
+        snap_num_in_range,
         tracer,
         protected_file_types,
     );
@@ -317,7 +318,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     protected_file_types: &[&str],
 ) where
@@ -349,7 +350,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
             root_arguments,
             stepper_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             tracer,
             RKF23StepperFactory3::new(stepper_config),
             protected_file_types,
@@ -358,7 +359,7 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
             root_arguments,
             stepper_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             tracer,
             RKF45StepperFactory3::new(stepper_config),
             protected_file_types,
@@ -370,7 +371,7 @@ fn run_with_selected_interpolator<G, R, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     protected_file_types: &[&str],
@@ -403,7 +404,7 @@ fn run_with_selected_interpolator<G, R, Tr, StF>(
         root_arguments,
         interpolator_arguments,
         snapshot,
-        snap_num_offset,
+        snap_num_in_range,
         tracer,
         stepper_factory,
         interpolator,
@@ -415,7 +416,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
@@ -434,7 +435,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
         run_tracing(
             root_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             tracer,
             stepper_factory,
             interpolator,
@@ -446,7 +447,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
         run_tracing(
             root_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             tracer,
             stepper_factory,
             interpolator,
@@ -461,7 +462,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
 fn run_tracing<G, R, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
@@ -488,10 +489,10 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
 
     let output_type = OutputType::from_path(&output_file_path);
 
-    if let Some(snap_num_offset) = snap_num_offset {
+    if let Some(snap_num_in_range) = snap_num_in_range {
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
-            snap_num_offset,
+            snap_num_in_range.offset(),
             &output_type.to_string(),
             true,
         ));
