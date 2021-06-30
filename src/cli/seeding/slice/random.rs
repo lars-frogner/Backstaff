@@ -2,8 +2,7 @@
 
 use super::CommonSliceSeederParameters;
 use crate::{
-    cli::utils, geometry::Point2, grid::Grid3, io::snapshot::fdt,
-    tracing::seeding::slice::SliceSeeder3,
+    cli::utils, geometry::Point2, grid::Grid3, io::snapshot::fdt, seeding::slice::SliceSeeder3,
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
 

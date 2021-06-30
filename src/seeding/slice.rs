@@ -1,6 +1,6 @@
 //! Generation of seed points in a slice through a field.
 
-use super::{super::ftr, Seeder3};
+use super::{fsd, Seeder3};
 use crate::{
     field::{ScalarField3, VectorField3},
     geometry::{
@@ -20,7 +20,7 @@ use std::{collections::HashSet, iter::FromIterator, vec};
 /// Generator for seed points in a slice of a 3D field.
 #[derive(Clone, Debug)]
 pub struct SliceSeeder3 {
-    seed_points: Vec<Point3<ftr>>,
+    seed_points: Vec<Point3<fsd>>,
 }
 
 impl SliceSeeder3 {
@@ -36,7 +36,7 @@ impl SliceSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `SliceSeeder3`.
+    /// A new `SliceSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -46,7 +46,7 @@ impl SliceSeeder3 {
     pub fn regular<F, G, S>(
         grid: &G,
         axis: Dim3,
-        coord: ftr,
+        coord: fsd,
         shape: In2D<usize>,
         satisfies_constraints: &S,
     ) -> Self
@@ -79,7 +79,7 @@ impl SliceSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `SliceSeeder3`.
+    /// A new `SliceSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -89,7 +89,7 @@ impl SliceSeeder3 {
     pub fn random<F, G, S>(
         grid: &G,
         axis: Dim3,
-        coord: ftr,
+        coord: fsd,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
@@ -123,7 +123,7 @@ impl SliceSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `SliceSeeder3`.
+    /// A new `SliceSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -133,10 +133,10 @@ impl SliceSeeder3 {
     pub fn stratified<F, G, S>(
         grid: &G,
         axis: Dim3,
-        coord: ftr,
+        coord: fsd,
         shape: In2D<usize>,
         n_seeds_per_cell: usize,
-        randomness: ftr,
+        randomness: fsd,
         satisfies_constraints: &S,
     ) -> Self
     where
@@ -192,7 +192,7 @@ impl SliceSeeder3 {
     ///
     /// # Parameters
     ///
-    /// - `grid`: Grid to slice through.
+    /// - `field`: Scalar field to slice through.
     /// - `interpolator`: Interpolator to use for sampling field values.
     /// - `axis`: Axis to slice across.
     /// - `coord`: Coordinate of the slice along `axis`.
@@ -202,7 +202,7 @@ impl SliceSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `SliceSeeder3`.
+    /// A new `SliceSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -215,7 +215,7 @@ impl SliceSeeder3 {
         field: &ScalarField3<F, G>,
         interpolator: &I,
         axis: Dim3,
-        coord: ftr,
+        coord: fsd,
         compute_pdf_value: &C,
         n_seeds: usize,
         satisfies_constraints: &S,
@@ -269,7 +269,7 @@ impl SliceSeeder3 {
     ///
     /// # Parameters
     ///
-    /// - `grid`: Grid to slice through.
+    /// - `field`: Vector field to slice through.
     /// - `interpolator`: Interpolator to use for sampling field values.
     /// - `axis`: Axis to slice across.
     /// - `coord`: Coordinate of the slice along `axis`.
@@ -279,7 +279,7 @@ impl SliceSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `SliceSeeder3`.
+    /// A new `SliceSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -292,7 +292,7 @@ impl SliceSeeder3 {
         field: &VectorField3<F, G>,
         interpolator: &I,
         axis: Dim3,
-        coord: ftr,
+        coord: fsd,
         compute_pdf_value: &C,
         n_seeds: usize,
         satisfies_constraints: &S,
@@ -347,9 +347,9 @@ impl SliceSeeder3 {
     fn construct_seed_points_from_slice_points<F, S>(
         slice_points: Vec<Point2<F>>,
         axis: Dim3,
-        coord: ftr,
+        coord: fsd,
         satisfies_constraints: &S,
-    ) -> Vec<Point3<ftr>>
+    ) -> Vec<Point3<fsd>>
     where
         F: BFloat,
         S: Fn(&Point2<F>) -> bool + Sync,
@@ -402,7 +402,7 @@ impl SliceSeeder3 {
 }
 
 impl IntoIterator for SliceSeeder3 {
-    type Item = Point3<ftr>;
+    type Item = Point3<fsd>;
     type IntoIter = vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
         self.seed_points.into_iter()
@@ -410,7 +410,7 @@ impl IntoIterator for SliceSeeder3 {
 }
 
 impl IntoParallelIterator for SliceSeeder3 {
-    type Item = Point3<ftr>;
+    type Item = Point3<fsd>;
     type Iter = rayon::vec::IntoIter<Self::Item>;
     fn into_par_iter(self) -> Self::Iter {
         self.seed_points.into_par_iter()
@@ -424,7 +424,7 @@ impl Seeder3 for SliceSeeder3 {
 
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<ftr>) -> bool,
+        P: FnMut(&Point3<fsd>) -> bool,
     {
         self.seed_points.retain(predicate);
     }

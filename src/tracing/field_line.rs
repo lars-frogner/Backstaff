@@ -4,7 +4,6 @@ pub mod basic;
 
 use super::{
     ftr,
-    seeding::Seeder3,
     stepping::{Stepper3, StepperFactory3},
 };
 use crate::{
@@ -17,6 +16,7 @@ use crate::{
         utils, Endianness, Verbose,
     },
     num::BFloat,
+    seeding::Seeder3,
 };
 use rayon::prelude::*;
 use serde::{
@@ -361,22 +361,24 @@ impl FieldLineSet3 {
             .into_par_iter()
             .zip(coords_y)
             .zip(coords_z)
-            .map(|((field_line_coords_x, field_line_coords_y), field_line_coords_z)| {
-                field_line_coords_x
-                    .iter()
-                    .zip(field_line_coords_y)
-                    .zip(field_line_coords_z)
-                    .map(|((&field_line_x, &field_line_y), &field_line_z)| {
-                        let position =
-                            Point3::from_components(field_line_x, field_line_y, field_line_z);
-                        let value = interpolator
-                            .interp_vector_field(field, &position)
-                            .expect_inside()
-                            .length();
-                        num::NumCast::from(value).expect("Conversion failed")
-                    })
-                    .collect()
-            })
+            .map(
+                |((field_line_coords_x, field_line_coords_y), field_line_coords_z)| {
+                    field_line_coords_x
+                        .iter()
+                        .zip(field_line_coords_y)
+                        .zip(field_line_coords_z)
+                        .map(|((&field_line_x, &field_line_y), &field_line_z)| {
+                            let position =
+                                Point3::from_components(field_line_x, field_line_y, field_line_z);
+                            let value = interpolator
+                                .interp_vector_field(field, &position)
+                                .expect_inside()
+                                .length();
+                            num::NumCast::from(value).expect("Conversion failed")
+                        })
+                        .collect()
+                },
+            )
             .collect();
         self.properties
             .varying_scalar_values

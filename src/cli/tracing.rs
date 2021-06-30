@@ -1,7 +1,6 @@
 //! Command line interface for field line tracing.
 
 pub mod field_line;
-pub mod seeding;
 pub mod stepping;
 
 use self::{
@@ -9,16 +8,18 @@ use self::{
         construct_basic_field_line_tracer_config_from_options,
         create_basic_field_line_tracer_subcommand,
     },
-    seeding::{
-        manual::{create_manual_seeder_from_arguments, create_manual_seeder_subcommand},
-        slice::{create_slice_seeder_from_arguments, create_slice_seeder_subcommand},
-    },
     stepping::rkf::{construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand},
 };
 use crate::{
-    cli::interpolation::poly_fit::{
-        construct_poly_fit_interpolator_config_from_options,
-        create_poly_fit_interpolator_subcommand,
+    cli::{
+        interpolation::poly_fit::{
+            construct_poly_fit_interpolator_config_from_options,
+            create_poly_fit_interpolator_subcommand,
+        },
+        seeding::{
+            manual::{create_manual_seeder_from_arguments, create_manual_seeder_subcommand},
+            slice::{create_slice_seeder_from_arguments, create_slice_seeder_subcommand},
+        },
     },
     create_subcommand, exit_on_error, exit_with_error,
     grid::Grid3,
@@ -30,12 +31,12 @@ use crate::{
         snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
         utils::AtomicOutputPath,
     },
+    seeding::Seeder3,
     tracing::{
         field_line::{
             basic::{BasicFieldLineTracer3, BasicFieldLineTracerConfig},
             FieldLineSet3, FieldLineSetProperties3, FieldLineTracer3,
         },
-        seeding::Seeder3,
         stepping::{
             rkf::{
                 rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig,

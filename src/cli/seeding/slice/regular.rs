@@ -6,7 +6,7 @@ use crate::{
     geometry::{In2D, Point2},
     grid::Grid3,
     io::snapshot::fdt,
-    tracing::seeding::slice::SliceSeeder3,
+    seeding::slice::SliceSeeder3,
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
 

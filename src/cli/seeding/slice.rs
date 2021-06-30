@@ -18,14 +18,14 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
-    tracing::{ftr, seeding::slice::SliceSeeder3},
+    seeding::{fsd, slice::SliceSeeder3},
 };
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 /// Holds parameters that are required by all slice seeders.
 pub struct CommonSliceSeederParameters {
     axis: Dim3,
-    coord: ftr,
+    coord: fsd,
 }
 
 /// Creates a subcommand for using a slice seeder.
@@ -105,7 +105,7 @@ where
         &["x", "y", "z"],
         &Dim3::slice(),
     );
-    let coord = utils::get_value_from_required_parseable_argument::<ftr>(arguments, "coord");
+    let coord = utils::get_value_from_required_parseable_argument::<fsd>(arguments, "coord");
 
     let horizontal_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,

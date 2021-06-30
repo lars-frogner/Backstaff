@@ -9,7 +9,7 @@ use crate::{
         snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
         Verbose,
     },
-    tracing::seeding::IndexSeeder3,
+    seeding::IndexSeeder3,
 };
 
 /// Defines the properties of a reconnection site detector.

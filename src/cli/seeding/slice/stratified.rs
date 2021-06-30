@@ -6,7 +6,7 @@ use crate::{
     geometry::{In2D, Point2},
     grid::Grid3,
     io::snapshot::fdt,
-    tracing::{ftr, seeding::slice::SliceSeeder3},
+    seeding::{fsd, slice::SliceSeeder3},
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
 
@@ -70,7 +70,7 @@ where
     let n_seeds_per_cell =
         utils::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
     let randomness =
-        utils::get_value_from_required_parseable_argument::<ftr>(arguments, "randomness");
+        utils::get_value_from_required_parseable_argument::<fsd>(arguments, "randomness");
 
     SliceSeeder3::stratified(
         grid,

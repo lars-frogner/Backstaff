@@ -39,6 +39,7 @@ pub mod math;
 pub mod num;
 pub mod plasma;
 pub mod random;
+pub mod seeding;
 pub mod units;
 
 #[cfg(feature = "cli")]
