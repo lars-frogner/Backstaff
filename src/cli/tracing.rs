@@ -19,6 +19,7 @@ use crate::{
         seeding::{
             manual::{create_manual_seeder_from_arguments, create_manual_seeder_subcommand},
             slice::{create_slice_seeder_from_arguments, create_slice_seeder_subcommand},
+            volume::{create_volume_seeder_from_arguments, create_volume_seeder_subcommand},
         },
         snapshot::SnapNumInRange,
     },
@@ -151,19 +152,26 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                                 .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
                                 .subcommand(create_subcommand!(
                                     poly_fit_interpolator,
+                                    volume_seeder
+                                ))
+                                .subcommand(create_subcommand!(
+                                    poly_fit_interpolator,
                                     manual_seeder
                                 )),
                         )
                         .subcommand(create_subcommand!(rkf_stepper, slice_seeder))
+                        .subcommand(create_subcommand!(rkf_stepper, volume_seeder))
                         .subcommand(create_subcommand!(rkf_stepper, manual_seeder)),
                 )
                 .subcommand(
                     create_subcommand!(basic_field_line_tracer, poly_fit_interpolator)
                         .setting(AppSettings::SubcommandRequired)
                         .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
+                        .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
                         .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
                 )
                 .subcommand(create_subcommand!(basic_field_line_tracer, slice_seeder))
+                .subcommand(create_subcommand!(basic_field_line_tracer, volume_seeder))
                 .subcommand(create_subcommand!(basic_field_line_tracer, manual_seeder)),
         )
         .subcommand(
@@ -173,18 +181,22 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                     create_subcommand!(rkf_stepper, poly_fit_interpolator)
                         .setting(AppSettings::SubcommandRequired)
                         .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
+                        .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
                         .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
                 )
                 .subcommand(create_subcommand!(rkf_stepper, slice_seeder))
+                .subcommand(create_subcommand!(rkf_stepper, volume_seeder))
                 .subcommand(create_subcommand!(rkf_stepper, manual_seeder)),
         )
         .subcommand(
             create_subcommand!(trace, poly_fit_interpolator)
                 .setting(AppSettings::SubcommandRequired)
                 .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
+                .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
                 .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
         )
         .subcommand(create_subcommand!(trace, slice_seeder))
+        .subcommand(create_subcommand!(trace, volume_seeder))
         .subcommand(create_subcommand!(trace, manual_seeder))
 }
 
@@ -432,6 +444,18 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
         let seeder = create_slice_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
+        run_tracing(
+            root_arguments,
+            snapshot,
+            snap_num_in_range,
+            tracer,
+            stepper_factory,
+            interpolator,
+            seeder,
+            protected_file_types,
+        );
+    } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
+        let seeder = create_volume_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
         run_tracing(
             root_arguments,
             snapshot,

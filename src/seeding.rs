@@ -3,6 +3,7 @@
 pub mod criterion;
 pub mod manual;
 pub mod slice;
+pub mod volume;
 
 use crate::{
     geometry::{Idx3, Point3},
