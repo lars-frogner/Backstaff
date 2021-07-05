@@ -1540,41 +1540,41 @@ impl Interpolator3 for PolyFitInterpolator3 {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
         match self.config.order {
-            // 1 => interp_vector_field_in_known_grid_cell_3d!(
-            //     field,
-            //     interp_point,
-            //     interp_indices,
-            //     variation_threshold_for_linear,
-            //     1
-            // ),
-            // 2 => interp_vector_field_in_known_grid_cell_3d!(
-            //     field,
-            //     interp_point,
-            //     interp_indices,
-            //     variation_threshold_for_linear,
-            //     2
-            // ),
-            // 3 => interp_vector_field_in_known_grid_cell_3d!(
-            //     field,
-            //     interp_point,
-            //     interp_indices,
-            //     variation_threshold_for_linear,
-            //     3
-            // ),
-            // 4 => interp_vector_field_in_known_grid_cell_3d!(
-            //     field,
-            //     interp_point,
-            //     interp_indices,
-            //     variation_threshold_for_linear,
-            //     4
-            // ),
-            // 5 => interp_vector_field_in_known_grid_cell_3d!(
-            //     field,
-            //     interp_point,
-            //     interp_indices,
-            //     variation_threshold_for_linear,
-            //     5
-            // ),
+            1 => interp_vector_field_in_known_grid_cell_3d!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                1
+            ),
+            2 => interp_vector_field_in_known_grid_cell_3d!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                2
+            ),
+            3 => interp_vector_field_in_known_grid_cell_3d!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                3
+            ),
+            4 => interp_vector_field_in_known_grid_cell_3d!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                4
+            ),
+            5 => interp_vector_field_in_known_grid_cell_3d!(
+                field,
+                interp_point,
+                interp_indices,
+                variation_threshold_for_linear,
+                5
+            ),
             order => panic!("Invalid interpolation order: {}", order),
         }
     }

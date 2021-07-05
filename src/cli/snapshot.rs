@@ -1,13 +1,17 @@
 //! Command line interface for actions related to snapshots.
 
+mod corks;
 mod inspect;
 mod resample;
 mod slice;
 mod write;
 
 use self::{
-    inspect::create_inspect_subcommand, resample::create_resample_subcommand,
-    slice::create_slice_subcommand, write::create_write_subcommand,
+    corks::{create_corks_subcommand, CorksState},
+    inspect::create_inspect_subcommand,
+    resample::create_resample_subcommand,
+    slice::create_slice_subcommand,
+    write::create_write_subcommand,
 };
 use crate::{
     cli::utils as cli_utils,
@@ -98,7 +102,8 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
         .subcommand(create_subcommand!(snapshot, inspect))
         .subcommand(create_subcommand!(snapshot, slice))
         .subcommand(create_subcommand!(snapshot, resample))
-        .subcommand(create_subcommand!(snapshot, write));
+        .subcommand(create_subcommand!(snapshot, write))
+        .subcommand(create_subcommand!(snapshot, corks));
 
     #[cfg(feature = "tracing")]
     let app = app.subcommand(create_subcommand!(snapshot, trace));
@@ -233,6 +238,8 @@ macro_rules! create_netcdf_reader_and_run {
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
+    let mut corks_state: Option<CorksState> = None;
+
     macro_rules! run_subcommands_for_reader {
         ($reader:expr, $snap_num_in_range:expr) => {{
             let mut snapshot = SnapshotCacher3::new($reader);
@@ -254,6 +261,15 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                     snapshot.reader(),
                     $snap_num_in_range,
                     protected_file_types,
+                );
+            }
+            if let Some(corks_arguments) = arguments.subcommand_matches("corks") {
+                corks::run_corks_subcommand(
+                    corks_arguments,
+                    &mut snapshot,
+                    $snap_num_in_range,
+                    protected_file_types,
+                    &mut corks_state,
                 );
             }
             if let Some(write_arguments) = arguments.subcommand_matches("write") {
