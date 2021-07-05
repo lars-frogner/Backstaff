@@ -7,10 +7,10 @@ use crate::{
     interpolation::Interpolator3,
     io::{
         snapshot::{
-            fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3, MASS_DENSITY_VARIABLE_NAME,
-            MOMENTUM_VARIABLE_NAME, OUTPUT_TIME_STEP_NAME,
+            self, fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3,
+            MASS_DENSITY_VARIABLE_NAME, MOMENTUM_VARIABLE_NAME, OUTPUT_TIME_STEP_NAME,
         },
-        utils, Endianness, Verbose,
+        utils, Verbose,
     },
 };
 use rayon::prelude::*;
@@ -18,14 +18,14 @@ use serde::{
     ser::{SerializeStruct, Serializer},
     Serialize,
 };
-use std::{collections::HashMap, io, path::Path};
+use std::{io, iter, path::Path};
 
 /// Floating-point precision to use for cork tracing.
 #[allow(non_camel_case_types)]
 pub type fco = f32;
 
-type ScalarFieldValues = HashMap<String, Vec<fdt>>;
-type VectorFieldValues = HashMap<String, Vec<Vec3<fdt>>>;
+type ScalarFieldValues = Vec<Vec<fdt>>;
+type VectorFieldValues = Vec<Vec<Vec3<fdt>>>;
 
 /// Represents the evolution of a single cork.
 #[derive(Clone, Debug)]
@@ -59,10 +59,10 @@ pub struct CorkSet {
     upper_bounds: Vec3<fco>,
     /// Names of the scalar fields that should be sampled along the cork trajectories.
     scalar_quantity_names: Vec<String>,
-    /// Names of the vector fields that should be sampled along the cork trajectories.
-    vector_quantity_names: Vec<String>,
     /// Names of the vector fields whos magnitude should be sampled along the cork trajectories.
     vector_magnitude_names: Vec<String>,
+    /// Names of the vector fields that should be sampled along the cork trajectories.
+    vector_quantity_names: Vec<String>,
     /// Whether the mass density should not be sampled and thus can be dropped after each step.
     /// (The momentum field is always dropped since it can be recomputed from velocity and density.)
     can_drop_mass_density_field: bool,
@@ -84,6 +84,8 @@ impl Cork {
         position_indices: Idx3<usize>,
         velocity: Vec3<fco>,
         current_time_idx: usize,
+        number_of_scalar_quantities: usize,
+        number_of_vector_quantities: usize,
     ) -> Self {
         Self {
             positions: vec![position],
@@ -91,14 +93,20 @@ impl Cork {
             velocities: vec![velocity],
             first_time_idx: current_time_idx,
             terminated: false,
-            scalar_field_values: HashMap::new(),
-            vector_field_values: HashMap::new(),
+            scalar_field_values: iter::repeat_with(|| Vec::new())
+                .take(number_of_scalar_quantities)
+                .collect(),
+            vector_field_values: iter::repeat_with(|| Vec::new())
+                .take(number_of_vector_quantities)
+                .collect(),
         }
     }
 
     fn new_from_fields<G, I>(
         mut position: Point3<fco>,
         current_time_idx: usize,
+        number_of_scalar_quantities: usize,
+        number_of_vector_quantities: usize,
         mass_density_field: &ScalarField3<fdt, G>,
         momentum_field: &VectorField3<fdt, G>,
         interpolator: &I,
@@ -114,7 +122,14 @@ impl Cork {
             interpolator,
         )
         .expect("Initial position must be inside grid boundaries");
-        Self::new(position, position_indices, velocity, current_time_idx)
+        Self::new(
+            position,
+            position_indices,
+            velocity,
+            current_time_idx,
+            number_of_scalar_quantities,
+            number_of_vector_quantities,
+        )
     }
 
     fn number_of_times(&self) -> usize {
@@ -169,8 +184,12 @@ impl Cork {
         self.last_position_indices = position_indices;
     }
 
-    fn add_scalar_quantity_value<G, I>(&mut self, field: &ScalarField3<fdt, G>, interpolator: &I)
-    where
+    fn add_scalar_quantity_value<G, I>(
+        &mut self,
+        quantity_idx: usize,
+        field: &ScalarField3<fdt, G>,
+        interpolator: &I,
+    ) where
         G: Grid3<fdt>,
         I: Interpolator3,
     {
@@ -182,23 +201,20 @@ impl Cork {
             self.last_position(),
             self.last_position_indices(),
         );
-        let values = match self.scalar_field_values.get_mut(field.name()) {
-            Some(values) => values,
-            None => self
-                .scalar_field_values
-                .entry(field.name().to_string())
-                .or_insert(Vec::new()),
-        };
-        values.push(value);
+        self.scalar_field_values[quantity_idx].push(value);
         debug_assert_eq!(
-            values.len(),
+            self.scalar_field_values[quantity_idx].len(),
             self.positions.len(),
             "Number of scalar field values should match number of positions"
         );
     }
 
-    fn add_vector_quantity_value<G, I>(&mut self, field: &VectorField3<fdt, G>, interpolator: &I)
-    where
+    fn add_vector_quantity_value<G, I>(
+        &mut self,
+        quantity_idx: usize,
+        field: &VectorField3<fdt, G>,
+        interpolator: &I,
+    ) where
         G: Grid3<fdt>,
         I: Interpolator3,
     {
@@ -210,23 +226,20 @@ impl Cork {
             self.last_position(),
             self.last_position_indices(),
         );
-        let values = match self.vector_field_values.get_mut(field.name()) {
-            Some(values) => values,
-            None => self
-                .vector_field_values
-                .entry(field.name().to_string())
-                .or_insert(Vec::new()),
-        };
-        values.push(value);
+        self.vector_field_values[quantity_idx].push(value);
         debug_assert_eq!(
-            values.len(),
+            self.vector_field_values[quantity_idx].len(),
             self.positions.len(),
             "Number of vector field values should match number of positions"
         );
     }
 
-    fn add_vector_magnitude_value<G, I>(&mut self, field: &VectorField3<fdt, G>, interpolator: &I)
-    where
+    fn add_vector_magnitude_value<G, I>(
+        &mut self,
+        quantity_idx: usize,
+        field: &VectorField3<fdt, G>,
+        interpolator: &I,
+    ) where
         G: Grid3<fdt>,
         I: Interpolator3,
     {
@@ -240,16 +253,9 @@ impl Cork {
                 self.last_position_indices(),
             )
             .length();
-        let values = match self.scalar_field_values.get_mut(field.name()) {
-            Some(values) => values,
-            None => self
-                .scalar_field_values
-                .entry(field.name().to_string())
-                .or_insert(Vec::new()),
-        };
-        values.push(value);
+        self.scalar_field_values[quantity_idx].push(value);
         debug_assert_eq!(
-            values.len(),
+            self.scalar_field_values[quantity_idx].len(),
             self.positions.len(),
             "Number of scalar field values should match number of positions"
         );
@@ -262,11 +268,12 @@ impl Cork {
 
 impl Serialize for Cork {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("Cork", 4)?;
+        let mut s = serializer.serialize_struct("Cork", 5)?;
         s.serialize_field("positions", &self.positions)?;
         s.serialize_field("velocities", &self.velocities)?;
         s.serialize_field("scalar_field_values", &self.scalar_field_values)?;
         s.serialize_field("vector_field_values", &self.vector_field_values)?;
+        s.serialize_field("first_time_idx", &self.first_time_idx)?;
         s.end()
     }
 }
@@ -301,8 +308,8 @@ impl CorkSet {
         initial_snapshot: &mut SnapshotCacher3<G, R>,
         interpolator: &I,
         scalar_quantity_names: Vec<String>,
-        vector_quantity_names: Vec<String>,
         vector_magnitude_names: Vec<String>,
+        vector_quantity_names: Vec<String>,
         verbose: Verbose,
     ) -> io::Result<Self>
     where
@@ -320,6 +327,10 @@ impl CorkSet {
         let lower_bounds = initial_snapshot.reader().grid().lower_bounds().clone();
         let upper_bounds = initial_snapshot.reader().grid().upper_bounds().clone();
 
+        let number_of_scalar_quantities =
+            scalar_quantity_names.len() + vector_magnitude_names.len();
+        let number_of_vector_quantities = vector_quantity_names.len();
+
         let can_drop_mass_density_field = !scalar_quantity_names
             .iter()
             .any(|name| name == MASS_DENSITY_VARIABLE_NAME);
@@ -331,6 +342,8 @@ impl CorkSet {
                     Cork::new_from_fields(
                         position,
                         0,
+                        number_of_scalar_quantities,
+                        number_of_vector_quantities,
                         mass_density_field,
                         momentum_field,
                         interpolator,
@@ -386,12 +399,19 @@ impl CorkSet {
         &self.scalar_quantity_names
     }
 
-    fn vector_quantity_names(&self) -> &[String] {
-        &self.vector_quantity_names
-    }
-
     fn vector_magnitude_names(&self) -> &[String] {
         &self.vector_magnitude_names
+    }
+
+    fn piped_vector_magnitude_names(&self) -> Vec<String> {
+        self.vector_magnitude_names
+            .iter()
+            .map(snapshot::add_magnitude_pipes)
+            .collect()
+    }
+
+    fn vector_quantity_names(&self) -> &[String] {
+        &self.vector_quantity_names
     }
 
     fn can_drop_mass_density_field(&self) -> bool {
@@ -411,6 +431,8 @@ impl CorkSet {
         self.corks.push(Cork::new_from_fields(
             position,
             self.current_time_idx(),
+            self.scalar_quantity_names().len() + self.vector_magnitude_names().len(),
+            self.vector_quantity_names().len(),
             mass_density_field,
             momentum_field,
             interpolator,
@@ -448,20 +470,42 @@ impl CorkSet {
         if self.verbose().is_yes() {
             println!("Sampling field values");
         }
-        for name in &self.scalar_quantity_names().to_vec() {
-            let field = snapshot.obtain_scalar_field(name)?;
-            self.update(&|cork: &mut Cork| cork.add_scalar_quantity_value(field, interpolator));
-            snapshot.drop_scalar_field(name);
+        for (quantity_idx, name) in self
+            .scalar_quantity_names()
+            .to_vec()
+            .into_iter()
+            .enumerate()
+        {
+            let field = snapshot.obtain_scalar_field(&name)?;
+            self.update(&|cork: &mut Cork| {
+                cork.add_scalar_quantity_value(quantity_idx, field, interpolator)
+            });
+            snapshot.drop_scalar_field(&name);
         }
-        for name in &self.vector_quantity_names().to_vec() {
-            let field = snapshot.obtain_vector_field(name)?;
-            self.update(&|cork: &mut Cork| cork.add_vector_quantity_value(field, interpolator));
-            snapshot.drop_vector_field(name);
+        for (idx, name) in self
+            .vector_magnitude_names()
+            .to_vec()
+            .into_iter()
+            .enumerate()
+        {
+            let quantity_idx = self.scalar_quantity_names().len() + idx;
+            let field = snapshot.obtain_vector_field(&name)?;
+            self.update(&|cork: &mut Cork| {
+                cork.add_vector_magnitude_value(quantity_idx, field, interpolator)
+            });
+            snapshot.drop_vector_field(&name);
         }
-        for name in &self.vector_magnitude_names().to_vec() {
-            let field = snapshot.obtain_vector_field(name)?;
-            self.update(&|cork: &mut Cork| cork.add_vector_magnitude_value(field, interpolator));
-            snapshot.drop_vector_field(name);
+        for (quantity_idx, name) in self
+            .vector_quantity_names()
+            .to_vec()
+            .into_iter()
+            .enumerate()
+        {
+            let field = snapshot.obtain_vector_field(&name)?;
+            self.update(&|cork: &mut Cork| {
+                cork.add_vector_quantity_value(quantity_idx, field, interpolator)
+            });
+            snapshot.drop_vector_field(&name);
         }
         Ok(())
     }
@@ -493,11 +537,17 @@ impl CorkSet {
 
 impl Serialize for CorkSet {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("CorkSet", 4)?;
+        let mut s = serializer.serialize_struct("CorkSet", 7)?;
         s.serialize_field("corks", &self.corks)?;
         s.serialize_field("times", &self.times)?;
         s.serialize_field("lower_bounds", &self.lower_bounds)?;
         s.serialize_field("upper_bounds", &self.upper_bounds)?;
+        s.serialize_field("scalar_quantity_names", &self.scalar_quantity_names)?;
+        s.serialize_field(
+            "vector_magnitude_names",
+            &self.piped_vector_magnitude_names(),
+        )?;
+        s.serialize_field("vector_quantity_names", &self.vector_quantity_names)?;
         s.end()
     }
 }
