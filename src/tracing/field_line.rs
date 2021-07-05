@@ -171,7 +171,7 @@ impl FieldLineSet3 {
                     snapshot,
                     interpolator,
                     stepper_factory.produce(),
-                    &start_position,
+                    &Point3::from(&start_position),
                 )
             })
             .collect();

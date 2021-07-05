@@ -14,7 +14,7 @@ use rayon::prelude::*;
 
 /// Floating-point precision to use for seeding.
 #[allow(non_camel_case_types)]
-pub type fsd = f64;
+pub type fsd = f32;
 
 /// Defines the properties of a 3D seed point generator.
 pub trait Seeder3:
