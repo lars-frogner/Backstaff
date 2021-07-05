@@ -39,7 +39,6 @@ class FieldLineSet3:
         'bx': lambda f: f*units.U_B,
         'by': lambda f: f*units.U_B,
         'bz': lambda f: f*units.U_B,
-        'bz': lambda f: f*units.U_B,
         'beam_en': lambda f: f*(units.U_E/units.U_T),
         'F_beam': lambda f: f*(units.U_L*units.U_E/units.U_T)
     }
