@@ -264,3 +264,12 @@ where
             .collect()
     })
 }
+
+pub fn extract_magnitude_name(name: &str) -> Option<&str> {
+    if let (Some('|'), Some('|')) = (name.chars().next(), name.chars().last()) {
+        if name.len() > 2 {
+            return Some(&name[1..name.len() - 1]);
+        }
+    }
+    None
+}
