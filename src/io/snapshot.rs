@@ -39,11 +39,37 @@ pub const COORDINATE_NAMES: [&'static str; 12] = [
     "xm", "ym", "zm", "xmdn", "ymdn", "zmdn", "dxidxup", "dyidyup", "dzidzup", "dxidxdn",
     "dyidydn", "dzidzdn",
 ];
+/// Standard name of output time step
+pub const OUTPUT_TIME_STEP_NAME: &'static str = "dtsnap";
+
+/// Standard name of mass density variable
+pub const MASS_DENSITY_VARIABLE_NAME: &'static str = "r";
+/// Standard base name of momentum variable
+pub const MOMENTUM_VARIABLE_NAME: &'static str = "p";
+/// Standard name of energy density variable
+pub const ENERGY_DENSITY_VARIABLE_NAME: &'static str = "e";
+/// Standard base name of magnetic field variable
+pub const MAGNETIC_FIELD_VARIABLE_NAME: &'static str = "b";
+
 /// Standard names of primary MHD variables
-pub const PRIMARY_VARIABLE_NAMES_MHD: [&'static str; 8] =
-    ["r", "px", "py", "pz", "e", "bx", "by", "bz"];
-/// Standard names primary HD variables
-pub const PRIMARY_VARIABLE_NAMES_HD: [&'static str; 5] = ["r", "px", "py", "pz", "e"];
+pub const PRIMARY_VARIABLE_NAMES_MHD: [&'static str; 8] = [
+    MASS_DENSITY_VARIABLE_NAME,
+    "px",
+    "py",
+    "pz",
+    ENERGY_DENSITY_VARIABLE_NAME,
+    "bx",
+    "by",
+    "bz",
+];
+/// Standard names of primary HD variables
+pub const PRIMARY_VARIABLE_NAMES_HD: [&'static str; 5] = [
+    MASS_DENSITY_VARIABLE_NAME,
+    "px",
+    "py",
+    "pz",
+    ENERGY_DENSITY_VARIABLE_NAME,
+];
 
 /// Defines the properties of a reader for 3D Bifrost snapshots.
 pub trait SnapshotReader3<G: Grid3<fdt>> {
@@ -303,12 +329,12 @@ impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
         })
     }
 
-    /// Makes sure the scalar field representing the giveb variable is cached.
+    /// Makes sure the scalar field representing the given variable is cached.
     pub fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
         self.obtain_scalar_field(variable_name).map(|_| ())
     }
 
-    /// Makes sure the scalar field representing the giveb variable is cached.
+    /// Makes sure the scalar field representing the given variable is cached.
     pub fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
         self.obtain_vector_field(variable_name).map(|_| ())
     }
