@@ -30,7 +30,6 @@ use crate::{
         tracing::stepping::rkf::{
             construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand,
         },
-        utils as cli_utils,
     },
     create_subcommand,
     ebeam::{
@@ -775,7 +774,7 @@ fn perform_post_simulation_actions<G, R, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
-            if let Some(name) = cli_utils::extract_magnitude_name(name) {
+            if let Some(name) = snapshot::extract_magnitude_name(name) {
                 beams.extract_varying_vector_magnitudes(
                     exit_on_error!(
                         snapshot.obtain_vector_field(name),

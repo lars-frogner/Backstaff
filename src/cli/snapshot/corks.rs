@@ -12,7 +12,6 @@ use crate::{
             slice::{create_slice_seeder_from_arguments, create_slice_seeder_subcommand},
             volume::{create_volume_seeder_from_arguments, create_volume_seeder_subcommand},
         },
-        utils as cli_utils,
     },
     corks::{ConstantCorkAdvector, CorkAdvector, CorkSet, CorkStepper, HeunCorkStepper},
     create_subcommand,
@@ -22,7 +21,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -239,7 +238,7 @@ fn obtain_sampled_quantity_names(
         let (scalar_quantity_names, vector_magnitude_names): (Vec<_>, Vec<_>) =
             sampled_scalar_values
                 .into_iter()
-                .map(|name| match cli_utils::extract_magnitude_name(name) {
+                .map(|name| match snapshot::extract_magnitude_name(name) {
                     Some(magnitude_name) => (None, Some(magnitude_name.to_string())),
                     None => (Some(name.to_string()), None),
                 })

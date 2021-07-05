@@ -455,3 +455,19 @@ fn parse_snapshot_file_path<P: AsRef<Path>>(file_path: P) -> (String, Option<Str
         .map(|caps| (caps[1].to_string(), Some(caps[2].to_string())))
         .unwrap_or_else(|| (file_stem, None))
 }
+
+/// For input strings of the format |<enclosed substring>|, returns the
+/// enclosed substring, otherwise returns None.
+pub fn extract_magnitude_name(name: &str) -> Option<&str> {
+    if let (Some('|'), Some('|')) = (name.chars().next(), name.chars().last()) {
+        if name.len() > 2 {
+            return Some(&name[1..name.len() - 1]);
+        }
+    }
+    None
+}
+
+/// Adds | at the beginning and end of the given string.
+pub fn add_magnitude_pipes<S: AsRef<str>>(name: S) -> String {
+    format!("|{}|", name.as_ref())
+}

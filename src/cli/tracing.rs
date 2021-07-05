@@ -22,7 +22,6 @@ use crate::{
             volume::{create_volume_seeder_from_arguments, create_volume_seeder_subcommand},
         },
         snapshot::SnapNumInRange,
-        utils as cli_utils,
     },
     create_subcommand, exit_on_error, exit_with_error,
     grid::Grid3,
@@ -619,7 +618,7 @@ fn perform_post_tracing_actions<G, R, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
-            if let Some(name) = cli_utils::extract_magnitude_name(name) {
+            if let Some(name) = snapshot::extract_magnitude_name(name) {
                 field_lines.extract_varying_vector_magnitudes(
                     exit_on_error!(
                         snapshot.obtain_vector_field(name),
