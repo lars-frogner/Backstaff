@@ -69,6 +69,7 @@ def set_3d_axes_equal(ax):
     origin = np.mean(limits, axis=1)
     radius = 0.5*np.max(np.abs(limits[:, 1] - limits[:, 0]))
     set_axes_radius(ax, origin, radius)
+    ax.set_box_aspect([2*radius]*3)
 
 
 def set_2d_axis_labels(ax, xlabel, ylabel, xcolor='k', ycolor='k'):
@@ -402,12 +403,14 @@ def plot_2d_field(hor_coords,
 
 
 def plot_histogram(values,
+                   weights=None,
                    fig=None,
                    ax=None,
-                   weighted=False,
+                   bin_weighted=False,
                    divided_by_bin_size=False,
                    hist_scale=1.0,
                    bins='auto',
+                   weighted_average=False,
                    log_x=False,
                    log_y=False,
                    vmin=None,
@@ -438,8 +441,9 @@ def plot_histogram(values,
 
     hist, bin_edges, bin_centers = compute_histogram(
         values,
-        weights=None,
+        weights=weights,
         bins=bins,
+        weighted_average=weighted_average,
         vmin=vmin,
         vmax=vmax,
         decide_bins_in_log_space=(log_y if horizontal else log_x))
@@ -451,7 +455,7 @@ def plot_histogram(values,
     if divided_by_bin_size:
         hist /= bin_sizes
 
-    if weighted:
+    if bin_weighted:
         hist *= bin_centers*bin_sizes
 
     if hist_scale != 1.0:
@@ -869,7 +873,7 @@ def plot_scatter_with_histograms(values_x,
                    fig=fig,
                    ax=ax_hist_x,
                    hist_scale=hist_x_scale,
-                   weighted=False,
+                   bin_weighted=False,
                    divided_by_bin_size=hist_x_divided_by_bin_size,
                    bins=bins_x,
                    log_x=log_x,
@@ -892,7 +896,7 @@ def plot_scatter_with_histograms(values_x,
                    fig=fig,
                    ax=ax_hist_y,
                    hist_scale=hist_y_scale,
-                   weighted=False,
+                   bin_weighted=False,
                    divided_by_bin_size=hist_y_divided_by_bin_size,
                    bins=bins_y,
                    log_x=log_hist_y,
@@ -1013,6 +1017,72 @@ def setup_scatter_animation(fig,
     def update(frame):
         time, coordinates = update_coordinates()
         sc.set_offsets(coordinates)
+        if text is None:
+            return sc,
+        else:
+            text.set_text('t = {:g} s'.format(time))
+            return sc, text
+
+    return init, update
+
+
+def setup_3d_scatter_animation(fig,
+                               ax,
+                               update_data,
+                               initial_coordinates=None,
+                               initial_colors=None,
+                               x_lims=None,
+                               y_lims=None,
+                               z_lims=None,
+                               axes_equal=True,
+                               invert_xaxis=False,
+                               invert_yaxis=False,
+                               invert_zaxis=False,
+                               marker='o',
+                               s=1.0,
+                               edgecolors='none',
+                               xlabel=None,
+                               ylabel=None,
+                               zlabel=None,
+                               show_time_label=False,
+                               extra_init_setup=lambda ax: None):
+
+    sc = ax.scatter([], [], [],
+                    marker=marker,
+                    s=s,
+                    edgecolors=edgecolors,
+                    depthshade=False)
+    text = ax.text2D(
+        0.01, 0.99, '', transform=ax.transAxes, ha='left',
+        va='top') if show_time_label else None
+
+    def init():
+        if initial_coordinates is not None:
+            sc._offsets3d = initial_coordinates
+        if initial_colors is not None:
+            sc.set_color(initial_colors)
+            sc._facecolor3d = sc.get_facecolor()
+        extra_init_setup(ax)
+        set_3d_plot_extent(ax, x_lims, y_lims, z_lims, axes_equal=axes_equal)
+        set_3d_axis_labels(ax, xlabel, ylabel, zlabel)
+        if invert_xaxis:
+            ax.invert_xaxis()
+        if invert_yaxis:
+            ax.invert_yaxis()
+        if invert_zaxis:
+            ax.invert_zaxis()
+        if text is None:
+            return sc,
+        else:
+            text.set_text('t = 0 s')
+            return sc, text
+
+    def update(frame):
+        time, coordinates, colors = update_data()
+        sc._offsets3d = coordinates
+        if colors is not None:
+            sc.set_color(colors)
+            sc._facecolor3d = sc.get_facecolor()
         if text is None:
             return sc,
         else:
