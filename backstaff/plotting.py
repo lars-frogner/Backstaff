@@ -191,6 +191,8 @@ def add_2d_colorbar(fig,
     if tick_formatter is not None:
         tick_ax.set_major_formatter(tick_formatter)
 
+    return cb
+
 
 def add_2d_colorbar_inside_from_cmap_and_norm(fig,
                                               ax,
@@ -228,6 +230,8 @@ def add_2d_colorbar_inside_from_cmap_and_norm(fig,
 
     if tick_formatter is not None:
         tick_ax.set_major_formatter(tick_formatter)
+
+    return cb
 
 
 def add_2d_colorbar_from_cmap_and_norm(fig,
@@ -268,11 +272,13 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
     if tick_formatter is not None:
         tick_ax.set_major_formatter(tick_formatter)
 
+    return cb
+
 
 def add_3d_colorbar(fig, norm, cmap, label=''):
     sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
-    fig.colorbar(sm, label=label)
+    return fig.colorbar(sm, label=label)
 
 
 def add_3d_line_collection(ax, x, y, z, colors, lw=1.0):
@@ -303,6 +309,64 @@ def render(fig,
         plt.show()
     if close:
         plt.close(fig)
+
+
+def plot_1d_field(coords,
+                  values,
+                  fig=None,
+                  ax=None,
+                  figure_width=6.0,
+                  figure_aspect=4.0/3.0,
+                  color='k',
+                  alpha=1.0,
+                  lw=1.0,
+                  ls='-',
+                  marker=None,
+                  minorticks_on=False,
+                  x_lims=None,
+                  y_lims=None,
+                  log_x=False,
+                  log_y=False,
+                  extra_artists=[],
+                  xlabel=None,
+                  ylabel=None,
+                  title=None,
+                  output_path=None,
+                  render_now=True):
+
+    if fig is None or ax is None:
+        fig, ax = create_2d_subplots(width=figure_width,
+                                     aspect_ratio=figure_aspect)
+    lines, = ax.plot(coords,
+                     values,
+                     color=color,
+                     alpha=alpha,
+                     lw=lw,
+                     ls=ls,
+                     marker=marker)
+
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
+
+    if log_x:
+        ax.set_xscale('log')
+    if log_y:
+        ax.set_yscale('log')
+
+    set_2d_plot_extent(ax, x_lims, y_lims)
+    set_2d_axis_labels(ax, xlabel, ylabel)
+
+    if minorticks_on:
+        ax.minorticks_on()
+
+    if title is not None:
+        ax.set_title(title)
+
+    if render_now:
+        render(fig, output_path=output_path)
+
+    return fig, ax, lines
 
 
 def plot_2d_field(hor_coords,
@@ -923,10 +987,13 @@ def plot_scatter_with_histograms(values_x,
     return fig, ax, ax_hist_x, ax_hist_y
 
 
-def setup_line_animation(fig,
-                         ax,
-                         initial_coordinates,
-                         update_coordinates,
+def setup_line_animation(get_updated_coordinates,
+                         fig=None,
+                         ax=None,
+                         figure_width=6.0,
+                         figure_aspect=4.0/3.0,
+                         log_x=False,
+                         log_y=False,
                          x_lims=None,
                          y_lims=None,
                          invert_xaxis=False,
@@ -934,61 +1001,90 @@ def setup_line_animation(fig,
                          ds='default',
                          ls='-',
                          lw=1.0,
-                         c='navy',
+                         color='k',
+                         marker=None,
                          alpha=1.0,
+                         minorticks_on=False,
                          xlabel=None,
                          ylabel=None,
-                         show_time_label=False,
-                         extra_init_setup=lambda ax: None):
+                         show_frame_label=None,
+                         fig_kwargs={}):
 
-    line, = ax.plot([], [], ds=ds, ls=ls, lw=lw, c=c, alpha=alpha)
+    if fig is None or ax is None:
+        fig, ax = create_2d_subplots(**fig_kwargs)
+
+    line, = ax.plot([], [],
+                    ds=ds,
+                    ls=ls,
+                    lw=lw,
+                    marker=marker,
+                    color=color,
+                    alpha=alpha)
     text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
-                   va='top') if show_time_label else None
+                   va='top') if show_frame_label else None
 
-    def init():
-        line.set_data(*initial_coordinates)
-        extra_init_setup(ax)
-        set_2d_plot_extent(ax, x_lims, y_lims)
-        set_2d_axis_labels(ax, xlabel, ylabel)
-        if invert_xaxis:
-            ax.invert_xaxis()
-        if invert_yaxis:
-            ax.invert_yaxis()
-        if text is None:
-            return line,
-        else:
-            text.set_text('t = 0 s')
-            return line, text
+    if log_x:
+        ax.set_xscale('log')
+    if log_y:
+        ax.set_yscale('log')
+
+    set_2d_plot_extent(ax, x_lims, y_lims)
+    set_2d_axis_labels(ax, xlabel, ylabel)
+
+    if minorticks_on:
+        ax.minorticks_on()
+
+    if invert_xaxis:
+        ax.invert_xaxis()
+    if invert_yaxis:
+        ax.invert_yaxis()
+
+    init = lambda: (line, *(() if text is None else (text, )))
 
     def update(frame):
-        time, coordinates = update_coordinates()
+        frame_label, coordinates = get_updated_coordinates(frame)
         line.set_data(*coordinates)
+
+        if x_lims is None:
+            coords = coordinates[0][
+                coordinates[0] > 0] if log_x else coordinates[0]
+            ax.set_xlim(np.nanmin(coords), np.nanmax(coords))
+        if y_lims is None:
+            coords = coordinates[1][
+                coordinates[1] > 0] if log_y else coordinates[1]
+            ax.set_ylim(np.nanmin(coords), np.nanmax(coords))
+
         if text is None:
-            return line,
+            return (line, )
         else:
-            text.set_text('t = {:g} s'.format(time))
-            return line, text
+            text.set_text(frame_label)
+            return (line, text)
 
-    return init, update
+    return fig, ax, init, update
 
 
-def setup_scatter_animation(fig,
-                            ax,
-                            initial_coordinates,
-                            update_coordinates,
+def setup_scatter_animation(get_updated_coordinates,
+                            fig=None,
+                            ax=None,
+                            log_x=False,
+                            log_y=False,
                             x_lims=None,
                             y_lims=None,
                             invert_xaxis=False,
                             invert_yaxis=False,
                             marker='o',
                             s=1.0,
-                            c='navy',
+                            c='k',
                             edgecolors='none',
                             alpha=1.0,
+                            minorticks_on=False,
                             xlabel=None,
                             ylabel=None,
-                            show_time_label=False,
-                            extra_init_setup=lambda ax: None):
+                            show_frame_label=None,
+                            fig_kwargs={}):
+
+    if fig is None or ax is None:
+        fig, ax = create_2d_subplots(**fig_kwargs)
 
     sc = ax.scatter([], [],
                     marker=marker,
@@ -997,38 +1093,146 @@ def setup_scatter_animation(fig,
                     edgecolors=edgecolors,
                     alpha=alpha)
     text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
-                   va='top') if show_time_label else None
+                   va='top') if show_frame_label else None
 
-    def init():
-        sc.set_offsets(initial_coordinates)
-        extra_init_setup(ax)
-        set_2d_plot_extent(ax, x_lims, y_lims)
-        set_2d_axis_labels(ax, xlabel, ylabel)
-        if invert_xaxis:
-            ax.invert_xaxis()
-        if invert_yaxis:
-            ax.invert_yaxis()
-        if text is None:
-            return sc,
-        else:
-            text.set_text('t = 0 s')
-            return sc, text
+    if log_x:
+        ax.set_xscale('log')
+    if log_y:
+        ax.set_yscale('log')
+
+    set_2d_plot_extent(ax, x_lims, y_lims)
+    set_2d_axis_labels(ax, xlabel, ylabel)
+
+    if minorticks_on:
+        ax.minorticks_on()
+
+    if invert_xaxis:
+        ax.invert_xaxis()
+    if invert_yaxis:
+        ax.invert_yaxis()
+
+    init = lambda: (sc, *(() if text is None else (text, )))
 
     def update(frame):
-        time, coordinates = update_coordinates()
-        sc.set_offsets(coordinates)
-        if text is None:
-            return sc,
-        else:
-            text.set_text('t = {:g} s'.format(time))
-            return sc, text
 
-    return init, update
+        frame_label, coordinates = get_updated_coordinates(frame)
+        sc.set_offsets(coordinates)
+
+        if x_lims is None:
+            coords = coordinates[0][
+                coordinates[0] > 0] if log_x else coordinates[0]
+            ax.set_xlim(np.nanmin(coords), np.nanmax(coords))
+        if y_lims is None:
+            coords = coordinates[1][
+                coordinates[1] > 0] if log_y else coordinates[1]
+            ax.set_ylim(np.nanmin(coords), np.nanmax(coords))
+
+        if text is None:
+            return (sc, )
+        else:
+            text.set_text(frame_label)
+            return (sc, text)
+
+    return fig, ax, init, update
+
+
+def setup_2d_field_animation(hor_coords,
+                             vert_coords,
+                             get_updated_values,
+                             fig=None,
+                             ax=None,
+                             minorticks_on=False,
+                             vmin=None,
+                             vmax=None,
+                             symmetric_clims=False,
+                             log=False,
+                             symlog=False,
+                             linthresh=np.inf,
+                             linscale=1.0,
+                             cmap_name='viridis',
+                             cmap_bad_color='white',
+                             cbar_loc='right',
+                             cbar_pad=0.05,
+                             cbar_minorticks_on=False,
+                             cbar_opposite_side_ticks=False,
+                             xlabel=None,
+                             ylabel=None,
+                             clabel='',
+                             show_frame_label=None,
+                             title=None,
+                             rasterized=None,
+                             fig_kwargs=dict(width=7.2, aspect_ratio=5.0/4.0)):
+
+    if fig is None or ax is None:
+        fig, ax = create_2d_subplots(**fig_kwargs)
+
+    if symlog:
+        norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
+    else:
+        norm = get_normalizer(vmin, vmax, log=log)
+
+    cmap = get_cmap(cmap_name, bad_color=cmap_bad_color)
+
+    mesh = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
+                         np.ones((len(vert_coords), len(hor_coords))),
+                         shading='auto',
+                         norm=norm,
+                         cmap=cmap,
+                         rasterized=rasterized)
+
+    text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
+                   va='top') if show_frame_label else None
+
+    set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
+                       (vert_coords[0], vert_coords[-1]))
+    set_2d_axis_labels(ax, xlabel, ylabel)
+
+    if cbar_loc is not None:
+        add_2d_colorbar(fig,
+                        ax,
+                        mesh,
+                        loc=cbar_loc,
+                        pad=cbar_pad,
+                        minorticks_on=cbar_minorticks_on,
+                        opposite_side_ticks=cbar_opposite_side_ticks,
+                        label=clabel)
+
+    if minorticks_on:
+        ax.minorticks_on()
+
+    ax.set_aspect('equal')
+
+    if title is not None:
+        ax.set_title(title)
+
+    init = lambda: (mesh, *(() if text is None else (text, )))
+
+    def update(frame):
+        frame_label, values = get_updated_values(frame)
+
+        mesh.update({'array': values.T.ravel()})
+
+        if vmin is None and vmax is None:
+            v = values[values > 0] if log else values
+            new_vmin = np.nanmin(v)
+            new_vmax = np.nanmax(v)
+            if symmetric_clims:
+                new_vmax = max(abs(new_vmin), abs(new_vmax))
+                new_vmin = -new_vmax
+            mesh.set_clim(new_vmin, new_vmax)
+
+        if text is None:
+            return (mesh, )
+        else:
+            text.set_text(frame_label)
+            return (mesh, text)
+
+    return fig, ax, init, update
 
 
 def setup_3d_scatter_animation(fig,
                                ax,
-                               update_data,
+                               get_updated_data,
                                initial_coordinates=None,
                                initial_colors=None,
                                x_lims=None,
@@ -1044,8 +1248,7 @@ def setup_3d_scatter_animation(fig,
                                xlabel=None,
                                ylabel=None,
                                zlabel=None,
-                               show_time_label=False,
-                               extra_init_setup=lambda ax: None):
+                               show_frame_label=False):
 
     sc = ax.scatter([], [], [],
                     marker=marker,
@@ -1054,7 +1257,17 @@ def setup_3d_scatter_animation(fig,
                     depthshade=False)
     text = ax.text2D(
         0.01, 0.99, '', transform=ax.transAxes, ha='left',
-        va='top') if show_time_label else None
+        va='top') if show_frame_label else None
+
+    set_3d_plot_extent(ax, x_lims, y_lims, z_lims, axes_equal=axes_equal)
+    set_3d_axis_labels(ax, xlabel, ylabel, zlabel)
+
+    if invert_xaxis:
+        ax.invert_xaxis()
+    if invert_yaxis:
+        ax.invert_yaxis()
+    if invert_zaxis:
+        ax.invert_zaxis()
 
     def init():
         if initial_coordinates is not None:
@@ -1062,32 +1275,23 @@ def setup_3d_scatter_animation(fig,
         if initial_colors is not None:
             sc.set_color(initial_colors)
             sc._facecolor3d = sc.get_facecolor()
-        extra_init_setup(ax)
-        set_3d_plot_extent(ax, x_lims, y_lims, z_lims, axes_equal=axes_equal)
-        set_3d_axis_labels(ax, xlabel, ylabel, zlabel)
-        if invert_xaxis:
-            ax.invert_xaxis()
-        if invert_yaxis:
-            ax.invert_yaxis()
-        if invert_zaxis:
-            ax.invert_zaxis()
-        if text is None:
-            return sc,
-        else:
-            text.set_text('t = 0 s')
-            return sc, text
+
+        return (sc, *(() if text is None else (text, )))
 
     def update(frame):
-        time, coordinates, colors = update_data()
+
+        frame_label, coordinates, colors = get_updated_data(frame)
         sc._offsets3d = coordinates
+
         if colors is not None:
             sc.set_color(colors)
             sc._facecolor3d = sc.get_facecolor()
+
         if text is None:
-            return sc,
+            return (sc, )
         else:
-            text.set_text('t = {:g} s'.format(time))
-            return sc, text
+            text.set_text(frame_label)
+            return (sc, text)
 
     return init, update
 
@@ -1098,6 +1302,7 @@ def animate(fig,
             blit=False,
             fps=30.0,
             video_duration=None,
+            n_frames=None,
             tight_layout=False,
             writer='ffmpeg',
             codec='h264',
@@ -1106,7 +1311,7 @@ def animate(fig,
             output_path=None):
 
     interval = 1e3/fps
-    n_frames = None if video_duration is None else int(video_duration*fps)
+    n_frames = n_frames if video_duration is None else int(video_duration*fps)
 
     anim = animation.FuncAnimation(fig,
                                    update_func,
