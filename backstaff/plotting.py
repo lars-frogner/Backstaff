@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mpl_colors
 import matplotlib.cm as mpl_cm
 import matplotlib.animation as animation
+import matplotlib.patheffects as path_effects
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -150,7 +151,12 @@ def size_from_values(values, norm, max_size, min_size=1):
 
 
 def create_colorbar_axis(ax, loc='right', pad=0.05):
-    divider = make_axes_locatable(ax)
+    if hasattr(ax, 'backstaff_axis_divider'):
+        divider = ax.backstaff_axis_divider
+    else:
+        divider = make_axes_locatable(
+            ax)  # Should not be repeated for same axis
+        ax.backstaff_axis_divider = divider
     cax = divider.append_axes(loc, size='5%', pad=pad)
     return cax
 
@@ -294,60 +300,66 @@ def add_textbox(ax, text, loc, pad=0.4):
     ax.add_artist(textbox)
 
 
-def render(fig,
+def render(fig=None,
            tight_layout=True,
            output_path=None,
            force_show=False,
            close=True):
-    if tight_layout:
+    if fig is not None and tight_layout:
         fig.tight_layout()
     if output_path is not None:
         plt.savefig(output_path)
         if force_show:
             plt.show()
+        elif close:
+            plt.close(fig)
     else:
         plt.show()
-    if close:
-        plt.close(fig)
 
 
 def plot_1d_field(coords,
                   values,
                   fig=None,
                   ax=None,
-                  figure_width=6.0,
-                  figure_aspect=4.0/3.0,
                   color='k',
                   alpha=1.0,
                   lw=1.0,
                   ls='-',
                   marker=None,
-                  minorticks_on=False,
+                  minorticks_on=True,
                   x_lims=None,
                   y_lims=None,
                   log_x=False,
                   log_y=False,
-                  extra_artists=[],
+                  extra_artists=None,
+                  extra_patches=None,
                   xlabel=None,
                   ylabel=None,
+                  label=None,
+                  legend_loc=None,
                   title=None,
                   output_path=None,
-                  render_now=True):
+                  render_now=True,
+                  fig_kwargs={}):
 
     if fig is None or ax is None:
-        fig, ax = create_2d_subplots(width=figure_width,
-                                     aspect_ratio=figure_aspect)
+        fig, ax = create_2d_subplots(**fig_kwargs)
     lines, = ax.plot(coords,
                      values,
                      color=color,
                      alpha=alpha,
                      lw=lw,
                      ls=ls,
-                     marker=marker)
+                     marker=marker,
+                     label=label)
 
     if extra_artists is not None:
         for artist in extra_artists:
             ax.add_artist(artist)
+
+    if extra_patches is not None:
+        for patch in extra_patches:
+            ax.add_patch(patch)
 
     if log_x:
         ax.set_xscale('log')
@@ -363,6 +375,9 @@ def plot_1d_field(coords,
     if title is not None:
         ax.set_title(title)
 
+    if legend_loc is not None:
+        ax.legend(loc=legend_loc)
+
     if render_now:
         render(fig, output_path=output_path)
 
@@ -372,11 +387,10 @@ def plot_1d_field(coords,
 def plot_2d_field(hor_coords,
                   vert_coords,
                   values,
+                  alphas=None,
                   fig=None,
                   ax=None,
-                  figure_width=6.0,
-                  figure_aspect=4.0/3.0,
-                  minorticks_on=False,
+                  minorticks_on=True,
                   vmin=None,
                   vmax=None,
                   log=False,
@@ -396,18 +410,19 @@ def plot_2d_field(hor_coords,
                   vmin_contour=None,
                   vmax_contour=None,
                   contour_cmap_name='viridis',
-                  extra_artists=[],
+                  extra_artists=None,
                   xlabel=None,
                   ylabel=None,
                   clabel='',
                   title=None,
                   rasterized=None,
                   output_path=None,
-                  render_now=True):
+                  picker=None,
+                  render_now=True,
+                  fig_kwargs=dict(width=6.0, aspect_ratio=4.0/3.0)):
 
     if fig is None or ax is None:
-        fig, ax = create_2d_subplots(width=figure_width,
-                                     aspect_ratio=figure_aspect)
+        fig, ax = create_2d_subplots(**fig_kwargs)
 
     if symlog:
         norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
@@ -419,7 +434,8 @@ def plot_2d_field(hor_coords,
                          shading='auto',
                          norm=norm,
                          cmap=get_cmap(cmap_name, bad_color=cmap_bad_color),
-                         rasterized=rasterized)
+                         rasterized=rasterized,
+                         picker=picker)
 
     if contour_levels is not None:
         ax.contourf(hor_coords,
@@ -460,6 +476,10 @@ def plot_2d_field(hor_coords,
     if title is not None:
         ax.set_title(title)
 
+    if alphas is not None:
+        fig.canvas.draw()
+        mesh.get_facecolors()[:, 3] = alphas.T.ravel()
+
     if render_now:
         render(fig, output_path=output_path)
 
@@ -482,7 +502,7 @@ def plot_histogram(values,
                    plot_type='steps',
                    horizontal=False,
                    fit_limits=None,
-                   extra_artists=[],
+                   extra_artists=None,
                    color='k',
                    lw=1.0,
                    ls='-',
@@ -495,7 +515,7 @@ def plot_histogram(values,
                    ylabel=None,
                    xlabel_color='k',
                    ylabel_color='k',
-                   minorticks_on=False,
+                   minorticks_on=True,
                    output_path=None,
                    fig_kwargs={},
                    render_now=True):
@@ -707,7 +727,7 @@ def plot_scatter(values_x,
                  xlabel=None,
                  ylabel=None,
                  aspect='auto',
-                 minorticks_on=False,
+                 minorticks_on=True,
                  internal_cbar=False,
                  cbar_loc='right',
                  cbar_pad=0.05,
@@ -855,7 +875,7 @@ def plot_scatter_with_histograms(values_x,
                                  hist_size_y=0.3,
                                  left_padding=0.12,
                                  bottom_padding=0.1,
-                                 minorticks_on=False,
+                                 minorticks_on=True,
                                  internal_cbar=False,
                                  cbar_loc='upper left',
                                  cbar_tick_loc='right',
@@ -987,11 +1007,24 @@ def plot_scatter_with_histograms(values_x,
     return fig, ax, ax_hist_x, ax_hist_y
 
 
+def compute_coord_lims(coords, log=False, pad=0.05):
+    coords = coords[coords > 0] if log else coords
+    lower = np.nanmin(coords)
+    upper = np.nanmax(coords)
+    if log:
+        extent = np.log10(upper) - np.log10(lower)
+        lower = max(0, 10**(np.log10(lower) - pad*extent))
+        upper = 10**(np.log10(upper) + pad*extent)
+    else:
+        extent = upper - lower
+        lower -= pad*extent
+        upper += pad*extent
+    return lower, upper
+
+
 def setup_line_animation(get_updated_coordinates,
                          fig=None,
                          ax=None,
-                         figure_width=6.0,
-                         figure_aspect=4.0/3.0,
                          log_x=False,
                          log_y=False,
                          x_lims=None,
@@ -1004,10 +1037,17 @@ def setup_line_animation(get_updated_coordinates,
                          color='k',
                          marker=None,
                          alpha=1.0,
-                         minorticks_on=False,
+                         minorticks_on=True,
                          xlabel=None,
                          ylabel=None,
-                         show_frame_label=None,
+                         label=None,
+                         legend_loc=None,
+                         legend_fontsize=None,
+                         extra_artists=None,
+                         extra_patches=None,
+                         show_frame_label=False,
+                         frame_label_fontsize='small',
+                         frame_label_color='k',
                          fig_kwargs={}):
 
     if fig is None or ax is None:
@@ -1019,9 +1059,24 @@ def setup_line_animation(get_updated_coordinates,
                     lw=lw,
                     marker=marker,
                     color=color,
-                    alpha=alpha)
-    text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
-                   va='top') if show_frame_label else None
+                    alpha=alpha,
+                    label=label)
+    text = ax.text(0.01,
+                   0.99,
+                   '',
+                   transform=ax.transAxes,
+                   ha='left',
+                   va='top',
+                   fontsize=frame_label_fontsize,
+                   color=frame_label_color) if show_frame_label else None
+
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
+
+    if extra_patches is not None:
+        for patch in extra_patches:
+            ax.add_patch(patch)
 
     if log_x:
         ax.set_xscale('log')
@@ -1039,26 +1094,31 @@ def setup_line_animation(get_updated_coordinates,
     if invert_yaxis:
         ax.invert_yaxis()
 
+    if legend_loc is not None:
+        ax.legend(loc=legend_loc, fontsize=legend_fontsize)
+
     init = lambda: (line, *(() if text is None else (text, )))
 
     def update(frame):
-        frame_label, coordinates = get_updated_coordinates(frame)
+        result = get_updated_coordinates(frame)
+        assert isinstance(result, tuple)
+        result = list(result)
+
+        coordinates = result.pop(0)
         line.set_data(*coordinates)
+        ret = (line, )
+
+        if show_frame_label:
+            frame_label = result.pop(0)
+            text.set_text(frame_label)
+            ret += (text, )
 
         if x_lims is None:
-            coords = coordinates[0][
-                coordinates[0] > 0] if log_x else coordinates[0]
-            ax.set_xlim(np.nanmin(coords), np.nanmax(coords))
+            ax.set_xlim(*compute_coord_lims(coordinates[0], log=log_x))
         if y_lims is None:
-            coords = coordinates[1][
-                coordinates[1] > 0] if log_y else coordinates[1]
-            ax.set_ylim(np.nanmin(coords), np.nanmax(coords))
+            ax.set_ylim(*compute_coord_lims(coordinates[1], log=log_y))
 
-        if text is None:
-            return (line, )
-        else:
-            text.set_text(frame_label)
-            return (line, text)
+        return ret
 
     return fig, ax, init, update
 
@@ -1077,10 +1137,14 @@ def setup_scatter_animation(get_updated_coordinates,
                             c='k',
                             edgecolors='none',
                             alpha=1.0,
-                            minorticks_on=False,
+                            minorticks_on=True,
                             xlabel=None,
                             ylabel=None,
-                            show_frame_label=None,
+                            label=None,
+                            legend_loc=None,
+                            show_frame_label=False,
+                            frame_label_fontsize='small',
+                            frame_label_color='k',
                             fig_kwargs={}):
 
     if fig is None or ax is None:
@@ -1091,9 +1155,16 @@ def setup_scatter_animation(get_updated_coordinates,
                     s=s,
                     c=c,
                     edgecolors=edgecolors,
-                    alpha=alpha)
-    text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
-                   va='top') if show_frame_label else None
+                    alpha=alpha,
+                    label=label)
+    text = ax.text(0.01,
+                   0.99,
+                   '',
+                   transform=ax.transAxes,
+                   ha='left',
+                   va='top',
+                   fontsize=frame_label_fontsize,
+                   color=frame_label_color) if show_frame_label else None
 
     if log_x:
         ax.set_xscale('log')
@@ -1111,27 +1182,31 @@ def setup_scatter_animation(get_updated_coordinates,
     if invert_yaxis:
         ax.invert_yaxis()
 
+    if legend_loc is not None:
+        ax.legend(loc=legend_loc)
+
     init = lambda: (sc, *(() if text is None else (text, )))
 
     def update(frame):
+        result = get_updated_coordinates(frame)
+        assert isinstance(result, tuple)
+        result = list(result)
 
-        frame_label, coordinates = get_updated_coordinates(frame)
+        coordinates = result.pop(0)
         sc.set_offsets(coordinates)
+        ret = (sc, )
+
+        if show_frame_label:
+            frame_label = result.pop(0)
+            text.set_text(frame_label)
+            ret += (text, )
 
         if x_lims is None:
-            coords = coordinates[0][
-                coordinates[0] > 0] if log_x else coordinates[0]
-            ax.set_xlim(np.nanmin(coords), np.nanmax(coords))
+            ax.set_xlim(*compute_coord_lims(coordinates[0], log=log_x))
         if y_lims is None:
-            coords = coordinates[1][
-                coordinates[1] > 0] if log_y else coordinates[1]
-            ax.set_ylim(np.nanmin(coords), np.nanmax(coords))
+            ax.set_ylim(*compute_coord_lims(coordinates[1], log=log_y))
 
-        if text is None:
-            return (sc, )
-        else:
-            text.set_text(frame_label)
-            return (sc, text)
+        return ret
 
     return fig, ax, init, update
 
@@ -1141,7 +1216,7 @@ def setup_2d_field_animation(hor_coords,
                              get_updated_values,
                              fig=None,
                              ax=None,
-                             minorticks_on=False,
+                             minorticks_on=True,
                              vmin=None,
                              vmax=None,
                              symmetric_clims=False,
@@ -1149,6 +1224,7 @@ def setup_2d_field_animation(hor_coords,
                              symlog=False,
                              linthresh=np.inf,
                              linscale=1.0,
+                             alpha=1.0,
                              cmap_name='viridis',
                              cmap_bad_color='white',
                              cbar_loc='right',
@@ -1158,10 +1234,15 @@ def setup_2d_field_animation(hor_coords,
                              xlabel=None,
                              ylabel=None,
                              clabel='',
-                             show_frame_label=None,
+                             show_frame_label=False,
+                             frame_label_fontsize='small',
+                             frame_label_color='k',
+                             frame_label_outline_color='white',
+                             use_varying_alpha=False,
                              title=None,
                              rasterized=None,
-                             fig_kwargs=dict(width=7.2, aspect_ratio=5.0/4.0)):
+                             fig_kwargs=dict(width=7.2, aspect_ratio=5.0/4.0),
+                             picker=None):
 
     if fig is None or ax is None:
         fig, ax = create_2d_subplots(**fig_kwargs)
@@ -1178,10 +1259,27 @@ def setup_2d_field_animation(hor_coords,
                          shading='auto',
                          norm=norm,
                          cmap=cmap,
-                         rasterized=rasterized)
+                         alpha=alpha,
+                         rasterized=rasterized,
+                         picker=picker)
 
-    text = ax.text(0.01, 0.99, '', transform=ax.transAxes, ha='left',
-                   va='top') if show_frame_label else None
+    if show_frame_label:
+        text = ax.text(0.01,
+                       0.99,
+                       '',
+                       transform=ax.transAxes,
+                       ha='left',
+                       va='top',
+                       fontsize=frame_label_fontsize,
+                       color=frame_label_color)
+        if frame_label_outline_color is not None:
+            text.set_path_effects([
+                path_effects.Stroke(linewidth=0.5,
+                                    foreground=frame_label_outline_color),
+                path_effects.Normal()
+            ])
+    else:
+        text = None
 
     set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
                        (vert_coords[0], vert_coords[-1]))
@@ -1208,9 +1306,23 @@ def setup_2d_field_animation(hor_coords,
     init = lambda: (mesh, *(() if text is None else (text, )))
 
     def update(frame):
-        frame_label, values = get_updated_values(frame)
+        result = get_updated_values(frame)
+        assert isinstance(result, tuple)
+        result = list(result)
 
+        values = result.pop(0)
         mesh.update({'array': values.T.ravel()})
+        ret = (mesh, )
+
+        if use_varying_alpha:
+            alphas = result.pop(0)
+            fig.canvas.draw()
+            mesh.get_facecolors()[:, 3] = alphas.T.ravel()
+
+        if show_frame_label:
+            frame_label = result.pop(0)
+            text.set_text(frame_label)
+            ret += (text, )
 
         if vmin is None and vmax is None:
             v = values[values > 0] if log else values
@@ -1221,11 +1333,7 @@ def setup_2d_field_animation(hor_coords,
                 new_vmin = -new_vmax
             mesh.set_clim(new_vmin, new_vmax)
 
-        if text is None:
-            return (mesh, )
-        else:
-            text.set_text(frame_label)
-            return (mesh, text)
+        return ret
 
     return fig, ax, init, update
 
