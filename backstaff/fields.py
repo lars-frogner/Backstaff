@@ -62,6 +62,31 @@ class ScalarField1:
 
         return ScalarField1(Coords1(coords), values)
 
+    @staticmethod
+    def at_horizontal_indices_in_bifrost_data(
+        bifrost_data,
+        i,
+        j,
+        quantities,
+        scale=None,
+        value_processor=lambda x: x,
+    ):
+        coords = -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        if not isinstance(quantities, list) and not isinstance(
+                quantities, tuple):
+            quantities = [quantities]
+        values = value_processor(*(bifrost_data.get_var(quantity)[i, j, ::-1]
+                                   for quantity in quantities))
+        if scale is not None:
+            values *= scale
+
+        return ScalarField1(Coords1(coords), values)
+
+    @staticmethod
+    def from_file(file_path):
+        data = np.load(file_path)
+        return ScalarField1(Coords1(data['coords']), data['values'])
+
     def __init__(self, coords, values):
         assert isinstance(coords, Coords1)
         self.coords = coords
@@ -119,11 +144,22 @@ class ScalarField1:
         return np.sum(0.5*(values[:-1] + values[1:])*
                       np.diff(self.get_coords()))
 
+    def find_peak_coordinate(self):
+        return self.coords.coords[np.argmax(self.values)]
+
     def plot(self, inverted_vertically=False, **plot_kwargs):
         return plotting.plot_1d_field(
             self.get_coords(inverted=inverted_vertically),
             self.get_values(inverted_vertically=inverted_vertically),
             **plot_kwargs)
+
+    def save(self, file_path, compressed=True):
+        if compressed:
+            np.savez_compressed(file_path,
+                                coords=self.coords.coords,
+                                values=self.values)
+        else:
+            np.savez(file_path, coords=self.coords.coords, values=self.values)
 
 
 class ScalarField2:
@@ -175,6 +211,11 @@ class ScalarField2:
 
         return ScalarField2(
             Coords2.from_bifrost_data(bifrost_data, accum_axis), values)
+
+    @staticmethod
+    def from_file(file_path):
+        data = np.load(file_path)
+        return ScalarField2(Coords2(data['x'], data['y']), data['values'])
 
     def __init__(self, coords, values):
         assert isinstance(coords, Coords2)
@@ -263,3 +304,15 @@ class ScalarField2:
             figure_width=figure_width,
             figure_aspect=figure_aspect,
             **plot_kwargs)
+
+    def save(self, file_path, compressed=True):
+        if compressed:
+            np.savez_compressed(file_path,
+                                x=self.coords.x,
+                                y=self.coords.y,
+                                values=self.values)
+        else:
+            np.savez(file_path,
+                     x=self.coords.x,
+                     y=self.coords.y,
+                     values=self.values)
