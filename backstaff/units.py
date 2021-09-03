@@ -37,6 +37,8 @@ XI_H = 13.595
 EV_TO_ERG = 1.602_177_33e-12
 # Conversion factor from kilo electron volts to ergs.
 KEV_TO_ERG = EV_TO_ERG*1e3
+# Conversion factor from rydberg to ergs.
+RYD_TO_ERG = 2.17987197e-11
 # Conversion factor from electron volts to kelvin (1/KBOLTZMANN).
 EV_TO_K = 11604.50520
 # Conversion factor from electron volts to Joules.
