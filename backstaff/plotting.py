@@ -118,6 +118,17 @@ def get_cmap(name, bad_color='w'):
     return cmap
 
 
+def get_scalar_mappable(norm, cmap):
+    return mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
+
+
+def set_color_cycle_from_cmap(ax, n_colors, cmap_name):
+    cmap = get_cmap(cmap_name)
+    norm = get_normalizer(0, n_colors - 1)
+    sm = get_scalar_mappable(norm, cmap)
+    ax.set_prop_cycle(color=[sm.to_rgba(i) for i in range(n_colors)])
+
+
 def define_linear_segmented_colormap(name,
                                      colors,
                                      bad_color='white',
@@ -216,7 +227,7 @@ def add_2d_colorbar_inside_from_cmap_and_norm(fig,
 
     cax = inset_axes(ax, width=width, height=height, loc=loc)
 
-    sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm = get_scalar_mappable(norm, cmap)
     sm.set_array([])
 
     cb = fig.colorbar(sm,
@@ -251,7 +262,7 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
                                        tick_formatter=None,
                                        label=''):
     cax = create_colorbar_axis(ax, loc=loc, pad=pad)
-    sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm = get_scalar_mappable(norm, cmap)
     sm.set_array([])
     cb = fig.colorbar(
         sm,
@@ -282,7 +293,7 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
 
 
 def add_3d_colorbar(fig, norm, cmap, label=''):
-    sm = mpl_cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm = get_scalar_mappable(norm, cmap)
     sm.set_array([])
     return fig.colorbar(sm, label=label)
 
