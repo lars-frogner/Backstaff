@@ -64,6 +64,17 @@ def compute_equilibrium_hydrogen_populations(mass_density,
     return neutral_population_densities, proton_density
 
 
+def compute_equilibrium_proton_density(mass_density, temperature,
+                                       electron_density):
+    neutral_hydrogen_density = compute_equilibrium_neutral_hydrogen_density(
+        mass_density,
+        temperature,
+        electron_density,
+    )
+    total_hydrogen_density = compute_total_hydrogen_density(mass_density)
+    return total_hydrogen_density - neutral_hydrogen_density
+
+
 # Evaluates the beta function B(a, b) = int t^(a-1)*(1-t)^(b-1) dt from t=0 to t=1.
 def compute_beta(a, b):
     return special.beta(a, b)
@@ -100,12 +111,12 @@ def compute_mean_energy(delta, lower_cutoff_energy):
 
 
 def compute_total_hydrogen_density(mass_density):
-    return (HYDROGEN_MASS_FRACTION/units.M_H)*mass_density  # [hydrogen/cm^3]
+    return mass_density*(HYDROGEN_MASS_FRACTION/units.M_H)  # [hydrogen/cm^3]
 
 
 def compute_total_helium_density_no_metals(mass_density):
-    return (
-        (1 - HYDROGEN_MASS_FRACTION)/units.M_HE)*mass_density  # [helium/cm^3]
+    return mass_density*(
+        (1 - HYDROGEN_MASS_FRACTION)/units.M_HE)  # [helium/cm^3]
 
 
 def compute_electron_coulomb_logarithm(electron_density, electron_energy):
