@@ -1,5 +1,6 @@
 //! Command line interface for outputting snapshot data to file.
 
+use super::SnapNumInRange;
 use crate::{
     exit_on_error, exit_with_error,
     field::{quantities, ScalarField3},
@@ -117,7 +118,7 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     arguments: &ArgMatches,
     reader: &RIN,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: Option<Arc<GOUT>>,
     modified_parameters: HashMap<&str, ParameterValue>,
     field_modifier: FM,
@@ -141,18 +142,18 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
 
     let mut write_mesh_file = true;
 
-    if let Some(snap_num_offset) = snap_num_offset {
+    if let Some(snap_num_in_range) = snap_num_in_range {
         exit_on_false!(
             !output_type.is_scratch(),
             "Error: snap-range not supported for scratch files"
         );
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
-            snap_num_offset,
+            snap_num_in_range.offset(),
             &output_type.to_string(),
             true,
         ));
-        if snap_num_offset > 0 {
+        if snap_num_in_range.offset() > 0 {
             write_mesh_file = false;
         }
     }

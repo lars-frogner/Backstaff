@@ -7,6 +7,7 @@ pub mod simulate;
 
 use self::simulate::{create_simulate_subcommand, run_simulate_subcommand};
 use crate::{
+    cli::snapshot::SnapNumInRange,
     create_subcommand,
     grid::Grid3,
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
@@ -26,7 +27,7 @@ pub fn create_ebeam_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn run_ebeam_subcommand<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
@@ -36,7 +37,7 @@ pub fn run_ebeam_subcommand<G, R>(
         run_simulate_subcommand(
             simulate_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             protected_file_types,
         );
     }

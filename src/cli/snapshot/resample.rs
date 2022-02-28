@@ -12,6 +12,7 @@ use self::{
     regular_grid::{create_regular_grid_subcommand, run_resampling_for_regular_grid},
     reshaped_grid::{create_reshaped_grid_subcommand, run_resampling_for_reshaped_grid},
 };
+use super::SnapNumInRange;
 use crate::{
     cli::{
         interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options,
@@ -85,7 +86,7 @@ enum ResampleGridType {
 pub fn run_resample_subcommand<G, R>(
     arguments: &ArgMatches,
     reader: &R,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
@@ -118,7 +119,7 @@ pub fn run_resample_subcommand<G, R>(
     run_with_selected_method(
         grid_type_arguments,
         reader,
-        snap_num_offset,
+        snap_num_in_range,
         resample_grid_type,
         &resampled_locations,
         continue_on_warnings,
@@ -130,7 +131,7 @@ pub fn run_resample_subcommand<G, R>(
 fn run_with_selected_method<G, R>(
     grid_type_arguments: &ArgMatches,
     reader: &R,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
@@ -162,7 +163,7 @@ fn run_with_selected_method<G, R>(
         grid_type_arguments,
         method_arguments,
         reader,
-        snap_num_offset,
+        snap_num_in_range,
         resample_grid_type,
         resampled_locations,
         resampling_method,
@@ -176,7 +177,7 @@ fn run_with_selected_interpolator<G, R>(
     grid_type_arguments: &ArgMatches,
     arguments: &ArgMatches,
     reader: &R,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -204,7 +205,7 @@ fn run_with_selected_interpolator<G, R>(
             grid_type_arguments,
             arguments,
             reader,
-            snap_num_offset,
+            snap_num_in_range,
             resampled_locations,
             resampling_method,
             continue_on_warnings,
@@ -216,7 +217,7 @@ fn run_with_selected_interpolator<G, R>(
             grid_type_arguments,
             arguments,
             reader,
-            snap_num_offset,
+            snap_num_in_range,
             resampled_locations,
             resampling_method,
             continue_on_warnings,
@@ -228,7 +229,7 @@ fn run_with_selected_interpolator<G, R>(
             grid_type_arguments,
             arguments,
             reader,
-            snap_num_offset,
+            snap_num_in_range,
             resampled_locations,
             resampling_method,
             continue_on_warnings,
@@ -244,7 +245,7 @@ fn resample_to_regular_grid<G, R, I>(
     new_shape: Option<In3D<usize>>,
     write_arguments: &ArgMatches,
     reader: &R,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -271,7 +272,7 @@ fn resample_to_regular_grid<G, R, I>(
     resample_snapshot_for_grid(
         write_arguments,
         reader,
-        snap_num_offset,
+        snap_num_in_range,
         &new_grid,
         resampled_locations,
         resampling_method,
@@ -286,7 +287,7 @@ fn resample_to_horizontally_regular_grid<G, R, I>(
     new_shape: Option<In3D<usize>>,
     write_arguments: &ArgMatches,
     reader: &R,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -370,7 +371,7 @@ fn resample_to_horizontally_regular_grid<G, R, I>(
     resample_snapshot_for_grid(
         write_arguments,
         reader,
-        snap_num_offset,
+        snap_num_in_range,
         &new_grid,
         resampled_locations,
         resampling_method,
@@ -496,7 +497,7 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
 fn resample_snapshot_for_grid<GIN, R, GOUT, I>(
     write_arguments: &ArgMatches,
     reader: &R,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: &Arc<GOUT>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -512,7 +513,7 @@ fn resample_snapshot_for_grid<GIN, R, GOUT, I>(
     run_write_subcommand(
         write_arguments,
         reader,
-        snap_num_offset,
+        snap_num_in_range,
         Some(Arc::clone(new_grid)),
         HashMap::new(),
         |field| {

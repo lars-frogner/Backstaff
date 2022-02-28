@@ -7,6 +7,7 @@ pub mod interpolation;
 pub mod mesh;
 pub mod quantities;
 pub mod run;
+pub mod seeding;
 pub mod snapshot;
 pub mod utils;
 

@@ -1,6 +1,6 @@
 //! Generation of seed indices by evaluating a criterion on field values.
 
-use super::{super::ftr, IndexSeeder3};
+use super::{fsd, IndexSeeder3};
 use crate::{
     field::{self, ScalarField3, VectorField3},
     geometry::{
@@ -34,7 +34,7 @@ impl CriterionSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `CriterionSeeder3`.
+    /// A new `CriterionSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -90,7 +90,7 @@ impl CriterionSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `CriterionSeeder3`.
+    /// A new `CriterionSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -151,7 +151,7 @@ impl CriterionSeeder3 {
     ///
     /// # Returns
     ///
-    /// An new `CriterionSeeder3`.
+    /// A new `CriterionSeeder3`.
     ///
     /// # Type parameters
     ///
@@ -227,7 +227,7 @@ impl IndexSeeder3 for CriterionSeeder3 {
         self.seed_indices.retain(predicate);
     }
 
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fsd>>
     where
         F: BFloat,
         G: Grid3<F>,

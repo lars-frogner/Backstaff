@@ -26,11 +26,9 @@ use crate::{
             construct_poly_fit_interpolator_config_from_options,
             create_poly_fit_interpolator_subcommand,
         },
-        tracing::{
-            extract_magnitude_name,
-            stepping::rkf::{
-                construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand,
-            }
+        snapshot::SnapNumInRange,
+        tracing::stepping::rkf::{
+            construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand,
         },
     },
     create_subcommand,
@@ -325,13 +323,13 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn run_simulate_subcommand<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     R: SnapshotReader3<G> + Sync,
 {
-    run_with_selected_detector(arguments, snapshot, snap_num_offset, protected_file_types);
+    run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -415,7 +413,7 @@ impl fmt::Display for OutputType {
 fn run_with_selected_detector<G, R>(
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
@@ -427,7 +425,7 @@ fn run_with_selected_detector<G, R>(
             arguments,
             detector_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             detector,
             protected_file_types,
         );
@@ -460,7 +458,7 @@ fn run_with_selected_detector<G, R>(
             arguments,
             detector_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             detector,
             protected_file_types,
         );
@@ -471,7 +469,7 @@ fn run_with_selected_accelerator<G, R, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     protected_file_types: &[&str],
 ) where
@@ -519,7 +517,7 @@ fn run_with_selected_accelerator<G, R, D>(
             root_arguments,
             accelerator_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             detector,
             accelerator,
             protected_file_types,
@@ -535,7 +533,7 @@ fn run_with_selected_accelerator<G, R, D>(
             root_arguments,
             distribution_arguments,
             snapshot,
-            snap_num_offset,
+            snap_num_in_range,
             detector,
             accelerator,
             protected_file_types,
@@ -547,7 +545,7 @@ fn run_with_selected_interpolator<G, R, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     protected_file_types: &[&str])
@@ -579,7 +577,7 @@ where G: Grid3<fdt>,
         root_arguments,
         interpolator_arguments,
         snapshot,
-        snap_num_offset,
+        snap_num_in_range,
         detector,
         accelerator,
         interpolator,
@@ -591,7 +589,7 @@ fn run_with_selected_stepper_factory<G, R, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut SnapshotCacher3<G, R>,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     interpolator: I,
@@ -625,10 +623,10 @@ where G: Grid3<fdt>,
 
     let output_type = OutputType::from_path(&output_file_path);
 
-    if let Some(snap_num_offset) = snap_num_offset {
+    if let Some(snap_num_in_range) = snap_num_in_range {
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
-            snap_num_offset,
+            snap_num_in_range.offset(),
             &output_type.to_string(),
             true,
         ));
@@ -776,7 +774,7 @@ fn perform_post_simulation_actions<G, R, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
-            if let Some(name) = extract_magnitude_name(name) {
+            if let Some(name) = snapshot::extract_magnitude_name(name) {
                 beams.extract_varying_vector_magnitudes(
                     exit_on_error!(
                         snapshot.obtain_vector_field(name),

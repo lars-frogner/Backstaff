@@ -1,13 +1,17 @@
 //! Command line interface for actions related to snapshots.
 
+mod corks;
 mod inspect;
 mod resample;
 mod slice;
 mod write;
 
 use self::{
-    inspect::create_inspect_subcommand, resample::create_resample_subcommand,
-    slice::create_slice_subcommand, write::create_write_subcommand,
+    corks::{create_corks_subcommand, CorksState},
+    inspect::create_inspect_subcommand,
+    resample::create_resample_subcommand,
+    slice::create_slice_subcommand,
+    write::create_write_subcommand,
 };
 use crate::{
     cli::utils as cli_utils,
@@ -98,7 +102,8 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
         .subcommand(create_subcommand!(snapshot, inspect))
         .subcommand(create_subcommand!(snapshot, slice))
         .subcommand(create_subcommand!(snapshot, resample))
-        .subcommand(create_subcommand!(snapshot, write));
+        .subcommand(create_subcommand!(snapshot, write))
+        .subcommand(create_subcommand!(snapshot, corks));
 
     #[cfg(feature = "tracing")]
     let app = app.subcommand(create_subcommand!(snapshot, trace));
@@ -110,7 +115,7 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
 }
 
 macro_rules! create_native_reader_and_run {
-    ($config:expr, $snap_num_offset:expr, $run_macro:tt) => {{
+    ($config:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
         let parameters = exit_on_error!(
             NativeSnapshotParameters::new($config.param_file_path(), $config.verbose()),
             "Error: Could not read parameter file: {}"
@@ -148,7 +153,7 @@ macro_rules! create_native_reader_and_run {
                     ),
                     "Error: Could not create snapshot reader: {}"
                 );
-                $run_macro!(reader, $snap_num_offset)
+                $run_macro!(reader, $snap_num_in_range)
             }
             GridType::HorRegular => {
                 let grid = HorRegularGrid3::from_coords(
@@ -164,7 +169,7 @@ macro_rules! create_native_reader_and_run {
                     ),
                     "Error: Could not create snapshot reader: {}"
                 );
-                $run_macro!(reader, $snap_num_offset)
+                $run_macro!(reader, $snap_num_in_range)
             }
         }
     }};
@@ -172,7 +177,7 @@ macro_rules! create_native_reader_and_run {
 
 #[cfg(feature = "netcdf")]
 macro_rules! create_netcdf_reader_and_run {
-    ($config:expr, $snap_num_offset:expr, $run_macro:tt) => {{
+    ($config:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
         let file = exit_on_error!(
             netcdf::open_file($config.file_path()),
             "Error: Could not open NetCDF file: {}"
@@ -209,7 +214,7 @@ macro_rules! create_netcdf_reader_and_run {
                     NetCDFSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
                         $config, file, parameters, grid, endianness,
                     ),
-                    $snap_num_offset
+                    $snap_num_in_range
                 )
             }
             GridType::HorRegular => {
@@ -224,7 +229,7 @@ macro_rules! create_netcdf_reader_and_run {
                     NetCDFSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
                         $config, file, parameters, grid, endianness,
                     ),
-                    $snap_num_offset
+                    $snap_num_in_range
                 )
             }
         }
@@ -233,8 +238,10 @@ macro_rules! create_netcdf_reader_and_run {
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
+    let mut corks_state: Option<CorksState> = None;
+
     macro_rules! run_subcommands_for_reader {
-        ($reader:expr, $snap_num_offset:expr) => {{
+        ($reader:expr, $snap_num_in_range:expr) => {{
             let mut snapshot = SnapshotCacher3::new($reader);
 
             if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
@@ -244,7 +251,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                 slice::run_slice_subcommand(
                     slice_arguments,
                     &mut snapshot,
-                    $snap_num_offset,
+                    $snap_num_in_range,
                     protected_file_types,
                 );
             }
@@ -252,15 +259,24 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                 resample::run_resample_subcommand(
                     resample_arguments,
                     snapshot.reader(),
-                    $snap_num_offset,
+                    $snap_num_in_range,
                     protected_file_types,
+                );
+            }
+            if let Some(corks_arguments) = arguments.subcommand_matches("corks") {
+                corks::run_corks_subcommand(
+                    corks_arguments,
+                    &mut snapshot,
+                    $snap_num_in_range,
+                    protected_file_types,
+                    &mut corks_state,
                 );
             }
             if let Some(write_arguments) = arguments.subcommand_matches("write") {
                 write::run_write_subcommand(
                     write_arguments,
                     snapshot.reader(),
-                    $snap_num_offset,
+                    $snap_num_in_range,
                     None,
                     HashMap::new(),
                     |field| Ok(field),
@@ -273,7 +289,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                     crate::cli::tracing::run_trace_subcommand(
                         trace_arguments,
                         &mut snapshot,
-                        $snap_num_offset,
+                        $snap_num_in_range,
                         protected_file_types,
                     );
                 }
@@ -284,7 +300,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                     crate::cli::ebeam::run_ebeam_subcommand(
                         ebeam_arguments,
                         &mut snapshot,
-                        $snap_num_offset,
+                        $snap_num_in_range,
                         protected_file_types,
                     );
                 }
@@ -333,7 +349,11 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                                 false,
                             ),
                         ),
-                        Some(snap_num - snap_num_range[0]),
+                        Some(SnapNumInRange::new(
+                            snap_num_range[0],
+                            snap_num_range[1],
+                            snap_num,
+                        )),
                     )
                 })
                 .collect()
@@ -355,26 +375,56 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
 
     match input_type {
         InputType::Native(_) => {
-            for (file_path, snap_num_offset) in input_snap_paths_and_num_offsets {
+            for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
                 let reader_config = NativeSnapshotReaderConfig::new(file_path, endianness, verbose);
                 create_native_reader_and_run!(
                     reader_config,
-                    snap_num_offset,
+                    &snap_num_in_range,
                     run_subcommands_for_reader
                 );
             }
         }
         #[cfg(feature = "netcdf")]
         InputType::NetCDF => {
-            for (file_path, snap_num_offset) in input_snap_paths_and_num_offsets {
+            for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
                 let reader_config = NetCDFSnapshotReaderConfig::new(file_path, verbose);
                 create_netcdf_reader_and_run!(
                     reader_config,
-                    snap_num_offset,
+                    &snap_num_in_range,
                     run_subcommands_for_reader
                 );
             }
         }
+    }
+}
+
+pub struct SnapNumInRange {
+    current_offset: u32,
+    final_offset: u32,
+}
+
+impl SnapNumInRange {
+    fn new(start_snap_num: u32, end_snap_num: u32, current_snap_num: u32) -> Self {
+        assert!(
+            end_snap_num >= start_snap_num,
+            "End snap number must be larger than or equal to start snap number."
+        );
+        assert!(
+            current_snap_num >= start_snap_num && current_snap_num <= end_snap_num,
+            "Current snap number must be between start and end snap number."
+        );
+        Self {
+            current_offset: current_snap_num - start_snap_num,
+            final_offset: end_snap_num - current_snap_num,
+        }
+    }
+
+    pub fn offset(&self) -> u32 {
+        self.current_offset
+    }
+
+    pub fn is_final(&self) -> bool {
+        self.current_offset == self.final_offset
     }
 }
 

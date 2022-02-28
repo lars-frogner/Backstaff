@@ -9,7 +9,7 @@ use crate::{
         snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3},
         Verbose,
     },
-    tracing::seeding::{criterion::CriterionSeeder3, IndexSeeder3},
+    seeding::{criterion::CriterionSeeder3, IndexSeeder3},
 };
 
 /// Configuration parameters for the simple reconnection site detection method.
