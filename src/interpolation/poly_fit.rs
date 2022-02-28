@@ -4,7 +4,7 @@ use super::{Interpolator1, Interpolator2, Interpolator3};
 use crate::{
     field::{ScalarField1, ScalarField2, ScalarField3, VectorField2, VectorField3},
     geometry::{
-        CoordRefs1, CoordRefs2, CoordRefs3,
+        CoordRefs2, CoordRefs3,
         Dim2::{self, X as X2, Y as Y2},
         Dim3::{self, X, Y, Z},
         Idx2, Idx3, In2D, In3D, Point2, Point3, Vec2, Vec3,
