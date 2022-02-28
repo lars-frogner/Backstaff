@@ -779,7 +779,7 @@ fn interp_subarray_1d<F: BFloat, const N_POINTS: usize>(
     let mut poly;
     let mut correction;
 
-    vals_c.copy_from_slice(&values);
+    vals_c.copy_from_slice(values);
     vals_d.copy_from_slice(&vals_c);
 
     poly = vals_c[0];
