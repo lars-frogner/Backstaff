@@ -53,8 +53,6 @@ For the `hdf5` feature, the `HDF5_DIR` environment variable can if necessary be 
 $ HDF5_DIR=/path/to/hdf5 cargo install ...
 ```
 
-**_NOTE:_** Compilation can be quite slow because the interpolation code relies heavily on macros, which are time consuming to compile. If this is an issue, compilation can be sped up by adding the `--branch=const-generics-interp`, which installs a branch using the experimental [Const generics](https://github.com/rust-lang/rfcs/blob/master/text/2000-const-generics.md) Rust functionality to avoid macros. However, this requires that you activate the nightly Rust compiler by running `rustup default nightly` prior to `cargo install`. Revert to the stable compiler afterwards by running `rustup default stable`.
-
 ### Compiling from source
 
 You can compile the code in this repository using the `cargo build` command. Make sure to add the `--release` flag so that optimizations are turned on.
