@@ -438,7 +438,7 @@ macro_rules! create_value_subarray_3d {
             create_value_subarray_for_periodic_3d!($values, &$start_indices, $order)
         } else {
             create_value_subarray_for_interior_3d!($values, &$start_indices, $order)
-        };
+        }
     };
 }
 
@@ -458,7 +458,7 @@ macro_rules! create_value_subarray_1d {
             create_value_subarray_for_periodic_1d!($values, $start_index, $order)
         } else {
             create_value_subarray_for_interior_1d!($values, $start_index, $order)
-        };
+        }
     };
 }
 
