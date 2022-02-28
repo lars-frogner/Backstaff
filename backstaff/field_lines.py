@@ -319,8 +319,7 @@ class FieldLineSet3:
             paths_x = self.get_varying_scalar_values('x')
             paths_y = self.get_varying_scalar_values('y')
             paths_z = self.get_varying_scalar_values('z')
-            get_c = (lambda i: c[i]) if hasattr(c,
-                                                '__len__') else (lambda i: c)
+            get_c = (lambda i: c[i]) if not isinstance(c, str) else (lambda i: c)
             for field_line_idx in range(self.get_number_of_field_lines()):
                 for x, y, z in zip(*self.__find_nonwrapping_segments(
                         paths_x[field_line_idx], paths_y[field_line_idx],
