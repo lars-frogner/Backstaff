@@ -1,8 +1,5 @@
 //! Useful tools for working with Bifrost in Rust.
 
-#![allow(incomplete_features)]
-#![feature(const_generics, maybe_uninit_extra)]
-
 #[macro_export]
 macro_rules! exit_on_error {
     ($result:expr, $($fmt_arg:tt)*) => {
