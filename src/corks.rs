@@ -132,6 +132,7 @@ impl Cork {
         )
     }
 
+    #[allow(dead_code)]
     fn number_of_times(&self) -> usize {
         debug_assert!(
             !self.positions.is_empty(),
@@ -140,6 +141,7 @@ impl Cork {
         self.positions.len()
     }
 
+    #[allow(dead_code)]
     fn last_time_idx(&self) -> usize {
         self.first_time_idx + self.number_of_times() - 1
     }
@@ -382,6 +384,7 @@ impl CorkSet {
         self.corks.len()
     }
 
+    #[allow(dead_code)]
     fn number_of_times(&self) -> usize {
         debug_assert!(!self.times.is_empty());
         self.times.len()
@@ -391,6 +394,7 @@ impl CorkSet {
         *self.times.last().unwrap()
     }
 
+    #[allow(dead_code)]
     fn current_time_idx(&self) -> usize {
         self.number_of_times() - 1
     }
@@ -418,6 +422,7 @@ impl CorkSet {
         self.can_drop_mass_density_field
     }
 
+    #[allow(dead_code)]
     fn create_cork<G, I>(
         &mut self,
         position: Point3<fco>,
