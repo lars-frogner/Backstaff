@@ -3,7 +3,10 @@
 use crate::{
     exit_on_error,
     grid::Grid3,
-    io::snapshot::{fdt, SnapshotParameters, SnapshotReader3},
+    io::{
+        snapshot::{fdt, SnapshotParameters, SnapshotReader3},
+        OverwriteMode,
+    },
 };
 use clap::{self, ArgMatches};
 use std::str::FromStr;
@@ -263,4 +266,14 @@ where
             })
             .collect()
     })
+}
+
+pub fn overwrite_mode_from_arguments(arguments: &ArgMatches) -> OverwriteMode {
+    if arguments.is_present("overwrite") {
+        OverwriteMode::Always
+    } else if arguments.is_present("no-overwrite") {
+        OverwriteMode::Never
+    } else {
+        OverwriteMode::Ask
+    }
 }

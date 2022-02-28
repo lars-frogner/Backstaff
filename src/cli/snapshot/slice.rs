@@ -50,7 +50,14 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing file (unless listed as protected)"),
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
+        )
+        .arg(
+            Arg::with_name("no-overwrite")
+                .long("no-overwrite")
+                .help("Do not overwrite any existing files")
+                .conflicts_with("overwrite"),
         )
         .arg(
             Arg::with_name("quantity")
@@ -146,14 +153,14 @@ pub fn run_slice_subcommand<G, R>(
         ));
     }
 
-    let automatic_overwrite = arguments.is_present("overwrite");
+    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
 
     let atomic_output_path = exit_on_error!(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if atomic_output_path.write_should_be_skipped(automatic_overwrite, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
         return;
     }
 

@@ -6,7 +6,7 @@ mod param;
 use super::{
     super::{
         utils::{self, AtomicOutputPath},
-        Endianness, Verbose,
+        Endianness, OverwriteMode, Verbose,
     },
     fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3, COORDINATE_NAMES,
     FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
@@ -221,7 +221,7 @@ pub fn write_identical_snapshot<P, G, R>(
     reader: &R,
     output_file_path: P,
     strip_metadata: bool,
-    automatic_overwrite: bool,
+    overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
@@ -240,7 +240,7 @@ where
         |name| reader.read_scalar_field(name),
         output_file_path,
         strip_metadata,
-        automatic_overwrite,
+        overwrite_mode,
         protected_file_types,
         verbose,
     )
@@ -255,7 +255,7 @@ pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
     field_producer: FP,
     output_file_path: P,
     strip_metadata: bool,
-    automatic_overwrite: bool,
+    overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
@@ -292,7 +292,7 @@ where
     );
 
     let atomic_output_path = AtomicOutputPath::new(output_file_path)?;
-    if atomic_output_path.write_should_be_skipped(automatic_overwrite, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
         return Ok(());
     }
 
@@ -573,6 +573,14 @@ mod tests {
                 Verbose::No,
             ))
             .unwrap();
-        write_identical_snapshot(&reader, "test.nc", false, true, &[], Verbose::No).unwrap();
+        write_identical_snapshot(
+            &reader,
+            "test.nc",
+            false,
+            OverwriteMode::Always,
+            &[],
+            Verbose::No,
+        )
+        .unwrap();
     }
 }

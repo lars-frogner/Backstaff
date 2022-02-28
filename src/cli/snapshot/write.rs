@@ -2,6 +2,7 @@
 
 use super::SnapNumInRange;
 use crate::{
+    cli::utils as cli_utils,
     exit_on_error, exit_with_error,
     field::{quantities, ScalarField3},
     grid::Grid3,
@@ -42,7 +43,14 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing files (unless listed as protected)"),
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
+        )
+        .arg(
+            Arg::with_name("no-overwrite")
+                .long("no-overwrite")
+                .help("Do not overwrite any existing files")
+                .conflicts_with("overwrite"),
         )
         .arg(
             Arg::with_name("all-quantities")
@@ -158,7 +166,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
         }
     }
 
-    let automatic_overwrite = arguments.is_present("overwrite");
+    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
@@ -201,7 +209,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                 &output_file_path,
                 native_type == NativeType::Scratch,
                 write_mesh_file,
-                automatic_overwrite,
+                overwrite_mode,
                 protected_file_types,
                 verbose,
             ),
@@ -216,7 +224,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                     modified_field_producer!(),
                     &output_file_path,
                     strip_metadata,
-                    automatic_overwrite,
+                    overwrite_mode,
                     protected_file_types,
                     verbose,
                 )

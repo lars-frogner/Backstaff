@@ -1,6 +1,6 @@
 //! Utilities for input/output.
 
-use super::Endianness;
+use super::{Endianness, OverwriteMode};
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use serde::Serialize;
 use serde_json;
@@ -62,18 +62,14 @@ impl AtomicOutputPath {
         &self.temp_output_file_path
     }
 
-    /// Check if the file at the given path exists, and if so, ask user whether it
-    /// can be overwritten.
-    pub fn write_should_be_skipped(
+    /// Checks whether the current path can be written to, either automatically
+    /// or with user's consent.
+    pub fn check_if_write_allowed(
         &self,
-        automatic_overwrite: bool,
+        overwrite_mode: OverwriteMode,
         protected_file_types: &[&str],
     ) -> bool {
-        write_should_be_skipped(
-            self.target_path(),
-            automatic_overwrite,
-            protected_file_types,
-        )
+        check_if_write_allowed(self.target_path(), overwrite_mode, protected_file_types)
     }
 
     /// Moves the temporary file to the target output file path.
@@ -128,28 +124,11 @@ pub fn user_says_yes(question: &str, default_is_no: bool) -> bool {
     final_answer == "y"
 }
 
-/// Check if the file at the given path exists, and if so, ask user whether it
-/// can be overwritten.
-pub fn write_allowed<P: AsRef<Path>>(file_path: P) -> bool {
-    let file_path = file_path.as_ref();
-    if file_path.exists() {
-        user_says_yes(
-            &format!(
-                "File {} already exists, overwrite?",
-                file_path.file_name().unwrap().to_string_lossy()
-            ),
-            true,
-        )
-    } else {
-        true
-    }
-}
-
-/// Checks whether the file at the given path can be overwritten, either automatically
+/// Checks whether the current path can be written to, either automatically
 /// or with user's consent.
-pub fn write_should_be_skipped<P: AsRef<Path>>(
+pub fn check_if_write_allowed<P: AsRef<Path>>(
     file_path: P,
-    automatic_overwrite: bool,
+    overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
 ) -> bool {
     let file_path = file_path.as_ref();
@@ -157,14 +136,35 @@ pub fn write_should_be_skipped<P: AsRef<Path>>(
         Some(extension) => protected_file_types.contains(&extension.to_string_lossy().as_ref()),
         None => false,
     };
-    if (!automatic_overwrite || is_protected) && !write_allowed(file_path) {
-        println!(
-            "Skipping {}",
-            file_path.file_name().unwrap().to_string_lossy()
-        );
-        true
+    if file_path.exists() {
+        if is_protected {
+            println!(
+                "Skipping {} (protected file type)",
+                file_path.file_name().unwrap().to_string_lossy()
+            );
+            false
+        } else {
+            let can_overwrite = match overwrite_mode {
+                OverwriteMode::Ask => user_says_yes(
+                    &format!(
+                        "File {} already exists, overwrite?",
+                        file_path.file_name().unwrap().to_string_lossy()
+                    ),
+                    true,
+                ),
+                OverwriteMode::Always => true,
+                OverwriteMode::Never => false,
+            };
+            if !can_overwrite {
+                println!(
+                    "Skipping {}",
+                    file_path.file_name().unwrap().to_string_lossy()
+                );
+            }
+            can_overwrite
+        }
     } else {
-        false
+        true
     }
 }
 

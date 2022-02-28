@@ -22,6 +22,7 @@ use crate::{
             volume::{create_volume_seeder_from_arguments, create_volume_seeder_subcommand},
         },
         snapshot::SnapNumInRange,
+        utils as cli_utils,
     },
     create_subcommand, exit_on_error, exit_with_error,
     grid::Grid3,
@@ -85,7 +86,14 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing file (unless listed as protected)"),
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
+        )
+        .arg(
+            Arg::with_name("no-overwrite")
+                .long("no-overwrite")
+                .help("Do not overwrite any existing files")
+                .conflicts_with("overwrite"),
         )
         .arg(
             Arg::with_name("vector-quantity")
@@ -522,14 +530,14 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
         ));
     }
 
-    let automatic_overwrite = root_arguments.is_present("overwrite");
+    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
 
     let atomic_output_path = exit_on_error!(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if atomic_output_path.write_should_be_skipped(automatic_overwrite, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
         return;
     }
 
@@ -544,8 +552,8 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
                 ),
                 "Error: Could not create temporary output file: {}"
             );
-            if extra_atomic_output_path
-                .write_should_be_skipped(automatic_overwrite, protected_file_types)
+            if !extra_atomic_output_path
+                .check_if_write_allowed(overwrite_mode, protected_file_types)
             {
                 return;
             }
