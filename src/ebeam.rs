@@ -390,7 +390,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
-        let mut acceleration_map = Array::from_elem(snapshot.reader().grid().shape().to_tuple(), false);
+        let mut acceleration_map =
+            Array::from_elem(snapshot.reader().grid().shape().to_tuple(), false);
 
         for distribution in distributions.iter() {
             let indices = distribution.acceleration_indices();
@@ -807,7 +808,13 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                         deposited_power_density,
                         deposition_position,
                         depletion_status,
-                    } = distribution.propagate(snapshot, acceleration_map, interpolator, displacement, position);
+                    } = distribution.propagate(
+                        snapshot,
+                        acceleration_map,
+                        interpolator,
+                        displacement,
+                        position,
+                    );
 
                     trajectory.0.push(deposition_position[X]);
                     trajectory.1.push(deposition_position[Y]);
