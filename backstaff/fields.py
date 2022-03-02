@@ -33,7 +33,7 @@ class Coords2:
     def from_bifrost_data(bifrost_data, omitted_axis):
         all_coords = [
             bifrost_data.xdn, bifrost_data.ydn,
-            -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+            -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
         ]
         all_coords.pop(omitted_axis)
         return Coords2(all_coords[0], all_coords[1])
@@ -66,7 +66,7 @@ class ScalarField3:
         scale=None,
         value_processor=lambda x: x,
     ):
-        z_coords = -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        z_coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
         if not isinstance(quantities, list) and not isinstance(
                 quantities, tuple):
             quantities = [quantities]
@@ -108,17 +108,17 @@ class ScalarField3:
         if isinstance(factor, self.__class__):
             assert np.allclose(self.coords.x, factor.coords.x)
             assert np.allclose(self.coords.y, factor.coords.y)
-            return ScalarField3(self.coords, self.values*factor.values)
+            return ScalarField3(self.coords, self.values * factor.values)
         else:
-            return ScalarField3(self.coords, self.values*factor)
+            return ScalarField3(self.coords, self.values * factor)
 
     def __truediv__(self, divisor):
         if isinstance(divisor, self.__class__):
             assert np.allclose(self.coords.x, divisor.coords.x)
             assert np.allclose(self.coords.y, divisor.coords.y)
-            return ScalarField3(self.coords, self.values/divisor.values)
+            return ScalarField3(self.coords, self.values / divisor.values)
         else:
-            return ScalarField3(self.coords, self.values/divisor)
+            return ScalarField3(self.coords, self.values / divisor)
 
     def get_shape(self):
         return self.coords.get_shape()
@@ -150,12 +150,12 @@ class ScalarField3:
                              kind='linear'):
         if index_range is None:
             index_range = (0, self.get_shape()[axis])
-        slices = [slice(None)]*3
+        slices = [slice(None)] * 3
         slices[axis] = slice(*index_range)
         slices = tuple(slices)
 
         axis_size = index_range[1] - index_range[0]
-        new_axis_size = int(np.ceil(resampling_factor*axis_size))
+        new_axis_size = int(np.ceil(resampling_factor * axis_size))
 
         new_coords = [self.coords[i][slice] for i, slice in enumerate(slices)]
         new_coords[axis] = np.linspace(new_coords[axis][0],
@@ -198,7 +198,7 @@ class ScalarField1:
         scale=None,
         value_processor=lambda x: x,
     ):
-        coords = -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
         if not isinstance(quantities, list) and not isinstance(
                 quantities, tuple):
             quantities = [quantities]
@@ -224,7 +224,7 @@ class ScalarField1:
         scale=None,
         value_processor=lambda x: x,
     ):
-        coords = -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
         if not isinstance(quantities, list) and not isinstance(
                 quantities, tuple):
             quantities = [quantities]
@@ -241,26 +241,26 @@ class ScalarField1:
 
     @staticmethod
     def dz_in_bifrost_data(bifrost_data, height_range=None, scale=None):
-        coords = -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
         k_slice = slice(*((None, ) if height_range is None else np.
                           searchsorted(coords, height_range)))
         values = (bifrost_data.z - bifrost_data.zdn)[::-1][k_slice]
         coords = coords[k_slice]
-        scale = 2 if scale is None else (2*scale)
+        scale = 2 if scale is None else (2 * scale)
         values *= scale
 
         return ScalarField1(Coords1(coords), values)
 
     @staticmethod
     def volumes_in_bifrost_data(bifrost_data, height_range=None, scale=None):
-        coords = -(2*bifrost_data.z - bifrost_data.zdn)[::-1]
+        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
         dx = bifrost_data.params['dx'][0]
         dy = bifrost_data.params['dy'][0]
         k_slice = slice(*((None, ) if height_range is None else np.
                           searchsorted(coords, height_range)))
         values = (bifrost_data.z - bifrost_data.zdn)[::-1][k_slice]
         coords = coords[k_slice]
-        scale = (2*dx*dy) if scale is None else (2*dx*dy*scale)
+        scale = (2 * dx * dy) if scale is None else (2 * dx * dy * scale)
         values *= scale
 
         return ScalarField1(Coords1(coords), values)
@@ -293,16 +293,16 @@ class ScalarField1:
     def __mul__(self, factor):
         if isinstance(factor, self.__class__):
             assert np.allclose(self.coords.coords, factor.coords.coords)
-            return ScalarField1(self.coords, self.values*factor.values)
+            return ScalarField1(self.coords, self.values * factor.values)
         else:
-            return ScalarField1(self.coords, self.values*factor)
+            return ScalarField1(self.coords, self.values * factor)
 
     def __truediv__(self, divisor):
         if isinstance(divisor, self.__class__):
             assert np.allclose(self.coords.coords, divisor.coords.coords)
-            return ScalarField1(self.coords, self.values/divisor.values)
+            return ScalarField1(self.coords, self.values / divisor.values)
         else:
-            return ScalarField1(self.coords, self.values/divisor)
+            return ScalarField1(self.coords, self.values / divisor)
 
     def resampled_to_coords(self, coords, kind='cubic'):
         values = scipy.interpolate.interp1d(self.get_coords(),
@@ -335,7 +335,7 @@ class ScalarField1:
 
     def compute_integral(self):
         values = self.get_values()
-        return np.sum(0.5*(values[:-1] + values[1:])*
+        return np.sum(0.5 * (values[:-1] + values[1:]) *
                       np.diff(self.get_coords()))
 
     def find_peak_coordinate(self):
@@ -380,7 +380,7 @@ class ScalarField2:
             slice_idx = np.argmin(
                 np.abs(all_center_coords[slice_axis] - slice_coord))
 
-        all_slices = [slice(None)]*3
+        all_slices = [slice(None)] * 3
         all_slices[slice_axis] = slice_idx
 
         if not isinstance(quantities, list) and not isinstance(
@@ -485,17 +485,17 @@ class ScalarField2:
         if isinstance(factor, self.__class__):
             assert np.allclose(self.coords.x, factor.coords.x)
             assert np.allclose(self.coords.y, factor.coords.y)
-            return ScalarField2(self.coords, self.values*factor.values)
+            return ScalarField2(self.coords, self.values * factor.values)
         else:
-            return ScalarField2(self.coords, self.values*factor)
+            return ScalarField2(self.coords, self.values * factor)
 
     def __truediv__(self, divisor):
         if isinstance(divisor, self.__class__):
             assert np.allclose(self.coords.x, divisor.coords.x)
             assert np.allclose(self.coords.y, divisor.coords.y)
-            return ScalarField2(self.coords, self.values/divisor.values)
+            return ScalarField2(self.coords, self.values / divisor.values)
         else:
-            return ScalarField2(self.coords, self.values/divisor)
+            return ScalarField2(self.coords, self.values / divisor)
 
     def get_shape(self):
         return self.coords.get_shape()
@@ -527,16 +527,16 @@ class ScalarField2:
 
     def compute_integral(self):
         values = self.get_values()
-        partial = np.sum(0.5*(values[:, :-1] + values[:, 1:])*
+        partial = np.sum(0.5 * (values[:, :-1] + values[:, 1:]) *
                          np.diff(self.get_horizontal_coords())[np.newaxis, :],
                          axis=1)
-        return np.sum(0.5*(partial[:-1] + partial[1:])*
+        return np.sum(0.5 * (partial[:-1] + partial[1:]) *
                       np.diff(self.get_vertical_coords()))
 
     def plot(self, inverted_vertically=False, **plot_kwargs):
-        aspect_ratio = 5/4 if np.abs(
-            (self.get_horizontal_extent() - self.get_vertical_extent())/
-            self.get_horizontal_extent()) < 1e-3 else 4.5/3
+        aspect_ratio = 5 / 4 if np.abs(
+            (self.get_horizontal_extent() - self.get_vertical_extent()) /
+            self.get_horizontal_extent()) < 1e-3 else 4.5 / 3
         fig_kwargs = plot_kwargs.pop('fig_kwargs', {})
         fig_kwargs['width'] = fig_kwargs.pop('width', 7.2)
         fig_kwargs['aspect_ratio'] = fig_kwargs.pop('aspect_ratio',

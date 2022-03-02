@@ -71,23 +71,23 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
     }
 
     VALUE_UNIT_CONVERTERS = {
-        'r': lambda f: f*units.U_R,
-        'qspitz': lambda f: f*(units.U_E/units.U_T),
-        'qjoule': lambda f: f*(units.U_E/units.U_T),
-        'dedt': lambda f: f*(units.U_E/units.U_T),
-        'r0': lambda f: f*units.U_R,
+        'r': lambda f: f * units.U_R,
+        'qspitz': lambda f: f * (units.U_E / units.U_T),
+        'qjoule': lambda f: f * (units.U_E / units.U_T),
+        'dedt': lambda f: f * (units.U_E / units.U_T),
+        'r0': lambda f: f * units.U_R,
         'z': lambda f: -f,
         'z0': lambda f: -f,
-        'bx': lambda f: f*units.U_B,
-        'by': lambda f: f*units.U_B,
-        'bz': lambda f: f*units.U_B,
-        'b': lambda f: f*units.U_B,
-        'p': lambda f: f*units.U_E,
-        'ux': lambda f: f*units.U_U,
-        'uy': lambda f: f*units.U_U,
-        'uz': lambda f: f*units.U_U,
-        'us': lambda f: f*units.U_U,
-        'uhor': lambda f: f*units.U_U,
+        'bx': lambda f: f * units.U_B,
+        'by': lambda f: f * units.U_B,
+        'bz': lambda f: f * units.U_B,
+        'b': lambda f: f * units.U_B,
+        'p': lambda f: f * units.U_E,
+        'ux': lambda f: f * units.U_U,
+        'uy': lambda f: f * units.U_U,
+        'uz': lambda f: f * units.U_U,
+        'us': lambda f: f * units.U_U,
+        'uhor': lambda f: f * units.U_U,
     }
 
     @staticmethod
@@ -185,12 +185,12 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         if 'initial_pitch_angle' in derived_quantities:
             self.fixed_scalar_values['initial_pitch_angle'] = np.arccos(
                 self.get_fixed_scalar_values(
-                    'initial_pitch_angle_cosine'))*180.0/np.pi
+                    'initial_pitch_angle_cosine')) * 180.0 / np.pi
 
         if 'total_power_density' in derived_quantities:
             self.fixed_scalar_values[
                 'total_power_density'] = self.get_fixed_scalar_values(
-                    'total_power')/self.get_fixed_scalar_values(
+                    'total_power') / self.get_fixed_scalar_values(
                         'acceleration_volume')
 
         if 'total_energy_density' in derived_quantities:
@@ -199,7 +199,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         if 'non_thermal_energy_per_thermal_electron' in derived_quantities:
             self.fixed_scalar_values[
                 'non_thermal_energy_per_thermal_electron'] = self._obtain_total_energy_densities(
-                )/self.get_fixed_scalar_values(
+                ) / self.get_fixed_scalar_values(
                     'nel0' if self.has_fixed_scalar_values('nel0') else 'nel')
 
         if 'mean_electron_energy' in derived_quantities:
@@ -221,12 +221,13 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
         if 'return_current_speed_fraction' in derived_quantities:
             mean_electron_energies = self._obtain_mean_electron_energies(
-            )*units.KEV_TO_ERG
+            ) * units.KEV_TO_ERG
             mean_electron_speed_fractions = np.sqrt(
-                1.0 - 1.0/(1.0 + mean_electron_energies/units.MC2_ELECTRON)**2)
+                1.0 - 1.0 /
+                (1.0 + mean_electron_energies / units.MC2_ELECTRON)**2)
             beam_electron_fractions = self._obtain_beam_electron_fractions()
             self.fixed_scalar_values[
-                'return_current_speed_fraction'] = beam_electron_fractions*mean_electron_speed_fractions
+                'return_current_speed_fraction'] = beam_electron_fractions * mean_electron_speed_fractions
 
         if 'acceleration_current' in derived_quantities:
             self._obtain_acceleration_currents()
@@ -241,7 +242,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             B_induced = self._obtain_acceleration_induced_magnetic_fields()
             B = self._obtain_acceleration_ambient_magnetic_field()
             self.fixed_scalar_values[
-                'relative_acceleration_induced_magnetic_field'] = B_induced/B
+                'relative_acceleration_induced_magnetic_field'] = B_induced / B
 
         if 'acceleration_induced_electric_field' in derived_quantities:
             self._obtain_acceleration_induced_electric_fields()
@@ -253,7 +254,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             E_induced = self._obtain_acceleration_induced_electric_fields()
             E = np.abs(self._obtain_parallel_electric_fields())
             self.fixed_scalar_values[
-                'relative_acceleration_induced_electric_field'] = E_induced/E
+                'relative_acceleration_induced_electric_field'] = E_induced / E
 
         if 'return_current_heating_ratio' in derived_quantities:
             self._obtain_return_current_heating_ratio()
@@ -261,15 +262,15 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         if 'estimated_electron_density' in derived_quantities:
             assert self.has_varying_scalar_values('r')
             self.varying_scalar_values['estimated_electron_density'] = [
-                self.varying_scalar_values['r'][i]*units.U_R*
+                self.varying_scalar_values['r'][i] * units.U_R *
                 units.MASS_DENSITY_TO_ELECTRON_DENSITY
                 for i in range(self.get_number_of_beams())
             ]
 
         if 'deposited_power_per_dist' in derived_quantities:
-            scale = 1.0/(self.get_param('dense_step_length')*units.U_L)
+            scale = 1.0 / (self.get_param('dense_step_length') * units.U_L)
             self.varying_scalar_values['deposited_power_per_dist'] = [
-                arr*scale
+                arr * scale
                 for arr in self.varying_scalar_values['deposited_power']
             ]
 
@@ -290,7 +291,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             for i in range(self.get_number_of_beams()):
                 self.varying_scalar_values['power_density_change'][i][
                     0] -= self.get_fixed_scalar_values(
-                        'total_power')[i]/self.get_fixed_scalar_values(
+                        'total_power')[i] / self.get_fixed_scalar_values(
                             'acceleration_volume')[i]
 
         if 'padded_total_power_density' in derived_quantities:
@@ -300,7 +301,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             for i in range(self.get_number_of_beams()):
                 self.varying_scalar_values['padded_total_power_density'][i][
                     0] += self.get_fixed_scalar_values(
-                        'total_power')[i]/self.get_fixed_scalar_values(
+                        'total_power')[i] / self.get_fixed_scalar_values(
                             'acceleration_volume')[i]
 
         if 'beam_flux' in derived_quantities:
@@ -311,10 +312,10 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             for i in range(self.get_number_of_beams()):
                 self.varying_scalar_values['beam_flux'][i][
                     0] -= self.get_fixed_scalar_values(
-                        'total_power')[i]/self.get_fixed_scalar_values(
+                        'total_power')[i] / self.get_fixed_scalar_values(
                             'acceleration_volume')[i]
                 self.varying_scalar_values['beam_flux'][i] *= self.get_param(
-                    'dense_step_length')*units.U_L
+                    'dense_step_length') * units.U_L
 
         if 'conduction_flux' in derived_quantities:
             self.varying_scalar_values['conduction_flux'] = [
@@ -322,8 +323,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             ]
             for i in range(self.get_number_of_beams()):
                 self.varying_scalar_values['conduction_flux'][
-                    i] *= self.get_param(
-                        'dense_step_length')*units.U_L*units.U_E/units.U_T
+                    i] *= self.get_param('dense_step_length'
+                                         ) * units.U_L * units.U_E / units.U_T
 
         if 'cumulative_power' in derived_quantities:
             self.varying_scalar_values['cumulative_power'] = [
@@ -333,8 +334,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
         if 'relative_cumulative_power' in derived_quantities:
             self.varying_scalar_values['relative_cumulative_power'] = [
-                100*
-                np.cumsum(self.varying_scalar_values['deposited_power'][i])/
+                100 *
+                np.cumsum(self.varying_scalar_values['deposited_power'][i]) /
                 self.fixed_scalar_values['total_power'][i]
                 for i in range(self.get_number_of_beams())
             ]
@@ -350,11 +351,11 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             assert self.has_param('power_law_delta')
             delta = self.get_param('power_law_delta')
             self.varying_scalar_values['pitch_angle_intersection_energy'] = [
-                Ec/np.sqrt(
+                Ec / np.sqrt(
                     (1.0 -
-                     (np.sqrt(np.maximum(0.0, 1.0 - b*
-                                         (1.0 - mu0**2)/b[0]))/mu0)**3)/
-                    r**(-2/delta))
+                     (np.sqrt(np.maximum(0.0, 1.0 - b *
+                                         (1.0 - mu0**2) / b[0])) / mu0)**3) /
+                    r**(-2 / delta))
                 for Ec, mu0, b, r in zip(
                     self.get_fixed_scalar_values('lower_cutoff_energy'),
                     self.get_fixed_scalar_values('initial_pitch_angle_cosine'),
@@ -374,7 +375,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
         if 'adiabatic_pitch_angle_cosine' in derived_quantities:
             self.varying_scalar_values['adiabatic_pitch_angle_cosine'] = [
-                np.sqrt(np.maximum(0.0, 1.0 - b*(1.0 - mu0**2)/b[0]))
+                np.sqrt(np.maximum(0.0, 1.0 - b * (1.0 - mu0**2) / b[0]))
                 for mu0, b in zip(
                     self.get_fixed_scalar_values('initial_pitch_angle_cosine'),
                     self.get_varying_scalar_values('b'))
@@ -385,8 +386,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             assert self.has_param('power_law_delta')
             delta = self.get_param('power_law_delta')
             self.fixed_scalar_values['mean_electron_energy'] = (
-                (delta - 0.5)/(delta - 1.5)
-            )*self.get_fixed_scalar_values('lower_cutoff_energy')
+                (delta - 0.5) / (delta - 1.5)
+            ) * self.get_fixed_scalar_values('lower_cutoff_energy')
 
         return self.get_fixed_scalar_values('mean_electron_energy')
 
@@ -395,9 +396,9 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             assert self.has_param('power_law_delta')
             delta = self.get_param('power_law_delta')
             self.fixed_scalar_values['mean_electron_speed'] = (
-                (delta - 0.5)/(delta - 1))*np.sqrt(
-                    2*self.get_fixed_scalar_values('lower_cutoff_energy')*
-                    units.KEV_TO_ERG/units.M_ELECTRON)  # [cm/s]
+                (delta - 0.5) / (delta - 1)) * np.sqrt(
+                    2 * self.get_fixed_scalar_values('lower_cutoff_energy') *
+                    units.KEV_TO_ERG / units.M_ELECTRON)  # [cm/s]
 
         return self.get_fixed_scalar_values('mean_electron_speed')
 
@@ -409,7 +410,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             self.fixed_scalar_values[
                 'acceleration_site_electron_density'] = self.get_fixed_scalar_values(
                     'r0' if self.has_fixed_scalar_values('r0') else 'r'
-                )*units.U_R*units.MASS_DENSITY_TO_ELECTRON_DENSITY
+                ) * units.U_R * units.MASS_DENSITY_TO_ELECTRON_DENSITY
 
         return self.get_fixed_scalar_values(
             'acceleration_site_electron_density')
@@ -424,22 +425,23 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 'ix') and self.has_fixed_scalar_values(
                     'iy') and self.has_fixed_scalar_values('iz')
 
-            bx = self.get_fixed_scalar_values('bx')*units.U_B
-            by = self.get_fixed_scalar_values('by')*units.U_B
-            bz = self.get_fixed_scalar_values('bz')*units.U_B
+            bx = self.get_fixed_scalar_values('bx') * units.U_B
+            by = self.get_fixed_scalar_values('by') * units.U_B
+            bz = self.get_fixed_scalar_values('bz') * units.U_B
             ix = self.get_fixed_scalar_values('ix')
             iy = self.get_fixed_scalar_values('iy')
             iz = self.get_fixed_scalar_values('iz')
-            free_energy = (bx*bx + by*by + bz*bz - (bx*ix + by*iy + bz*iz)**2/
-                           (ix*ix + iy*iy + iz*iz))/(8.0*np.pi)
+            free_energy = (bx * bx + by * by + bz * bz -
+                           (bx * ix + by * iy + bz * iz)**2 /
+                           (ix * ix + iy * iy + iz * iz)) / (8.0 * np.pi)
             mean_electron_energies = self._obtain_mean_electron_energies(
-            )*units.KEV_TO_ERG
+            ) * units.KEV_TO_ERG
             electron_densities = self._obtain_acceleration_site_electron_densities(
             )
             self.fixed_scalar_values[
                 'beam_electron_fraction'] = self.get_param(
-                    'particle_energy_fraction')*free_energy/(
-                        mean_electron_energies*electron_densities)
+                    'particle_energy_fraction') * free_energy / (
+                        mean_electron_energies * electron_densities)
 
         return self.get_fixed_scalar_values('beam_electron_fraction')
 
@@ -448,19 +450,19 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             assert self.has_param('acceleration_duration')
             self.fixed_scalar_values[
                 'total_energy_density'] = self.get_fixed_scalar_values(
-                    'total_power')*self.get_param(
-                        'acceleration_duration')/self.get_fixed_scalar_values(
-                            'acceleration_volume')
+                    'total_power') * self.get_param(
+                        'acceleration_duration'
+                    ) / self.get_fixed_scalar_values('acceleration_volume')
 
         return self.get_fixed_scalar_values('total_energy_density')
 
     def _obtain_acceleration_currents(self):
         if not self.has_fixed_scalar_values('acceleration_current'):
             u_acc = self._obtain_total_energy_densities()
-            E_mean = self._obtain_mean_electron_energies()*units.KEV_TO_ERG
+            E_mean = self._obtain_mean_electron_energies() * units.KEV_TO_ERG
             v_mean = self._obtain_mean_electron_speeds()
             self.fixed_scalar_values[
-                'acceleration_current'] = units.Q_ELECTRON*u_acc*v_mean/E_mean
+                'acceleration_current'] = units.Q_ELECTRON * u_acc * v_mean / E_mean
 
         return self.get_fixed_scalar_values('acceleration_current')
 
@@ -470,7 +472,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             j = self._obtain_acceleration_currents()
             L = np.cbrt(self.get_fixed_scalar_values('acceleration_volume'))
             self.fixed_scalar_values[
-                'acceleration_induced_magnetic_field'] = np.pi*j*L/units.CLIGHT
+                'acceleration_induced_magnetic_field'] = np.pi * j * L / units.CLIGHT
 
         return self.get_fixed_scalar_values(
             'acceleration_induced_magnetic_field')
@@ -479,15 +481,16 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         if not self.has_fixed_scalar_values('resistivity'):
             nel = self.get_fixed_scalar_values('nel0')
             tg = self.get_fixed_scalar_values('tg0')
-            r = self.get_fixed_scalar_values('r0')*units.U_R
+            r = self.get_fixed_scalar_values('r0') * units.U_R
             x = beam_heating.compute_equilibrium_hydrogen_ionization_fraction(
                 tg, nel)
             nH = beam_heating.compute_total_hydrogen_density(r)
 
             self.fixed_scalar_values['resistivity'] = (
-                7.26e-9*x/tg**(3/2))*np.log(
-                    3*np.sqrt((units.KBOLTZMANN*tg)**3/(np.pi*nH))/
-                    (2*units.Q_ELECTRON**3)) + 7.6e-18*(1 - x)*np.sqrt(tg)/x
+                7.26e-9 * x / tg**(3 / 2)) * np.log(3 * np.sqrt(
+                    (units.KBOLTZMANN * tg)**3 /
+                    (np.pi * nH)) / (2 * units.Q_ELECTRON**3)) + 7.6e-18 * (
+                        1 - x) * np.sqrt(tg) / x
 
         return self.get_fixed_scalar_values('resistivity')
 
@@ -497,22 +500,22 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             j = self._obtain_acceleration_currents()
             eta = self._obtain_resistivities()
             self.fixed_scalar_values[
-                'acceleration_induced_electric_field'] = eta*j*units.STATV_TO_V*1e2
+                'acceleration_induced_electric_field'] = eta * j * units.STATV_TO_V * 1e2
 
         return self.get_fixed_scalar_values(
             'acceleration_induced_electric_field')
 
     def _obtain_parallel_electric_fields(self):
         if not self.has_fixed_scalar_values('parallel_electric_field'):
-            bx = self.get_fixed_scalar_values('bx0')*units.U_B
-            by = self.get_fixed_scalar_values('by0')*units.U_B
-            bz = self.get_fixed_scalar_values('bz0')*units.U_B
-            ex = self.get_fixed_scalar_values('ex0')*units.U_EL
-            ey = self.get_fixed_scalar_values('ey0')*units.U_EL
-            ez = self.get_fixed_scalar_values('ez0')*units.U_EL
+            bx = self.get_fixed_scalar_values('bx0') * units.U_B
+            by = self.get_fixed_scalar_values('by0') * units.U_B
+            bz = self.get_fixed_scalar_values('bz0') * units.U_B
+            ex = self.get_fixed_scalar_values('ex0') * units.U_EL
+            ey = self.get_fixed_scalar_values('ey0') * units.U_EL
+            ez = self.get_fixed_scalar_values('ez0') * units.U_EL
 
             self.fixed_scalar_values['parallel_electric_field'] = (
-                bx*ex + by*ey + bz*ez)/np.sqrt(bx**2 + by**2 + bz**2)
+                bx * ex + by * ey + bz * ez) / np.sqrt(bx**2 + by**2 + bz**2)
 
         return self.get_fixed_scalar_values('parallel_electric_field')
 
@@ -523,10 +526,10 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
             nel = self.get_fixed_scalar_values('nel0')
             tg = self.get_fixed_scalar_values('tg0')
-            r = self.get_fixed_scalar_values('r0')*units.U_R
+            r = self.get_fixed_scalar_values('r0') * units.U_R
             x = beam_heating.compute_equilibrium_hydrogen_ionization_fraction(
                 tg, nel)
-            r = self.get_fixed_scalar_values('r0')*units.U_R
+            r = self.get_fixed_scalar_values('r0') * units.U_R
             nH = beam_heating.compute_total_hydrogen_density(r)  # [1/cm^3]
 
             electron_coulomb_logarithm = beam_heating.compute_electron_coulomb_logarithm(
@@ -539,12 +542,13 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 neutral_hydrogen_coulomb_logarithm,
             )
 
-            E = self._obtain_acceleration_induced_electric_fields()/(
-                units.STATV_TO_V*1e2)  # [statV/cm]
+            E = self._obtain_acceleration_induced_electric_fields() / (
+                units.STATV_TO_V * 1e2)  # [statV/cm]
             e = units.Q_ELECTRON  # [statC]
 
             self.fixed_scalar_values['return_current_heating_ratio'] = (
-                E*e/nH)/(2*np.pi*e**4*gamma/(mu*E_mean*units.KEV_TO_ERG))
+                E * e / nH) / (2 * np.pi * e**4 * gamma /
+                               (mu * E_mean * units.KEV_TO_ERG))
 
         return self.get_fixed_scalar_values('return_current_heating_ratio')
 
@@ -555,7 +559,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             by = self.get_fixed_scalar_values('by0')
             bz = self.get_fixed_scalar_values('bz0')
 
-            B = np.sqrt(bx**2 + by**2 + bz**2)*units.U_B
+            B = np.sqrt(bx**2 + by**2 + bz**2) * units.U_B
 
             self.fixed_scalar_values['acceleration_ambient_magnetic_field'] = B
 
@@ -626,14 +630,14 @@ def find_beams_in_temperature_height_region(height_lims, tg_lims,
     return [
         i for i, (z, tg) in enumerate(
             zip(varying_scalar_values['z'], varying_scalar_values['tg']))
-        if np.any((z > -height_lims[1])*(z < -height_lims[0])*
-                  (tg > tg_lims[0])*(tg < tg_lims[1]))
+        if np.any((z > -height_lims[1]) * (z < -height_lims[0]) *
+                  (tg > tg_lims[0]) * (tg < tg_lims[1]))
     ]
 
 
 def find_peak_deposition_point(varying_scalar_values, field_line_idx):
     deposited_power = varying_scalar_values['deposited_power'][field_line_idx]
-    indices, _ = signal.find_peaks(deposited_power/np.mean(deposited_power),
+    indices, _ = signal.find_peaks(deposited_power / np.mean(deposited_power),
                                    prominence=2)
     return slice(np.max(indices) if indices.size > 0 else -1, None, None)
 

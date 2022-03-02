@@ -30,18 +30,18 @@ class FieldLineSet3:
     }
 
     VALUE_UNIT_CONVERTERS = {
-        'r': lambda f: f*units.U_R,
-        'r0': lambda f: f*units.U_R,
-        'p': lambda f: f*units.U_P,
-        'p0': lambda f: f*units.U_P,
+        'r': lambda f: f * units.U_R,
+        'r0': lambda f: f * units.U_R,
+        'p': lambda f: f * units.U_P,
+        'p0': lambda f: f * units.U_P,
         'z': lambda f: -f,
         'z0': lambda f: -f,
-        'bx': lambda f: f*units.U_B,
-        'by': lambda f: f*units.U_B,
-        'bz': lambda f: f*units.U_B,
-        'bz': lambda f: f*units.U_B,
-        'beam_en': lambda f: f*(units.U_E/units.U_T),
-        'F_beam': lambda f: f*(units.U_L*units.U_E/units.U_T)
+        'bx': lambda f: f * units.U_B,
+        'by': lambda f: f * units.U_B,
+        'bz': lambda f: f * units.U_B,
+        'bz': lambda f: f * units.U_B,
+        'beam_en': lambda f: f * (units.U_E / units.U_T),
+        'F_beam': lambda f: f * (units.U_L * units.U_E / units.U_T)
     }
 
     @staticmethod
@@ -218,7 +218,7 @@ class FieldLineSet3:
         else:
             weights = self._convert_values(value_name_weights, weights,
                                            do_conversion)
-            result = aggregator(values*weights)
+            result = aggregator(values * weights)
             if weighted_average:
                 result /= aggregator(weights)
 
@@ -732,7 +732,7 @@ class FieldLineSet3:
             assert self.has_param('dense_step_length')
             ds = self.get_param('dense_step_length')
             self.varying_scalar_values['s'] = [
-                np.arange(len(z))*ds
+                np.arange(len(z)) * ds
                 for z in self.get_varying_scalar_values('z')
             ]
 
@@ -757,7 +757,7 @@ class FieldLineSet3:
 
         if 'b' in derived_quantities:
             self.varying_scalar_values['b'] = [
-                np.sqrt(bx*bx + by*by + bz*bz)
+                np.sqrt(bx * bx + by * by + bz * bz)
                 for bx, by, bz in zip(self.get_varying_scalar_values('bx'),
                                       self.get_varying_scalar_values('by'),
                                       self.get_varying_scalar_values('bz'))
@@ -765,7 +765,7 @@ class FieldLineSet3:
 
         if 'beta' in derived_quantities:
             self.varying_scalar_values['beta'] = [
-                p*units.U_E/((b*units.U_B)**2/(8*np.pi))
+                p * units.U_E / ((b * units.U_B)**2 / (8 * np.pi))
                 for p, b in zip(self.get_varying_scalar_values('p'),
                                 self.get_varying_scalar_values('b'))
             ]
@@ -773,7 +773,7 @@ class FieldLineSet3:
         for dim in ('x', 'y', 'z'):
             if f'u{dim}' in derived_quantities:
                 self.varying_scalar_values[f'u{dim}'] = [
-                    pxyz/r for pxyz, r in zip(
+                    pxyz / r for pxyz, r in zip(
                         self.get_varying_scalar_values(f'p{dim}'),
                         self.get_varying_scalar_values('r'))
                 ]
@@ -787,7 +787,8 @@ class FieldLineSet3:
 
         if 'us' in derived_quantities:
             self.varying_scalar_values['us'] = [
-                (ux*bx + uy*by + uz*bz)/np.sqrt(bx*bx + by*by + bz*bz)
+                (ux * bx + uy * by + uz * bz) /
+                np.sqrt(bx * bx + by * by + bz * bz)
                 for bx, by, bz, ux, uy, uz in zip(
                     self.get_varying_scalar_values('bx'),
                     self.get_varying_scalar_values('by'),
@@ -799,7 +800,7 @@ class FieldLineSet3:
 
         if 'binc' in derived_quantities:
             self.varying_scalar_values['binc'] = [
-                bz/np.sqrt(bx*bx + by*by + bz*bz)
+                bz / np.sqrt(bx * bx + by * by + bz * bz)
                 for bx, by, bz in zip(self.get_varying_scalar_values('bx'),
                                       self.get_varying_scalar_values('by'),
                                       self.get_varying_scalar_values('bz'))
@@ -811,7 +812,7 @@ class FieldLineSet3:
             ds = self.get_param('dense_step_length')
             # F_beam [power/area] = beam_en [power/volume] * ds [length]
             self.varying_scalar_values['F_beam'] = [
-                beam_en*ds for beam_en, z in zip(
+                beam_en * ds for beam_en, z in zip(
                     self.get_varying_scalar_values('beam_en'),
                     self.get_varying_scalar_values('z'))
             ]
@@ -824,7 +825,7 @@ class FieldLineSet3:
         step_lengths = np.sqrt(
             np.diff(path_x)**2 + np.diff(path_y)**2 + np.diff(path_z)**2)
         wrap_indices = np.where(
-            step_lengths > threshold*np.mean(step_lengths))[0]
+            step_lengths > threshold * np.mean(step_lengths))[0]
         if wrap_indices.size > 0:
             wrap_indices += 1
             return np.split(path_x, wrap_indices), \
@@ -1144,8 +1145,8 @@ class FieldLineSet3:
             values_x, values_y, weights, vmin_x, vmax_x, vmin_y, vmax_y, log_x,
             log_y, bins_x, bins_y, weighted_average)
 
-        bin_centers_x = 0.5*(bin_edges_x[1:] + bin_edges_x[:-1])
-        bin_centers_y = 0.5*(bin_edges_y[1:] + bin_edges_y[:-1])
+        bin_centers_x = 0.5 * (bin_edges_x[1:] + bin_edges_x[:-1])
+        bin_centers_y = 0.5 * (bin_edges_y[1:] + bin_edges_y[:-1])
 
         if gaussian_filter_sigma is not None:
             hist = ndimage.gaussian_filter(hist, gaussian_filter_sigma)
@@ -1293,8 +1294,8 @@ def find_field_lines_contained_in_box(x_lims, y_lims, z_lims,
         i for i, (x, y, z) in enumerate(
             zip(varying_scalar_values['x'], varying_scalar_values['y'],
                 varying_scalar_values['z']))
-        if np.all((x >= x_lims[0])*(x <= x_lims[1])*(y >= y_lims[0])*
-                  (y <= y_lims[1])*(z >= z_lims[0])*(z <= z_lims[1]))
+        if np.all((x >= x_lims[0]) * (x <= x_lims[1]) * (y >= y_lims[0]) *
+                  (y <= y_lims[1]) * (z >= z_lims[0]) * (z <= z_lims[1]))
     ]
 
 
@@ -1304,8 +1305,8 @@ def find_field_lines_passing_through_box(x_lims, y_lims, z_lims,
         i for i, (x, y, z) in enumerate(
             zip(varying_scalar_values['x'], varying_scalar_values['y'],
                 varying_scalar_values['z']))
-        if np.any((x >= x_lims[0])*(x <= x_lims[1])*(y >= y_lims[0])*
-                  (y <= y_lims[1])*(z >= z_lims[0])*(z <= z_lims[1]))
+        if np.any((x >= x_lims[0]) * (x <= x_lims[1]) * (y >= y_lims[0]) *
+                  (y <= y_lims[1]) * (z >= z_lims[0]) * (z <= z_lims[1]))
     ]
 
 
@@ -1351,7 +1352,7 @@ def find_field_line_points_after_distance(min_distance, varying_scalar_values,
 
 def find_field_line_points_above_density(min_density, varying_scalar_values,
                                          field_line_idx):
-    return varying_scalar_values['r'][field_line_idx] > min_density/units.U_R
+    return varying_scalar_values['r'][field_line_idx] > min_density / units.U_R
 
 
 def find_field_line_points_below_temperature(max_temperature,
@@ -1461,7 +1462,7 @@ def plot_field_line_properties(field_line_set,
                                fig=None,
                                ax=None,
                                figure_width=6.0,
-                               figure_aspect=4.0/3.0,
+                               figure_aspect=4.0 / 3.0,
                                invert_xaxis=False,
                                invert_yaxis=False,
                                minorticks_on=False,
@@ -1570,7 +1571,7 @@ def plot_field_line_value_histogram(field_line_set,
                                     fig=None,
                                     ax=None,
                                     figure_width=6.0,
-                                    figure_aspect=4.0/3.0,
+                                    figure_aspect=4.0 / 3.0,
                                     invert_xaxis=False,
                                     invert_yaxis=False,
                                     minorticks_on=False,
@@ -1668,7 +1669,7 @@ def plot_field_line_value_histogram_difference(field_line_set,
                                                fig=None,
                                                ax=None,
                                                figure_width=6.0,
-                                               figure_aspect=4.0/3.0,
+                                               figure_aspect=4.0 / 3.0,
                                                invert_xaxis=False,
                                                invert_yaxis=False,
                                                value_description=None,
@@ -1754,7 +1755,7 @@ def plot_field_line_value_2d_histogram(field_line_set,
                                        fig=None,
                                        ax=None,
                                        figure_width=6.0,
-                                       figure_aspect=4.0/3.0,
+                                       figure_aspect=4.0 / 3.0,
                                        invert_xaxis=False,
                                        invert_yaxis=False,
                                        minorticks_on=False,
@@ -1859,7 +1860,7 @@ def plot_field_line_value_2d_histogram_difference(
         fig=None,
         ax=None,
         figure_width=6.0,
-        figure_aspect=4.0/3.0,
+        figure_aspect=4.0 / 3.0,
         invert_xaxis=False,
         invert_yaxis=False,
         minorticks_on=False,

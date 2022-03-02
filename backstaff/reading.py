@@ -80,8 +80,9 @@ def read_electron_beam_swarm_from_custom_binary_file(
         file_path, acceleration_data_type=None, memmap=True, **kwargs):
     with open(file_path, 'rb') as f:
         electron_beam_swarm = electron_beams.ElectronBeamSwarm(
-            *__parse_custom_electron_beam_binary_file(
-                f, acceleration_data_type, memmap=memmap), **kwargs)
+            *__parse_custom_electron_beam_binary_file(f,
+                                                      acceleration_data_type,
+                                                      memmap=memmap), **kwargs)
     return electron_beam_swarm
 
 
@@ -172,7 +173,7 @@ def __parse_custom_field_line_binary_file_memmap(f):
                       mode='r',
                       offset=byte_offset,
                       shape=shape)
-        mapped_bytes = np.product(shape, dtype=int)*dtype.itemsize
+        mapped_bytes = np.product(shape, dtype=int) * dtype.itemsize
         f.seek(byte_offset + mapped_bytes)
         return m
 

@@ -29,14 +29,14 @@ EH2DISS = 4.478
 # pi e^2 / m_e c [cm^2 Hz].
 PIE2_MEC = 0.02654
 # Electron rest energy [erg].
-MC2_ELECTRON = M_ELECTRON*CLIGHT*CLIGHT
+MC2_ELECTRON = M_ELECTRON * CLIGHT * CLIGHT
 # Ionization energy of an hydrogen atom [eV].
 XI_H = 13.595
 
 # Conversion factor from electron volts to ergs.
 EV_TO_ERG = 1.602_177_33e-12
 # Conversion factor from kilo electron volts to ergs.
-KEV_TO_ERG = EV_TO_ERG*1e3
+KEV_TO_ERG = EV_TO_ERG * 1e3
 # Conversion factor from rydberg to ergs.
 RYD_TO_ERG = 2.17987197e-11
 # Conversion factor from electron volts to kelvin (1/KBOLTZMANN).
@@ -69,7 +69,7 @@ HYDROGEN_MASS_FRACTION = 0.735
 # Conversion factor from mass density [g] to electron density [1/cm^3],
 # assuming a fully ionized plasma with no metals and the hard-coded value for
 # the hydrogen mass fraction.
-MASS_DENSITY_TO_ELECTRON_DENSITY = (1.0 + HYDROGEN_MASS_FRACTION)/(2.0*AMU)
+MASS_DENSITY_TO_ELECTRON_DENSITY = (1.0 + HYDROGEN_MASS_FRACTION) / (2.0 * AMU)
 
 # Unit for length [cm]
 U_L = 1e8
@@ -78,23 +78,23 @@ U_T = 1e2
 # Unit for mass density [g/cm^3]
 U_R = 1e-7
 # Unit for speed [cm/s]
-U_U = U_L/U_T
+U_U = U_L / U_T
 # Unit for pressure [dyn/cm^2]
-U_P = U_R*(U_L/U_T)*(U_L/U_T)
+U_P = U_R * (U_L / U_T) * (U_L / U_T)
 # Unit for Rosseland opacity [cm^2/g]
-U_KR = 1.0/(U_R*U_L)
+U_KR = 1.0 / (U_R * U_L)
 # Unit for energy per mass [erg/g]
-U_EE = U_U*U_U
+U_EE = U_U * U_U
 # Unit for energy per volume [erg/cm^3]
-U_E = U_R*U_EE
+U_E = U_R * U_EE
 # Unit for thermal emission [erg/(s ster cm^2)]
-U_TE = U_E/U_T*U_L
+U_TE = U_E / U_T * U_L
 # Unit for volume [cm^3]
-U_L3 = U_L*U_L*U_L
+U_L3 = U_L * U_L * U_L
 # Unit for magnetic flux density [gauss]
-U_B = U_U*np.sqrt(4.0*np.pi*U_R)
+U_B = U_U * np.sqrt(4.0 * np.pi * U_R)
 # Unit for electric field strength [V/m].
-U_EL = U_B*U_U*1e-6
+U_EL = U_B * U_U * 1e-6
 # Unit for power density [erg/s/cm^3]
 U_PD = U_E / U_T
 # Unit for power [erg/s]
