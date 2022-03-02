@@ -8,7 +8,7 @@ default-run = "backstaff"
 
 [features]
 default = ["cli"]
-cli = ["chrono", "clap", "pad", "paste", "petgraph", "float-pretty-print"]
+cli = ["chrono", "clap", "clap_complete", "pad", "paste", "petgraph", "float-pretty-print"]
 tracing = []
 ebeam = []
 netcdf = ["netcdf-rs"]
