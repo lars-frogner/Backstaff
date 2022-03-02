@@ -15,7 +15,7 @@ use std::str::FromStr;
 macro_rules! create_subcommand {
     ($parent_command:ident, $child_command:ident) => {{
         let subcommand = paste::expr! { [<create_ $child_command _subcommand>]() };
-        if !subcommand.p.is_set(clap::AppSettings::Hidden) {
+        if !subcommand.is_hide_set() {
             crate::cli::command_graph::insert_command_graph_edge(
                 stringify!($parent_command),
                 stringify!($child_command),

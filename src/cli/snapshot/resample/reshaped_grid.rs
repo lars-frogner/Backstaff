@@ -18,25 +18,25 @@ use crate::{
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotReader3},
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-resample-reshaped_grid` command line subcommand.
-pub fn create_reshaped_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("reshaped_grid")
+pub fn create_reshaped_grid_subcommand() -> Command<'static> {
+    Command::new("reshaped_grid")
         .about("Resample to a reshaped version of the original grid")
         .long_about("Resample to a reshaped version of the original grid.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
                    weighted sample averaging with the default prameters is used.",
         )
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("shape")
-                .short("s")
+            Arg::new("shape")
+                .short('s')
                 .long("shape")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the grid to resample to")
                 .takes_value(true)

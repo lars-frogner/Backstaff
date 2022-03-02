@@ -10,11 +10,11 @@ use crate::{
     io::snapshot::{fdt, SnapshotReader3},
     units::solar::{U_E, U_T},
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, Arg, ArgMatches};
 
 /// Creates a subcommand for using the DC power-law distribution accelerator.
 pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("dc_power_law_accelerator")
+    Command::new("dc_power_law_accelerator")
         .about("Use the direct current power-law distribution accelerator model")
         .long_about(
             "Use the direct current power-law distribution accelerator model.\n\
@@ -23,9 +23,9 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
              acceleration region length and average electric field strength parallel\n\
              to the magnetic field direction.",
         )
-        .help_message("Print help information")
+
         .arg(
-            Arg::with_name("acceleration-duration")
+            Arg::new("acceleration-duration")
                 .long("acceleration-duration")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -33,7 +33,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("particle-energy-fraction")
+            Arg::new("particle-energy-fraction")
                 .long("particle-energy-fraction")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -44,7 +44,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("power-law-delta")
+            Arg::new("power-law-delta")
                 .long("power-law-delta")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -55,7 +55,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-total-power-density")
+            Arg::new("min-total-power-density")
                 .long("min-total-power-density")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -66,7 +66,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-depletion-distance")
+            Arg::new("min-depletion-distance")
                 .long("min-depletion-distance")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -77,7 +77,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-parallel-electric-field-strength")
+            Arg::new("min-parallel-electric-field-strength")
                 .long("min-parallel-electric-field-strength")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -89,7 +89,7 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1.0"),
         )
         .arg(
-            Arg::with_name("min-length")
+            Arg::new("min-length")
                 .long("min-length")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -100,30 +100,30 @@ pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("0"),
         )
         .arg(
-            Arg::with_name("extra-varying-scalars")
+            Arg::new("extra-varying-scalars")
                 .long("extra-varying-scalars")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of scalar fields to extract along acceleration regions\n \
                      (comma-separated)",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("extra-varying-vectors")
+            Arg::new("extra-varying-vectors")
                 .long("extra-varying-vectors")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of vector fields to extract along acceleration regions\n \
                      (comma-separated)",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
 }
 

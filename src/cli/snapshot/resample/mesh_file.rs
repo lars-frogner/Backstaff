@@ -17,33 +17,34 @@ use crate::{
     interpolation::Interpolator3,
     io::snapshot::{fdt, native, SnapshotReader3},
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
 
 /// Builds a representation of the `snapshot-resample-mesh_file` command line subcommand.
-pub fn create_mesh_file_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("mesh_file")
+pub fn create_mesh_file_subcommand() -> Command<'static> {
+    Command::new("mesh_file")
         .about("Resample to a grid specified by a mesh file")
         .long_about("Resample to a grid specified by a mesh file.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
                    weighted sample averaging with the default prameters is used.",
         )
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("mesh-file")
+            Arg::new("mesh-file")
                 .value_name("MESH_FILE")
                 .help("Path to a Bifrost mesh file representing the grid to resample to")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .value_hint(ValueHint::FilePath),
         )
         .arg(
-            Arg::with_name("shape")
-                .short("s")
+            Arg::new("shape")
+                .short('s')
                 .long("shape")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the grid to resample to [default: same as in mesh file]")
                 .takes_value(true),

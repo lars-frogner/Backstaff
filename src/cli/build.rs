@@ -6,37 +6,39 @@ use super::{
     snapshot::create_snapshot_subcommand,
 };
 use crate::create_subcommand;
-use clap::{self, App, AppSettings, Arg};
+use clap::{self, AppSettings, Arg, Command};
 
 /// Build the `backstaff` command line hierarchy.
-pub fn build<'a, 'b>() -> App<'a, 'b> {
-    App::new(clap::crate_name!())
+pub fn build() -> Command<'static> {
+    Command::new(clap::crate_name!())
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
         .about(clap::crate_description!())
-        .help_message("Print help information")
-        .global_setting(AppSettings::VersionlessSubcommands)
-        .global_setting(AppSettings::DisableHelpSubcommand)
+
+        .propagate_version(false)
+        .disable_help_subcommand(true)
         .global_setting(AppSettings::DeriveDisplayOrder)
-        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .subcommand_required(true)
+        .arg_required_else_help(true)
         .arg(
-            Arg::with_name("timing")
-                .short("t")
+            Arg::new("timing")
+                .short('t')
                 .long("timing")
                 .help("Display elapsed time when done"),
         )
         .arg(
-            Arg::with_name("protected-file-types")
+            Arg::new("protected-file-types")
                 .long("protected-file-types")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("EXTENSIONS")
                 .help(
                     "List of extensions for file types that never should be overwritten automatically\n\
                     (comma-separated)",
                 )
                 .takes_value(true)
-                .multiple(true)
+                .multiple_values(true)
                 .default_value("idl,snap,aux"),
         )
         .subcommand(create_subcommand!(backstaff, snapshot))

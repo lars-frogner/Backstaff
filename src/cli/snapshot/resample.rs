@@ -35,23 +35,22 @@ use crate::{
         utils,
     },
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use std::{collections::HashMap, process, sync::Arc};
 
 /// Builds a representation of the `snapshot-resample` command line subcommand.
-pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("resample")
+pub fn create_resample_subcommand() -> Command<'static> {
+    Command::new("resample")
         .about("Creates a resampled version of the snapshot")
         .long_about(
             "Creates a resampled version of the snapshot.\n\
              The snapshot is resampled to a regular grid of configurable shape and bounds,\n\
              or to an arbitrary grid specified by a Bifrost mesh file.",
         )
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("sample-location")
-                .short("l")
+            Arg::new("sample-location")
+                .short('l')
                 .long("sample-location")
                 .require_equals(true)
                 .value_name("LOCATION")
@@ -61,13 +60,13 @@ pub fn create_resample_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("original"),
         )
         .arg(
-            Arg::with_name("ignore-warnings")
+            Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
         )
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Print status messages related to resampling"),
         )

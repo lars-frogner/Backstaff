@@ -12,14 +12,13 @@ use crate::{
     grid::Grid3,
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
 };
-use clap::{App, AppSettings, ArgMatches, SubCommand};
+use clap::{ArgMatches, Command};
 
 /// Builds a representation of the `ebeam` command line subcommand.
-pub fn create_ebeam_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("ebeam")
+pub fn create_ebeam_subcommand() -> Command<'static> {
+    Command::new("ebeam")
         .about("Perform actions related to electron beams in the snapshot")
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .subcommand(create_subcommand!(ebeam, simulate))
 }
 

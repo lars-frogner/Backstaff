@@ -20,35 +20,36 @@ use crate::{
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotReader3},
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-resample-regular_grid` command line subcommand.
-pub fn create_regular_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("regular_grid")
+pub fn create_regular_grid_subcommand() -> Command<'static> {
+    Command::new("regular_grid")
         .about("Resample to a regular grid")
         .long_about("Resample to a regular grid of configurable shape and bounds.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
                    weighted sample averaging with the default prameters is used.",
         )
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("shape")
-                .short("s")
+            Arg::new("shape")
+                .short('s')
                 .long("shape")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the regular grid to resample to [default: same as original]")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("x-bounds")
-                .short("x")
+            Arg::new("x-bounds")
+                .short('x')
                 .long("x-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(
@@ -58,11 +59,12 @@ pub fn create_regular_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("y-bounds")
-                .short("y")
+            Arg::new("y-bounds")
+                .short('y')
                 .long("y-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(
@@ -72,11 +74,12 @@ pub fn create_regular_grid_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("z-bounds")
-                .short("z")
+            Arg::new("z-bounds")
+                .short('z')
                 .long("z-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(

@@ -27,7 +27,7 @@ use crate::{
     },
     seeding::Seeder3,
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use std::{
     fmt,
     path::{Path, PathBuf},
@@ -37,8 +37,8 @@ use std::{
 pub type CorksState = CorkSet;
 
 /// Builds a representation of the `snapshot-corks` command line subcommand.
-pub fn create_corks_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("corks")
+pub fn create_corks_subcommand() -> Command<'static> {
+    Command::new("corks")
         .about("Trace corks in the velocity field of a set of snapshots")
         .after_help(
             "You can use subcommands to configure each action. The subcommands must be\n\
@@ -47,10 +47,9 @@ pub fn create_corks_subcommand<'a, 'b>() -> App<'a, 'b> {
              can be left unspecified, in which case the default implementation and parameters\n\
              are used for that action.",
         )
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("output-file")
+            Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
                 .help(
                     "Path of the file where the cork data should be saved\n\
@@ -64,54 +63,52 @@ pub fn create_corks_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("overwrite")
+            Arg::new("overwrite")
                 .long("overwrite")
                 .help("Automatically overwrite any existing files (unless listed as protected)")
                 .conflicts_with("no-overwrite"),
         )
         .arg(
-            Arg::with_name("no-overwrite")
+            Arg::new("no-overwrite")
                 .long("no-overwrite")
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
         .arg(
-            Arg::with_name("sampled-scalar-quantities")
+            Arg::new("sampled-scalar-quantities")
                 .long("sampled-scalar-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help("List of scalar quantities to sample along cork paths (comma-separated)")
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("sampled-vector-quantities")
+            Arg::new("sampled-vector-quantities")
                 .long("sampled-vector-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help("List of vector quantities to sample along cork paths (comma-separated)")
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
-        .arg(
-            Arg::with_name("drop-h5part-id")
-                .long("drop-h5part-id")
-                .help(
-                    "Reduce H5Part file size by excluding particle IDs required by some tools\n\
+        .arg(Arg::new("drop-h5part-id").long("drop-h5part-id").help(
+            "Reduce H5Part file size by excluding particle IDs required by some tools\n\
                      (e.g. VisIt)",
-                ),
-        )
+        ))
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Print status messages while tracing corks"),
         )
         .subcommand(
             create_subcommand!(corks, poly_fit_interpolator)
-                .setting(AppSettings::SubcommandRequired)
+                .subcommand_required(true)
                 .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
                 .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
                 .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),

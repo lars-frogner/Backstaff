@@ -4,11 +4,11 @@ use crate::{
     cli::utils,
     tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType},
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using a Runge-Kutta-Fehlberg stepper.
-pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("rkf_stepper")
+pub fn create_rkf_stepper_subcommand() -> Command<'static> {
+    Command::new("rkf_stepper")
         .about("Use a Runge-Kutta-Fehlberg stepper")
         .long_about(
             "Use a Runge-Kutta-Fehlberg stepper.\n\
@@ -17,9 +17,8 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
              the step length, and steps are re-attempted until the error is below a certain\n\
              tolerance.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("dense-step-length")
+            Arg::new("dense-step-length")
                 .long("dense-step-length")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -28,7 +27,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("0.01"),
         )
         .arg(
-            Arg::with_name("max-step-attempts")
+            Arg::new("max-step-attempts")
                 .long("max-step-attempts")
                 .require_equals(true)
                 .value_name("NUMBER")
@@ -37,7 +36,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("16"),
         )
         .arg(
-            Arg::with_name("absolute-tolerance")
+            Arg::new("absolute-tolerance")
                 .long("absolute-tolerance")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -46,7 +45,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1e-6"),
         )
         .arg(
-            Arg::with_name("relative-tolerance")
+            Arg::new("relative-tolerance")
                 .long("relative-tolerance")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -55,7 +54,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1e-6"),
         )
         .arg(
-            Arg::with_name("safety-factor")
+            Arg::new("safety-factor")
                 .long("safety-factor")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -64,7 +63,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("0.9"),
         )
         .arg(
-            Arg::with_name("min-step-scale")
+            Arg::new("min-step-scale")
                 .long("min-step-scale")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -73,7 +72,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("0.2"),
         )
         .arg(
-            Arg::with_name("max-step-scale")
+            Arg::new("max-step-scale")
                 .long("max-step-scale")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -82,7 +81,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("10.0"),
         )
         .arg(
-            Arg::with_name("initial-error")
+            Arg::new("initial-error")
                 .long("initial-error")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -91,7 +90,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1e-4"),
         )
         .arg(
-            Arg::with_name("initial-step-length")
+            Arg::new("initial-step-length")
                 .long("initial-step-length")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -100,7 +99,7 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1e-4"),
         )
         .arg(
-            Arg::with_name("sudden-reversals-for-sink")
+            Arg::new("sudden-reversals-for-sink")
                 .long("sudden-reversals-for-sink")
                 .require_equals(true)
                 .value_name("NUMBER")
@@ -112,14 +111,14 @@ pub fn create_rkf_stepper_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("3"),
         )
         .arg(
-            Arg::with_name("disable-pi-control")
+            Arg::new("disable-pi-control")
                 .long("disable-pi-control")
                 .help(
                     "Disable Proportional Integral (PI) control used for stabilizing the stepping",
                 ),
         )
         .arg(
-            Arg::with_name("stepping-scheme")
+            Arg::new("stepping-scheme")
                 .long("stepping-scheme")
                 .require_equals(true)
                 .value_name("NAME")

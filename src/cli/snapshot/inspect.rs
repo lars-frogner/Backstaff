@@ -9,66 +9,68 @@ use crate::{
     grid::Grid3,
     io::snapshot::{fdt, SnapshotReader3},
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-inspect` command line subcommand.
-pub fn create_inspect_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("inspect")
+pub fn create_inspect_subcommand() -> Command<'static> {
+    Command::new("inspect")
         .about("Inspect properties of the snapshot")
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("all-quantities")
+            Arg::new("all-quantities")
                 .long("all-quantities")
                 .help("Include all original quantities in the output snapshot")
                 .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
         )
         .arg(
-            Arg::with_name("included-quantities")
+            Arg::new("included-quantities")
                 .long("included-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of all the original quantities to inspect (comma-separated)\n\
                      [default: none]",
                 )
                 .takes_value(true)
-                .multiple(true)
+                .multiple_values(true)
                 .conflicts_with_all(&["all-quantities", "excluded-quantities"]),
         )
         .arg(
-            Arg::with_name("excluded-quantities")
+            Arg::new("excluded-quantities")
                 .long("excluded-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help("List of original quantities to ignore (comma-separated) [default: none]")
                 .takes_value(true)
-                .multiple(true)
-                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
+                .multiple_values(true)
+                .conflicts_with_all(&["all-quantities", "included-quantities"]),
         )
         .arg(
-            Arg::with_name("derived-quantities")
+            Arg::new("derived-quantities")
                 .long("derived-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of derived quantities to compute and inspect (comma-separated)\n\
                      [default: none]",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("ignore-warnings")
+            Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
         )
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Print status messages related to inspection"),
         )

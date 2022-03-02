@@ -23,19 +23,19 @@ use crate::{
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
     seeding::volume::VolumeSeeder3,
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using a volume seeder.
-pub fn create_volume_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("volume_seeder")
+pub fn create_volume_seeder_subcommand() -> Command<'static> {
+    Command::new("volume_seeder")
         .about("Use a volume seeder")
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("x-bounds")
+            Arg::new("x-bounds")
                 .long("x-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(
@@ -45,10 +45,11 @@ pub fn create_volume_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("y-bounds")
+            Arg::new("y-bounds")
                 .long("y-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(
@@ -58,10 +59,11 @@ pub fn create_volume_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("z-bounds")
+            Arg::new("z-bounds")
                 .long("z-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(

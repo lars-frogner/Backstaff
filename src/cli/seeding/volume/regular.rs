@@ -7,23 +7,23 @@ use crate::{
     io::snapshot::fdt,
     seeding::volume::VolumeSeeder3,
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the regular volume seeder.
-pub fn create_regular_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("regular")
+pub fn create_regular_subcommand() -> Command<'static> {
+    Command::new("regular")
         .about("Use the regular volume seeder")
         .long_about(
             "Use the regular volume seeder.\n\
              Seed points are produced at the cell centers of a regular 3D grid.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("shape")
-                .short("s")
+            Arg::new("shape")
+                .short('s')
                 .long("shape")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["X", "Y", "Z"])
                 .help("Number of seed points to generate in each dimension")
                 .required(true)

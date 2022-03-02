@@ -18,30 +18,29 @@ use crate::{
         utils::AtomicOutputPath,
     },
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for generating a Bifrost mesh file.
-pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("create_mesh")
+pub fn create_create_mesh_subcommand() -> Command<'static> {
+    Command::new("create_mesh")
         .about("Create a Bifrost mesh file")
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("output-file")
+            Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
                 .help("Path where the mesh file should be created")
                 .required(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("overwrite")
+            Arg::new("overwrite")
                 .long("overwrite")
                 .help("Automatically overwrite any existing files (unless listed as protected)")
                 .conflicts_with("no-overwrite"),
         )
         .arg(
-            Arg::with_name("no-overwrite")
+            Arg::new("no-overwrite")
                 .long("no-overwrite")
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),

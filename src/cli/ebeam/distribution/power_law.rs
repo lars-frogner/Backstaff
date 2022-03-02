@@ -6,11 +6,11 @@ use crate::{
     grid::Grid3,
     io::snapshot::{fdt, SnapshotReader3},
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the power-law distribution.
-pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("power_law_distribution")
+pub fn create_power_law_distribution_subcommand() -> Command<'static> {
+    Command::new("power_law_distribution")
         .about("Use the power-law distribution")
         .long_about(
             "Use the power-law distribution.\n\
@@ -18,9 +18,9 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
              described by a total power density, lower cut-off energy and a power-law\n\
              index. The transport method follows Hawley & Fisher (1994).",
         )
-        .help_message("Print help information")
+
         .arg(
-            Arg::with_name("min-residual-factor")
+            Arg::new("min-residual-factor")
                 .long("min-residual-factor")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -32,7 +32,7 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-deposited-power-per-distance")
+            Arg::new("min-deposited-power-per-distance")
                 .long("min-deposited-power-per-distance")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -44,7 +44,7 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("max-propagation-distance")
+            Arg::new("max-propagation-distance")
                 .long("max-propagation-distance")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -55,7 +55,7 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("outside-deposition-threshold")
+            Arg::new("outside-deposition-threshold")
                 .long("outside-deposition-threshold")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -67,7 +67,7 @@ pub fn create_power_law_distribution_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("continue-depleted-beams")
+            Arg::new("continue-depleted-beams")
                 .long("continue-depleted-beams")
                 .help("Keep propagating beams even after they are considered depleted"),
         )

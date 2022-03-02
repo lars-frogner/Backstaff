@@ -11,11 +11,11 @@ use crate::{
     },
     io::snapshot::fdt,
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `create_mesh-horizontally_regular` command line subcommand.
-pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("horizontally_regular")
+pub fn create_horizontally_regular_mesh_subcommand() -> Command<'static> {
+    Command::new("horizontally_regular")
         .about("Create a horizontally regular grid")
         .long_about(
             "Create a horizontally regular grid.\n\
@@ -24,24 +24,25 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
              points and used to obtain dz(z). Note that the specified dz scales are not\n\
              absolute, they only describe the relative magnitudes of dz.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("shape")
-                .short("s")
+            Arg::new("shape")
+                .short('s')
                 .long("shape")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the grid")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
-            Arg::with_name("x-bounds")
-                .short("x")
+            Arg::new("x-bounds")
+                .short('x')
                 .long("x-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the x-coordinates")
@@ -49,11 +50,12 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .required(true),
         )
         .arg(
-            Arg::with_name("y-bounds")
-                .short("y")
+            Arg::new("y-bounds")
+                .short('y')
                 .long("y-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the y-coordinates")
@@ -61,11 +63,12 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .required(true),
         )
         .arg(
-            Arg::with_name("z-bounds")
-                .short("z")
+            Arg::new("z-bounds")
+                .short('z')
                 .long("z-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the z-coordinates")
@@ -73,10 +76,11 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .required(true),
         )
         .arg(
-            Arg::with_name("boundary-dz-scales")
+            Arg::new("boundary-dz-scales")
                 .long("boundary-dz-scales")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help("Relative magnitudes of dz at the lower and upper z-boundaries\n")
@@ -84,10 +88,11 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1.0,1.0"),
         )
         .arg(
-            Arg::with_name("interior-z")
+            Arg::new("interior-z")
                 .long("interior-z")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_name("COORDS")
                 .help(
@@ -98,10 +103,11 @@ pub fn create_horizontally_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .requires("interior-dz-scales"),
         )
         .arg(
-            Arg::with_name("interior-dz-scales")
+            Arg::new("interior-dz-scales")
                 .long("interior-dz-scales")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_name("VALUES")
                 .help(

@@ -7,23 +7,23 @@ use crate::{
     io::snapshot::fdt,
     seeding::{fsd, volume::VolumeSeeder3},
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the stratified volume seeder.
-pub fn create_stratified_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("stratified")
+pub fn create_stratified_subcommand() -> Command<'static> {
+    Command::new("stratified")
         .about("Use the stratified volume seeder")
         .long_about(
             "Use the stratified volume seeder.\n\
              Seed points are produced at random positions within the cells of a regular 3D grid.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("shape")
-                .short("s")
+            Arg::new("shape")
+                .short('s')
                 .long("shape")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["X", "Y", "Z"])
                 .help("Shape of the regular 3D grid to seed in")
                 .required(true)
@@ -31,7 +31,7 @@ pub fn create_stratified_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .number_of_values(3),
         )
         .arg(
-            Arg::with_name("points-per-cell")
+            Arg::new("points-per-cell")
                 .long("points-per-cell")
                 .require_equals(true)
                 .value_name("NUMBER")
@@ -40,7 +40,7 @@ pub fn create_stratified_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1"),
         )
         .arg(
-            Arg::with_name("randomness")
+            Arg::new("randomness")
                 .long("randomness")
                 .require_equals(true)
                 .value_name("VALUE")

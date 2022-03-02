@@ -8,11 +8,11 @@ use crate::{
     io::snapshot::{fdt, SnapshotReader3},
     units::solar::U_T,
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the simple power-law distribution accelerator.
-pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("simple_power_law_accelerator")
+pub fn create_simple_power_law_accelerator_subcommand() -> Command<'static> {
+    Command::new("simple_power_law_accelerator")
         .about("Use the simple power-law distribution accelerator model")
         .long_about(
             "Use the simple power-law distribution accelerator model.\n\
@@ -20,9 +20,9 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
              reconnection energy, and the lower cut-off energy is found from the intersection\n\
              of the non-thermal distribution with the thermal distribution.",
         )
-        .help_message("Print help information")
+
         .arg(
-            Arg::with_name("acceleration-duration")
+            Arg::new("acceleration-duration")
                 .long("acceleration-duration")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -30,7 +30,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("particle-energy-fraction")
+            Arg::new("particle-energy-fraction")
                 .long("particle-energy-fraction")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -41,7 +41,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("power-law-delta")
+            Arg::new("power-law-delta")
                 .long("power-law-delta")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -52,7 +52,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-total-power-density")
+            Arg::new("min-total-power-density")
                 .long("min-total-power-density")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -63,7 +63,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("min-depletion-distance")
+            Arg::new("min-depletion-distance")
                 .long("min-depletion-distance")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -74,7 +74,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("max-pitch-angle")
+            Arg::new("max-pitch-angle")
                 .long("max-pitch-angle")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -86,7 +86,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("70.0"),
         )
         .arg(
-            Arg::with_name("max-electric-field-angle")
+            Arg::new("max-electric-field-angle")
                 .long("max-electric-field-angle")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -98,7 +98,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("90.0"),
         )
         .arg(
-            Arg::with_name("min-temperature")
+            Arg::new("min-temperature")
                 .long("min-temperature")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -110,7 +110,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("0.0"),
         )
         .arg(
-            Arg::with_name("max-mass-density")
+            Arg::new("max-mass-density")
                 .long("max-mass-density")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -122,7 +122,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("inf"),
         )
         .arg(
-            Arg::with_name("inclusion-probability")
+            Arg::new("inclusion-probability")
                 .long("inclusion-probability")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -131,7 +131,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1.0"),
         )
         .arg(
-            Arg::with_name("cutoff-energy-guess")
+            Arg::new("cutoff-energy-guess")
                 .long("cutoff-energy-guess")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -140,7 +140,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("4.0"),
         )
         .arg(
-            Arg::with_name("root-finding-error")
+            Arg::new("root-finding-error")
                 .long("root-finding-error")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -149,7 +149,7 @@ pub fn create_simple_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("1e-3"),
         )
         .arg(
-            Arg::with_name("root-finding-iterations")
+            Arg::new("root-finding-iterations")
                 .long("root-finding-iterations")
                 .require_equals(true)
                 .value_name("NUMBER")
