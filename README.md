@@ -53,6 +53,8 @@ For the `hdf5` feature, the `HDF5_DIR` environment variable can if necessary be 
 $ HDF5_DIR=/path/to/hdf5 cargo install ...
 ```
 
+**_NOTE:_** If the `cargo install` command complains about being unable to fetch the GitHub repository, try adding `CARGO_NET_GIT_FETCH_WITH_CLI=true` in front of the command.
+
 ### Compiling from source
 
 You can compile the code in this repository using the `cargo build` command. Make sure to add the `--release` flag so that optimizations are turned on.
