@@ -1,6 +1,6 @@
 //! Command line interface for creating a graph of the command hierarchy.
 
-use crate::{exit_on_error, io::utils};
+use crate::{cli::utils as cli_utils, exit_on_error, io::utils};
 use clap::{self, App, AppSettings, Arg, ArgMatches, SubCommand};
 use lazy_static::lazy_static;
 use petgraph::{
@@ -56,7 +56,14 @@ pub fn create_command_graph_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing file (unless listed as protected)"),
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
+        )
+        .arg(
+            Arg::with_name("no-overwrite")
+                .long("no-overwrite")
+                .help("Do not overwrite any existing files")
+                .conflicts_with("overwrite"),
         )
         .help_message("Print help information")
 }
@@ -73,7 +80,7 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types
     );
 
     let include_configuration = arguments.is_present("include-configuration");
-    let automatic_overwrite = arguments.is_present("overwrite");
+    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
 
     let mut command_graph = COMMAND_GRAPH.lock().unwrap().clone();
 
@@ -88,8 +95,7 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types
         Dot::with_config(&command_graph, &[Config::EdgeNoLabel])
     );
 
-    if utils::write_should_be_skipped(&output_file_path, automatic_overwrite, protected_file_types)
-    {
+    if !utils::check_if_write_allowed(&output_file_path, overwrite_mode, protected_file_types) {
         return;
     }
 

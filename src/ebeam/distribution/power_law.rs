@@ -47,6 +47,7 @@ pub struct PowerLawDistributionData {
     delta: feb,
     /// Total energy injected into the distribution per time [erg/s].
     total_power: feb,
+    #[allow(dead_code)]
     /// Total energy injected into the distribution per volume and time [erg/(cm^3 s)].
     total_power_density: feb,
     /// Cosine of the initial pitch angle of the electrons.

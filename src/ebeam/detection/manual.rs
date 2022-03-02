@@ -8,7 +8,7 @@ use crate::{
         snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
         Verbose,
     },
-    tracing::seeding::{manual::ManualSeeder3, Seeder3},
+    seeding::{manual::ManualSeeder3, Seeder3},
 };
 use std::io;
 use std::path::Path;

@@ -1,6 +1,6 @@
 //! Command line interface for reading seed points from an input file.
 
-use crate::{exit_on_error, tracing::seeding::manual::ManualSeeder3};
+use crate::{exit_on_error, seeding::manual::ManualSeeder3};
 use clap::{App, Arg, ArgMatches, SubCommand};
 use std::{path::PathBuf, str::FromStr};
 

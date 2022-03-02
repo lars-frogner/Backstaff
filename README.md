@@ -29,7 +29,7 @@ The API documentation can be generated and viewed in your browser by running `ca
 
 You need to have the Rust toolchain installed in order to build the binaries. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
 
-If you want to work with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found [here](https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html).
+If you want to work with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found [here](https://docs.unidata.ucar.edu/nug/current/getting_and_building_netcdf.html).
 
 Similarly, support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format requires the `HDF5` library, which can be obtained [here](https://www.hdfgroup.org/downloads/hdf5/).
 
@@ -52,8 +52,6 @@ For the `hdf5` feature, the `HDF5_DIR` environment variable can if necessary be 
 ```
 $ HDF5_DIR=/path/to/hdf5 cargo install ...
 ```
-
-**_NOTE:_** Compilation can be quite slow because the interpolation code relies heavily on macros, which are time consuming to compile. If this is an issue, compilation can be sped up by adding the `--branch=const-generics-interp`, which installs a branch using the experimental [Const generics](https://github.com/rust-lang/rfcs/blob/master/text/2000-const-generics.md) Rust functionality to avoid macros. However, this requires that you activate the nightly Rust compiler by running `rustup default nightly` prior to `cargo install`. Revert to the stable compiler afterwards by running `rustup default stable`.
 
 ### Compiling from source
 

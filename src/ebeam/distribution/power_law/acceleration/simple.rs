@@ -63,6 +63,7 @@ pub struct SimplePowerLawAccelerator {
     distribution_config: PowerLawDistributionConfig,
     config: SimplePowerLawAccelerationConfig,
     pitch_angle_cosine_threshold: feb,
+    #[allow(dead_code)]
     electric_field_angle_cosine_threshold: feb,
 }
 

@@ -3,8 +3,8 @@
 pub mod criterion;
 pub mod manual;
 pub mod slice;
+pub mod volume;
 
-use super::ftr;
 use crate::{
     geometry::{Idx3, Point3},
     grid::Grid3,
@@ -12,9 +12,13 @@ use crate::{
 };
 use rayon::prelude::*;
 
+/// Floating-point precision to use for seeding.
+#[allow(non_camel_case_types)]
+pub type fsd = f32;
+
 /// Defines the properties of a 3D seed point generator.
 pub trait Seeder3:
-    IntoIterator<Item = Point3<ftr>> + IntoParallelIterator<Item = Point3<ftr>>
+    IntoIterator<Item = Point3<fsd>> + IntoParallelIterator<Item = Point3<fsd>>
 {
     /// Returns the number of seed points that will be produced by the seeder.
     fn number_of_points(&self) -> usize;
@@ -22,7 +26,7 @@ pub trait Seeder3:
     /// Filters the seed points using the given predicate.
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<ftr>) -> bool;
+        P: FnMut(&Point3<fsd>) -> bool;
 
     /// Creates a list of seed indices from the seed points by looking up the grid cells
     /// of the given grid containing the seed points.
@@ -46,21 +50,21 @@ pub trait IndexSeeder3:
 
     /// Creates a list of seed points from the seed indices by indexing the center coordinates
     /// of the given grid.
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fsd>>
     where
         F: BFloat,
         G: Grid3<F>;
 }
 
 // Let a vector of points work as a seeder.
-impl Seeder3 for Vec<Point3<ftr>> {
+impl Seeder3 for Vec<Point3<fsd>> {
     fn number_of_points(&self) -> usize {
         self.len()
     }
 
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<ftr>) -> bool,
+        P: FnMut(&Point3<fsd>) -> bool,
     {
         self.retain(predicate);
     }
@@ -92,7 +96,7 @@ impl IndexSeeder3 for Vec<Idx3<usize>> {
         self.retain(predicate);
     }
 
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<ftr>>
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fsd>>
     where
         F: BFloat,
         G: Grid3<F>,

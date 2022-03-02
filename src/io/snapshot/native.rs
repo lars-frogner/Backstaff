@@ -6,7 +6,7 @@ mod param;
 use super::{
     super::{
         utils::{self, AtomicOutputPath},
-        Endianness, Verbose,
+        Endianness, OverwriteMode, Verbose,
     },
     fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3, FALLBACK_SNAP_NUM,
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
@@ -380,7 +380,7 @@ pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
     output_param_path: P,
     is_scratch: bool,
     write_mesh_file: bool,
-    automatic_overwrite: bool,
+    overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
@@ -449,16 +449,16 @@ where
     })?;
 
     let write_param_file =
-        !atomic_param_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
+        atomic_param_path.check_if_write_allowed(overwrite_mode, protected_file_types);
     let write_mesh_file = if let Some(atomic_mesh_path) = &atomic_mesh_path {
-        !atomic_mesh_path.write_should_be_skipped(automatic_overwrite, protected_file_types)
+        atomic_mesh_path.check_if_write_allowed(overwrite_mode, protected_file_types)
     } else {
         false
     };
     let write_snap_file = has_primary
-        && !atomic_snap_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
+        && atomic_snap_path.check_if_write_allowed(overwrite_mode, protected_file_types);
     let write_aux_file = has_auxiliary
-        && !atomic_aux_path.write_should_be_skipped(automatic_overwrite, protected_file_types);
+        && atomic_aux_path.check_if_write_allowed(overwrite_mode, protected_file_types);
 
     let output_param_file_name = atomic_param_path
         .target_path()

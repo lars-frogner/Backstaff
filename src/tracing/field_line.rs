@@ -4,7 +4,6 @@ pub mod basic;
 
 use super::{
     ftr,
-    seeding::Seeder3,
     stepping::{Stepper3, StepperFactory3},
 };
 use crate::{
@@ -17,6 +16,7 @@ use crate::{
         utils, Endianness, Verbose,
     },
     num::BFloat,
+    seeding::Seeder3,
 };
 use rayon::prelude::*;
 use serde::{
@@ -171,7 +171,7 @@ impl FieldLineSet3 {
                     snapshot,
                     interpolator,
                     stepper_factory.produce(),
-                    &start_position,
+                    &Point3::from(&start_position),
                 )
             })
             .collect();
@@ -361,22 +361,24 @@ impl FieldLineSet3 {
             .into_par_iter()
             .zip(coords_y)
             .zip(coords_z)
-            .map(|((field_line_coords_x, field_line_coords_y), field_line_coords_z)| {
-                field_line_coords_x
-                    .iter()
-                    .zip(field_line_coords_y)
-                    .zip(field_line_coords_z)
-                    .map(|((&field_line_x, &field_line_y), &field_line_z)| {
-                        let position =
-                            Point3::from_components(field_line_x, field_line_y, field_line_z);
-                        let value = interpolator
-                            .interp_vector_field(field, &position)
-                            .expect_inside()
-                            .length();
-                        num::NumCast::from(value).expect("Conversion failed")
-                    })
-                    .collect()
-            })
+            .map(
+                |((field_line_coords_x, field_line_coords_y), field_line_coords_z)| {
+                    field_line_coords_x
+                        .iter()
+                        .zip(field_line_coords_y)
+                        .zip(field_line_coords_z)
+                        .map(|((&field_line_x, &field_line_y), &field_line_z)| {
+                            let position =
+                                Point3::from_components(field_line_x, field_line_y, field_line_z);
+                            let value = interpolator
+                                .interp_vector_field(field, &position)
+                                .expect_inside()
+                                .length();
+                            num::NumCast::from(value).expect("Conversion failed")
+                        })
+                        .collect()
+                },
+            )
             .collect();
         self.properties
             .varying_scalar_values
@@ -940,19 +942,18 @@ pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
                     concatenated_values.extend(vec.into_iter());
                 }
                 let name = if name == "r" { "rho" } else { &name }; // `r` is reserved for radial distance
-                let dataset = io_result!(group
-                    .new_dataset::<ftr>()
-                    .create(name, number_of_field_line_elements))?;
-                io_result!(dataset.write_raw(&concatenated_values))?;
+                io_result!(group
+                    .new_dataset_builder()
+                    .with_data(&concatenated_values)
+                    .create(name))?;
                 concatenated_values.clear();
             }
 
             if !drop_id {
-                let dataset = io_result!(group
-                    .new_dataset::<u64>()
-                    .create("id", number_of_field_line_elements))?;
-                io_result!(dataset
-                    .write_raw(&(0..number_of_field_line_elements as u64).collect::<Vec<_>>()))?;
+                io_result!(group
+                    .new_dataset_builder()
+                    .with_data(&(0..number_of_field_line_elements as u64).collect::<Vec<_>>())
+                    .create("id"))?;
             }
         }
     }
@@ -963,17 +964,17 @@ pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
             io_result!(io_result!(hdf5::File::create(seed_file_path))?.create_group("Step#0"))?;
 
         for (name, values) in fixed_scalar_values {
-            let dataset = io_result!(group
-                .new_dataset::<ftr>()
-                .create(&name, number_of_field_lines))?;
-            io_result!(dataset.write_raw(&values))?;
+            io_result!(group
+                .new_dataset_builder()
+                .with_data(&values)
+                .create(&*name))?;
         }
 
         if !drop_id {
-            let dataset = io_result!(group
-                .new_dataset::<u64>()
-                .create("id", number_of_field_lines))?;
-            io_result!(dataset.write_raw(&(0..number_of_field_lines as u64).collect::<Vec<_>>()))?;
+            io_result!(group
+                .new_dataset_builder()
+                .with_data(&(0..number_of_field_lines as u64).collect::<Vec<_>>())
+                .create("id"))?;
         }
     }
 

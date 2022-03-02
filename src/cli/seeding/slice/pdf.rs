@@ -9,7 +9,7 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
-    tracing::seeding::slice::SliceSeeder3,
+    seeding::slice::SliceSeeder3,
 };
 use clap::{App, Arg, ArgMatches, SubCommand};
 

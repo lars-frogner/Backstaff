@@ -1,7 +1,6 @@
 //! Tracing field lines of a vector field.
 
 pub mod field_line;
-pub mod seeding;
 pub mod stepping;
 
 use self::stepping::{Stepper3, StepperInstruction, StepperResult, SteppingSense, StoppingCause};

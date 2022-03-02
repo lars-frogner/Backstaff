@@ -5,10 +5,12 @@ try:
     import backstaff.fields as fields
     import backstaff.field_lines as field_lines
     import backstaff.electron_beams as electron_beams
+    import backstaff.corks as corks
 except ModuleNotFoundError:
     import fields
     import field_lines
     import electron_beams
+    import corks
 
 SCRIPTS_PATH = os.path.dirname(os.path.realpath(__file__))
 PROJECT_PATH = os.path.dirname(SCRIPTS_PATH)
@@ -84,6 +86,12 @@ def read_electron_beam_swarm_from_custom_binary_file(
                                                       acceleration_data_type,
                                                       memmap=memmap), **kwargs)
     return electron_beam_swarm
+
+
+def read_cork_set_from_pickle(file_path, **kwargs):
+    with open(file_path, mode='rb') as f:
+        data = pickle.load(f)
+    return __parse_cork_set_pickle(data, **kwargs)
 
 
 class _SplittedArray1D:
@@ -429,6 +437,32 @@ def __parse_electronbeamswarm_acceleration_data_pickle(acceleration_data,
         raise NotImplementedError(
             'Invalid acceleration data type {}'.format(acceleration_data_type))
     return acceleration_data
+
+
+def __parse_cork_set_pickle(data, **kwargs):
+    all_corks = [__parse_cork_pickle(cork) for cork in data.pop('corks')]
+    times = __parse_vec_of_float(data.pop('times'))
+    lower_bounds = data.pop('lower_bounds')
+    upper_bounds = data.pop('upper_bounds')
+    domain_bounds = list(zip(lower_bounds, upper_bounds))
+    scalar_quantity_names = data.pop('scalar_quantity_names')
+    vector_magnitude_names = data.pop('vector_magnitude_names')
+    vector_quantity_names = data.pop('vector_quantity_names')
+    return corks.CorkSet(all_corks, times, domain_bounds,
+                         scalar_quantity_names, vector_magnitude_names,
+                         vector_quantity_names, **kwargs)
+
+
+def __parse_cork_pickle(data, **kwargs):
+    positions = __parse_vec_of_vec3(data.pop('positions'))
+    velocities = __parse_vec_of_vec3(data.pop('velocities'))
+    scalar_field_values = __parse_vec_of_vec_of_float(
+        data.pop('scalar_field_values'))
+    vector_field_values = __parse_vec_of_vec_of_vec3(
+        data.pop('vector_field_values'))
+    first_time_idx = data.pop('first_time_idx')
+    return corks.Cork(positions, velocities, scalar_field_values,
+                      vector_field_values, first_time_idx, **kwargs)
 
 
 def __parse_scalarfield2(data):

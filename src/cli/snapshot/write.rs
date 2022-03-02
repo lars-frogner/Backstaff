@@ -1,6 +1,8 @@
 //! Command line interface for outputting snapshot data to file.
 
+use super::SnapNumInRange;
 use crate::{
+    cli::utils as cli_utils,
     exit_on_error, exit_with_error,
     field::{quantities, ScalarField3},
     grid::Grid3,
@@ -41,7 +43,14 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing files (unless listed as protected)"),
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
+        )
+        .arg(
+            Arg::with_name("no-overwrite")
+                .long("no-overwrite")
+                .help("Do not overwrite any existing files")
+                .conflicts_with("overwrite"),
         )
         .arg(
             Arg::with_name("all-quantities")
@@ -117,7 +126,7 @@ pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
 pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     arguments: &ArgMatches,
     reader: &RIN,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: Option<Arc<GOUT>>,
     modified_parameters: HashMap<&str, ParameterValue>,
     field_modifier: FM,
@@ -141,23 +150,23 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
 
     let mut write_mesh_file = true;
 
-    if let Some(snap_num_offset) = snap_num_offset {
+    if let Some(snap_num_in_range) = snap_num_in_range {
         exit_on_false!(
             !output_type.is_scratch(),
             "Error: snap-range not supported for scratch files"
         );
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
-            snap_num_offset,
+            snap_num_in_range.offset(),
             &output_type.to_string(),
             true,
         ));
-        if snap_num_offset > 0 {
+        if snap_num_in_range.offset() > 0 {
             write_mesh_file = false;
         }
     }
 
-    let automatic_overwrite = arguments.is_present("overwrite");
+    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
@@ -200,7 +209,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                 &output_file_path,
                 native_type == NativeType::Scratch,
                 write_mesh_file,
-                automatic_overwrite,
+                overwrite_mode,
                 protected_file_types,
                 verbose,
             ),
@@ -215,7 +224,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
                     modified_field_producer!(),
                     &output_file_path,
                     strip_metadata,
-                    automatic_overwrite,
+                    overwrite_mode,
                     protected_file_types,
                     verbose,
                 )

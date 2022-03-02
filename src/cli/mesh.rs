@@ -10,6 +10,7 @@ use self::{
     regular::{create_regular_mesh_subcommand, run_regular_subcommand},
 };
 use crate::{
+    cli::utils as cli_utils,
     create_subcommand, exit_on_error, exit_with_error,
     grid::Grid3,
     io::{
@@ -36,7 +37,14 @@ pub fn create_create_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("overwrite")
                 .long("overwrite")
-                .help("Automatically overwrite any existing file (unless listed as protected)"),
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
+        )
+        .arg(
+            Arg::with_name("no-overwrite")
+                .long("no-overwrite")
+                .help("Do not overwrite any existing files")
+                .conflicts_with("overwrite"),
         )
         .subcommand(create_subcommand!(create_mesh, regular_mesh))
         .subcommand(create_subcommand!(create_mesh, horizontally_regular_mesh))
@@ -77,14 +85,14 @@ fn write_mesh_file<G: Grid3<fdt>>(
         output_file_path.set_extension("mesh");
     }
 
-    let automatic_overwrite = root_arguments.is_present("overwrite");
+    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
 
     let atomic_output_path = exit_on_error!(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if atomic_output_path.write_should_be_skipped(automatic_overwrite, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
         return;
     }
 

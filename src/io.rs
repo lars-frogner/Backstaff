@@ -44,3 +44,11 @@ impl From<Verbose> for bool {
         verbose.is_yes()
     }
 }
+
+/// How to handle existing files.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OverwriteMode {
+    Ask,
+    Always,
+    Never,
+}

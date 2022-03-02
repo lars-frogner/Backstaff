@@ -7,7 +7,10 @@ use super::{
     weighted_sample_averaging::create_weighted_sample_averaging_subcommand,
 };
 use crate::{
-    cli::{snapshot::write::create_write_subcommand, utils},
+    cli::{
+        snapshot::{write::create_write_subcommand, SnapNumInRange},
+        utils,
+    },
     create_subcommand, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::In3D,
@@ -49,7 +52,7 @@ pub fn run_resampling_for_reshaped_grid<G, R, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     reader: &R,
-    snap_num_offset: Option<u32>,
+    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -88,7 +91,7 @@ pub fn run_resampling_for_reshaped_grid<G, R, I>(
                 new_shape,
                 write_arguments,
                 reader,
-                snap_num_offset,
+                snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
@@ -110,7 +113,7 @@ pub fn run_resampling_for_reshaped_grid<G, R, I>(
                 new_shape,
                 write_arguments,
                 reader,
-                snap_num_offset,
+                snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,

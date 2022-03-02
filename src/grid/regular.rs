@@ -414,6 +414,7 @@ pub struct RegularGrid1<F: BFloat> {
     lower_bound: F,
     upper_bound: F,
     extent: F,
+    #[allow(dead_code)]
     cell_extent: F,
 }
 
