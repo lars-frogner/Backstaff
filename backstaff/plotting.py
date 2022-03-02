@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib as mpl
 #mpl.use('agg')
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpl_patches
 import matplotlib.colors as mpl_colors
 import matplotlib.cm as mpl_cm
 import matplotlib.animation as animation
@@ -102,7 +103,7 @@ def get_symlog_normalizer(vmin, vmax, linthresh, linscale=1.0, clip=False):
                                  vmin=vmin,
                                  vmax=vmax,
                                  clip=clip,
-                                 base=np.e)
+                                 base=10)
 
 
 def get_normalizer(vmin, vmax, clip=False, log=False):
@@ -313,13 +314,15 @@ def add_textbox(ax, text, loc, pad=0.4):
 
 def render(fig=None,
            tight_layout=True,
+           bbox_extra_artists=None,
+           bbox_inches=None,
            output_path=None,
            force_show=False,
            close=True):
     if fig is not None and tight_layout:
         fig.tight_layout()
     if output_path is not None:
-        plt.savefig(output_path)
+        plt.savefig(output_path, bbox_extra_artists=bbox_extra_artists, bbox_inches=bbox_inches)
         if force_show:
             plt.show()
         elif close:
@@ -349,6 +352,7 @@ def plot_1d_field(coords,
                   label=None,
                   legend_loc=None,
                   title=None,
+                  zorder=2,
                   output_path=None,
                   render_now=True,
                   fig_kwargs={}):
@@ -362,7 +366,8 @@ def plot_1d_field(coords,
                      lw=lw,
                      ls=ls,
                      marker=marker,
-                     label=label)
+                     label=label,
+                     zorder=zorder)
 
     if extra_artists is not None:
         for artist in extra_artists:
@@ -402,6 +407,9 @@ def plot_2d_field(hor_coords,
                   fig=None,
                   ax=None,
                   minorticks_on=True,
+                  aspect_equal=True,
+                  log_x=False,
+                  log_y=False,
                   vmin=None,
                   vmax=None,
                   log=False,
@@ -439,6 +447,11 @@ def plot_2d_field(hor_coords,
         norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
     else:
         norm = get_normalizer(vmin, vmax, log=log)
+
+    if log_x:
+        hor_coords = np.log10(hor_coords)
+    if log_y:
+        vert_coords = np.log10(vert_coords)
 
     mesh = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
                          values.T,
@@ -482,7 +495,8 @@ def plot_2d_field(hor_coords,
     if minorticks_on:
         ax.minorticks_on()
 
-    ax.set_aspect('equal')
+    if aspect_equal:
+        ax.set_aspect('equal')
 
     if title is not None:
         ax.set_title(title)
@@ -558,93 +572,123 @@ def plot_histogram(values,
 
     if plot_type == 'steps':
         if horizontal:
-            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, label=label)
+            line, = ax.step(hist,
+                            bin_edges[:-1],
+                            c=color,
+                            ls=ls,
+                            lw=lw,
+                            label=label)
         else:
-            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, label=label)
+            line, = ax.step(bin_edges[:-1],
+                            hist,
+                            c=color,
+                            ls=ls,
+                            lw=lw,
+                            label=label)
     elif plot_type == 'bar':
         if horizontal:
-            ax.barh(bin_edges[:-1],
-                    hist,
-                    align='edge',
-                    height=bin_sizes,
-                    log=log_x,
-                    color=color,
-                    alpha=alpha,
-                    linewidth=lw,
-                    label=label)
+            line = ax.barh(bin_edges[:-1],
+                           hist,
+                           align='edge',
+                           height=bin_sizes,
+                           log=log_x,
+                           color=color,
+                           alpha=alpha,
+                           linewidth=lw,
+                           label=label)
         else:
-            ax.bar(bin_edges[:-1],
-                   hist,
-                   align='edge',
-                   width=bin_sizes,
-                   log=log_y,
-                   color=color,
-                   alpha=alpha,
-                   linewidth=lw,
-                   label=label)
+            line = ax.bar(bin_edges[:-1],
+                          hist,
+                          align='edge',
+                          width=bin_sizes,
+                          log=log_y,
+                          color=color,
+                          alpha=alpha,
+                          linewidth=lw,
+                          label=label)
     elif plot_type == 'fillstep':
+        line = []
         if horizontal:
-            ax.fill_betweenx(bin_edges[:-1],
-                             hist,
-                             step='pre',
-                             color=color,
-                             alpha=alpha)
+            line.append(
+                ax.fill_betweenx(bin_edges[:-1],
+                                 hist,
+                                 step='pre',
+                                 color=color,
+                                 alpha=alpha))
         else:
-            ax.fill_between(bin_edges[:-1],
-                            hist,
-                            step='pre',
-                            color=color,
-                            alpha=alpha)
+            line.append(
+                ax.fill_between(bin_edges[:-1],
+                                hist,
+                                step='pre',
+                                color=color,
+                                alpha=alpha))
         if horizontal:
-            ax.step(hist, bin_edges[:-1], c=color, ls=ls, lw=lw, label=label)
+            line.append(
+                ax.step(hist,
+                        bin_edges[:-1],
+                        c=color,
+                        ls=ls,
+                        lw=lw,
+                        label=label))
         else:
-            ax.step(bin_edges[:-1], hist, c=color, ls=ls, lw=lw, label=label)
+            line.append(
+                ax.step(bin_edges[:-1],
+                        hist,
+                        c=color,
+                        ls=ls,
+                        lw=lw,
+                        label=label))
     elif plot_type == 'fill':
+        line = []
         if horizontal:
-            ax.fill_betweenx(bin_centers,
-                             hist,
-                             color=color,
-                             alpha=alpha,
-                             label=label)
+            line.append(
+                ax.fill_betweenx(bin_centers,
+                                 hist,
+                                 color=color,
+                                 alpha=alpha,
+                                 label=label))
         else:
-            ax.fill_between(bin_centers,
-                            hist,
-                            color=color,
-                            alpha=alpha,
-                            label=label)
+            line.append(
+                ax.fill_between(bin_centers,
+                                hist,
+                                color=color,
+                                alpha=alpha,
+                                label=label))
         if horizontal:
-            ax.plot(hist,
-                    bin_centers,
-                    c=color,
-                    ls=ls,
-                    lw=lw,
-                    alpha=alpha,
-                    label=label)
+            line.append(
+                ax.plot(hist,
+                        bin_centers,
+                        c=color,
+                        ls=ls,
+                        lw=lw,
+                        alpha=alpha,
+                        label=label))
         else:
-            ax.plot(bin_centers,
-                    hist,
-                    c=color,
-                    ls=ls,
-                    lw=lw,
-                    alpha=alpha,
-                    label=label)
+            line.append(
+                ax.plot(bin_centers,
+                        hist,
+                        c=color,
+                        ls=ls,
+                        lw=lw,
+                        alpha=alpha,
+                        label=label))
     elif plot_type == 'points':
         if horizontal:
-            ax.plot(hist,
-                    bin_centers,
-                    c=color,
-                    ls=ls,
-                    lw=lw,
-                    alpha=alpha,
-                    marker='o')
+            line, = ax.plot(hist,
+                            bin_centers,
+                            c=color,
+                            ls=ls,
+                            lw=lw,
+                            alpha=alpha,
+                            marker='o')
         else:
-            ax.plot(bin_centers,
-                    hist,
-                    c=color,
-                    ls=ls,
-                    lw=lw,
-                    alpha=alpha,
-                    marker='o')
+            line, = ax.plot(bin_centers,
+                            hist,
+                            c=color,
+                            ls=ls,
+                            lw=lw,
+                            alpha=alpha,
+                            marker='o')
     else:
         raise ValueError(f'Invalid plot type {plot_type}')
 
@@ -712,7 +756,7 @@ def plot_histogram(values,
     if render_now:
         render(fig, output_path=output_path)
 
-    return fig, ax
+    return fig, ax, line
 
 
 def plot_scatter(values_x,
