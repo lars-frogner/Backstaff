@@ -1,12 +1,16 @@
 import subprocess
 
 
-def run_command(*args, cwd=None, return_immediately=False):
+def run_command(*args,
+                cwd=None,
+                return_immediately=False,
+                logger=print,
+                error_logger=print):
     process = subprocess.Popen(args,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
                                cwd=cwd)
-    print(subprocess.list2cmdline(process.args))
+    logger(subprocess.list2cmdline(process.args))
 
     if return_immediately:
         return
@@ -17,19 +21,19 @@ def run_command(*args, cwd=None, return_immediately=False):
         if output == '' and error_msg == '' and process.poll() is not None:
             break
         if output:
-            print(output.strip())
+            logger(output.strip())
         if error_msg:
-            print(error_msg.strip())
+            error_logger(error_msg.strip())
     return_code = process.poll()
     return return_code
 
 
-def run_backstaff(*args, pre_cargo_args=[], cwd=None, features=['cli']):
+def run_backstaff(*args, pre_cargo_args=[], features=['cli'], **kwargs):
     args = pre_cargo_args + [
         'cargo', 'run', '--release', '--no-default-features', '--features',
         ' '.join(features), '--'
     ] + list(args)
-    return run_command(*args, cwd=cwd)
+    return run_command(*args, **kwargs)
 
 
 def run_backstaff_remotely(destination_machine,
@@ -37,7 +41,8 @@ def run_backstaff_remotely(destination_machine,
                            *args,
                            pre_ssh_args=[],
                            pre_cargo_args=['nice'],
-                           features=['cli']):
+                           features=['cli'],
+                           **kwargs):
     run_command_args = pre_cargo_args + [
         'cargo', 'run', '--release', '--no-default-features', '--features',
         ' '.join(features), '--'
@@ -47,4 +52,4 @@ def run_backstaff_remotely(destination_machine,
     args = pre_ssh_args + [
         'ssh', destination_machine, ' '.join(remote_command_args)
     ]
-    return run_command(*args)
+    return run_command(*args, **kwargs)
