@@ -95,3 +95,7 @@ U_L3 = U_L*U_L*U_L
 U_B = U_U*np.sqrt(4.0*np.pi*U_R)
 # Unit for electric field strength [V/m].
 U_EL = U_B*U_U*1e-6
+# Unit for power density [erg/s/cm^3]
+U_PD = U_E / U_T
+# Unit for power [erg/s]
+U_PW = U_L3 * U_PD
