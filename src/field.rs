@@ -268,8 +268,7 @@ where
             resampled_locations,
             underlying_locations,
         );
-        let mut overlying_values =
-            unsafe { Array3::uninitialized(overlying_grid.shape().to_tuple().f()) };
+        let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
         overlying_values_buffer.par_iter_mut().enumerate().for_each(
@@ -348,9 +347,10 @@ where
                         }
                     }
                 }
-                *overlying_value = accum_value / accum_weight;
+                overlying_value.write(accum_value / accum_weight);
             },
         );
+        let overlying_values = unsafe { overlying_values.assume_init() };
         ScalarField3::new(
             self.name.clone(),
             overlying_grid,
@@ -381,8 +381,7 @@ where
             resampled_locations,
             underlying_locations,
         );
-        let mut overlying_values =
-            unsafe { Array3::uninitialized(overlying_grid.shape().to_tuple().f()) };
+        let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
         overlying_values_buffer.par_iter_mut().enumerate().for_each(
@@ -447,9 +446,10 @@ where
                         }
                     }
                 }
-                *overlying_value = accum_value / accum_weight;
+                overlying_value.write(accum_value / accum_weight);
             },
         );
+        let overlying_values = unsafe { overlying_values.assume_init() };
         ScalarField3::new(
             self.name.clone(),
             overlying_grid,
@@ -480,7 +480,7 @@ where
         let new_coords = Self::coords_from_grid(grid.as_ref(), &locations);
 
         let grid_shape = grid.shape();
-        let mut new_values = unsafe { Array3::uninitialized(grid_shape.to_tuple().f()) };
+        let mut new_values = Array3::uninit(grid_shape.to_tuple().f());
         let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
 
         values_buffer
@@ -489,10 +489,13 @@ where
             .for_each(|(idx, value)| {
                 let indices = compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
                 let point = new_coords.point(&indices);
-                *value = interpolator
-                    .interp_extrap_scalar_field(self, &point)
-                    .expect_inside_or_moved();
+                value.write(
+                    interpolator
+                        .interp_extrap_scalar_field(self, &point)
+                        .expect_inside_or_moved(),
+                );
             });
+        let new_values = unsafe { new_values.assume_init() };
         ScalarField3::new(self.name.clone(), grid, locations, new_values)
     }
 
@@ -873,7 +876,7 @@ where
         I: Interpolator3,
     {
         let slice_shape = (coords[0].len(), coords[1].len());
-        let mut slice_values = unsafe { Array2::uninitialized(slice_shape.f()) };
+        let mut slice_values = Array2::uninit(slice_shape.f());
         let values_buffer = slice_values.as_slice_memory_order_mut().unwrap();
 
         values_buffer
@@ -884,11 +887,13 @@ where
                 let mut point_in_slice = Point3::equal_components(slice_axis_coord);
                 point_in_slice[axes[0]] = coords[0][idx_0];
                 point_in_slice[axes[1]] = coords[1][idx_1];
-                *value = interpolator
-                    .interp_scalar_field(self, &point_in_slice)
-                    .expect_inside();
+                value.write(
+                    interpolator
+                        .interp_scalar_field(self, &point_in_slice)
+                        .expect_inside(),
+                );
             });
-        slice_values
+        unsafe { slice_values.assume_init() }
     }
 }
 

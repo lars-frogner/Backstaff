@@ -304,7 +304,7 @@ pub fn write_data_as_pickle<T: Serialize, W: io::Write>(
     writer: &mut W,
     data: &T,
 ) -> io::Result<()> {
-    match serde_pickle::to_writer(writer, data, true) {
+    match serde_pickle::to_writer(writer, data, serde_pickle::SerOptions::new()) {
         Ok(_) => Ok(()),
         Err(serde_pickle::Error::Io(err)) => Err(err),
         Err(_) => Err(io::Error::new(
