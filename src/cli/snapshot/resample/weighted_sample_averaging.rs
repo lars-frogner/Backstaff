@@ -7,11 +7,11 @@ use crate::{
     },
     create_subcommand,
 };
-use clap::{App, AppSettings, SubCommand};
+use clap::Command;
 
 /// Builds a representation of the `snapshot-resample-weighted_sample_averaging` command line subcommand.
-pub fn create_weighted_sample_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("weighted_sample_averaging")
+pub fn create_weighted_sample_averaging_subcommand() -> Command<'static> {
+    Command::new("weighted_sample_averaging")
         .about("Use the weighted sample averaging method")
         .long_about(
             "Use the weighted sample averaging method.\n\
@@ -26,11 +26,10 @@ pub fn create_weighted_sample_averaging_subcommand<'a, 'b>() -> App<'a, 'b> {
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
         )
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .subcommand(
             create_subcommand!(weighted_sample_averaging, poly_fit_interpolator)
-                .setting(AppSettings::SubcommandRequired)
+                .subcommand_required(true)
                 .subcommand(create_subcommand!(poly_fit_interpolator, write)),
         )
         .subcommand(create_subcommand!(weighted_sample_averaging, write))

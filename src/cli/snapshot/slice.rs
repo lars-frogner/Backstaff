@@ -19,7 +19,7 @@ use crate::{
         utils::AtomicOutputPath,
     },
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use std::{
     fmt,
     path::{Path, PathBuf},
@@ -27,8 +27,8 @@ use std::{
 };
 
 /// Builds a representation of the `snapshot-slice` command line subcommand.
-pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("slice")
+pub fn create_slice_subcommand() -> Command<'static> {
+    Command::new("slice")
         .about("Extract a 2D slice of a quantity field in the snapshot")
         .long_about(
             "Extract a 2D slice of a quantity field in the snapshot.\n\
@@ -39,29 +39,28 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("output-file")
+            Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
                 .help("Path where the slice field should be saved in pickle format")
                 .required(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("overwrite")
+            Arg::new("overwrite")
                 .long("overwrite")
                 .help("Automatically overwrite any existing files (unless listed as protected)")
                 .conflicts_with("no-overwrite"),
         )
         .arg(
-            Arg::with_name("no-overwrite")
+            Arg::new("no-overwrite")
                 .long("no-overwrite")
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
         .arg(
-            Arg::with_name("quantity")
-                .short("q")
+            Arg::new("quantity")
+                .short('q')
                 .long("quantity")
                 .require_equals(true)
                 .value_name("NAME")
@@ -70,8 +69,8 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("axis")
-                .short("a")
+            Arg::new("axis")
+                .short('a')
                 .long("axis")
                 .require_equals(true)
                 .value_name("AXIS")
@@ -81,8 +80,8 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .possible_values(&["x", "y", "z"]),
         )
         .arg(
-            Arg::with_name("coord")
-                .short("c")
+            Arg::new("coord")
+                .short('c')
                 .long("coord")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -92,8 +91,8 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("sample-location")
-                .short("l")
+            Arg::new("sample-location")
+                .short('l')
                 .long("sample-location")
                 .require_equals(true)
                 .value_name("LOCATION")
@@ -103,8 +102,8 @@ pub fn create_slice_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("center"),
         )
         .arg(
-            Arg::with_name("allow-non-uniform")
-                .short("n")
+            Arg::new("allow-non-uniform")
+                .short('n')
                 .long("allow-non-uniform")
                 .help(
                     "Make sampled slice values follow the potentially non-uniform underlying grid",

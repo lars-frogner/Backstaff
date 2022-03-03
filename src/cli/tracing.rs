@@ -49,7 +49,7 @@ use crate::{
         },
     },
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use rayon::prelude::*;
 use std::{
     fmt,
@@ -58,8 +58,8 @@ use std::{
 };
 
 /// Builds a representation of the `trace` command line subcommand.
-pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("trace")
+pub fn create_trace_subcommand() -> Command<'static> {
+    let app = Command::new("trace")
         .about("Trace field lines of a vector field in the snapshot")
         .after_help(
             "You can use subcommands to configure each action. The subcommands must be\n\
@@ -68,9 +68,8 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
              can be left unspecified, in which case the default implementation and parameters\n\
              are used for that action.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("output-file")
+            Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
                 .help(
                     "Path of the file where the field line data should be saved\n\
@@ -84,20 +83,20 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("overwrite")
+            Arg::new("overwrite")
                 .long("overwrite")
                 .help("Automatically overwrite any existing files (unless listed as protected)")
                 .conflicts_with("no-overwrite"),
         )
         .arg(
-            Arg::with_name("no-overwrite")
+            Arg::new("no-overwrite")
                 .long("no-overwrite")
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
         .arg(
-            Arg::with_name("vector-quantity")
-                .short("q")
+            Arg::new("vector-quantity")
+                .short('q')
                 .long("vector-quantity")
                 .require_equals(true)
                 .value_name("NAME")
@@ -106,57 +105,55 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("b"),
         )
         .arg(
-            Arg::with_name("extracted-quantities")
+            Arg::new("extracted-quantities")
                 .long("extracted-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help("List of quantities to extract along field line paths (comma-separated)")
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("extracted-seed-quantities")
+            Arg::new("extracted-seed-quantities")
                 .long("extracted-seed-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help("List of quantities to extract at seed positions (comma-separated)")
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
-        .arg(
-            Arg::with_name("drop-h5part-id")
-                .long("drop-h5part-id")
-                .help(
-                    "Reduce H5Part file size by excluding particle IDs required by some tools\n\
+        .arg(Arg::new("drop-h5part-id").long("drop-h5part-id").help(
+            "Reduce H5Part file size by excluding particle IDs required by some tools\n\
                      (e.g. VisIt)",
-                ),
-        )
+        ))
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Print status messages while tracing field lines"),
         )
         .arg(
-            Arg::with_name("print-parameter-values")
-                .short("p")
+            Arg::new("print-parameter-values")
+                .short('p')
                 .long("print-parameter-values")
                 .help("Prints the values of all the parameters that will be used")
-                .hidden(true),
+                .hide(true),
         );
 
-    app.setting(AppSettings::SubcommandRequired)
+    app.subcommand_required(true)
         .subcommand(
             create_subcommand!(trace, basic_field_line_tracer)
-                .setting(AppSettings::SubcommandRequired)
+                .subcommand_required(true)
                 .subcommand(
                     create_subcommand!(basic_field_line_tracer, rkf_stepper)
-                        .setting(AppSettings::SubcommandRequired)
+                        .subcommand_required(true)
                         .subcommand(
                             create_subcommand!(rkf_stepper, poly_fit_interpolator)
-                                .setting(AppSettings::SubcommandRequired)
+                                .subcommand_required(true)
                                 .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
                                 .subcommand(create_subcommand!(
                                     poly_fit_interpolator,
@@ -173,7 +170,7 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
                 )
                 .subcommand(
                     create_subcommand!(basic_field_line_tracer, poly_fit_interpolator)
-                        .setting(AppSettings::SubcommandRequired)
+                        .subcommand_required(true)
                         .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
                         .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
                         .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
@@ -184,10 +181,10 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(
             create_subcommand!(trace, rkf_stepper)
-                .setting(AppSettings::SubcommandRequired)
+                .subcommand_required(true)
                 .subcommand(
                     create_subcommand!(rkf_stepper, poly_fit_interpolator)
-                        .setting(AppSettings::SubcommandRequired)
+                        .subcommand_required(true)
                         .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
                         .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
                         .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
@@ -198,7 +195,7 @@ pub fn create_trace_subcommand<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(
             create_subcommand!(trace, poly_fit_interpolator)
-                .setting(AppSettings::SubcommandRequired)
+                .subcommand_required(true)
                 .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
                 .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
                 .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),

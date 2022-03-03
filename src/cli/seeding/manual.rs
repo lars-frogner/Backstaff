@@ -1,28 +1,28 @@
 //! Command line interface for reading seed points from an input file.
 
 use crate::{exit_on_error, seeding::manual::ManualSeeder3};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for using a manual seeder.
-pub fn create_manual_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("manual_seeder")
+pub fn create_manual_seeder_subcommand() -> Command<'static> {
+    Command::new("manual_seeder")
         .about("Read seed point from input file")
         .long_about(
             "Read seed point from input file.\n\
              The input file is assumed to be in CSV format, with each line consisting\n\
              of the three comma-separated coordinates of a single seed point.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("input-file")
-                .short("i")
+            Arg::new("input-file")
+                .short('i')
                 .long("input-file")
                 .require_equals(true)
                 .value_name("FILE")
                 .help("Path to the text file containing the seed points")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .value_hint(ValueHint::FilePath),
         )
 }
 

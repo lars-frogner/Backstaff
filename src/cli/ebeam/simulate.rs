@@ -64,7 +64,7 @@ use crate::{
         rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig, RKFStepperType,
     },
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use rayon::prelude::*;
 use std::{
     fmt,
@@ -73,8 +73,8 @@ use std::{
 };
 
 /// Builds a representation of the `ebeam-simulate` command line subcommand.
-pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("simulate")
+pub fn create_simulate_subcommand() -> Command<'static> {
+    let app = Command::new("simulate")
         .about("Simulate electron beams in the snapshot")
         .long_about(
             "Simulate electron beams in the snapshot.\n\
@@ -90,9 +90,8 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
              left unspecified, in which case the default implementation and parameters are used\n\
              for that action.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("output-file")
+            Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
                 .help(
                     "Path of the file where the beam data should be saved\n\
@@ -106,92 +105,92 @@ pub fn create_simulate_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("overwrite")
+            Arg::new("overwrite")
                 .long("overwrite")
                 .help("Automatically overwrite any existing files (unless listed as protected)")
                 .conflicts_with("no-overwrite"),
         )
         .arg(
-            Arg::with_name("no-overwrite")
+            Arg::new("no-overwrite")
                 .long("no-overwrite")
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
         .arg(
-            Arg::with_name("generate-only")
-                .short("g")
+            Arg::new("generate-only")
+                .short('g')
                 .long("generate-only")
                 .help("Do not propagate the generated beams"),
         )
         .arg(
-            Arg::with_name("extra-fixed-scalars")
+            Arg::new("extra-fixed-scalars")
                 .long("extra-fixed-scalars")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of scalar fields to extract at acceleration sites\n \
                      (comma-separated)",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("extra-fixed-vectors")
+            Arg::new("extra-fixed-vectors")
                 .long("extra-fixed-vectors")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of vector fields to extract at acceleration sites\n \
                      (comma-separated)",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("extra-varying-scalars")
+            Arg::new("extra-varying-scalars")
                 .long("extra-varying-scalars")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of scalar fields to extract along beam trajectories\n \
                      (comma-separated)",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("extra-varying-vectors")
+            Arg::new("extra-varying-vectors")
                 .long("extra-varying-vectors")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of vector fields to extract along beam trajectories\n \
                      (comma-separated)",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
-        .arg(
-            Arg::with_name("drop-h5part-id")
-                .long("drop-h5part-id")
-                .help(
-                    "Reduce H5Part file size by excluding particle IDs required by some tools\n\
+        .arg(Arg::new("drop-h5part-id").long("drop-h5part-id").help(
+            "Reduce H5Part file size by excluding particle IDs required by some tools\n\
                      (e.g. VisIt)",
-                ),
-        )
+        ))
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Print status messages while simulating electron beams"),
         )
         .arg(
-            Arg::with_name("print-parameter-values")
-                .short("p")
+            Arg::new("print-parameter-values")
+                .short('p')
                 .long("print-parameter-values")
                 .help("Prints the values of all the parameters that will be used"),
         );

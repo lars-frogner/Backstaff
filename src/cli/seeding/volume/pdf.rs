@@ -13,11 +13,11 @@ use crate::{
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
     seeding::volume::VolumeSeeder3,
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the volume PDF seeder.
-pub fn create_value_pdf_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("value_pdf")
+pub fn create_value_pdf_subcommand() -> Command<'static> {
+    Command::new("value_pdf")
         .about("Use the value PDF seeder")
         .long_about(
             "Use the value PDF seeder.\n\
@@ -25,10 +25,9 @@ pub fn create_value_pdf_subcommand<'a, 'b>() -> App<'a, 'b> {
              values within a volume of a quantity field. If the quantity is a vector,\n\
              the PDF is based on the norm of the vectors.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("quantity")
-                .short("q")
+            Arg::new("quantity")
+                .short('q')
                 .long("quantity")
                 .require_equals(true)
                 .value_name("NAME")
@@ -37,8 +36,8 @@ pub fn create_value_pdf_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("n-points")
-                .short("n")
+            Arg::new("n-points")
+                .short('n')
                 .long("n-points")
                 .require_equals(true)
                 .value_name("NUMBER")
@@ -47,12 +46,12 @@ pub fn create_value_pdf_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("is-vector-quantity")
+            Arg::new("is-vector-quantity")
                 .long("is-vector-quantity")
                 .help("Treat the specified quantity as a vector quantity"),
         )
         .arg(
-            Arg::with_name("power")
+            Arg::new("power")
                 .long("power")
                 .require_equals(true)
                 .value_name("VALUE")

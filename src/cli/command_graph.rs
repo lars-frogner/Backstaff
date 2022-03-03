@@ -1,7 +1,7 @@
 //! Command line interface for creating a graph of the command hierarchy.
 
 use crate::{cli::utils as cli_utils, exit_on_error, io::utils};
-use clap::{self, App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{self, Arg, ArgMatches, Command};
 use lazy_static::lazy_static;
 use petgraph::{
     dot::{Config, Dot},
@@ -15,7 +15,7 @@ use std::{
     sync::Mutex,
 };
 
-pub const CONFIG_COMMANDS: [&'static str; 14] = [
+pub const CONFIG_COMMANDS: [&'static str; 15] = [
     "weighted_sample_averaging",
     "weighted_cell_averaging",
     "direct_sampling",
@@ -23,6 +23,7 @@ pub const CONFIG_COMMANDS: [&'static str; 14] = [
     "basic_field_line_tracer",
     "slice_seeder",
     "manual_seeder",
+    "volume_seeder",
     "rkf_stepper",
     "power_law_distribution",
     "manual_detector",
@@ -33,39 +34,38 @@ pub const CONFIG_COMMANDS: [&'static str; 14] = [
 ];
 
 /// Builds a representation of the `command_graph` command line subcommand.
-pub fn create_command_graph_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("command_graph")
+pub fn create_command_graph_subcommand() -> Command<'static> {
+    Command::new("command_graph")
         .about("Output a graph of the command hierarchy as a DOT file")
-        .setting(AppSettings::Hidden)
+        .hide(true)
         .long_about(
             "Output a graph of the command hierarchy as a DOT file.\n\
              The DOT (.gv) file can be rendered using Graphviz:\n\n    dot -Tpdf -O <DOT file>",
         )
         .arg(
-            Arg::with_name("output-file")
+            Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
                 .help("Path of the output DOT file to produce.")
                 .takes_value(true)
                 .default_value("command_graph.gv"),
         )
         .arg(
-            Arg::with_name("include-configuration")
+            Arg::new("include-configuration")
                 .long("include-configuration")
                 .help("Include optional configuration commands"),
         )
         .arg(
-            Arg::with_name("overwrite")
+            Arg::new("overwrite")
                 .long("overwrite")
                 .help("Automatically overwrite any existing files (unless listed as protected)")
                 .conflicts_with("no-overwrite"),
         )
         .arg(
-            Arg::with_name("no-overwrite")
+            Arg::new("no-overwrite")
                 .long("no-overwrite")
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
-        .help_message("Print help information")
 }
 
 /// Runs the actions for the `command_graph` subcommand using the given arguments.
@@ -131,5 +131,5 @@ pub fn insert_command_graph_edge(
     COMMAND_GRAPH
         .lock()
         .unwrap()
-        .add_edge(parent_index, child_index, is_config);
+        .update_edge(parent_index, child_index, is_config);
 }

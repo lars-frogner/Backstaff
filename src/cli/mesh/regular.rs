@@ -6,30 +6,31 @@ use crate::{
     geometry::{In3D, Vec3},
     grid::regular::RegularGrid3,
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `create_mesh-regular` command line subcommand.
-pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("regular")
+pub fn create_regular_mesh_subcommand() -> Command<'static> {
+    Command::new("regular")
         .about("Create a regular grid")
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("shape")
-                .short("s")
+            Arg::new("shape")
+                .short('s')
                 .long("shape")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the grid")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
-            Arg::with_name("x-bounds")
-                .short("x")
+            Arg::new("x-bounds")
+                .short('x')
                 .long("x-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the x-coordinates")
@@ -37,11 +38,12 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .required(true),
         )
         .arg(
-            Arg::with_name("y-bounds")
-                .short("y")
+            Arg::new("y-bounds")
+                .short('y')
                 .long("y-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the y-coordinates")
@@ -49,11 +51,12 @@ pub fn create_regular_mesh_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .required(true),
         )
         .arg(
-            Arg::with_name("z-bounds")
-                .short("z")
+            Arg::new("z-bounds")
+                .short('z')
                 .long("z-bounds")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the z-coordinates")

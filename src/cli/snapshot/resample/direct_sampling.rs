@@ -7,11 +7,11 @@ use crate::{
     },
     create_subcommand,
 };
-use clap::{App, AppSettings, SubCommand};
+use clap::Command;
 
 /// Builds a representation of the `snapshot-resample-direct_sampling` command line subcommand.
-pub fn create_direct_sampling_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("direct_sampling")
+pub fn create_direct_sampling_subcommand() -> Command<'static> {
+    Command::new("direct_sampling")
         .about("Use the direct sampling method")
         .long_about(
             "Use the direct sampling method.\n\
@@ -24,11 +24,10 @@ pub fn create_direct_sampling_subcommand<'a, 'b>() -> App<'a, 'b> {
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
         )
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .subcommand(
             create_subcommand!(direct_sampling, poly_fit_interpolator)
-                .setting(AppSettings::SubcommandRequired)
+                .subcommand_required(true)
                 .subcommand(create_subcommand!(poly_fit_interpolator, write)),
         )
         .subcommand(create_subcommand!(direct_sampling, write))

@@ -29,7 +29,7 @@ use crate::{
         utils as io_utils, Endianness,
     },
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -52,13 +52,12 @@ use crate::io::snapshot::netcdf::{
 
 /// Builds a representation of the `snapshot` command line subcommand.
 #[allow(clippy::let_and_return)]
-pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("snapshot")
+pub fn create_snapshot_subcommand() -> Command<'static> {
+    let app = Command::new("snapshot")
         .about("Specify input snapshot to perform further actions on")
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("input-file")
+            Arg::new("input-file")
                 .value_name("INPUT_FILE")
                 .help(
                     "Path to the file representing the snapshot.\n\
@@ -67,14 +66,16 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
                      \n    *.nc: NetCDF file using the CF convention (requires the netcdf feature)",
                 )
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .value_hint(ValueHint::FilePath),
         )
         .arg(
-            Arg::with_name("snap-range")
-                .short("r")
+            Arg::new("snap-range")
+                .short('r')
                 .long("snap-range")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_names(&["FIRST", "LAST"])
                 .help(
                     "Inclusive range of snapshot numbers associated with the input snapshot to\n\
@@ -83,8 +84,8 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("endianness")
-                .short("e")
+            Arg::new("endianness")
+                .short('e')
                 .long("endianness")
                 .require_equals(true)
                 .value_name("ENDIANNESS")
@@ -94,8 +95,8 @@ pub fn create_snapshot_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("little"),
         )
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Print status messages related to reading"),
         )

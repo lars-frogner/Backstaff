@@ -7,11 +7,11 @@ use crate::{
         BasicFieldLineTracerConfig, FieldLinePointSpacing, FieldLineTracingSense,
     },
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the basic field line tracer.
-pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("basic_tracer")
+pub fn create_basic_field_line_tracer_subcommand() -> Command<'static> {
+    Command::new("basic_tracer")
         .about("Use the basic field line tracer")
         .long_about(
             "Use the basic field line tracer.\n\
@@ -20,9 +20,8 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
              natural positions provided by the stepper. The field line can have a maximum\n\
              length.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("tracing-sense")
+            Arg::new("tracing-sense")
                 .long("tracing-sense")
                 .require_equals(true)
                 .value_name("SENSE")
@@ -32,7 +31,7 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("both"),
         )
         .arg(
-            Arg::with_name("point-spacing")
+            Arg::new("point-spacing")
                 .long("point-spacing")
                 .require_equals(true)
                 .value_name("SPACING")
@@ -42,7 +41,7 @@ pub fn create_basic_field_line_tracer_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("regular"),
         )
         .arg(
-            Arg::with_name("max-length")
+            Arg::new("max-length")
                 .long("max-length")
                 .require_equals(true)
                 .value_name("VALUE")

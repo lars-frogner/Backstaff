@@ -20,7 +20,7 @@ use crate::{
     io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
     seeding::{fsd, slice::SliceSeeder3},
 };
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Holds parameters that are required by all slice seeders.
 pub struct CommonSliceSeederParameters {
@@ -29,14 +29,13 @@ pub struct CommonSliceSeederParameters {
 }
 
 /// Creates a subcommand for using a slice seeder.
-pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("slice_seeder")
+pub fn create_slice_seeder_subcommand() -> Command<'static> {
+    Command::new("slice_seeder")
         .about("Use a slice seeder")
-        .help_message("Print help information")
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .arg(
-            Arg::with_name("axis")
-                .short("a")
+            Arg::new("axis")
+                .short('a')
                 .long("axis")
                 .value_name("AXIS")
                 .require_equals(true)
@@ -46,8 +45,8 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .possible_values(&["x", "y", "z"]),
         )
         .arg(
-            Arg::with_name("coord")
-                .short("c")
+            Arg::new("coord")
+                .short('c')
                 .long("coord")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -57,10 +56,11 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("horizontal-limits")
+            Arg::new("horizontal-limits")
                 .long("horizontal-limits")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(
@@ -70,10 +70,11 @@ pub fn create_slice_seeder_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("vertical-limits")
+            Arg::new("vertical-limits")
                 .long("vertical-limits")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(

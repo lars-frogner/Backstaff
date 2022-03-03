@@ -8,7 +8,10 @@ use super::{
 };
 use crate::{
     constants::{KEV_TO_ERG, M_H, PI, Q_ELECTRON},
-    geometry::{Dim3::{X, Y, Z}, Idx3, Point3, Vec3},
+    geometry::{
+        Dim3::{X, Y, Z},
+        Idx3, Point3, Vec3,
+    },
     grid::Grid3,
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3},
@@ -440,7 +443,11 @@ impl Distribution for PowerLawDistribution {
             .unwrap_and_update_position(&mut deposition_position);
 
         if self.outside_distance < self.config.outside_deposition_threshold {
-            if acceleration_map[(deposition_indices[X], deposition_indices[Y], deposition_indices[Z])] {
+            if acceleration_map[(
+                deposition_indices[X],
+                deposition_indices[Y],
+                deposition_indices[Z],
+            )] {
                 self.outside_distance = 0.0;
             } else {
                 self.outside_distance += displacement.length();

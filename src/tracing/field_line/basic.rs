@@ -345,8 +345,8 @@ mod tests {
         SnapshotCacher3,
     };
     use crate::io::{Endianness, Verbose};
-    use crate::tracing::field_line::FieldLineSet3;
     use crate::seeding::slice::SliceSeeder3;
+    use crate::tracing::field_line::FieldLineSet3;
     use crate::tracing::stepping::rkf::rkf45::RKF45StepperFactory3;
     use crate::tracing::stepping::rkf::RKFStepperConfig;
 

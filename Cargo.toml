@@ -8,7 +8,7 @@ default-run = "backstaff"
 
 [features]
 default = ["cli"]
-cli = ["chrono", "clap", "pad", "paste", "petgraph", "float-pretty-print"]
+cli = ["chrono", "clap", "clap_complete", "pad", "paste", "petgraph", "float-pretty-print"]
 tracing = []
 ebeam = []
 netcdf = ["netcdf-rs"]
@@ -35,7 +35,8 @@ tempfile = "*"
 
 # Dependencies for cli
 chrono = { version = "*", optional = true }
-clap = { version = "*", features = ["suggestions", "color", "vec_map"], optional = true }
+clap = { version = ">=3.0.0", features = ["default", "cargo"], optional = true }
+clap_complete = { version = "*", optional = true }
 float-pretty-print = { version = "*", optional = true }
 pad = { version = "*", optional = true }
 paste = { version = "*", optional = true }

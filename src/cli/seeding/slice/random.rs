@@ -4,21 +4,20 @@ use super::CommonSliceSeederParameters;
 use crate::{
     cli::utils, geometry::Point2, grid::Grid3, io::snapshot::fdt, seeding::slice::SliceSeeder3,
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the random slice seeder.
-pub fn create_random_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("random")
+pub fn create_random_subcommand() -> Command<'static> {
+    Command::new("random")
         .about("Use the random slice seeder")
         .long_about(
             "Use the random slice seeder.\n\
              Seed points are produced at uniformly random positions within\n\
              a 2D slice of the 3D grid.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("n-points")
-                .short("n")
+            Arg::new("n-points")
+                .short('n')
                 .long("n-points")
                 .require_equals(true)
                 .value_name("NUMBER")

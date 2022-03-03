@@ -8,7 +8,7 @@ use crate::{
     grid::Grid3,
     io::snapshot::{self, fdt, native, ParameterValue, SnapshotReader3},
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -22,99 +22,99 @@ use std::{
 use crate::io::snapshot::netcdf;
 
 /// Builds a representation of the `snapshot-write` command line subcommand.
-pub fn create_write_subcommand<'a, 'b>() -> App<'a, 'b> {
-    let app = SubCommand::with_name("write")
+pub fn create_write_subcommand() -> Command<'static> {
+    let app = Command::new("write")
         .about("Write snapshot data to file")
-        .help_message("Print help information")
+
         .arg(
-            Arg::with_name("output-file")
+            Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
                 .help(
                     "Path of the output file to produce.\n\
                      Writes in the following format based on the file extension:\
                      \n    *.idl: Creates a parameter file with an associated .snap [and .aux] file\
                      \n    *.nc: Creates a NetCDF file using the CF convention (requires the netcdf feature)\n\
-                     If processing multiple snapshots, the output snapshot number will be incremented\n\
-                     (or appended if necessary) with basis in this snapshot file name.",
+                     If processing multiple snapshots, the output snapshot number will be\n\
+                     incremented (or appended if necessary) with basis in this snapshot file name.",
                 )
                 .required(true)
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("overwrite")
+            Arg::new("overwrite")
                 .long("overwrite")
                 .help("Automatically overwrite any existing files (unless listed as protected)")
                 .conflicts_with("no-overwrite"),
         )
         .arg(
-            Arg::with_name("no-overwrite")
+            Arg::new("no-overwrite")
                 .long("no-overwrite")
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
         .arg(
-            Arg::with_name("all-quantities")
+            Arg::new("all-quantities")
                 .long("all-quantities")
                 .help("Include all original quantities in the output snapshot")
                 .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
         )
         .arg(
-            Arg::with_name("included-quantities")
+            Arg::new("included-quantities")
                 .long("included-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of all the original quantities to include in the output snapshot\n\
                     (comma-separated) [default: none]",
                 )
                 .takes_value(true)
-                .multiple(true)
+                .multiple_values(true)
                 .conflicts_with_all(&["all-quantities", "excluded-quantities"]),
         )
         .arg(
-            Arg::with_name("excluded-quantities")
+            Arg::new("excluded-quantities")
                 .long("excluded-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of original quantities to leave out of the output snapshot\n\
                     (comma-separated) [default: none]",
                 )
                 .takes_value(true)
-                .multiple(true)
+                .multiple_values(true)
                 .conflicts_with_all(&["all-quantities", "included-quantities"]),
         )
         .arg(
-            Arg::with_name("derived-quantities")
+            Arg::new("derived-quantities")
                 .long("derived-quantities")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .value_name("NAMES")
                 .help(
                     "List of derived quantities to compute and include in the output snapshot\n\
                     (comma-separated) [default: none]",
                 )
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("ignore-warnings")
+            Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
         )
         .arg(
-            Arg::with_name("verbose")
-                .short("v")
+            Arg::new("verbose")
+                .short('v')
                 .long("verbose")
                 .help("Print status messages related to writing"),
         );
 
     #[cfg(feature = "netcdf")]
     let app = app.arg(
-        Arg::with_name("strip")
-            .short("s")
+        Arg::new("strip")
+            .short('s')
             .long("strip")
             .help("Strip away metadata not required for visualization"),
     );

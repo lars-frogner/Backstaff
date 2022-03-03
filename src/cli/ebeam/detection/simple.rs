@@ -6,11 +6,11 @@ use crate::{
     grid::Grid3,
     io::snapshot::{fdt, SnapshotReader3},
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the simple reconnection site detector.
-pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("simple_detector")
+pub fn create_simple_reconnection_site_detector_subcommand() -> Command<'static> {
+    Command::new("simple_detector")
         .about("Use the simple reconnection site detection method")
         .long_about(
             "Use the simple reconnection site detection method.\n\
@@ -18,9 +18,8 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
              site to be where the factor exceeds a given threshold. The reconnection factor\n\
              indicates changes in the magnetic topology and is described by Biskamp (2005).",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("reconnection-factor-threshold")
+            Arg::new("reconnection-factor-threshold")
                 .long("reconnection-factor-threshold")
                 .require_equals(true)
                 .value_name("VALUE")
@@ -31,10 +30,11 @@ pub fn create_simple_reconnection_site_detector_subcommand<'a, 'b>() -> App<'a, 
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("detection-depth-limits")
+            Arg::new("detection-depth-limits")
                 .long("detection-depth-limits")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(

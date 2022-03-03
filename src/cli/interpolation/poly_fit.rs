@@ -1,11 +1,11 @@
 //! Command line interface for interpolation by polynomial fitting.
 
 use crate::{cli::utils, interpolation::poly_fit::PolyFitInterpolatorConfig};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the polynomial fitting interpolator.
-pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("poly_fit_interpolator")
+pub fn create_poly_fit_interpolator_subcommand() -> Command<'static> {
+    Command::new("poly_fit_interpolator")
         .about("Use the polynomial fitting interpolator")
         .long_about(
             "Use the polynomial fitting interpolator.\n\
@@ -13,9 +13,8 @@ pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
              fitted to the surrounding points. To reduce overshoot, linear interpolation\n\
              can be engaged automatically in regions with high variance.",
         )
-        .help_message("Print help information")
         .arg(
-            Arg::with_name("order")
+            Arg::new("order")
                 .long("order")
                 .require_equals(true)
                 .value_name("NUMBER")
@@ -25,7 +24,7 @@ pub fn create_poly_fit_interpolator_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("3"),
         )
         .arg(
-            Arg::with_name("variation-threshold")
+            Arg::new("variation-threshold")
                 .long("variation-threshold")
                 .require_equals(true)
                 .value_name("VALUE")

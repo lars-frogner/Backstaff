@@ -23,7 +23,7 @@ use crate::{
     },
     io::snapshot::{fdt, SnapshotReader3},
 };
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use float_pretty_print::PrettyPrintFloat;
 use ndarray::prelude::*;
 use ndarray_stats::{interpolate::Linear, QuantileExt};
@@ -40,42 +40,42 @@ const COORD_WIDTH: usize = 7;
 const IDX_WIDTH: usize = 3;
 
 /// Builds a representation of the `snapshot-inspect-statistics` command line subcommand.
-pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("statistics")
+pub fn create_statistics_subcommand() -> Command<'static> {
+    Command::new("statistics")
         .about("Print statistics for quantities in the snapshot")
-        .help_message("Print help information")
+
         .arg(
-            Arg::with_name("slice-depths")
-                .short("s")
+            Arg::new("slice-depths")
+                .short('s')
                 .long("slice-depths")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_name("Z_COORDS")
                 .help("List of z-coordinates for which horizontal slice statistics should be printed\n\
                        (comma-separated)")
                 .takes_value(true)
-                .multiple(true),
+                .multiple_values(true),
         )
         .arg(
-            Arg::with_name("percentages")
-                .short("p")
+            Arg::new("percentages")
+                .short('p')
                 .long("percentages")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .value_name("PERCENTAGES")
                 .help("List of percentages for which to compute percentiles of the quantity values\n\
                        (comma-separated)")
                 .takes_value(true)
-                .multiple(true)
+                .multiple_values(true)
                 .default_value("5,30,50,70,95"),
         )
         .arg(
-            Arg::with_name("value-range")
-                .short("v")
+            Arg::new("value-range")
+                .short('v')
                 .long("value-range")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(
@@ -85,11 +85,11 @@ pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("-inf,inf"),
         )
         .arg(
-            Arg::with_name("x-range")
-                .short("x")
+            Arg::new("x-range")
+                .short('x')
                 .long("x-range")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(
@@ -99,11 +99,11 @@ pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("-inf,inf"),
         )
         .arg(
-            Arg::with_name("y-range")
-                .short("y")
+            Arg::new("y-range")
+                .short('y')
                 .long("y-range")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(
@@ -113,11 +113,11 @@ pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("-inf,inf"),
         )
         .arg(
-            Arg::with_name("z-range")
-                .short("z")
+            Arg::new("z-range")
+                .short('z')
                 .long("z-range")
                 .require_equals(true)
-                .require_delimiter(true)
+                .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(
@@ -127,7 +127,7 @@ pub fn create_statistics_subcommand<'a, 'b>() -> App<'a, 'b> {
                 .default_value("-inf,inf"),
         )
         .arg(
-            Arg::with_name("no-global")
+            Arg::new("no-global")
                 .long("no-global")
                 .help("Skip computation of global statistics"),
         )

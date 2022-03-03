@@ -1,22 +1,22 @@
 //! Command line interface for generating a command line completion script.
 
 use super::build;
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
+use clap_complete::{generate, Shell};
 use std::io;
 
 /// Creates a subcommand for printing derivable quantities.
-pub fn create_completions_subcommand<'a, 'b>() -> App<'a, 'b> {
-    SubCommand::with_name("completions")
+pub fn create_completions_subcommand() -> Command<'static> {
+    Command::new("completions")
         .about("Generate tab-completion script for your shell")
-        .setting(AppSettings::Hidden)
         .arg(
-            Arg::with_name("shell")
+            Arg::new("shell")
                 .value_name("SHELL")
                 .required(true)
-                .possible_values(&["bash", "zsh", "fish"])
+                .possible_values(Shell::possible_values())
                 .help("The shell to generate the script for"),
         )
-        .help_message("Print help information")
+        .hide(true)
         .after_help(
             r#"DISCUSSION
     [Adapted from rustup-completions]
@@ -90,15 +90,14 @@ pub fn create_completions_subcommand<'a, 'b>() -> App<'a, 'b> {
         $ backstaff -- completions fish > ~/.config/fish/completions/backstaff.fish
 
     This installs the completion script. You may have to log out and
-    log back in to your shell session for the changes to take affect."#,
+    log back in to your shell session for the changes to take affect."#
         )
 }
 
 pub fn run_completions_subcommand<'a, 'b>(arguments: &ArgMatches) {
-    let shell = arguments
-        .value_of("shell")
-        .expect("No value for required argument")
-        .parse()
-        .unwrap();
-    build::build().gen_completions_to(clap::crate_name!(), shell, &mut io::stdout());
+    if let Ok(shell) = arguments.value_of_t::<Shell>("shell") {
+        let mut cmd = build::build();
+        let name = cmd.get_name().to_string();
+        generate(shell, &mut cmd, name, &mut io::stdout());
+    }
 }
