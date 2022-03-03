@@ -1,16 +1,19 @@
 import subprocess
 
 
-def run_command(*args,
-                cwd=None,
+def run_command(command,
                 return_immediately=False,
                 logger=print,
-                error_logger=print):
-    process = subprocess.Popen(args,
+                error_logger=print,
+                **kwargs):
+    process = subprocess.Popen(command,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,
-                               cwd=cwd)
-    logger(subprocess.list2cmdline(process.args))
+                               **kwargs)
+    if isinstance(command, list):
+        logger(subprocess.list2cmdline(process.args))
+    else:
+        logger(command)
 
     if return_immediately:
         return
@@ -33,7 +36,7 @@ def run_backstaff(*args, pre_cargo_args=[], features=['cli'], **kwargs):
         'cargo', 'run', '--release', '--no-default-features', '--features',
         ' '.join(features), '--'
     ] + list(args)
-    return run_command(*args, **kwargs)
+    return run_command(args, **kwargs)
 
 
 def run_backstaff_remotely(destination_machine,
@@ -52,4 +55,4 @@ def run_backstaff_remotely(destination_machine,
     args = pre_ssh_args + [
         'ssh', destination_machine, ' '.join(remote_command_args)
     ]
-    return run_command(*args, **kwargs)
+    return run_command(args, **kwargs)
