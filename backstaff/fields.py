@@ -395,17 +395,17 @@ class ScalarField2:
         coords = Coords2.from_bifrost_data(bifrost_data, slice_axis)
 
         if isinstance(values, dict):
-            if scale is not None:
+            if scale is not None and scale != 1.0:
                 for name in values:
-                    values[name] *= scale
+                    values[name] = values[name] * scale
 
             return ScalarFieldSet(
                 **
                 {name: ScalarField2(coords, v)
                  for name, v in values.items()})
         else:
-            if scale is not None:
-                values *= scale
+            if scale is not None and scale != 1.0:
+                values = values * scale
 
             return ScalarField2(coords, values)
 
