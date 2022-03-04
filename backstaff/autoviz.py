@@ -147,8 +147,8 @@ class Reduction:
         vert_coords = field.get_vertical_coords()
         aspect_ratio = (hor_coords[-1] - hor_coords[0]) / (
             vert_coords[-1] - vert_coords[0]) + 0.25
-        return dict(xlabel=f'{plot_axis_names[0]} [Mm]',
-                    ylabel=f'{plot_axis_names[1]} [Mm]',
+        return dict(xlabel=f'${plot_axis_names[0]}$ [Mm]',
+                    ylabel=f'${plot_axis_names[1]}$ [Mm]',
                     fig_kwargs=dict(aspect_ratio=aspect_ratio))
 
 
