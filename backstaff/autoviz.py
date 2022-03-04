@@ -725,8 +725,9 @@ class Visualizer:
         return_code = running.run_command([
             'ffmpeg', '-loglevel', 'error', '-y', '-r', '{:d}'.format(fps),
             '-start_number', '{:d}'.format(snap_nums[0]), '-i',
-            str(frame_path_template), '-frames:v', '{:d}'.format(
-                len(snap_nums)), '-vcodec', 'libx264', '-pix_fmt', 'yuv420p',
+            str(frame_path_template), '-vf',
+            'pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2:color=white',
+            '-vcodec', 'libx264', '-pix_fmt', 'yuv420p',
             str(video_path)
         ],
                                           logger=self.logger.debug,
