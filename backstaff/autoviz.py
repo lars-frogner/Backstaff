@@ -6,7 +6,7 @@ import pathlib
 import logging
 import shutil
 import csv
-import yaml
+from ruamel.yaml import YAML
 import numpy as np
 from matplotlib.offsetbox import AnchoredText
 from helita.sim.bifrost import BifrostData
@@ -259,7 +259,6 @@ class SymlogScaling(Scaling):
                                         self.linthresh_quantile)
             if vmax is None:
                 vmax = values.max()
-
         return dict(symlog=True, vmin=-vmax, vmax=vmax, linthresh=linthresh)
 
 
@@ -761,9 +760,10 @@ def parse_config_file(file_path, logger=logging):
     if not file_path.exists():
         abort(logger, f'Could not find config file {file_path}')
 
+    yaml = YAML()
     with open(file_path, 'r') as f:
         try:
-            entries = yaml.safe_load(f)
+            entries = yaml.load(f)
         except yaml.YAMLError as e:
             abort(logger, e)
 
