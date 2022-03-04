@@ -231,7 +231,8 @@ class SymlogScaling(Scaling):
         if linthresh is None or vmax is None:
             values = np.abs(field.get_values())
             if linthresh is None:
-                linthresh = np.quantile(values, self.linthresh_quantile)
+                linthresh = np.quantile(values[values > 0],
+                                        self.linthresh_quantile)
             if vmax is None:
                 vmax = values.max()
 
