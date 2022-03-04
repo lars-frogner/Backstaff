@@ -129,7 +129,7 @@ class Reduction:
                 logger,
                 f'reduction entry must be dict, is {type(reduction_config)}')
 
-        classes = dict(accumulation=Accumulation, slice=Slice)
+        classes = dict(accumulation=Accumulation, mean=Mean, slice=Slice)
         reduction = None
         for name, cls in classes.items():
             if name in reduction_config:
@@ -162,6 +162,21 @@ class Accumulation(Reduction):
             bifrost_data,
             quantity.name,
             accum_axis=self.axis,
+            accum_operator=np.sum,
+            scale=quantity.unit_scale)
+
+
+class Mean(Reduction):
+    @property
+    def tag(self):
+        return f'mean_{self.axis_names[self.axis]}'
+
+    def __call__(self, bifrost_data, quantity):
+        return fields.ScalarField2.accumulated_from_bifrost_data(
+            bifrost_data,
+            quantity.name,
+            accum_axis=self.axis,
+            accum_operator=np.mean,
             scale=quantity.unit_scale)
 
 
