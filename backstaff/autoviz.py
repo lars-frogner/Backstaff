@@ -824,17 +824,19 @@ if __name__ == '__main__':
                         '--debug',
                         action='store_true',
                         help='use debug log level')
+    parser.add_argument('-v',
+                        '--video-only',
+                        action='store_true',
+                        help='only generate videos from existing frames')
     parser.add_argument('--overwrite',
                         action='store_true',
                         help='whether to overwrite existing video frames')
-    parser.add_argument('--video-only',
-                        action='store_true',
-                        help='only generate videos from existing frames')
     parser.add_argument(
         '-l',
         '--log-file',
         help='where to write log (prints to terminal by default)')
     parser.add_argument(
+        '-s',
         '--simulations',
         metavar='NAMES',
         help=
