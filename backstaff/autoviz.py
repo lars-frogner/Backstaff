@@ -90,6 +90,13 @@ class Quantity:
                 name = name.strip()
 
                 unit = unit.strip()
+
+                if len(unit) > 0 and unit[0] == '-':
+                    unit_sign = -1
+                    unit = unit[1:].strip()
+                else:
+                    unit_sign = 1
+
                 try:
                     unit = float(unit)
                 except ValueError:
@@ -101,6 +108,7 @@ class Quantity:
                                 f'Unit {unit} for quantity {name} in {file_path} not recognized, using 1.0'
                             )
                         unit = 1.0
+                unit *= unit_sign
 
                 description = description.strip()
 
