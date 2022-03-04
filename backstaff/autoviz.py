@@ -6,6 +6,7 @@ import pathlib
 import logging
 import shutil
 import csv
+from tqdm import tqdm
 from ruamel.yaml import YAML
 import numpy as np
 from matplotlib.offsetbox import AnchoredText
@@ -475,6 +476,8 @@ class SimulationRun:
         return self._get_bifrost_data(snap_num)
 
     def ensure_data_is_ready(self, prepared_data_dir, plot_descriptions):
+        self.logger.info(f'Preparing data for {self.name}')
+
         assert self.data_available
         self._active_data_dir = self._data_dir
 
@@ -648,7 +651,7 @@ class Visualizer:
 
     def clean(self):
         if not self._output_dir.is_dir():
-            print('No data to clean')
+            print(f'No data to clean for {self.simulation_name}')
             return
 
         print(
@@ -676,7 +679,7 @@ class Visualizer:
     def visualize(self, *plot_descriptions, overwrite=False):
         if not self._simulation_run.data_available:
             self.logger.error(
-                f'No data for simulation {self._simulation_run.name} in {self._simulation_run.data_dir}, aborting'
+                f'No data for simulation {self.simulation_name} in {self._simulation_run.data_dir}, aborting'
             )
             return
 
@@ -690,7 +693,9 @@ class Visualizer:
             frame_dir = self._output_dir / plot_description.tag
             os.makedirs(frame_dir, exist_ok=True)
 
-            for snap_num in snap_nums:
+            self.logger.info(f'Plotting frames for {plot_description.tag}')
+
+            for snap_num in tqdm(snap_nums, ascii=True):
                 output_path = frame_dir / f'{snap_num}.png'
 
                 if output_path.exists() and not overwrite:
@@ -699,9 +704,6 @@ class Visualizer:
                     continue
 
                 bifrost_data = self._simulation_run(snap_num)
-                self.logger.debug(
-                    f'Plotting frame for snap {snap_num} of {plot_description.tag}'
-                )
                 self._plot_frame(bifrost_data, plot_description, output_path)
 
             if video_config is not None:
@@ -722,6 +724,9 @@ class Visualizer:
     def _create_video_from_frames(self, frame_dir, snap_nums, fps=15):
         frame_path_template = frame_dir / '%d.png'
         video_path = frame_dir.with_suffix('.mp4')
+
+        self.logger.info(f'Creating video {video_path.name}')
+
         return_code = running.run_command([
             'ffmpeg', '-loglevel', 'error', '-y', '-r', '{:d}'.format(fps),
             '-start_number', '{:d}'.format(snap_nums[0]), '-i',
@@ -852,7 +857,8 @@ if __name__ == '__main__':
                         '--video-only',
                         action='store_true',
                         help='only generate videos from existing frames')
-    parser.add_argument('--overwrite',
+    parser.add_argument('-o',
+                        '--overwrite',
                         action='store_true',
                         help='whether to overwrite existing video frames')
     parser.add_argument(
