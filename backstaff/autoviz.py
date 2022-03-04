@@ -654,7 +654,7 @@ class Visualizer:
     def visualize(self, *plot_descriptions, overwrite=False):
         if not self._simulation_run.data_available:
             self.logger.error(
-                f'No data for simulation {self._simulation_run.name} in {self._simulation_run.data_dir}, skipping'
+                f'No data for simulation {self._simulation_run.name} in {self._simulation_run.data_dir}, aborting'
             )
             return
 
@@ -809,8 +809,10 @@ def parse_config_file(file_path, logger=logging):
 
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser(
         description='Visualize Bifrost simulation runs.')
+
     parser.add_argument(
         'config_file',
         help='path to visualization config file (in YAML format)')
@@ -829,6 +831,10 @@ if __name__ == '__main__':
                         action='store_true',
                         help='only generate videos from existing frames')
     parser.add_argument(
+        '-l',
+        '--log-file',
+        help='where to write log (prints to terminal by default)')
+    parser.add_argument(
         '--simulations',
         metavar='NAMES',
         help=
@@ -836,7 +842,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(message)s')
+    if args.log_file is None:
+        logging.basicConfig(format='%(levelname)s: %(message)s')
+    else:
+        logging.basicConfig(filename=args.log_file,
+                            filemode='a',
+                            format='[%(asctime)s] %(levelname)s: %(message)s')
+
     logger = logging.getLogger('autoviz')
     logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
