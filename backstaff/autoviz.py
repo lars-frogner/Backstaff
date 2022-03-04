@@ -314,17 +314,37 @@ class PlotDescription:
         return self.reduction(bifrost_data, self.quantity)
 
 
+class VideoDescription:
+    def __init__(self, fps=15):
+        self.fps = fps
+
+    @classmethod
+    def parse(cls, video_config, logger=logging):
+        if isinstance(video_config, dict):
+            return cls(**video_config)
+        elif video_config:
+            return cls()
+        else:
+            return None
+
+    @property
+    def config(self):
+        return dict(fps=self.fps)
+
+
 class SimulationRun:
     def __init__(self,
                  name,
                  data_dir,
                  start_snap_num=None,
                  end_snap_num=None,
+                 video_description=None,
                  logger=logging):
         self._name = name
         self._data_dir = data_dir
         self._start_snap_num = start_snap_num
         self._end_snap_num = end_snap_num
+        self._video_description = video_description
         self._logger = logger
 
         self._active_data_dir = data_dir
@@ -380,41 +400,27 @@ class SimulationRun:
 
         logger.debug(f'Using simulation_dir {simulation_dir}')
 
-        if 'start_snap_num' in simulation_run_config and simulation_run_config[
-                'start_snap_num'] is not None:
-            start_snap_num = simulation_run_config['start_snap_num']
-
-            if not isinstance(start_snap_num, int):
-                error(
-                    logger,
-                    f'start_snap_num entry must be int, is {type(start_snap_num)}'
-                )
-
+        start_snap_num = simulation_run_config.get('start_snap_num', None)
+        if start_snap_num is not None:
             start_snap_num = int(start_snap_num)
-        else:
-            start_snap_num = None
 
         logger.debug(f'Using start_snap_num {start_snap_num}')
 
-        if 'end_snap_num' in simulation_run_config and simulation_run_config[
-                'end_snap_num'] is not None:
-            end_snap_num = simulation_run_config['end_snap_num']
-
-            if not isinstance(end_snap_num, int):
-                error(
-                    logger,
-                    f'end_snap_num entry must be int, is {type(end_snap_num)}')
-
+        end_snap_num = simulation_run_config.get('end_snap_num', None)
+        if end_snap_num is not None:
             end_snap_num = int(end_snap_num)
-        else:
-            end_snap_num = None
 
         logger.debug(f'Using end_snap_num {end_snap_num}')
 
+        video_description = simulation_run_config.get('video', None)
+        if video_description is not None:
+            video_description = VideoDescription.parse(video_description,
+                                                       logger=logger)
         return cls(simulation_name,
                    simulation_dir,
                    start_snap_num=start_snap_num,
                    end_snap_num=end_snap_num,
+                   video_description=video_description,
                    logger=logger)
 
     @property
@@ -433,8 +439,13 @@ class SimulationRun:
     def data_available(self):
         return len(self._snap_nums) > 0
 
-    def __iter__(self):
-        return iter(self._snap_nums)
+    @property
+    def snap_nums(self):
+        return list(self._snap_nums)
+
+    @property
+    def video_config(self):
+        return None if self._video_description is None else self._video_description.config
 
     def __call__(self, snap_num):
         return self._get_bifrost_data(snap_num)
@@ -629,6 +640,15 @@ class Visualizer:
                 self.logger.debug(f'Removed {self._output_dir}')
                 break
 
+    def create_videos_only(self, *plot_descriptions):
+        video_config = self._simulation_run.video_config
+        if video_config is not None:
+            snap_nums = self._simulation_run.snap_nums
+            for plot_description in plot_descriptions:
+                frame_dir = self._output_dir / plot_description.tag
+                self._create_video_from_frames(frame_dir, snap_nums,
+                                               **video_config)
+
     def visualize(self, *plot_descriptions, overwrite=False):
         if not self._simulation_run.data_available:
             self.logger.warning(
@@ -639,11 +659,14 @@ class Visualizer:
         plot_descriptions = self._simulation_run.ensure_data_is_ready(
             self._prepared_data_dir, plot_descriptions)
 
-        for snap_num in self._simulation_run:
-            for plot_description in plot_descriptions:
-                frame_dir = self._output_dir / plot_description.tag
-                os.makedirs(frame_dir, exist_ok=True)
+        snap_nums = self._simulation_run.snap_nums
+        video_config = self._simulation_run.video_config
 
+        for plot_description in plot_descriptions:
+            frame_dir = self._output_dir / plot_description.tag
+            os.makedirs(frame_dir, exist_ok=True)
+
+            for snap_num in snap_nums:
                 output_path = frame_dir / f'{snap_num}.png'
 
                 if output_path.exists() and not overwrite:
@@ -652,11 +675,14 @@ class Visualizer:
                     continue
 
                 bifrost_data = self._simulation_run(snap_num)
-                var = bifrost_data.get_var('ubeam')
                 self.logger.debug(
                     f'Plotting frame for snap {snap_num} of {plot_description.tag}'
                 )
                 self._plot_frame(bifrost_data, plot_description, output_path)
+
+            if video_config is not None:
+                self._create_video_from_frames(frame_dir, snap_nums,
+                                               **video_config)
 
     def _plot_frame(self, bifrost_data, plot_description, output_path):
 
@@ -669,6 +695,22 @@ class Visualizer:
                    extra_artists=[time_text],
                    **plot_description.get_plot_kwargs(field))
 
+    def _create_video_from_frames(self, frame_dir, snap_nums, fps=15):
+        frame_path_template = frame_dir / '%d.png'
+        video_path = frame_dir.with_suffix('.mp4')
+        return_code = running.run_command([
+            'ffmpeg', '-loglevel', 'error', '-y', '-r', '{:d}'.format(fps),
+            '-start_number', '{:d}'.format(snap_nums[0]), '-i',
+            str(frame_path_template), '-frames:v', '{:d}'.format(
+                len(snap_nums)), '-vcodec', 'libx264', '-pix_fmt', 'yuv420p',
+            str(video_path)
+        ],
+                                          logger=self.logger.debug,
+                                          error_logger=self.logger.error)
+
+        if return_code != 0:
+            self.logger.warning('Could not create video, skipping')
+
 
 class Visualization:
     def __init__(self, visualizer, *plot_descriptions):
@@ -679,8 +721,8 @@ class Visualization:
     def visualizer(self):
         return self._visualizer
 
-    def clean(self, *args, **kwargs):
-        self.visualizer.clean(*args, **kwargs)
+    def create_videos_only(self, **kwargs):
+        self.visualizer.create_videos_only(*self._plot_descriptions, **kwargs)
 
     def visualize(self, **kwargs):
         self.visualizer.visualize(*self._plot_descriptions, **kwargs)
@@ -769,26 +811,26 @@ if __name__ == '__main__':
         description='Visualize Bifrost simulation runs.')
     parser.add_argument(
         'config_file',
-        help=
-        'Path to visualization config file (in YAML format) in simulation directory'
-    )
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='Whether to overwrite existing visualizations')
-    parser.add_argument('-d',
-                        '--debug',
-                        action='store_true',
-                        help='Use DEBUG log level')
-    parser.add_argument(
-        '-s',
-        '--simulations',
-        metavar='SIMULATIONS',
-        help=
-        'Subset of simulations in config file to operate on (comma-separated)')
+        help='path to visualization config file (in YAML format)')
     parser.add_argument('-c',
                         '--clean',
                         action='store_true',
-                        help='Clean visualization data')
+                        help='clean visualization data')
+    parser.add_argument('-d',
+                        '--debug',
+                        action='store_true',
+                        help='use debug log level')
+    parser.add_argument('--overwrite',
+                        action='store_true',
+                        help='whether to overwrite existing video frames')
+    parser.add_argument('--video-only',
+                        action='store_true',
+                        help='only generate videos from existing frames')
+    parser.add_argument(
+        '--simulations',
+        metavar='NAMES',
+        help=
+        'subset of simulations in config file to operate on (comma-separated)')
 
     args = parser.parse_args()
 
@@ -809,6 +851,8 @@ if __name__ == '__main__':
 
     for visualization in visualizations:
         if args.clean:
-            visualization.clean()
+            visualization.visualizer.clean()
+        elif args.video_only:
+            visualization.create_videos_only()
         else:
             visualization.visualize(overwrite=args.overwrite)
