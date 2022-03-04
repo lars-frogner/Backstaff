@@ -32,8 +32,8 @@ def update_dict_nested(d, u):
     return d
 
 
-def error(logger, *args, **kwargs):
-    logger.error(*args, **kwargs)
+def abort(logger, *args, **kwargs):
+    logger.critical(*args, **kwargs)
     sys.exit(1)
 
 
@@ -80,7 +80,7 @@ class Quantity:
                     row.append('')
 
                 if len(row) != 4:
-                    error(
+                    abort(
                         logger,
                         f'Invalid number of entries in CSV line in {file_path}: {", ".join(row)}'
                     )
@@ -125,7 +125,7 @@ class Reduction:
     @staticmethod
     def parse(reduction_config, logger=logging):
         if not isinstance(reduction_config, dict):
-            error(
+            abort(
                 logger,
                 f'reduction entry must be dict, is {type(reduction_config)}')
 
@@ -136,7 +136,7 @@ class Reduction:
                 logger.debug(f'Found reduction {name}')
                 reduction = cls(**reduction_config[name])
         if reduction is None:
-            error('Missing reduction entry')
+            abort(logger, 'Missing reduction entry')
 
         return reduction
 
@@ -200,12 +200,13 @@ class Scaling:
                     logger.debug(f'Found scaling {name}')
                     scaling = cls(**scaling_config[name])
             if scaling is None:
-                error('Missing reduction entry')
+                abort(logger, 'Missing reduction entry')
         elif isinstance(scaling_config, str):
             logger.debug(f'Found scaling type {scaling_config}')
             scaling = classes[scaling_config]()
         else:
-            error(
+            abort(
+                logger,
                 f'scaling entry must be dict or str, is {type(scaling_config)}'
             )
 
@@ -269,32 +270,32 @@ class PlotDescription:
     @classmethod
     def parse(cls, quantities, plot_config, logger=logging):
         if not isinstance(plot_config, dict):
-            error(logger,
+            abort(logger,
                   f'plots list entry must be dict, is {type(plot_config)}')
 
         if 'quantity' not in plot_config:
-            error(logger, f'Missing entry quantity')
+            abort(logger, f'Missing entry quantity')
 
         quantity = plot_config.pop('quantity')
 
         if not isinstance(quantity, str):
-            error(logger, f'quantity entry must be str, is {type(quantity)}')
+            abort(logger, f'quantity entry must be str, is {type(quantity)}')
 
         logger.debug(f'Found quantity {quantity}')
 
         if quantity not in quantities:
-            error(logger, f'Quantity {quantity} not present in quantity file')
+            abort(logger, f'Quantity {quantity} not present in quantity file')
 
         quantity = quantities[quantity]
 
         if 'reduction' not in plot_config:
-            error(logger, f'Missing reduction entry')
+            abort(logger, f'Missing reduction entry')
 
         reduction = Reduction.parse(plot_config.pop('reduction'),
                                     logger=logger)
 
         if 'scaling' not in plot_config:
-            error(logger, f'Missing scaling entry')
+            abort(logger, f'Missing scaling entry')
 
         scaling = Scaling.parse(plot_config.pop('scaling'), logger=logger)
 
@@ -359,10 +360,10 @@ class SimulationRun:
             'name', simulation_run_config.get('simulation_name', None))
 
         if simulation_name is None:
-            error(logger, f'Missing simulation_name entry')
+            abort(logger, f'Missing simulation_name entry')
 
         if not isinstance(simulation_name, str):
-            error(
+            abort(
                 logger,
                 f'simulation_name entry must be str, is {type(simulation_name)}'
             )
@@ -375,26 +376,26 @@ class SimulationRun:
             'dir', simulation_run_config.get('simulation_dir', None))
 
         if simulation_dir is None:
-            error(logger, f'Missing entry simulation_dir')
+            abort(logger, f'Missing entry simulation_dir')
 
         if simulation_dir is None:
-            error(logger, 'Missing simulation_dir entry')
+            abort(logger, 'Missing simulation_dir entry')
 
         if not isinstance(simulation_dir, str):
-            error(
+            abort(
                 logger,
                 f'simulation_dir entry must be str, is {type(simulation_dir)}')
 
         simulation_dir = pathlib.Path(simulation_dir)
 
         if not simulation_dir.is_absolute():
-            error(
+            abort(
                 logger,
                 f'simulation_dir entry {simulation_dir} must be an absolute path'
             )
 
         if not simulation_dir.is_dir():
-            error(logger,
+            abort(logger,
                   f'Could not find simulation_dir directory {simulation_dir}')
 
         simulation_dir = simulation_dir.resolve()
@@ -503,7 +504,7 @@ class SimulationRun:
             quantity_name = plot_description.quantity.name
             is_available = quantity_name in available_quantities
             if not is_available:
-                self.logger.warning(
+                self.logger.error(
                     f'Could not obtain quantity {quantity_name} for simulation {self.name}, skipping'
                 )
             return is_available
@@ -589,7 +590,7 @@ class SimulationRun:
                                           logger=self.logger.debug,
                                           error_logger=self.logger.error)
         if return_code != 0:
-            error(self.logger, 'Non-zero return code')
+            abort(self.logger, 'Non-zero return code')
 
         for snap_num in snap_nums:
             snap_path = self._data_dir / f'{self.name}_{snap_num:03}.snap'
@@ -602,7 +603,7 @@ class SimulationRun:
                 error_logger=self.logger.error)
 
             if return_code != 0:
-                error(self.logger, 'Non-zero return code')
+                abort(self.logger, 'Non-zero return code')
 
 
 class Visualizer:
@@ -652,8 +653,8 @@ class Visualizer:
 
     def visualize(self, *plot_descriptions, overwrite=False):
         if not self._simulation_run.data_available:
-            self.logger.warning(
-                f'No data for simulation {self._simulation_run.name} in {self._simulation_run.data_dir}, aborting'
+            self.logger.error(
+                f'No data for simulation {self._simulation_run.name} in {self._simulation_run.data_dir}, skipping'
             )
             return
 
@@ -710,7 +711,7 @@ class Visualizer:
                                           error_logger=self.logger.error)
 
         if return_code != 0:
-            self.logger.warning('Could not create video, skipping')
+            self.logger.error('Could not create video, skipping')
 
 
 class Visualization:
@@ -735,13 +736,13 @@ def parse_config_file(file_path, logger=logging):
     file_path = pathlib.Path(file_path)
 
     if not file_path.exists():
-        error(logger, f'Could not find config file {file_path}')
+        abort(logger, f'Could not find config file {file_path}')
 
     with open(file_path, 'r') as f:
         try:
             entries = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            error(logger, e)
+            abort(logger, e)
 
     if isinstance(entries, list):
         entries = dict(simulations=entries)
@@ -781,7 +782,7 @@ def parse_config_file(file_path, logger=logging):
         quantity_file = quantity_file.resolve()
 
         if not quantity_file.exists():
-            error(logger, f'Could not find quantity_file {quantity_file}')
+            abort(logger, f'Could not find quantity_file {quantity_file}')
 
         quantities = Quantity.parse_file(quantity_file, logger=logger)
 
