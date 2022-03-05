@@ -8,6 +8,7 @@ import shutil
 import csv
 from tqdm import tqdm
 from ruamel.yaml import YAML
+from joblib import Parallel, delayed
 import numpy as np
 from matplotlib.offsetbox import AnchoredText
 from helita.sim.bifrost import BifrostData
@@ -676,7 +677,7 @@ class Visualizer:
                 self._create_video_from_frames(frame_dir, snap_nums,
                                                **video_config)
 
-    def visualize(self, *plot_descriptions, overwrite=False):
+    def visualize(self, *plot_descriptions, overwrite=False, job_idx=0):
         if not self._simulation_run.data_available:
             self.logger.error(
                 f'No data for simulation {self.simulation_name} in {self._simulation_run.data_dir}, aborting'
@@ -695,7 +696,11 @@ class Visualizer:
 
             self.logger.info(f'Plotting frames for {plot_description.tag}')
 
-            for snap_num in tqdm(snap_nums, ascii=True):
+            for snap_num in tqdm(
+                    snap_nums,
+                    desc=f'{self.simulation_name} {plot_description.tag}',
+                    position=job_idx,
+                    ascii=True):
                 output_path = frame_dir / f'{snap_num}.png'
 
                 if output_path.exists() and not overwrite:
@@ -871,6 +876,11 @@ if __name__ == '__main__':
         metavar='NAMES',
         help=
         'subset of simulations in config file to operate on (comma-separated)')
+    parser.add_argument('-n',
+                        '--n-threads',
+                        type=int,
+                        default=1,
+                        help='max number of threads to use for visualization')
 
     args = parser.parse_args()
 
@@ -895,10 +905,14 @@ if __name__ == '__main__':
             if v.visualizer.simulation_name in simulation_names
         ]
 
-    for visualization in visualizations:
-        if args.clean:
+    if args.clean:
+        for visualization in visualizations:
             visualization.visualizer.clean()
-        elif args.video_only:
+    elif args.video_only:
+        for visualization in visualizations:
             visualization.create_videos_only()
-        else:
-            visualization.visualize(overwrite=args.overwrite)
+    else:
+        Parallel(n_jobs=min(args.n_threads, len(visualizations)))(
+            delayed(lambda idx, v: v.visualize(overwrite=args.overwrite,
+                                               job_idx=idx))(idx, v)
+            for idx, v in enumerate(visualizations))
