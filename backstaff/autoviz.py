@@ -471,6 +471,9 @@ class SimulationRun:
     def video_config(self):
         return None if self._video_description is None else self._video_description.config
 
+    def set_logger(self, logger):
+        self._logger = logger
+
     def ensure_data_is_ready(self, prepared_data_dir, plot_descriptions):
         self.logger.info(f'Preparing data for {self.name}')
 
@@ -656,6 +659,10 @@ class Visualizer:
     def simulation_name(self):
         return self._simulation_run.name
 
+    def set_logger(self, logger):
+        self._simulation_run.set_logger(logger)
+        self._logger = logger
+
     def clean(self):
         if not self._output_dir.is_dir():
             print(f'No data to clean for {self.simulation_name}')
@@ -683,7 +690,14 @@ class Visualizer:
                 self._create_video_from_frames(frame_dir, snap_nums,
                                                **video_config)
 
-    def visualize(self, *plot_descriptions, overwrite=False, job_idx=0):
+    def visualize(self,
+                  *plot_descriptions,
+                  overwrite=False,
+                  job_idx=0,
+                  new_logger_builder=None):
+        if new_logger_builder is not None:
+            self.set_logger(new_logger_builder())
+
         if not self._simulation_run.data_available:
             self.logger.error(
                 f'No data for simulation {self.simulation_name} in {self._simulation_run.data_dir}, aborting'
@@ -854,6 +868,30 @@ def parse_config_file(file_path, logger=logging):
     return visualizations
 
 
+class LoggerBuilder:
+    def __init__(self, name='autoviz', level=logging.INFO, log_file=None):
+        self.name = name
+        self.level = level
+        self.log_file = log_file
+
+    def __call__(self):
+        logger = logging.getLogger(self.name)
+        if len(logger.handlers) == 0:
+            logger.setLevel(self.level)
+            if self.log_file is None:
+                sh = logging.StreamHandler()
+                sh.setFormatter(
+                    logging.Formatter('%(levelname)s: %(message)s'))
+                logger.addHandler(sh)
+            else:
+                fh = logging.FileHandler(self.log_file, mode='a')
+                fh.setFormatter(
+                    logging.Formatter(
+                        '[%(asctime)s] %(levelname)s: %(message)s'))
+                logger.addHandler(fh)
+        return logger
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -899,17 +937,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.log_file is None:
-        logging.basicConfig(format='%(levelname)s: %(message)s')
-    else:
-        logging.basicConfig(filename=args.log_file,
-                            filemode='a',
-                            format='[%(asctime)s] %(levelname)s: %(message)s')
+    logger_builder = LoggerBuilder(
+        level=(logging.DEBUG if args.debug else logging.INFO),
+        log_file=args.log_file)
 
-    logger = logging.getLogger('autoviz')
-    logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
-
-    all_visualizations = parse_config_file(args.config_file, logger=logger)
+    all_visualizations = parse_config_file(args.config_file,
+                                           logger=logger_builder())
 
     if args.simulations is None:
         visualizations = all_visualizations
@@ -929,5 +962,7 @@ if __name__ == '__main__':
     else:
         Parallel(n_jobs=min(args.n_threads, len(visualizations)))(
             delayed(lambda idx, v: v.visualize(overwrite=args.overwrite,
-                                               job_idx=idx))(idx, v)
+                                               job_idx=idx,
+                                               new_logger_builder=
+                                               logger_builder))(idx, v)
             for idx, v in enumerate(visualizations))
