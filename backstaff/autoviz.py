@@ -373,8 +373,6 @@ class SimulationRun:
         self._video_description = video_description
         self._logger = logger
 
-        self._active_data_dir = data_dir
-
         self._snap_nums = self._find_snap_nums()
 
     @classmethod
@@ -473,33 +471,40 @@ class SimulationRun:
     def video_config(self):
         return None if self._video_description is None else self._video_description.config
 
-    def __call__(self, snap_num):
-        return self._get_bifrost_data(snap_num)
-
     def ensure_data_is_ready(self, prepared_data_dir, plot_descriptions):
         self.logger.info(f'Preparing data for {self.name}')
 
         assert self.data_available
-        self._active_data_dir = self._data_dir
 
-        bifrost_data = self._get_bifrost_data(self._snap_nums[0])
-        available_quantities, unavailable_quantities = self._check_quantity_availability(
+        plot_data_locations = {}
+
+        bifrost_data = self.get_bifrost_data(self._snap_nums[0])
+
+        _, unavailable_quantities, available_plots, unavailable_plots = self._check_quantity_availability(
             bifrost_data, plot_descriptions)
-        if len(unavailable_quantities) == 0:
-            return plot_descriptions
+
+        if len(available_plots) > 0:
+            plot_data_locations[self.data_dir] = available_plots
+
+        if len(unavailable_plots) == 0:
+            return plot_data_locations
 
         if prepared_data_dir.is_dir():
             try:
-                prepared_bifrost_data = self._get_bifrost_data(
+                prepared_bifrost_data = self.get_bifrost_data(
                     self._snap_nums[0], other_data_dir=prepared_data_dir)
             except:
                 prepared_bifrost_data = None
 
             if prepared_bifrost_data is not None:
-                _, unavailable_prepared_quantities = self._check_quantity_availability(
-                    prepared_bifrost_data, plot_descriptions)
-                if len(unavailable_prepared_quantities) == 0:
-                    self._active_data_dir = prepared_data_dir
+                available_quantities_prepared, unavailable_quantities_prepared, available_plots_prepared, _ = self._check_quantity_availability(
+                    prepared_bifrost_data, unavailable_plots)
+
+                if len(unavailable_quantities_prepared) == 0:
+                    if len(available_plots_prepared) > 0:
+                        plot_data_locations[
+                            prepared_data_dir] = available_plots_prepared
+
                     prepared_snap_nums = self._find_snap_nums(
                         other_data_dir=prepared_data_dir)
                     missing_snap_nums = [
@@ -507,44 +512,40 @@ class SimulationRun:
                         if snap_num not in prepared_snap_nums
                     ]
                     if len(missing_snap_nums) > 0:
-                        self._prepare_data(prepared_data_dir,
-                                           available_quantities,
-                                           unavailable_quantities,
-                                           snap_nums=missing_snap_nums)
-                    return plot_descriptions
+                        prepared_bifrost_data = None
+                        self._prepare_derived_data(
+                            prepared_data_dir,
+                            available_quantities_prepared,
+                            snap_nums=missing_snap_nums)
 
-        self._prepare_data(prepared_data_dir, available_quantities,
-                           unavailable_quantities)
+                    return plot_data_locations
 
-        prepared_bifrost_data = self._get_bifrost_data(
+        prepared_bifrost_data = None
+        self._prepare_derived_data(prepared_data_dir, unavailable_quantities)
+
+        prepared_bifrost_data = self.get_bifrost_data(
             self._snap_nums[0], other_data_dir=prepared_data_dir)
-        return self._filter_out_unavailable_plot_descriptions(
-            prepared_bifrost_data, plot_descriptions)
+        _, unavailable_quantities_prepared, available_plots_prepared, _ = self._check_quantity_availability(
+            prepared_bifrost_data, unavailable_plots)
 
-    def _filter_out_unavailable_plot_descriptions(self, bifrost_data,
-                                                  plot_descriptions):
-        available_quantities, _ = self._check_quantity_availability(
-            bifrost_data, plot_descriptions)
+        if len(available_plots_prepared) > 0:
+            plot_data_locations[prepared_data_dir] = available_plots_prepared
 
-        def available(plot_description):
-            quantity_name = plot_description.quantity.name
-            is_available = quantity_name in available_quantities
-            if not is_available:
-                self.logger.error(
-                    f'Could not obtain quantity {quantity_name} for simulation {self.name}, skipping'
-                )
-            return is_available
+        for quantity_name in unavailable_quantities_prepared:
+            self.logger.error(
+                f'Could not obtain quantity {quantity_name} for simulation {self.name}, skipping'
+            )
 
-        return list(filter(available, plot_descriptions))
+        return plot_data_locations
 
-    def _get_bifrost_data(self, snap_num, other_data_dir=None):
-        fdir = self._active_data_dir if other_data_dir is None else other_data_dir
+    def get_bifrost_data(self, snap_num, other_data_dir=None):
+        fdir = self.data_dir if other_data_dir is None else other_data_dir
         self.logger.debug(f'Reading snap {snap_num} of {self.name} in {fdir}')
         assert snap_num in self._snap_nums
         return BifrostData(self.name, fdir=fdir, snap=snap_num, verbose=False)
 
     def _find_snap_nums(self, other_data_dir=None):
-        input_dir = self._active_data_dir if other_data_dir is None else other_data_dir
+        input_dir = self.data_dir if other_data_dir is None else other_data_dir
         snap_nums = self._find_all_snap_nums(input_dir)
         if self._start_snap_num is not None:
             snap_nums = [n for n in snap_nums if n >= self._start_snap_num]
@@ -566,41 +567,45 @@ class SimulationRun:
     def _check_quantity_availability(self, bifrost_data, plot_descriptions):
         available_quantities = []
         unavailable_quantities = []
+        available_plots = []
+        unavailable_plots = []
+
         for plot_description in plot_descriptions:
             quantity_name = plot_description.quantity.name
-            if quantity_name not in available_quantities + unavailable_quantities:
+
+            if quantity_name in available_quantities:
+                available_plots.append(plot_description)
+            elif quantity_name in unavailable_quantities:
+                unavailable_plots.append(plot_description)
+            else:
                 if plot_description.quantity.is_available(bifrost_data):
                     self.logger.debug(
                         f'Quantity {quantity_name} available for {bifrost_data.file_root}'
                     )
                     available_quantities.append(quantity_name)
+                    available_plots.append(plot_description)
                 else:
                     self.logger.debug(
                         f'Quantity {quantity_name} not available for {bifrost_data.file_root}'
                     )
                     unavailable_quantities.append(quantity_name)
-        return available_quantities, unavailable_quantities
+                    unavailable_plots.append(plot_description)
 
-    def _prepare_data(self,
-                      prepared_data_dir,
-                      available_quantities,
-                      unavailable_quantities,
-                      snap_nums=None):
-        self._active_data_dir = prepared_data_dir
+        return available_quantities, unavailable_quantities, available_plots, unavailable_plots
+
+    def _prepare_derived_data(self,
+                              prepared_data_dir,
+                              quantities,
+                              snap_nums=None):
+        if len(quantities) == 0:
+            return
+
         os.makedirs(prepared_data_dir, exist_ok=True)
 
         if snap_nums is None:
             snap_nums = self._snap_nums
 
         param_file_name = f'{self.name}_{self._snap_nums[0]}.idl'
-
-        quantity_specification = []
-        if len(available_quantities) > 0:
-            quantity_specification.append('--included-quantities=' +
-                                          ','.join(available_quantities))
-        if len(unavailable_quantities) > 0:
-            quantity_specification.append('--derived-quantities=' +
-                                          ','.join(unavailable_quantities))
 
         snap_range_specification = [
             f'--snap-range={snap_nums[0]},{snap_nums[-1]}'
@@ -609,7 +614,8 @@ class SimulationRun:
         return_code = running.run_command([
             'backstaff', '--protected-file-types=', 'snapshot',
             *snap_range_specification, param_file_name, 'write',
-            '--ignore-warnings', '--overwrite', *quantity_specification,
+            '--ignore-warnings', '--overwrite',
+            f'--derived-quantities={",".join(quantities)}',
             str((prepared_data_dir / param_file_name).resolve())
         ],
                                           cwd=self._data_dir,
@@ -684,13 +690,18 @@ class Visualizer:
             )
             return
 
-        plot_descriptions = self._simulation_run.ensure_data_is_ready(
+        plot_data_locations = self._simulation_run.ensure_data_is_ready(
             self._prepared_data_dir, plot_descriptions)
 
-        snap_nums = self._simulation_run.snap_nums
-        video_config = self._simulation_run.video_config
+        plot_data_locations_inverted = {}
+        for data_dir, plot_descriptions in plot_data_locations.items():
+            for plot_description in plot_descriptions:
+                plot_data_locations_inverted[plot_description] = data_dir
 
-        for plot_description in plot_descriptions:
+        snap_nums = self._simulation_run.snap_nums
+
+        for plot_description, data_dir in plot_data_locations_inverted.items():
+
             frame_dir = self._output_dir / plot_description.tag
             os.makedirs(frame_dir, exist_ok=True)
 
@@ -708,12 +719,14 @@ class Visualizer:
                         f'{output_path} already exists, skipping')
                     continue
 
-                bifrost_data = self._simulation_run(snap_num)
+                bifrost_data = self._simulation_run.get_bifrost_data(
+                    snap_num, data_dir)
+
                 self._plot_frame(bifrost_data, plot_description, output_path)
 
-            if video_config is not None:
-                self._create_video_from_frames(frame_dir, snap_nums,
-                                               **video_config)
+            if self._simulation_run.video_config is not None:
+                self._create_video_from_frames(
+                    frame_dir, snap_nums, **self._simulation_run.video_config)
 
     def _plot_frame(self, bifrost_data, plot_description, output_path):
 
