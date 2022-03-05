@@ -882,6 +882,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-l',
         '--log-file',
+        metavar='PATH',
         help='where to write log (prints to terminal by default)')
     parser.add_argument(
         '-s',
@@ -893,6 +894,7 @@ if __name__ == '__main__':
                         '--n-threads',
                         type=int,
                         default=1,
+                        metavar='NUM',
                         help='max number of threads to use for visualization')
 
     args = parser.parse_args()
