@@ -1139,6 +1139,7 @@ class LoggerBuilder:
         logger = logging.getLogger(self.name)
         if len(logger.handlers) == 0:
             logger.setLevel(self.level)
+            logger.propagate = False
             if self.log_file is None:
                 sh = logging.StreamHandler()
                 sh.setFormatter(
@@ -1150,6 +1151,17 @@ class LoggerBuilder:
                     logging.Formatter(
                         '[%(asctime)s] %(levelname)s: %(message)s'))
                 logger.addHandler(fh)
+
+            def handle_exception(exc_type, exc_value, exc_traceback):
+                if issubclass(exc_type, KeyboardInterrupt):
+                    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+                    return
+
+                logger.critical('Uncaught exception',
+                                exc_info=(exc_type, exc_value, exc_traceback))
+
+            sys.excepthook = handle_exception
+
         return logger
 
 
@@ -1224,10 +1236,11 @@ if __name__ == '__main__':
         for visualization in visualizations:
             visualization.create_videos_only()
     else:
-        Parallel(n_jobs=min(args.n_threads, len(visualizations)))(
-            delayed(lambda idx, v: v.visualize(
-                overwrite=args.overwrite,
-                job_idx=idx,
-                show_progress=(not args.hide_progress),
-                new_logger_builder=logger_builder))(idx, v)
-            for idx, v in enumerate(visualizations))
+        n_jobs = min(args.n_threads, len(visualizations))
+        Parallel(n_jobs=n_jobs)(delayed(lambda idx, v: v.visualize(
+            overwrite=args.overwrite,
+            job_idx=idx,
+            show_progress=(not args.hide_progress),
+            new_logger_builder=(None
+                                if n_jobs == 1 else logger_builder)))(idx, v)
+                                for idx, v in enumerate(visualizations))
