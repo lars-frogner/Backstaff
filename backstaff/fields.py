@@ -366,6 +366,15 @@ class ScalarField2:
         return reading.read_2d_scalar_field(file_path)
 
     @staticmethod
+    def slice_coord_to_idx(bifrost_data, slice_axis, slice_coord):
+        all_center_coords = [
+            bifrost_data.x, bifrost_data.y, -bifrost_data.z[::-1]
+        ]
+        slice_idx = np.argmin(
+            np.abs(all_center_coords[slice_axis] - slice_coord))
+        return slice_idx
+
+    @staticmethod
     def slice_from_bifrost_data(bifrost_data,
                                 quantities,
                                 slice_axis=1,
@@ -374,11 +383,8 @@ class ScalarField2:
                                 scale=None,
                                 value_processor=lambda x: x):
         if slice_idx is None:
-            all_center_coords = [
-                bifrost_data.x, bifrost_data.y, -bifrost_data.z[::-1]
-            ]
-            slice_idx = np.argmin(
-                np.abs(all_center_coords[slice_axis] - slice_coord))
+            slice_idx = ScalarField2.slice_coord_to_idx(
+                bifrost_data, slice_axis, slice_coord)
 
         all_slices = [slice(None)] * 3
         all_slices[slice_axis] = slice_idx
