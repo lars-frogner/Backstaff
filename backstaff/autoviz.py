@@ -698,6 +698,7 @@ class Visualizer:
                   *plot_descriptions,
                   overwrite=False,
                   job_idx=0,
+                  show_progress=True,
                   new_logger_builder=None):
         if new_logger_builder is not None:
             self.set_logger(new_logger_builder())
@@ -718,6 +719,15 @@ class Visualizer:
 
         snap_nums = self._simulation_run.snap_nums
 
+        if show_progress:
+            progress = lambda snap_nums: tqdm(
+                snap_nums,
+                desc=f'{self.simulation_name} {plot_description.tag}',
+                position=job_idx,
+                ascii=True)
+        else:
+            progress = lambda snap_nums: snap_nums
+
         for plot_description, data_dir in plot_data_locations_inverted.items():
 
             frame_dir = self._output_dir / plot_description.tag
@@ -725,11 +735,7 @@ class Visualizer:
 
             self.logger.info(f'Plotting frames for {plot_description.tag}')
 
-            for snap_num in tqdm(
-                    snap_nums,
-                    desc=f'{self.simulation_name} {plot_description.tag}',
-                    position=job_idx,
-                    ascii=True):
+            for snap_num in progress(snap_nums):
                 output_path = frame_dir / f'{snap_num}.png'
 
                 if output_path.exists() and not overwrite:
@@ -921,6 +927,9 @@ if __name__ == '__main__':
                         '--overwrite',
                         action='store_true',
                         help='whether to overwrite existing video frames')
+    parser.add_argument('--hide-progress',
+                        action='store_true',
+                        help='whether to hide progress bars')
     parser.add_argument(
         '-l',
         '--log-file',
@@ -965,8 +974,9 @@ if __name__ == '__main__':
             visualization.create_videos_only()
     else:
         Parallel(n_jobs=min(args.n_threads, len(visualizations)))(
-            delayed(lambda idx, v: v.visualize(overwrite=args.overwrite,
-                                               job_idx=idx,
-                                               new_logger_builder=
-                                               logger_builder))(idx, v)
+            delayed(lambda idx, v: v.visualize(
+                overwrite=args.overwrite,
+                job_idx=idx,
+                show_progress=(not args.hide_progress),
+                new_logger_builder=logger_builder))(idx, v)
             for idx, v in enumerate(visualizations))
