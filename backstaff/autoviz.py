@@ -133,14 +133,28 @@ class Reduction:
         self.axis = int(axis)
         self.axis_names = ['x', 'y', 'z']
 
+    @property
+    def axis_name(self):
+        return self.axis_names[self.axis]
+
+    @property
+    def yields_multiple_fields(self):
+        return False
+
     @staticmethod
     def parse(reduction_config, logger=logging):
+        if isinstance(reduction_config, str):
+            reduction_config = {reduction_config: {}}
+
         if not isinstance(reduction_config, dict):
             abort(
                 logger,
                 f'reduction entry must be dict, is {type(reduction_config)}')
 
-        classes = dict(accumulation=Accumulation, mean=Mean, slice=Slice)
+        classes = dict(scan=Scan,
+                       accumulation=Accumulation,
+                       mean=Mean,
+                       slice=Slice)
         reduction = None
         for name, cls in classes.items():
             if name in reduction_config:
@@ -162,11 +176,128 @@ class Reduction:
                     ylabel=f'${plot_axis_names[1]}$ [Mm]',
                     fig_kwargs=dict(aspect_ratio=aspect_ratio))
 
+    def _get_axis_size(self, bifrost_data):
+        return getattr(bifrost_data, self.axis_name).size
+
+    def _parse_coord_or_idx_to_idx(self, bifrost_data, coord_or_idx):
+        return max(
+            0,
+            min(
+                self._get_axis_size(bifrost_data) - 1,
+                self.__class__._parse_float_or_int_input_to_int(
+                    coord_or_idx,
+                    lambda coord: fields.ScalarField2.slice_coord_to_idx(
+                        bifrost_data, self.axis, coord))))
+
+    def _parse_distance_or_stride_to_stride(self, bifrost_data,
+                                            distance_or_stride):
+        return max(
+            1,
+            self.__class__._parse_float_or_int_input_to_int(
+                distance_or_stride, lambda distance: int(distance / getattr(
+                    bifrost_data, f'd{self.axis_name}'))))
+
+    @staticmethod
+    def _parse_float_or_int_input_to_int(float_or_int, converter):
+        is_float = False
+        if isinstance(float_or_int, str) and len(float_or_int) > 0:
+            if float_or_int[0] == 'i':
+                float_or_int = int(float_or_int[1:])
+                is_float = False
+            elif float_or_int[0] == 'c':
+                float_or_int = float(float_or_int[1:])
+                is_float = True
+            else:
+                float_or_int = float(float_or_int)
+                is_float = True
+        elif isinstance(float_or_int, int):
+            float_or_int = float_or_int
+            is_float = False
+        else:
+            float_or_int = float(float_or_int)
+            is_float = True
+
+        if is_float:
+            result = converter(float_or_int)
+        else:
+            result = float_or_int
+
+        return int(result)
+
+
+class Scan(Reduction):
+    def __init__(self, axis=0, start=None, end=None, step='i1'):
+        super().__init__(axis)
+        self.start = start
+        self.end = end
+        self.step = step
+
+    @property
+    def tag(self):
+        return f'scan_{self.axis_name}_{"" if self.start is None else self.start}:{"" if self.end is None else self.end}{"" if self.step == "i1" else f":{self.step}"}'
+
+    @property
+    def yields_multiple_fields(self):
+        return True
+
+    def __call__(self, bifrost_data, quantity):
+        start_idx = 0 if self.start is None else self._parse_coord_or_idx_to_idx(
+            bifrost_data, self.start)
+        end_idx = (self._get_axis_size(bifrost_data) -
+                   1) if self.end is None else self._parse_coord_or_idx_to_idx(
+                       bifrost_data, self.end)
+        stride = self._parse_distance_or_stride_to_stride(
+            bifrost_data, self.step)
+
+        return ScanSlices(self, bifrost_data, quantity, start_idx, end_idx,
+                          stride)
+
+    def get_slice_label(self, bifrost_data, slice_idx):
+        return f'${self.axis_name} = {getattr(bifrost_data, self.axis_name)[slice_idx]:.2f}$ Mm'
+
+
+class ScanSlices:
+    def __init__(self, scan, bifrost_data, quantity, start_idx, end_idx,
+                 stride):
+        self._scan = scan
+        self._bifrost_data = bifrost_data
+        self._quantity = quantity
+        self._start_idx = start_idx
+        self._end_idx = end_idx
+        self._stride = stride
+
+    def get_ids(self):
+        return list(range(self._start_idx, self._end_idx + 1, self._stride))
+
+    def __call__(self, slice_idx):
+        return ScanSlice(
+            fields.ScalarField2.slice_from_bifrost_data(
+                self._bifrost_data,
+                self._quantity.name,
+                slice_axis=self._scan.axis,
+                slice_idx=slice_idx,
+                scale=self._quantity.unit_scale),
+            self._scan.get_slice_label(self._bifrost_data, slice_idx))
+
+
+class ScanSlice:
+    def __init__(self, field, label):
+        self._field = field
+        self._label = label
+
+    @property
+    def field(self):
+        return self._field
+
+    @property
+    def label(self):
+        return self._label
+
 
 class Accumulation(Reduction):
     @property
     def tag(self):
-        return f'accum_{self.axis_names[self.axis]}'
+        return f'accum_{self.axis_name}'
 
     def __call__(self, bifrost_data, quantity):
         return fields.ScalarField2.accumulated_from_bifrost_data(
@@ -180,7 +311,7 @@ class Accumulation(Reduction):
 class Mean(Reduction):
     @property
     def tag(self):
-        return f'mean_{self.axis_names[self.axis]}'
+        return f'mean_{self.axis_name}'
 
     def __call__(self, bifrost_data, quantity):
         return fields.ScalarField2.accumulated_from_bifrost_data(
@@ -192,20 +323,21 @@ class Mean(Reduction):
 
 
 class Slice(Reduction):
-    def __init__(self, axis=0, coord=0.0):
+    def __init__(self, axis=0, pos='i0'):
         super().__init__(axis)
-        self.coord = float(coord)
+        self.pos = pos
 
     @property
     def tag(self):
-        return f'slice_{self.axis_names[self.axis]}_{self.coord:g}'
+        return f'slice_{self.axis_names[self.axis]}_{self.pos}'
 
     def __call__(self, bifrost_data, quantity):
+        slice_idx = self._parse_coord_or_idx_to_idx(bifrost_data, self.pos)
         return fields.ScalarField2.slice_from_bifrost_data(
             bifrost_data,
             quantity.name,
             slice_axis=self.axis,
-            slice_coord=self.coord,
+            slice_idx=slice_idx,
             scale=quantity.unit_scale)
 
 
@@ -329,6 +461,10 @@ class PlotDescription:
     @property
     def tag(self):
         return f'{self.scaling.tag}_{self.quantity.tag}_{self.reduction.tag}'
+
+    @property
+    def has_multiple_fields(self):
+        return self.reduction.yields_multiple_fields
 
     def get_plot_kwargs(self, field):
         return update_dict_nested(
@@ -649,12 +785,7 @@ class SimulationRun:
 
             if linked_snap_path.with_suffix(
                     '.idl').is_file() and not linked_snap_path.is_file():
-                return_code = running.run_command(
-                    ['ln', '-s',
-                     str(snap_path),
-                     str(prepared_data_dir)],
-                    logger=self.logger.debug,
-                    error_logger=self.logger.error)
+                os.symlink(snap_path, linked_snap_path)
 
             if return_code != 0:
                 abort(self.logger, 'Non-zero return code')
@@ -703,11 +834,32 @@ class Visualizer:
     def create_videos_only(self, *plot_descriptions):
         video_config = self._simulation_run.video_config
         if video_config is not None:
+
             snap_nums = self._simulation_run.snap_nums
+            if len(snap_nums) == 0:
+                return
+
             for plot_description in plot_descriptions:
                 frame_dir = self._output_dir / plot_description.tag
-                self._create_video_from_frames(frame_dir, snap_nums,
-                                               **video_config)
+
+                if plot_description.has_multiple_fields:
+                    bifrost_data = self._simulation_run.get_bifrost_data(
+                        snap_nums[0])
+
+                    for snap_num in snap_nums:
+                        fields = plot_description.get_field(bifrost_data)
+                        field_ids = fields.get_ids()
+
+                        output_dir = frame_dir / f'{snap_num}'
+                        self._create_video_from_frames(
+                            output_dir, field_ids,
+                            frame_dir.with_name(
+                                f'{frame_dir.stem}_{snap_num}.mp4'),
+                            **video_config)
+                else:
+                    self._create_video_from_frames(
+                        frame_dir, snap_nums, frame_dir.with_suffix('.mp4'),
+                        **video_config)
 
     def visualize(self,
                   *plot_descriptions,
@@ -724,6 +876,16 @@ class Visualizer:
             )
             return
 
+        def add_progress_bar(iterable, extra_desc=None):
+            if not show_progress:
+                return iterable
+
+            return tqdm(iterable,
+                        desc=f'{self.simulation_name} {plot_description.tag}' +
+                        ('' if extra_desc is None else f' {extra_desc}'),
+                        position=job_idx,
+                        ascii=True)
+
         plot_data_locations = self._simulation_run.ensure_data_is_ready(
             self._prepared_data_dir, plot_descriptions)
 
@@ -733,15 +895,6 @@ class Visualizer:
                 plot_data_locations_inverted[plot_description] = data_dir
 
         snap_nums = self._simulation_run.snap_nums
-
-        if show_progress:
-            progress = lambda snap_nums: tqdm(
-                snap_nums,
-                desc=f'{self.simulation_name} {plot_description.tag}',
-                position=job_idx,
-                ascii=True)
-        else:
-            progress = lambda snap_nums: snap_nums
 
         for plot_description, data_dir in plot_data_locations_inverted.items():
 
@@ -755,50 +908,111 @@ class Visualizer:
             bifrost_data = self._simulation_run.get_bifrost_data(
                 snap_nums[0], data_dir)
 
-            for snap_num in progress(snap_nums):
-                output_path = frame_dir / f'{snap_num}.png'
+            if plot_description.has_multiple_fields:
+                for snap_num in snap_nums:
+                    output_dir = frame_dir / f'{snap_num}'
+                    os.makedirs(output_dir, exist_ok=True)
 
-                if output_path.exists() and not overwrite:
-                    self.logger.debug(
-                        f'{output_path} already exists, skipping')
-                    continue
+                    bifrost_data.set_snap(snap_num)
 
-                bifrost_data.set_snap(snap_num)
+                    fields = plot_description.get_field(bifrost_data)
+                    field_ids = fields.get_ids()
 
-                self._plot_frame(bifrost_data, plot_description, output_path)
+                    for field_id in add_progress_bar(
+                            field_ids, extra_desc=f'(snap {snap_num})'):
+                        output_path = output_dir / f'{field_id}.png'
 
-            if self._simulation_run.video_config is not None:
-                self._create_video_from_frames(
-                    frame_dir, snap_nums, **self._simulation_run.video_config)
+                        if output_path.exists() and not overwrite:
+                            self.logger.debug(
+                                f'{output_path} already exists, skipping')
+                            continue
 
-    def _plot_frame(self, bifrost_data, plot_description, output_path):
+                        field_wrapper = fields(field_id)
+                        self._plot_frame(bifrost_data,
+                                         plot_description,
+                                         field_wrapper.field,
+                                         output_path,
+                                         label=field_wrapper.label)
 
+                    if self._simulation_run.video_config is not None:
+                        self._create_video_from_frames(
+                            output_dir, field_ids,
+                            frame_dir.with_name(
+                                f'{frame_dir.stem}_{snap_num}.mp4'),
+                            **self._simulation_run.video_config)
+
+            else:
+                for snap_num in add_progress_bar(snap_nums):
+                    output_path = frame_dir / f'{snap_num}.png'
+
+                    if output_path.exists() and not overwrite:
+                        self.logger.debug(
+                            f'{output_path} already exists, skipping')
+                        continue
+
+                    bifrost_data.set_snap(snap_num)
+
+                    field = plot_description.get_field(bifrost_data)
+                    self._plot_frame(bifrost_data, plot_description, field,
+                                     output_path)
+
+                if self._simulation_run.video_config is not None:
+                    self._create_video_from_frames(
+                        frame_dir, snap_nums, frame_dir.with_suffix('.mp4'),
+                        **self._simulation_run.video_config)
+
+    def _plot_frame(self,
+                    bifrost_data,
+                    plot_description,
+                    field,
+                    output_path,
+                    label=None):
         time = float(bifrost_data.params['t']) * units.U_T
-        time_text = AnchoredText(f'{time:.1f} s', 'upper left', frameon=False)
+        text = f'{time:.1f} s'
 
-        field = plot_description.get_field(bifrost_data)
+        if label is not None:
+            text = f'{text}\n{label}'
 
-        field.plot(output_path=output_path,
-                   extra_artists=[time_text],
-                   **plot_description.get_plot_kwargs(field))
+        field.plot(
+            output_path=output_path,
+            extra_artists=[AnchoredText(text, 'upper left', frameon=False)],
+            **plot_description.get_plot_kwargs(field))
 
-    def _create_video_from_frames(self, frame_dir, snap_nums, fps=15):
-        frame_path_template = frame_dir / '%d.png'
-        video_path = frame_dir.with_suffix('.mp4')
-
+    def _create_video_from_frames(self,
+                                  frame_dir,
+                                  frame_indices,
+                                  output_path,
+                                  fps=15):
         self.logger.info(
-            f'Creating video {video_path.name} from {self.simulation_name}')
+            f'Creating video {output_path.name} from {self.simulation_name}')
+
+        tempdir = frame_dir / '.ffmpeg_tmp'
+        if tempdir.exists():
+            shutil.rmtree(tempdir)
+
+        os.makedirs(tempdir)
+        frame_num = 0
+        for frame_idx in frame_indices:
+            frame_path = frame_dir / f'{frame_idx:d}.png'
+            linked_frame_path = tempdir / f'{frame_num:d}.png'
+            if frame_path.is_file():
+                os.symlink(frame_path, linked_frame_path)
+                frame_num += 1
+
+        frame_path_template = tempdir / '%d.png'
 
         return_code = running.run_command([
             'ffmpeg', '-loglevel', 'error', '-y', '-r', '{:d}'.format(fps),
-            '-start_number', '{:d}'.format(snap_nums[0]), '-i',
+            '-start_number', '0', '-i',
             str(frame_path_template), '-vf',
             'pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2:color=white',
             '-vcodec', 'libx264', '-pix_fmt', 'yuv420p',
-            str(video_path)
+            str(output_path)
         ],
                                           logger=self.logger.debug,
                                           error_logger=self.logger.error)
+
+        shutil.rmtree(tempdir)
 
         if return_code != 0:
             self.logger.error('Could not create video, skipping')
