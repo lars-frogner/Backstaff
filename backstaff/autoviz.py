@@ -129,13 +129,14 @@ class Quantity:
 
 
 class Reduction:
+    AXIS_NAMES = ['x', 'y', 'z']
+
     def __init__(self, axis):
         self.axis = int(axis)
-        self.axis_names = ['x', 'y', 'z']
 
     @property
     def axis_name(self):
-        return self.axis_names[self.axis]
+        return self.AXIS_NAMES[self.axis]
 
     @property
     def yields_multiple_fields(self):
@@ -151,22 +152,26 @@ class Reduction:
                 logger,
                 f'reduction entry must be dict, is {type(reduction_config)}')
 
-        classes = dict(scan=Scan,
-                       accumulation=Accumulation,
-                       mean=Mean,
-                       slice=Slice)
-        reduction = None
+        classes = dict(scan=Scan, sum=Sum, mean=Mean, slice=Slice)
+        reductions = None
         for name, cls in classes.items():
             if name in reduction_config:
                 logger.debug(f'Found reduction {name}')
-                reduction = cls(**reduction_config[name])
-        if reduction is None:
-            abort(logger, 'Missing reduction entry')
+                reduction_config = reduction_config[name]
+                axes = reduction_config.pop('axes', 0)
+                if not isinstance(axes, list):
+                    axes = [axes]
+                reductions = [
+                    cls(axis=Reduction.AXIS_NAMES.index(axis_name),
+                        **reduction_config) for axis_name in axes
+                ]
+        if reductions is None:
+            abort(logger, 'Missing valid reduction entry')
 
-        return reduction
+        return reductions
 
     def get_plot_kwargs(self, field):
-        plot_axis_names = list(self.axis_names)
+        plot_axis_names = list(self.AXIS_NAMES)
         plot_axis_names.pop(self.axis)
         hor_coords = field.get_horizontal_coords()
         vert_coords = field.get_vertical_coords()
@@ -294,10 +299,10 @@ class ScanSlice:
         return self._label
 
 
-class Accumulation(Reduction):
+class Sum(Reduction):
     @property
     def tag(self):
-        return f'accum_{self.axis_name}'
+        return f'sum_{self.axis_name}'
 
     def __call__(self, bifrost_data, quantity):
         return fields.ScalarField2.accumulated_from_bifrost_data(
@@ -346,7 +351,7 @@ class Slice(Reduction):
 
     @property
     def tag(self):
-        return f'slice_{self.axis_names[self.axis]}_{self.pos}'
+        return f'slice_{self.AXIS_NAMES[self.axis]}_{self.pos}'
 
     def __call__(self, bifrost_data, quantity):
         slice_idx = self._parse_coord_or_idx_to_idx(bifrost_data, self.pos)
@@ -465,15 +470,18 @@ class PlotDescription:
         if 'reduction' not in plot_config:
             abort(logger, f'Missing reduction entry')
 
-        reduction = Reduction.parse(plot_config.pop('reduction'),
-                                    logger=logger)
+        reductions = Reduction.parse(plot_config.pop('reduction'),
+                                     logger=logger)
 
         if 'scaling' not in plot_config:
             abort(logger, f'Missing scaling entry')
 
         scaling = Scaling.parse(plot_config.pop('scaling'), logger=logger)
 
-        return cls(quantity, reduction, scaling, **plot_config)
+        return [
+            cls(quantity, reduction, scaling, **plot_config)
+            for reduction in reductions
+        ]
 
     @property
     def tag(self):
@@ -1119,8 +1127,8 @@ def parse_config_file(file_path, logger=logging):
         plots = global_plots + local_plots
 
         plot_descriptions = [
+            plot_description for plot_config in plots for plot_description in
             PlotDescription.parse(quantities, dict(plot_config), logger=logger)
-            for plot_config in plots
         ]
 
         visualizer = Visualizer(simulation_run)
