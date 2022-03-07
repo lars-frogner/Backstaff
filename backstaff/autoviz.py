@@ -424,16 +424,27 @@ class SimulationRun:
 
         logger.debug(f'Using simulation_dir {simulation_dir}')
 
-        start_snap_num = simulation_run_config.get('start_snap_num', None)
-        if start_snap_num is not None:
-            start_snap_num = int(start_snap_num)
+        start_snap_num = None
+        end_snap_num = None
+
+        snap_nums = simulation_run_config.get('snap_nums', None)
+        if isinstance(snap_nums, str):
+            parts = snap_nums.split(':')
+            if len(parts) < 2:
+                start_snap_num = int(parts[0])
+                end_snap_num = start_snap_num
+            elif len(parts) == 2:
+                start_snap_num = None if len(parts[0].strip()) == 0 else int(
+                    parts[0])
+                end_snap_num = None if len(parts[1].strip()) == 0 else int(
+                    parts[1])
+            else:
+                abort(logger, f'Invalid format for snap_nums: {snap_nums}')
+        elif snap_nums is not None:
+            start_snap_num = int(snap_nums)
+            end_snap_num = start_snap_num
 
         logger.debug(f'Using start_snap_num {start_snap_num}')
-
-        end_snap_num = simulation_run_config.get('end_snap_num', None)
-        if end_snap_num is not None:
-            end_snap_num = int(end_snap_num)
-
         logger.debug(f'Using end_snap_num {end_snap_num}')
 
         video_description = simulation_run_config.get('video', None)
