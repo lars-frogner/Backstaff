@@ -157,8 +157,8 @@ class Reduction:
         for name, cls in classes.items():
             if name in reduction_config:
                 logger.debug(f'Found reduction {name}')
-                reduction_config = reduction_config[name]
-                axes = reduction_config.pop('axes', 0)
+                reduction_config = dict(reduction_config[name])
+                axes = reduction_config.pop('axes', 'x')
                 if not isinstance(axes, list):
                     axes = [axes]
                 reductions = [
