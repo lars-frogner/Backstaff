@@ -608,7 +608,7 @@ class SimulationRun:
         if snap_nums is None:
             snap_nums = self._snap_nums
 
-        param_file_name = f'{self.name}_{self._snap_nums[0]}.idl'
+        param_file_name = f'{self.name}_{snap_nums[0]}.idl'
 
         snap_range_specification = [
             f'--snap-range={snap_nums[0]},{snap_nums[-1]}'
