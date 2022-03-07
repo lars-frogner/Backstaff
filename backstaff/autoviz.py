@@ -304,21 +304,38 @@ class Accumulation(Reduction):
             bifrost_data,
             quantity.name,
             accum_axis=self.axis,
-            accum_operator=np.sum,
+            accum_operator=np.nansum,
             scale=quantity.unit_scale)
 
 
 class Mean(Reduction):
+    def __init__(self, axis=0, ignore_val=None):
+        super().__init__(axis)
+        self.ignore_val = ignore_val
+
     @property
     def tag(self):
         return f'mean_{self.axis_name}'
 
     def __call__(self, bifrost_data, quantity):
+        def value_processor(field):
+            if self.ignore_val is None:
+                return field
+            else:
+                field = field.copy()
+                ignore_val = self.ignore_val
+                if not isinstance(self.ignore_val, list):
+                    ignore_val = [ignore_val]
+                for val in ignore_val:
+                    field[field == val] = np.nan
+                return field
+
         return fields.ScalarField2.accumulated_from_bifrost_data(
             bifrost_data,
             quantity.name,
             accum_axis=self.axis,
-            accum_operator=np.mean,
+            value_processor=value_processor,
+            accum_operator=np.nanmean,
             scale=quantity.unit_scale)
 
 
