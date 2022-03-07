@@ -733,7 +733,9 @@ class Visualizer:
             frame_dir = self._output_dir / plot_description.tag
             os.makedirs(frame_dir, exist_ok=True)
 
-            self.logger.info(f'Plotting frames for {plot_description.tag}')
+            self.logger.info(
+                f'Plotting frames for {plot_description.tag} in {self.simulation_name}'
+            )
 
             for snap_num in progress(snap_nums):
                 output_path = frame_dir / f'{snap_num}.png'
@@ -767,7 +769,8 @@ class Visualizer:
         frame_path_template = frame_dir / '%d.png'
         video_path = frame_dir.with_suffix('.mp4')
 
-        self.logger.info(f'Creating video {video_path.name}')
+        self.logger.info(
+            f'Creating video {video_path.name} from {self.simulation_name}')
 
         return_code = running.run_command([
             'ffmpeg', '-loglevel', 'error', '-y', '-r', '{:d}'.format(fps),
