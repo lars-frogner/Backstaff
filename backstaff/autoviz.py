@@ -11,18 +11,19 @@ from ruamel.yaml import YAML
 from joblib import Parallel, delayed
 import numpy as np
 from matplotlib.offsetbox import AnchoredText
-from helita.sim.bifrost import BifrostData
 
 try:
     import backstaff.units as units
     import backstaff.running as running
     import backstaff.fields as fields
     import backstaff.plotting as plotting
+    import helita_utils as helita_utils
 except ModuleNotFoundError:
     import units
     import running
     import fields
     import plotting
+    import helita_utils
 
 
 def update_dict_nested(d, u):
@@ -556,7 +557,10 @@ class SimulationRun:
         fdir = self.data_dir if other_data_dir is None else other_data_dir
         self.logger.debug(f'Reading snap {snap_num} of {self.name} in {fdir}')
         assert snap_num in self._snap_nums
-        return BifrostData(self.name, fdir=fdir, snap=snap_num, verbose=False)
+        return helita_utils.CachingBifrostData(self.name,
+                                               fdir=fdir,
+                                               snap=snap_num,
+                                               verbose=False)
 
     def _find_snap_nums(self, other_data_dir=None):
         input_dir = self.data_dir if other_data_dir is None else other_data_dir
@@ -748,6 +752,9 @@ class Visualizer:
                 f'Plotting frames for {plot_description.tag} in {self.simulation_name}'
             )
 
+            bifrost_data = self._simulation_run.get_bifrost_data(
+                snap_nums[0], data_dir)
+
             for snap_num in progress(snap_nums):
                 output_path = frame_dir / f'{snap_num}.png'
 
@@ -756,8 +763,7 @@ class Visualizer:
                         f'{output_path} already exists, skipping')
                     continue
 
-                bifrost_data = self._simulation_run.get_bifrost_data(
-                    snap_num, data_dir)
+                bifrost_data.set_snap(snap_num)
 
                 self._plot_frame(bifrost_data, plot_description, output_path)
 
