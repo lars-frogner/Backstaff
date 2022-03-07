@@ -615,27 +615,31 @@ class SimulationRun:
         ] if len(snap_nums) > 1 else []
 
         return_code = running.run_command([
-            'backstaff', '--protected-file-types=', 'snapshot',
-            *snap_range_specification, param_file_name, 'write',
+            'backstaff', '--protected-file-types=', 'snapshot', '-v',
+            *snap_range_specification, param_file_name, 'write', '-v',
             '--ignore-warnings', '--overwrite',
             f'--derived-quantities={",".join(quantities)}',
             str((prepared_data_dir / param_file_name).resolve())
         ],
-                                          cwd=self._data_dir,
+                                          cwd=self.data_dir,
                                           logger=self.logger.debug,
                                           error_logger=self.logger.error)
         if return_code != 0:
             abort(self.logger, 'Non-zero return code')
 
         for snap_num in snap_nums:
-            snap_path = self._data_dir / f'{self.name}_{snap_num:03}.snap'
+            snap_name = f'{self.name}_{snap_num:03}.snap'
+            snap_path = self.data_dir / snap_name
+            linked_snap_path = prepared_data_dir / snap_name
 
-            return_code = running.run_command(
-                ['ln', '-s',
-                 str(snap_path),
-                 str(prepared_data_dir)],
-                logger=self.logger.debug,
-                error_logger=self.logger.error)
+            if linked_snap_path.with_suffix(
+                    '.idl').is_file() and not linked_snap_path.is_file():
+                return_code = running.run_command(
+                    ['ln', '-s',
+                     str(snap_path),
+                     str(prepared_data_dir)],
+                    logger=self.logger.debug,
+                    error_logger=self.logger.error)
 
             if return_code != 0:
                 abort(self.logger, 'Non-zero return code')
