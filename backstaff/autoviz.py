@@ -6,6 +6,7 @@ import pathlib
 import logging
 import shutil
 import csv
+import warnings
 from tqdm import tqdm
 from ruamel.yaml import YAML
 from joblib import Parallel, delayed
@@ -335,12 +336,18 @@ class Mean(Reduction):
                     field[field == val] = np.nan
                 return field
 
+        def mean(*args, **kwargs):
+            with warnings.catch_warnings(): # Suppress "mean of empty slice" warning
+                warnings.simplefilter('ignore', category=RuntimeWarning)
+                result = np.nanmean(*args, **kwargs)
+            return result
+
         return fields.ScalarField2.accumulated_from_bifrost_data(
             bifrost_data,
             quantity.name,
             accum_axis=self.axis,
             value_processor=value_processor,
-            accum_operator=np.nanmean,
+            accum_operator=mean,
             scale=quantity.unit_scale)
 
 
