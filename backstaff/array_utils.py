@@ -1,5 +1,10 @@
+import os
+import time
+import tempfile
+import scipy.interpolate
 import numpy as np
 from numba import njit
+from joblib import Parallel, delayed
 
 
 class CompactArrayMask:
@@ -81,6 +86,69 @@ class CompactArrayMask:
         return np.add.reduceat(subsectioned_arr,
                                self.axis_splits[axis]).reshape(
                                    self.shape_except_axis(axis))
+
+
+class tempmap(np.memmap):
+    def __new__(subtype,
+                dtype=np.uint8,
+                mode='r+',
+                offset=0,
+                shape=None,
+                order='C'):
+        filename = tempfile.mkstemp()[1]
+        self = np.memmap.__new__(subtype,
+                                 filename,
+                                 dtype=dtype,
+                                 mode=mode,
+                                 offset=offset,
+                                 shape=shape,
+                                 order=order)
+        return self
+
+    def __del__(self):
+        if self.filename is not None and os.path.isfile(self.filename):
+            os.remove(self.filename)
+
+
+def create_tmp_memmap(shape, dtype, mode='w+'):
+    return tempmap(shape=shape, dtype=dtype, mode=mode)
+
+
+def concurrent_interp2(xp, yp, fp, coords, verbose=False, n_jobs=1, **kwargs):
+    n = fp.shape[0]
+    f = create_tmp_memmap(shape=(n, coords.shape[0]), dtype=fp.dtype)
+    chunk_sizes = np.full(n_jobs, n // n_jobs, dtype=int)
+    chunk_sizes[:(n % n_jobs)] += 1
+    stop_indices = np.cumsum(chunk_sizes)
+    start_indices = stop_indices - chunk_sizes
+    Parallel(n_jobs=min(n_jobs, n), verbose=verbose)(
+        delayed(do_concurrent_interp2)(
+            f, start, stop, xp, yp, fp, coords, verbose=verbose, **kwargs)
+        for start, stop in zip(start_indices, stop_indices))
+    return f
+
+
+def do_concurrent_interp2(f,
+                          start,
+                          stop,
+                          xp,
+                          yp,
+                          fp,
+                          coords,
+                          verbose=False,
+                          **kwargs):
+    if verbose and start == 0:
+        start_time = time.time()
+        f[start, :] = scipy.interpolate.interpn((xp, yp), fp[start, :, :],
+                                                coords, **kwargs)
+        elapsed_time = time.time() - start_time
+        print(
+            f'Single interpolation took {elapsed_time:g} s, estimated total interpolation time is {elapsed_time*stop:g} s'
+        )
+        start += 1
+    for idx in range(start, stop):
+        f[idx, :] = scipy.interpolate.interpn((xp, yp), fp[idx, :, :], coords,
+                                              **kwargs)
 
 
 @njit

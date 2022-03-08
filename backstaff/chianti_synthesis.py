@@ -1251,7 +1251,7 @@ class LookupIon(Ion):
 
         shape = (atmosphere.n_values, 2)
         dtype = atmosphere.temperatures.dtype
-        evaluation_coordinates = create_tmp_memmap(
+        evaluation_coordinates = array_utils.create_tmp_memmap(
             shape, dtype) if use_memmap else np.empty(shape, dtype=dtype)
         np.stack((np.ravel(np.log10(atmosphere.temperatures)),
                   np.ravel(np.log10(atmosphere.electron_densities))),
@@ -1270,8 +1270,7 @@ class LookupIon(Ion):
                              use_memmap=True,
                              method='linear',
                              bounds_error=False,
-                             fill_value=None,
-                             n_jobs=1):
+                             fill_value=None):
         assert evaluation_coordinates.ndim == 2 and evaluation_coordinates.shape[
             1] == 2
         if self.table_populations is None:
@@ -1288,88 +1287,26 @@ class LookupIon(Ion):
         shape = (included_table_populations.shape[0],
                  evaluation_coordinates.shape[0])
         dtype = included_table_populations.dtype
-        populations = create_tmp_memmap(
+        populations = array_utils.create_tmp_memmap(
             shape, dtype) if use_memmap else np.empty(shape, dtype=dtype)
 
-        do_concurrent_interp2(populations,
-                              0,
-                              shape[0],
-                              self.atmos.log_table_temperatures,
-                              self.atmos.log_table_electron_densities,
-                              included_table_populations,
-                              evaluation_coordinates,
-                              method=method,
-                              bounds_error=bounds_error,
-                              fill_value=fill_value,
-                              verbose=self.verbose)
+        array_utils.do_concurrent_interp2(
+            populations,
+            0,
+            shape[0],
+            self.atmos.log_table_temperatures,
+            self.atmos.log_table_electron_densities,
+            included_table_populations,
+            evaluation_coordinates,
+            method=method,
+            bounds_error=bounds_error,
+            fill_value=fill_value,
+            verbose=self.verbose)
         populations[populations < 0.0] = 0.0
         populations[populations > 1.0] = 1.0
 
         self.info(f'Took {time.time() - start_time:g} s')
         return populations
-
-
-class tempmap(np.memmap):
-    def __new__(subtype,
-                dtype=np.uint8,
-                mode='r+',
-                offset=0,
-                shape=None,
-                order='C'):
-        filename = tempfile.mkstemp()[1]
-        self = np.memmap.__new__(subtype,
-                                 filename,
-                                 dtype=dtype,
-                                 mode=mode,
-                                 offset=offset,
-                                 shape=shape,
-                                 order=order)
-        return self
-
-    def __del__(self):
-        if self.filename is not None and os.path.isfile(self.filename):
-            os.remove(self.filename)
-
-
-def create_tmp_memmap(shape, dtype, mode='w+'):
-    return tempmap(shape=shape, dtype=dtype, mode=mode)
-
-
-def do_concurrent_interp2(f,
-                          start,
-                          stop,
-                          xp,
-                          yp,
-                          fp,
-                          coords,
-                          verbose=False,
-                          **kwargs):
-    if verbose and start == 0:
-        start_time = time.time()
-        f[start, :] = scipy.interpolate.interpn((xp, yp), fp[start, :, :],
-                                                coords, **kwargs)
-        elapsed_time = time.time() - start_time
-        print(
-            f'Single interpolation took {elapsed_time:g} s, estimated total interpolation time is {elapsed_time*stop:g} s'
-        )
-        start += 1
-    for idx in range(start, stop):
-        f[idx, :] = scipy.interpolate.interpn((xp, yp), fp[idx, :, :], coords,
-                                              **kwargs)
-
-
-def concurrent_interp2(xp, yp, fp, coords, verbose=False, n_jobs=1, **kwargs):
-    n = fp.shape[0]
-    f = create_tmp_memmap(shape=(n, coords.shape[0]), dtype=fp.dtype)
-    chunk_sizes = np.full(n_jobs, n // n_jobs, dtype=int)
-    chunk_sizes[:(n % n_jobs)] += 1
-    stop_indices = np.cumsum(chunk_sizes)
-    start_indices = stop_indices - chunk_sizes
-    Parallel(n_jobs=min(n_jobs, n), verbose=verbose)(
-        delayed(do_concurrent_interp2)(
-            f, start, stop, xp, yp, fp, coords, verbose=verbose, **kwargs)
-        for start, stop in zip(start_indices, stop_indices))
-    return f
 
 
 class IonEmissivities:
