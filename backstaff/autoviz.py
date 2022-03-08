@@ -17,13 +17,11 @@ try:
     import backstaff.units as units
     import backstaff.running as running
     import backstaff.fields as fields
-    import backstaff.plotting as plotting
     import helita_utils as helita_utils
 except ModuleNotFoundError:
     import units
     import running
     import fields
-    import plotting
     import helita_utils
 
 
@@ -337,7 +335,8 @@ class Mean(Reduction):
                 return field
 
         def mean(*args, **kwargs):
-            with warnings.catch_warnings(): # Suppress "mean of empty slice" warning
+            with warnings.catch_warnings(
+            ):  # Suppress "mean of empty slice" warning
                 warnings.simplefilter('ignore', category=RuntimeWarning)
                 result = np.nanmean(*args, **kwargs)
             return result
