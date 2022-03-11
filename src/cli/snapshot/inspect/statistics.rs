@@ -145,10 +145,10 @@ pub fn run_statistics_subcommand<'a, G, R, FP>(
     R: SnapshotReader3<G>,
     FP: Fn(&str) -> io::Result<ScalarField3<fdt, G>>,
 {
-    let value_range = parse_limits(arguments, "value-range");
-    let x_range = parse_limits(arguments, "x-range");
-    let y_range = parse_limits(arguments, "y-range");
-    let z_range = parse_limits(arguments, "z-range");
+    let value_range = utils::parse_limits(arguments, "value-range");
+    let x_range = utils::parse_limits(arguments, "x-range");
+    let y_range = utils::parse_limits(arguments, "y-range");
+    let z_range = utils::parse_limits(arguments, "z-range");
 
     let slice_depths = utils::get_values_from_parseable_argument::<fdt>(arguments, "slice-depths");
 
@@ -197,29 +197,6 @@ pub fn run_statistics_subcommand<'a, G, R, FP>(
         );
     }
     print_whole_line('-');
-}
-
-fn parse_limits(arguments: &ArgMatches, argument_name: &str) -> (fdt, fdt) {
-    let limits: Vec<_> = arguments
-        .values_of(argument_name)
-        .expect("No value for argument with default")
-        .into_iter()
-        .map(|string| match string {
-            "-inf" => std::f32::NEG_INFINITY,
-            "inf" => std::f32::INFINITY,
-            values_str => exit_on_error!(
-                values_str.parse::<fdt>(),
-                "Error: Could not parse value in {0}: {1}",
-                argument_name
-            ),
-        })
-        .collect();
-    exit_on_false!(
-        limits[1] >= limits[0],
-        "Error: Second value in {} must be larger than or equal to first value",
-        argument_name
-    );
-    (limits[0], limits[1])
 }
 
 fn print_padded_headline(text: &str, pad_char: char) {

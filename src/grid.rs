@@ -150,6 +150,36 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// Sets the downward derivatives of the grid coordinates.
     fn set_down_derivatives(&mut self, down_derivatives: Option<Coords3<F>>);
 
+    /// Creates a new 3D grid restricted to slices of the coordinate arrays of
+    /// the original grid.
+    fn subgrid(&self, start_indices: &Idx3<usize>, end_indices: &Idx3<usize>) -> Self {
+        let shape = self.shape();
+        let mut is_periodic = self.periodicity().clone();
+
+        for &dim in &Dim3::slice() {
+            assert!(
+                start_indices[dim] < end_indices[dim],
+                "Start index is not smaller than end index"
+            );
+            assert!(
+                end_indices[dim] < shape[dim],
+                "End index is outside of grid bound"
+            );
+            is_periodic[dim] =
+                is_periodic[dim] && start_indices[dim] == 0 && end_indices[dim] == shape[dim] - 1;
+        }
+
+        Self::from_coords(
+            self.centers().subcoords(start_indices, end_indices),
+            self.lower_edges().subcoords(start_indices, end_indices),
+            is_periodic,
+            self.up_derivatives()
+                .map(|coords| coords.subcoords(start_indices, end_indices)),
+            self.down_derivatives()
+                .map(|coords| coords.subcoords(start_indices, end_indices)),
+        )
+    }
+
     /// Returns the lower and upper corner of the grid cell of the given 3D index.
     fn grid_cell_extremal_corners(&self, indices: &Idx3<usize>) -> (Point3<F>, Point3<F>) {
         let lower_corner = self.lower_edges().point(indices);

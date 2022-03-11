@@ -1,6 +1,7 @@
 //! Command line interface for actions related to snapshots.
 
 mod corks;
+mod extract;
 mod inspect;
 mod resample;
 mod slice;
@@ -8,6 +9,7 @@ mod write;
 
 use self::{
     corks::{create_corks_subcommand, CorksState},
+    extract::create_extract_subcommand,
     inspect::create_inspect_subcommand,
     resample::create_resample_subcommand,
     slice::create_slice_subcommand,

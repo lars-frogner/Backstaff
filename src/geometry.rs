@@ -246,6 +246,15 @@ impl<F: BFloat> Vec3<F> {
         )
     }
 
+    /// Constructs a new vector by taking the component-wise min with the given vector.
+    pub fn min_with(&self, other: &Self) -> Self {
+        Vec3::new(
+            F::min(self[X], other[X]),
+            F::min(self[Y], other[Y]),
+            F::min(self[Z], other[Z]),
+        )
+    }
+
     /// Computes the squared length of the vector.
     pub fn squared_length(&self) -> F {
         self[X] * self[X] + self[Y] * self[Y] + self[Z] * self[Z]
@@ -443,6 +452,14 @@ impl<F: BFloat> Vec2<F> {
         Vec2::new(
             F::max(self[Dim2::X], other[Dim2::X]),
             F::max(self[Dim2::Y], other[Dim2::Y]),
+        )
+    }
+
+    /// Constructs a new vector by taking the component-wise min with the given vector.
+    pub fn min_with(&self, other: &Self) -> Self {
+        Vec2::new(
+            F::min(self[Dim2::X], other[Dim2::X]),
+            F::min(self[Dim2::Y], other[Dim2::Y]),
         )
     }
 
@@ -1023,6 +1040,16 @@ impl<F: BFloat> Coords3<F> {
             self[X][indices[X]],
             self[Y][indices[Y]],
             self[Z][indices[Z]],
+        )
+    }
+
+    /// Creates a new 3D set of coordinates restricted to slices of the original
+    /// coordinate arrays.
+    pub fn subcoords(&self, start_indices: &Idx3<usize>, end_indices: &Idx3<usize>) -> Self {
+        Self::new(
+            self[X][start_indices[X]..=end_indices[X]].to_vec(),
+            self[Y][start_indices[Y]..=end_indices[Y]].to_vec(),
+            self[Z][start_indices[Z]..=end_indices[Z]].to_vec(),
         )
     }
 }
