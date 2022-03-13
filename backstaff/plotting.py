@@ -15,16 +15,16 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.offsetbox import AnchoredText
 
 
-def create_figure(width=6.0, aspect_ratio=4.0/3.0, dpi=300, **kwargs):
+def create_figure(width=6.0, aspect_ratio=4.0 / 3.0, dpi=300, **kwargs):
     return plt.figure(figsize=kwargs.pop('figsize',
-                                         (width, width/aspect_ratio)),
+                                         (width, width / aspect_ratio)),
                       dpi=dpi,
                       **kwargs)
 
 
-def create_2d_subplots(width=6.0, aspect_ratio=4.0/3.0, dpi=300, **kwargs):
+def create_2d_subplots(width=6.0, aspect_ratio=4.0 / 3.0, dpi=300, **kwargs):
     return plt.subplots(figsize=kwargs.pop('figsize',
-                                           (width, width/aspect_ratio)),
+                                           (width, width / aspect_ratio)),
                         dpi=dpi,
                         **kwargs)
 
@@ -36,9 +36,9 @@ def set_2d_plot_extent(ax, x_lims, y_lims):
         ax.set_ylim(*y_lims)
 
 
-def create_3d_plot(width=6.0, aspect_ratio=4.0/3.0, dpi=200, **kwargs):
+def create_3d_plot(width=6.0, aspect_ratio=4.0 / 3.0, dpi=200, **kwargs):
     fig = plt.figure(figsize=kwargs.pop('figsize',
-                                        (width, width/aspect_ratio)),
+                                        (width, width / aspect_ratio)),
                      dpi=dpi,
                      **kwargs)
     ax = fig.add_subplot(111, projection='3d')
@@ -69,9 +69,9 @@ def set_3d_axes_equal(ax):
     ])
 
     origin = np.mean(limits, axis=1)
-    radius = 0.5*np.max(np.abs(limits[:, 1] - limits[:, 0]))
+    radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
     set_axes_radius(ax, origin, radius)
-    ax.set_box_aspect([2*radius]*3)
+    ax.set_box_aspect([2 * radius] * 3)
 
 
 def set_2d_axis_labels(ax, xlabel, ylabel, xcolor='k', ycolor='k'):
@@ -87,6 +87,20 @@ def set_3d_axis_labels(ax, xlabel, ylabel, zlabel):
 
 def get_default_colors():
     return plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+
+class ColorCycle:
+    def __init__(self, colors=None):
+        self._colors = get_default_colors() if colors is None else colors
+        self._color_idx = 0
+
+    def get_next(self):
+        if isinstance(self._colors, list):
+            color = self._colors[self._color_idx % len(self._colors)]
+            self._color_idx += 1
+        else:
+            color = self._colors
+        return color
 
 
 def get_linear_normalizer(vmin, vmax, clip=False):
@@ -148,8 +162,9 @@ def colors_from_values(values, norm, cmap, alpha=1.0, relative_alpha=True):
     colors = cmap(normalized_values)
 
     if relative_alpha:
-        colors[:, -1] = np.maximum(0.0,
-                                   np.minimum(alpha, normalized_values*alpha))
+        colors[:,
+               -1] = np.maximum(0.0,
+                                np.minimum(alpha, normalized_values * alpha))
     else:
         colors[:, -1] = alpha
 
@@ -159,7 +174,7 @@ def colors_from_values(values, norm, cmap, alpha=1.0, relative_alpha=True):
 def size_from_values(values, norm, max_size, min_size=1):
     normalized_values = norm(values)
     return np.maximum(min_size,
-                      np.minimum(max_size, max_size*normalized_values**2))
+                      np.minimum(max_size, max_size * normalized_values**2))
 
 
 def create_colorbar_axis(ax, loc='right', pad=0.05):
@@ -322,7 +337,9 @@ def render(fig=None,
     if fig is not None and tight_layout:
         fig.tight_layout()
     if output_path is not None:
-        plt.savefig(output_path, bbox_extra_artists=bbox_extra_artists, bbox_inches=bbox_inches)
+        plt.savefig(output_path,
+                    bbox_extra_artists=bbox_extra_artists,
+                    bbox_inches=bbox_inches)
         if force_show:
             plt.show()
         elif close:
@@ -438,7 +455,7 @@ def plot_2d_field(hor_coords,
                   output_path=None,
                   picker=None,
                   render_now=True,
-                  fig_kwargs=dict(width=6.0, aspect_ratio=4.0/3.0)):
+                  fig_kwargs=dict(width=6.0, aspect_ratio=4.0 / 3.0)):
 
     if fig is None or ax is None:
         fig, ax = create_2d_subplots(**fig_kwargs)
@@ -522,6 +539,8 @@ def plot_histogram(values,
                    weighted_average=False,
                    log_x=False,
                    log_y=False,
+                   linthresh_x=None,
+                   linthresh_y=None,
                    vmin=None,
                    vmax=None,
                    plot_type='steps',
@@ -555,7 +574,8 @@ def plot_histogram(values,
         weighted_average=weighted_average,
         vmin=vmin,
         vmax=vmax,
-        decide_bins_in_log_space=(log_y if horizontal else log_x))
+        decide_bins_in_log_space=(log_y if horizontal else log_x),
+        linthresh=(linthresh_y if horizontal else linthresh_x))
 
     hist = np.asfarray(hist)
 
@@ -565,7 +585,7 @@ def plot_histogram(values,
         hist /= bin_sizes
 
     if bin_weighted:
-        hist *= bin_centers*bin_sizes
+        hist *= bin_centers * bin_sizes
 
     if hist_scale != 1.0:
         hist *= hist_scale
@@ -697,9 +717,15 @@ def plot_histogram(values,
             ax.add_artist(artist)
 
     if log_x:
-        ax.set_xscale('log')
+        if linthresh_x is None:
+            ax.set_xscale('log')
+        else:
+            ax.set_xscale('symlog', linthresh=linthresh_x)
     if log_y:
-        ax.set_yscale('log')
+        if linthresh_y is None:
+            ax.set_yscale('log')
+        else:
+            ax.set_yscale('symlog', linthresh=linthresh_y)
 
     if fit_limits is not None:
         start_idx = np.argmin(np.abs(bin_centers - fit_limits[0]))
@@ -719,8 +745,8 @@ def plot_histogram(values,
         ax.plot(bin_centers, fit_values, 'k--', alpha=0.3, lw=1.0)
 
         shift = 3
-        xylabel = ((bin_centers[shift] + bin_centers[shift + 1])/2,
-                   (fit_values[shift] + fit_values[shift + 1])/2)
+        xylabel = ((bin_centers[shift] + bin_centers[shift + 1]) / 2,
+                   (fit_values[shift] + fit_values[shift + 1]) / 2)
         p1 = ax.transData.transform_point(
             (bin_centers[shift], fit_values[shift]))
         p2 = ax.transData.transform_point(
@@ -766,6 +792,8 @@ def plot_scatter(values_x,
                  ax=None,
                  log_x=False,
                  log_y=False,
+                 linthresh_x=None,
+                 linthresh_y=None,
                  log_c=False,
                  vmin_c=None,
                  vmax_c=None,
@@ -804,9 +832,15 @@ def plot_scatter(values_x,
         fig, ax = create_2d_subplots(**fig_kwargs)
 
     if log_x:
-        ax.set_xscale('log')
+        if linthresh_x is None:
+            ax.set_xscale('log')
+        else:
+            ax.set_xscale('symlog', linthresh=linthresh_x)
     if log_y:
-        ax.set_yscale('log')
+        if linthresh_y is None:
+            ax.set_yscale('log')
+        else:
+            ax.set_yscale('symlog', linthresh=linthresh_y)
 
     if values_c is None:
         c = color
@@ -944,8 +978,8 @@ def plot_scatter_with_histograms(values_x,
 
     left = left_padding  # > 0 to make space for labels
     bottom = bottom_padding  # > 0 to make space for labels
-    width = 1 - 1.5*left - spacing - hist_size_y
-    height = 1 - 1.5*bottom - spacing - hist_size_x
+    width = 1 - 1.5 * left - spacing - hist_size_y
+    height = 1 - 1.5 * bottom - spacing - hist_size_x
 
     fig = create_figure(**fig_kwargs)
     ax = fig.add_axes([left, bottom, width, height])
@@ -1068,12 +1102,12 @@ def compute_coord_lims(coords, log=False, pad=0.05):
     upper = np.nanmax(coords)
     if log:
         extent = np.log10(upper) - np.log10(lower)
-        lower = max(0, 10**(np.log10(lower) - pad*extent))
-        upper = 10**(np.log10(upper) + pad*extent)
+        lower = max(0, 10**(np.log10(lower) - pad * extent))
+        upper = 10**(np.log10(upper) + pad * extent)
     else:
         extent = upper - lower
-        lower -= pad*extent
-        upper += pad*extent
+        lower -= pad * extent
+        upper += pad * extent
     return lower, upper
 
 
@@ -1296,7 +1330,8 @@ def setup_2d_field_animation(hor_coords,
                              use_varying_alpha=False,
                              title=None,
                              rasterized=None,
-                             fig_kwargs=dict(width=7.2, aspect_ratio=5.0/4.0),
+                             fig_kwargs=dict(width=7.2,
+                                             aspect_ratio=5.0 / 4.0),
                              picker=None):
 
     if fig is None or ax is None:
@@ -1473,8 +1508,9 @@ def animate(fig,
             bitrate=None,
             output_path=None):
 
-    interval = 1e3/fps
-    n_frames = n_frames if video_duration is None else int(video_duration*fps)
+    interval = 1e3 / fps
+    n_frames = n_frames if video_duration is None else int(video_duration *
+                                                           fps)
 
     anim = animation.FuncAnimation(fig,
                                    update_func,
@@ -1490,15 +1526,15 @@ def animate(fig,
         plt.show()
     else:
         assert n_frames is not None
-        anim.save(
-            output_path,
-            writer=writer,
-            codec=codec,
-            dpi=dpi,
-            bitrate=bitrate,
-            fps=fps,
-            progress_callback=lambda i, n: print(
-                'Animation progress: {:4.1f}%'.format(i*100.0/n), end='\r'))
+        anim.save(output_path,
+                  writer=writer,
+                  codec=codec,
+                  dpi=dpi,
+                  bitrate=bitrate,
+                  fps=fps,
+                  progress_callback=lambda i, n: print(
+                      'Animation progress: {:4.1f}%'.format(i * 100.0 / n),
+                      end='\r'))
 
 
 def compute_histogram(values,
@@ -1507,6 +1543,7 @@ def compute_histogram(values,
                       vmin=None,
                       vmax=None,
                       decide_bins_in_log_space=False,
+                      linthresh=None,
                       weighted_average=False,
                       density=False):
 
@@ -1514,9 +1551,18 @@ def compute_histogram(values,
     max_value = np.nanmax(values) if vmax is None else vmax
 
     if decide_bins_in_log_space:
-        values = np.log10(values)
-        min_value = np.log10(min_value)
-        max_value = np.log10(max_value)
+        if linthresh is None:
+            normalizer = get_log_normalizer(min_value, max_value)
+        else:
+            normalizer = get_symlog_normalizer(min_value,
+                                               max_value,
+                                               linthresh=linthresh)
+    else:
+        normalizer = get_linear_normalizer(min_value, max_value)
+
+    values = normalizer(values)
+    min_value = normalizer(min_value)
+    max_value = normalizer(max_value)
 
     hist, bin_edges = np.histogram(values,
                                    bins=bins,
@@ -1530,11 +1576,10 @@ def compute_histogram(values,
                                           range=(min_value, max_value))
         hist /= unweighted_hist
 
-    bin_centers = 0.5*(bin_edges[:-1] + bin_edges[1:])
+    bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
 
-    if decide_bins_in_log_space:
-        bin_edges = 10**bin_edges
-        bin_centers = 10**bin_centers
+    bin_edges = normalizer.inverse(bin_edges)
+    bin_centers = normalizer.inverse(bin_centers)
 
     return hist, bin_edges, bin_centers
 
@@ -1566,7 +1611,7 @@ def compute_histogram_difference(values, weights, vmin, vmax, bins,
                                  range=(min_value, max_value),
                                  weights=right_weights)
 
-    bin_centers = 0.5*(bin_edges[:-1] + bin_edges[1:])
+    bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
 
     if decide_bins_in_log_space:
         bin_edges = 10**bin_edges
