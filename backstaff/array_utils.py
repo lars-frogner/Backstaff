@@ -77,15 +77,89 @@ class CompactArrayMask:
             for axis in range(len(self.shape))
         ]
 
-    def apply(self, arr):
-        assert arr.shape == self.shape
-        return np.ravel(arr)[self.included_flat_indices]
+    def apply(self, arr, flat_indices=None):
+        if flat_indices is None:
+            flat_indices = self.included_flat_indices
+        remaining_shape = list(arr.shape)
+        for s in self.shape[::-1]:
+            assert remaining_shape.pop() == s
+        return arr.reshape(*remaining_shape, -1)[..., flat_indices]
 
     def sum_over_axis(self, subsectioned_arr, axis=0):
         assert subsectioned_arr.shape == self.included_flat_indices.shape
         return np.add.reduceat(subsectioned_arr,
                                self.axis_splits[axis]).reshape(
                                    self.shape_except_axis(axis))
+
+    def apply_intersected(self,
+                          other,
+                          *arrs,
+                          with_this_preapplied=[],
+                          with_other_preapplied=[]):
+        assert other.shape == self.shape
+        for arr in with_this_preapplied:
+            assert arr.shape[-1] == self.included_flat_indices.size
+        for arr in with_other_preapplied:
+            assert arr.shape[-1] == other.included_flat_indices.size
+
+        common_indices, indices_of_common_in_self, indices_of_common_in_other = np.intersect1d(
+            self.included_flat_indices,
+            other.included_flat_indices,
+            assume_unique=True,
+            return_indices=True)
+
+        result = [self.apply(arr, flat_indices=common_indices) for arr in arrs]
+        if len(with_this_preapplied) > 0:
+            result += [
+                arr[..., indices_of_common_in_self]
+                for arr in with_this_preapplied
+            ]
+        if len(with_other_preapplied) > 0:
+            result += [
+                arr[..., indices_of_common_in_other]
+                for arr in with_other_preapplied
+            ]
+
+        return result
+
+    def apply_unioned(self,
+                      other,
+                      *arrs,
+                      with_this_preapplied=[],
+                      with_other_preapplied=[],
+                      fill_value=0.0):
+        assert other.shape == self.shape
+        for arr in with_this_preapplied:
+            assert arr.shape[-1] == self.included_flat_indices.size
+        for arr in with_other_preapplied:
+            assert arr.shape[-1] == other.included_flat_indices.size
+
+        all_occurring_indices = np.union1d(self.included_flat_indices,
+                                           other.included_flat_indices)
+
+        result = [
+            self.apply(arr, flat_indices=all_occurring_indices) for arr in arrs
+        ]
+
+        if len(with_this_preapplied) > 0:
+            indices_of_self_in_all = np.searchsorted(
+                all_occurring_indices, self.included_flat_indices)
+            for arr in with_this_preapplied:
+                new_arr = np.full(
+                    (*arr.shape[:-1], all_occurring_indices.size), fill_value)
+                new_arr[..., indices_of_self_in_all] = arr
+                result.append(new_arr)
+
+        if len(with_other_preapplied) > 0:
+            indices_of_other_in_all = np.searchsorted(
+                all_occurring_indices, other.included_flat_indices)
+            for arr in with_other_preapplied:
+                new_arr = np.full(
+                    (*arr.shape[:-1], all_occurring_indices.size), fill_value)
+                new_arr[..., indices_of_other_in_all] = arr
+                result.append(new_arr)
+
+        return result
 
 
 class tempmap(np.memmap):
