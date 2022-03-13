@@ -70,14 +70,21 @@ class ScalarField3:
         if not isinstance(quantities, list) and not isinstance(
                 quantities, tuple):
             quantities = [quantities]
+
+        def get_quantity(quantity):
+            if isinstance(quantity, str):
+                return bifrost_data.get_var(quantity)
+            else:
+                return quantity
+
         k_slice = slice(*((None, ) if height_range is None else np.
                           searchsorted(z_coords, height_range)))
-        values = value_processor(
-            *(bifrost_data.get_var(quantity)[:, :, ::-1][:, :, k_slice]
-              for quantity in quantities))
+        values = value_processor(*(get_quantity(quantity)[:, :, ::-1][:, :,
+                                                                      k_slice]
+                                   for quantity in quantities))
         z_coords = z_coords[k_slice]
         if scale is not None:
-            values *= scale
+            values = values * scale
 
         return ScalarField3(Coords3(bifrost_data.x, bifrost_data.y, z_coords),
                             values)
