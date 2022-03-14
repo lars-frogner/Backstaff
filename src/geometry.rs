@@ -950,6 +950,30 @@ impl<I: num::Integer> Idx3<I> {
             I::from(other[Z]).expect("Conversion failed"),
         )
     }
+
+    /// Constructs a new 3D index by taking the component-wise max with the given index.
+    pub fn max_with(&self, other: &Self) -> Self
+    where
+        I: Copy,
+    {
+        Self::new(
+            I::max(self[X], other[X]),
+            I::max(self[Y], other[Y]),
+            I::max(self[Z], other[Z]),
+        )
+    }
+
+    /// Constructs a new 3D index by taking the component-wise min with the given index.
+    pub fn min_with(&self, other: &Self) -> Self
+    where
+        I: Copy,
+    {
+        Self::new(
+            I::min(self[X], other[X]),
+            I::min(self[Y], other[Y]),
+            I::min(self[Z], other[Z]),
+        )
+    }
 }
 
 impl<I: num::Integer> Index<Dim3> for Idx3<I> {
@@ -998,6 +1022,28 @@ impl<I: num::Integer> Idx2<I> {
         Self::new(
             I::from(other[Dim2::X]).expect("Conversion failed"),
             I::from(other[Dim2::Y]).expect("Conversion failed"),
+        )
+    }
+
+    /// Constructs a new 2D index by taking the component-wise max with the given index.
+    pub fn max_with(&self, other: &Self) -> Self
+    where
+        I: Copy,
+    {
+        Self::new(
+            I::max(self[Dim2::X], other[Dim2::X]),
+            I::max(self[Dim2::Y], other[Dim2::Y]),
+        )
+    }
+
+    /// Constructs a new 2D index by taking the component-wise min with the given index.
+    pub fn min_with(&self, other: &Self) -> Self
+    where
+        I: Copy,
+    {
+        Self::new(
+            I::min(self[Dim2::X], other[Dim2::X]),
+            I::min(self[Dim2::Y], other[Dim2::Y]),
         )
     }
 }
