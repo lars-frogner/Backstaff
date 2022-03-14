@@ -19,20 +19,20 @@ pub enum Dim3 {
 impl Dim3 {
     /// Creates an array for iterating over the x-, y- and z-dimensions.
     pub fn slice() -> [Self; 3] {
-        [Dim3::X, Dim3::Y, Dim3::Z]
+        [Self::X, Self::Y, Self::Z]
     }
 
     /// Creates an array for iterating over the x- and y-dimensions.
     pub fn slice_xy() -> [Self; 2] {
-        [Dim3::X, Dim3::Y]
+        [Self::X, Self::Y]
     }
 
     /// Creates an array for iterating over all three dimensions except the given one.
     pub fn slice_except(dim: Self) -> [Self; 2] {
         match dim {
-            Dim3::X => [Dim3::Y, Dim3::Z],
-            Dim3::Y => [Dim3::X, Dim3::Z],
-            Dim3::Z => [Dim3::X, Dim3::Y],
+            Self::X => [Self::Y, Self::Z],
+            Self::Y => [Self::X, Self::Z],
+            Self::Z => [Self::X, Self::Y],
         }
     }
 }
@@ -63,7 +63,7 @@ pub enum Dim2 {
 impl Dim2 {
     /// Creates an array for iterating over the x- and y-dimensions.
     pub fn slice() -> [Self; 2] {
-        [Dim2::X, Dim2::Y]
+        [Self::X, Self::Y]
     }
 }
 
@@ -87,7 +87,7 @@ pub struct In3D<T>([T; 3]);
 impl<T> In3D<T> {
     /// Creates a new 3D quantity given the three components.
     pub fn new(x: T, y: T, z: T) -> Self {
-        In3D([x, y, z])
+        Self([x, y, z])
     }
 
     /// Creates a new 3D quantity with the given value copied into all components.
@@ -95,7 +95,7 @@ impl<T> In3D<T> {
     where
         T: Copy,
     {
-        In3D([a, a, a])
+        Self([a, a, a])
     }
 
     /// Creates a new 3D quantity with the given value cloned into all components.
@@ -103,7 +103,7 @@ impl<T> In3D<T> {
     where
         T: Clone,
     {
-        In3D([a.clone(), a.clone(), a])
+        Self([a.clone(), a.clone(), a])
     }
 
     /// Creates a new tuple containing copies of the three components.
@@ -144,7 +144,7 @@ pub struct In2D<T>([T; 2]);
 impl<T> In2D<T> {
     /// Creates a new 2D quantity given the two components.
     pub fn new(x: T, y: T) -> Self {
-        In2D([x, y])
+        Self([x, y])
     }
 
     /// Creates a new 2D quantity with the given value copied into both components.
@@ -152,7 +152,7 @@ impl<T> In2D<T> {
     where
         T: Copy,
     {
-        In2D([a, a])
+        Self([a, a])
     }
 
     /// Creates a new 2D quantity with the given value cloned into all components.
@@ -160,7 +160,7 @@ impl<T> In2D<T> {
     where
         T: Clone,
     {
-        In2D([a.clone(), a])
+        Self([a.clone(), a])
     }
 
     /// Creates a new tuple containing copies of the three components.
@@ -201,22 +201,22 @@ pub struct Vec3<F: BFloat>(In3D<F>);
 impl<F: BFloat> Vec3<F> {
     /// Creates a new 3D vector given the three components.
     pub fn new(x: F, y: F, z: F) -> Self {
-        Vec3(In3D::new(x, y, z))
+        Self(In3D::new(x, y, z))
     }
 
     /// Creates a new zero vector.
     pub fn zero() -> Self {
-        Vec3::new(F::zero(), F::zero(), F::zero())
+        Self::new(F::zero(), F::zero(), F::zero())
     }
 
     /// Creates a new vector with all component equal to the given value.
     pub fn equal_components(a: F) -> Self {
-        Vec3::new(a, a, a)
+        Self::new(a, a, a)
     }
 
     /// Creates a new vector from the given vector, which may have a different component type.
     pub fn from<U: BFloat>(other: &Vec3<U>) -> Self {
-        Vec3::new(
+        Self::new(
             F::from(other[X]).expect("Conversion failed"),
             F::from(other[Y]).expect("Conversion failed"),
             F::from(other[Z]).expect("Conversion failed"),
@@ -230,7 +230,7 @@ impl<F: BFloat> Vec3<F> {
 
     /// Constructs a new vector from the absolute values of the vector components.
     pub fn abs(&self) -> Self {
-        Vec3::new(
+        Self::new(
             num::Float::abs(self[X]),
             num::Float::abs(self[Y]),
             num::Float::abs(self[Z]),
@@ -239,7 +239,7 @@ impl<F: BFloat> Vec3<F> {
 
     /// Constructs a new vector by taking the component-wise max with the given vector.
     pub fn max_with(&self, other: &Self) -> Self {
-        Vec3::new(
+        Self::new(
             F::max(self[X], other[X]),
             F::max(self[Y], other[Y]),
             F::max(self[Z], other[Z]),
@@ -248,7 +248,7 @@ impl<F: BFloat> Vec3<F> {
 
     /// Constructs a new vector by taking the component-wise min with the given vector.
     pub fn min_with(&self, other: &Self) -> Self {
-        Vec3::new(
+        Self::new(
             F::min(self[X], other[X]),
             F::min(self[Y], other[Y]),
             F::min(self[Z], other[Z]),
@@ -413,22 +413,22 @@ pub struct Vec2<F: BFloat>(In2D<F>);
 impl<F: BFloat> Vec2<F> {
     /// Creates a new 2D vector given the three components.
     pub fn new(x: F, y: F) -> Self {
-        Vec2(In2D::new(x, y))
+        Self(In2D::new(x, y))
     }
 
     /// Creates a new zero vector.
     pub fn zero() -> Self {
-        Vec2::new(F::zero(), F::zero())
+        Self::new(F::zero(), F::zero())
     }
 
     /// Creates a new vector with all component equal to the given value.
     pub fn equal_components(a: F) -> Self {
-        Vec2::new(a, a)
+        Self::new(a, a)
     }
 
     /// Creates a new vector from the given vector, which may have a different component type.
     pub fn from<U: BFloat>(other: &Vec2<U>) -> Self {
-        Vec2::new(
+        Self::new(
             F::from(other[Dim2::X]).expect("Conversion failed"),
             F::from(other[Dim2::Y]).expect("Conversion failed"),
         )
@@ -441,7 +441,7 @@ impl<F: BFloat> Vec2<F> {
 
     /// Constructs a new vector from the absolute values of the vector components.
     pub fn abs(&self) -> Self {
-        Vec2::new(
+        Self::new(
             num::Float::abs(self[Dim2::X]),
             num::Float::abs(self[Dim2::Y]),
         )
@@ -449,7 +449,7 @@ impl<F: BFloat> Vec2<F> {
 
     /// Constructs a new vector by taking the component-wise max with the given vector.
     pub fn max_with(&self, other: &Self) -> Self {
-        Vec2::new(
+        Self::new(
             F::max(self[Dim2::X], other[Dim2::X]),
             F::max(self[Dim2::Y], other[Dim2::Y]),
         )
@@ -457,7 +457,7 @@ impl<F: BFloat> Vec2<F> {
 
     /// Constructs a new vector by taking the component-wise min with the given vector.
     pub fn min_with(&self, other: &Self) -> Self {
-        Vec2::new(
+        Self::new(
             F::min(self[Dim2::X], other[Dim2::X]),
             F::min(self[Dim2::Y], other[Dim2::Y]),
         )
@@ -620,7 +620,7 @@ pub struct Point3<F: BFloat>(In3D<F>);
 impl<F: BFloat> Point3<F> {
     /// Creates a new 3D point given the three components.
     pub fn new(x: F, y: F, z: F) -> Self {
-        Point3(In3D::new(x, y, z))
+        Self(In3D::new(x, y, z))
     }
 
     /// Creates a new 3D point with all components set to zero.
@@ -630,7 +630,7 @@ impl<F: BFloat> Point3<F> {
 
     /// Creates a new point with all component equal to the given value.
     pub fn equal_components(a: F) -> Self {
-        Point3::new(a, a, a)
+        Self::new(a, a, a)
     }
 
     /// Creates a new point from the given point, which may have a different component type.
@@ -640,7 +640,7 @@ impl<F: BFloat> Point3<F> {
 
     /// Creates a new point from the given components, which may have different types.
     pub fn from_components<U: BFloat, V: BFloat, W: BFloat>(x: U, y: V, z: W) -> Self {
-        Point3::new(
+        Self::new(
             F::from(x).expect("Conversion failed"),
             F::from(y).expect("Conversion failed"),
             F::from(z).expect("Conversion failed"),
@@ -775,7 +775,7 @@ pub struct Point2<F: BFloat>(In2D<F>);
 impl<F: BFloat> Point2<F> {
     /// Creates a new 2D point given the three components.
     pub fn new(x: F, y: F) -> Self {
-        Point2(In2D::new(x, y))
+        Self(In2D::new(x, y))
     }
 
     /// Creates a new 2D point with all components set to zero.
@@ -785,12 +785,12 @@ impl<F: BFloat> Point2<F> {
 
     /// Creates a new point with all component equal to the given value.
     pub fn equal_components(a: F) -> Self {
-        Point2::new(a, a)
+        Self::new(a, a)
     }
 
     /// Creates a new point from the given components, which may have a different type.
     pub fn from_components<U: BFloat, V: BFloat>(x: U, y: V) -> Self {
-        Point2::new(
+        Self::new(
             F::from(x).expect("Conversion failed"),
             F::from(y).expect("Conversion failed"),
         )
@@ -930,12 +930,12 @@ pub struct Idx3<I: num::Integer>(In3D<I>);
 impl<I: num::Integer> Idx3<I> {
     /// Creates a new 3D index given the three components.
     pub fn new(i: I, j: I, k: I) -> Self {
-        Idx3(In3D::new(i, j, k))
+        Self(In3D::new(i, j, k))
     }
 
     /// Creates a new 3D index with all components set to zero.
     pub fn origin() -> Self {
-        Idx3::new(I::zero(), I::zero(), I::zero())
+        Self::new(I::zero(), I::zero(), I::zero())
     }
 
     /// Creates a new 3D index from the given index, which may have a different component type.
@@ -944,7 +944,7 @@ impl<I: num::Integer> Idx3<I> {
         I: num::NumCast + Copy,
         U: num::Integer + num::NumCast + Copy,
     {
-        Idx3::new(
+        Self::new(
             I::from(other[X]).expect("Conversion failed"),
             I::from(other[Y]).expect("Conversion failed"),
             I::from(other[Z]).expect("Conversion failed"),
@@ -981,12 +981,12 @@ pub struct Idx2<I: num::Integer>(In2D<I>);
 impl<I: num::Integer> Idx2<I> {
     /// Creates a new 2D index given the three components.
     pub fn new(i: I, j: I) -> Self {
-        Idx2(In2D::new(i, j))
+        Self(In2D::new(i, j))
     }
 
     /// Creates a new 2D index with all components set to zero.
     pub fn origin() -> Self {
-        Idx2::new(I::zero(), I::zero())
+        Self::new(I::zero(), I::zero())
     }
 
     /// Creates a new 2D index from the given index, which may have a different component type.
@@ -995,7 +995,7 @@ impl<I: num::Integer> Idx2<I> {
         I: num::NumCast + Copy,
         U: num::Integer + num::NumCast + Copy,
     {
-        Idx2::new(
+        Self::new(
             I::from(other[Dim2::X]).expect("Conversion failed"),
             I::from(other[Dim2::Y]).expect("Conversion failed"),
         )
@@ -1031,7 +1031,7 @@ pub struct Coords3<F: BFloat>(In3D<Vec<F>>);
 impl<F: BFloat> Coords3<F> {
     /// Creates a new 3D set of coordinates given the component 1D coordinates.
     pub fn new(x: Vec<F>, y: Vec<F>, z: Vec<F>) -> Self {
-        Coords3(In3D::new(x, y, z))
+        Self(In3D::new(x, y, z))
     }
 
     /// Creates a 3D point from the coordinates at the given indices.
@@ -1074,7 +1074,7 @@ pub struct Coords2<F: BFloat>(In2D<Vec<F>>);
 impl<F: BFloat> Coords2<F> {
     /// Creates a new 2D set of coordinates given the component 1D coordinates.
     pub fn new(x: Vec<F>, y: Vec<F>) -> Self {
-        Coords2(In2D::new(x, y))
+        Self(In2D::new(x, y))
     }
 
     /// Creates a 2D point from the coordinates at the given indices.
@@ -1106,7 +1106,7 @@ pub struct CoordRefs3<'a, F: BFloat>(In3D<&'a [F]>);
 impl<'a, F: BFloat> CoordRefs3<'a, F> {
     /// Creates a new 3D set of coordinate references given references to the component arrays.
     pub fn new(x: &'a [F], y: &'a [F], z: &'a [F]) -> Self {
-        CoordRefs3(In3D::new(x, y, z))
+        Self(In3D::new(x, y, z))
     }
 
     /// Clones the coordinate references to produce a set of owned coordinate arrays.
@@ -1138,7 +1138,7 @@ pub struct CoordRefs2<'a, F: BFloat>(In2D<&'a [F]>);
 impl<'a, F: BFloat> CoordRefs2<'a, F> {
     /// Creates a new 2D set of coordinate references given references to the component arrays.
     pub fn new(x: &'a [F], y: &'a [F]) -> Self {
-        CoordRefs2(In2D::new(x, y))
+        Self(In2D::new(x, y))
     }
 
     /// Clones the coordinate references to produce a set of owned coordinate arrays.
