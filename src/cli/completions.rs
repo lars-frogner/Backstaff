@@ -43,6 +43,11 @@ pub fn create_completions_subcommand() -> Command<'static> {
     This installs the completion script. You may have to log out and
     log back in to your shell session for the changes to take affect.
 
+    If completion still doesn't work, try sourcing the completion script
+    in your `.bashrc` file:
+
+        source ~/.local/share/bash-completion/completions/backstaff
+
     BASH (macOS/Homebrew):
 
     Homebrew stores bash completion files within the Homebrew directory.
