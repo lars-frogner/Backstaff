@@ -45,7 +45,13 @@ where
     I: Iterator<Item = &'b str>,
 {
     value_strings
-        .map(|value_string| parse_value_string(argument_name, value_string))
+        .filter_map(|value_string| {
+            if value_string.is_empty() {
+                None
+            } else {
+                Some(parse_value_string(argument_name, value_string))
+            }
+        })
         .collect()
 }
 
