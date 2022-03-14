@@ -72,17 +72,7 @@ backstaff-snapshot
 Specify input snapshot to perform further actions on
 
 USAGE:
-    backstaff snapshot [FLAGS] [OPTIONS] <INPUT_FILE> <SUBCOMMAND>
-
-FLAGS:
-    -v, --verbose    Print status messages related to reading
-    -h, --help       Print help information
-
-OPTIONS:
-    -r, --snap-range=<FIRST>,<LAST>    Inclusive range of snapshot numbers associated with the input snapshot to
-                                       process [default: only process INPUT_FILE]
-    -e, --endianness=<ENDIANNESS>      Endianness to assume for snapshots in native binary format
-                                        [default: little]  [possible values: little, big, native]
+    backstaff snapshot [OPTIONS] <INPUT_FILE> <SUBCOMMAND>
 
 ARGS:
     <INPUT_FILE>    Path to the file representing the snapshot.
@@ -90,11 +80,22 @@ ARGS:
                         *.idl: Parameter file with associated .snap [and .aux] file
                         *.nc: NetCDF file using the CF convention (requires the netcdf feature)
 
+OPTIONS:
+    -r, --snap-range=<FIRST>,<LAST>    Inclusive range of snapshot numbers associated with the input
+                                       snapshot to
+                                       process [default: only process INPUT_FILE]
+    -e, --endianness=<ENDIANNESS>      Endianness to assume for snapshots in native binary format
+                                        [default: little] [possible values: little, big, native]
+    -v, --verbose                      Print status messages related to reading
+    -h, --help                         Print help information
+
 SUBCOMMANDS:
     inspect     Inspect properties of the snapshot
     slice       Extract a 2D slice of a quantity field in the snapshot
-    resample    Creates a resampled version of the snapshot
+    extract     Extract a subdomain of the snapshot
+    resample    Create a resampled version of the snapshot
     write       Write snapshot data to file
+    corks       Trace corks in the velocity field of a set of snapshots
 ```
 
 Here is a graph of the command hierarchy available when all features are enabled.
