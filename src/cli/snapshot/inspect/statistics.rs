@@ -414,31 +414,34 @@ fn print_statistics_report<G, R, I>(
             print_name_value_pair("Average value", "N/A");
         }
 
-        if let Some(quantile_p_values) = quantile_p_values {
-            if number_of_values > 0 && max_value > min_value {
-                let percentiles: Vec<_> = quantile_p_values
-                    .par_iter()
-                    .map(|&p| {
-                        exit_on_error!(
-                            Array1::from(values_slice.to_vec()).quantile_axis_skipnan_mut(
-                                Axis(0),
-                                n64(p),
-                                &Linear
-                            ),
-                            "Could not compute percentile: {}"
-                        )
-                        .into_scalar()
-                    })
-                    .collect();
-                for (p, percentile) in quantile_p_values.iter().zip(percentiles) {
-                    print_name_value_pair(
-                        &format!("{}th percentile", p * 100.0),
-                        format_value(percentile),
-                    );
+        match quantile_p_values {
+            Some(quantile_p_values) if !quantile_p_values.is_empty() => {
+                if number_of_values > 0 && max_value > min_value {
+                    let percentiles: Vec<_> = quantile_p_values
+                        .par_iter()
+                        .map(|&p| {
+                            exit_on_error!(
+                                Array1::from(values_slice.to_vec()).quantile_axis_skipnan_mut(
+                                    Axis(0),
+                                    n64(p),
+                                    &Linear
+                                ),
+                                "Could not compute percentile: {}"
+                            )
+                            .into_scalar()
+                        })
+                        .collect();
+                    for (p, percentile) in quantile_p_values.iter().zip(percentiles) {
+                        print_name_value_pair(
+                            &format!("{}th percentile", p * 100.0),
+                            format_value(percentile),
+                        );
+                    }
+                } else {
+                    print_name_value_pair("Percentiles", "N/A");
                 }
-            } else {
-                print_name_value_pair("Percentiles", "N/A");
             }
+            _ => {}
         }
     }
 
@@ -555,30 +558,33 @@ fn print_slice_statistics_report<G: Grid3<fdt>, I: Interpolator3>(
         print_name_value_pair("Average value", "N/A");
     }
 
-    if let Some(quantile_p_values) = quantile_p_values {
-        if number_of_values > 0 && max_value > min_value {
-            let percentiles: Vec<_> = quantile_p_values
-                .par_iter()
-                .map(|&p| {
-                    exit_on_error!(
-                        Array1::from(values_slice.to_vec()).quantile_axis_skipnan_mut(
-                            Axis(0),
-                            n64(p),
-                            &Linear
-                        ),
-                        "Could not compute percentile: {}"
-                    )
-                    .into_scalar()
-                })
-                .collect();
-            for (p, percentile) in quantile_p_values.iter().zip(percentiles) {
-                print_name_value_pair(
-                    &format!("{}th percentile", p * 100.0),
-                    format_value(percentile),
-                );
+    match quantile_p_values {
+        Some(quantile_p_values) if !quantile_p_values.is_empty() => {
+            if !quantile_p_values.is_empty() && number_of_values > 0 && max_value > min_value {
+                let percentiles: Vec<_> = quantile_p_values
+                    .par_iter()
+                    .map(|&p| {
+                        exit_on_error!(
+                            Array1::from(values_slice.to_vec()).quantile_axis_skipnan_mut(
+                                Axis(0),
+                                n64(p),
+                                &Linear
+                            ),
+                            "Could not compute percentile: {}"
+                        )
+                        .into_scalar()
+                    })
+                    .collect();
+                for (p, percentile) in quantile_p_values.iter().zip(percentiles) {
+                    print_name_value_pair(
+                        &format!("{}th percentile", p * 100.0),
+                        format_value(percentile),
+                    );
+                }
+            } else {
+                print_name_value_pair("Percentiles", "N/A");
             }
-        } else {
-            print_name_value_pair("Percentiles", "N/A");
         }
+        _ => {}
     }
 }
