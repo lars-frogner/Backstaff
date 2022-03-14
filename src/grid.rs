@@ -158,8 +158,8 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 
         for &dim in &Dim3::slice() {
             assert!(
-                start_indices[dim] < end_indices[dim],
-                "Start index is not smaller than end index"
+                start_indices[dim] <= end_indices[dim],
+                "Start index is not smaller than or equal to end index"
             );
             assert!(
                 end_indices[dim] < shape[dim],
@@ -178,6 +178,17 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
             self.down_derivatives()
                 .map(|coords| coords.subcoords(start_indices, end_indices)),
         )
+    }
+
+    /// Returns the lower corner of the grid cell of the given 3D index.
+    fn grid_cell_lower_corner(&self, indices: &Idx3<usize>) -> Point3<F> {
+        self.lower_edges().point(indices)
+    }
+
+    /// Returns the upper corner of the grid cell of the given 3D index.
+    fn grid_cell_upper_corner(&self, indices: &Idx3<usize>) -> Point3<F> {
+        let grid_cell_extents = self.grid_cell_extents(indices);
+        self.grid_cell_lower_corner(indices) + &grid_cell_extents
     }
 
     /// Returns the lower and upper corner of the grid cell of the given 3D index.
