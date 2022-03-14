@@ -82,8 +82,7 @@ ARGS:
 
 OPTIONS:
     -r, --snap-range=<FIRST>,<LAST>    Inclusive range of snapshot numbers associated with the input
-                                       snapshot to
-                                       process [default: only process INPUT_FILE]
+                                       snapshot to process [default: only process INPUT_FILE]
     -e, --endianness=<ENDIANNESS>      Endianness to assume for snapshots in native binary format
                                         [default: little] [possible values: little, big, native]
     -v, --verbose                      Print status messages related to reading
