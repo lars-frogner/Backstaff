@@ -38,7 +38,7 @@ pub fn create_completions_subcommand() -> Command<'static> {
     Run the command:
 
         $ mkdir -p ~/.local/share/bash-completion/completions
-        $ backstaff -- completions bash >> ~/.local/share/bash-completion/completions/backstaff
+        $ backstaff completions bash >> ~/.local/share/bash-completion/completions/backstaff
 
     This installs the completion script. You may have to log out and
     log back in to your shell session for the changes to take affect.
@@ -49,7 +49,7 @@ pub fn create_completions_subcommand() -> Command<'static> {
     With the `bash-completion` brew formula installed, run the command:
 
         $ mkdir -p $(brew --prefix)/etc/bash_completion.d
-        $ backstaff -- completions bash > $(brew --prefix)/etc/bash_completion.d/backstaff.bash-completion
+        $ backstaff completions bash > $(brew --prefix)/etc/bash_completion.d/backstaff.bash-completion
 
     ZSH:
 
@@ -65,15 +65,14 @@ pub fn create_completions_subcommand() -> Command<'static> {
 
         $ mkdir ~/.zfunc
 
-    Then add the following lines to your `.zshrc` just before
-    `compinit`:
+    Then add the following line to the beginning of your `.zshrc`:
 
         fpath+=~/.zfunc
 
     Now you can install the completions script using the following
     command:
 
-        $ backstaff -- completions zsh > ~/.zfunc/_backstaff
+        $ backstaff completions zsh > ~/.zfunc/_backstaff
 
     You must then either log out and log back in, or simply run
 
@@ -87,7 +86,7 @@ pub fn create_completions_subcommand() -> Command<'static> {
     `$HOME/.config/fish/completions`. Run the command:
 
         $ mkdir -p ~/.config/fish/completions
-        $ backstaff -- completions fish > ~/.config/fish/completions/backstaff.fish
+        $ backstaff completions fish > ~/.config/fish/completions/backstaff.fish
 
     This installs the completion script. You may have to log out and
     log back in to your shell session for the changes to take affect."#
