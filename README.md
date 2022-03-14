@@ -266,5 +266,3 @@ The [clap](https://clap.rs/) argument parser powering the `backstaff` CLI can ge
 $ backstaff completions -h
 ```
 and follow the instructions.
-
-**_NOTE:_**  Unfortunately, automatic completion of relative file paths is currently not supported by the generated completion file, meaning that relative paths will not be completed inside the `backstaff` command if argument completion is enabled.
