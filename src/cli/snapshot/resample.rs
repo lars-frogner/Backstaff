@@ -41,9 +41,9 @@ use std::{collections::HashMap, process, sync::Arc};
 /// Builds a representation of the `snapshot-resample` command line subcommand.
 pub fn create_resample_subcommand() -> Command<'static> {
     Command::new("resample")
-        .about("Creates a resampled version of the snapshot")
+        .about("Create a resampled version of the snapshot")
         .long_about(
-            "Creates a resampled version of the snapshot.\n\
+            "Create a resampled version of the snapshot.\n\
              The snapshot is resampled to a regular grid of configurable shape and bounds,\n\
              or to an arbitrary grid specified by a Bifrost mesh file.",
         )

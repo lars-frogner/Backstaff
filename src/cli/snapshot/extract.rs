@@ -20,9 +20,9 @@ use std::{collections::HashMap, sync::Arc};
 /// Builds a representation of the `snapshot-extract` command line subcommand.
 pub fn create_extract_subcommand() -> Command<'static> {
     Command::new("extract")
-        .about("Extracts a subdomain of the snapshot")
+        .about("Extract a subdomain of the snapshot")
         .long_about(
-            "Extracts a subdomain of the snapshot.\n\
+            "Extract a subdomain of the snapshot.\n\
              Creates new snapshot that is restricted to a specified subgrid of the\n\
              original one, with identical values. The subgrid can be specified\n\
              with coordinate bounds, index ranges or a combination of these.",
