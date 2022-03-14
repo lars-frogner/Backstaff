@@ -286,8 +286,10 @@ pub fn parse_limits(arguments: &ArgMatches, argument_name: &str) -> (fdt, fdt) {
         .collect();
     exit_on_false!(
         limits[1] >= limits[0],
-        "Error: Second value in {} must be larger than or equal to first value",
-        argument_name
+        "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
+        argument_name,
+        limits[1],
+        limits[0]
     );
     (limits[0], limits[1])
 }
@@ -303,8 +305,8 @@ where
     <I as FromStr>::Err: std::fmt::Display,
 {
     assert!(
-        max_value > min_value,
-        "Max int value ({}) not larger than min value ({})",
+        max_value >= min_value,
+        "Max int value ({}) not larger than or equal to min value ({})",
         max_value,
         min_value
     );
@@ -324,8 +326,10 @@ where
         .collect();
     exit_on_false!(
         limits[1] >= limits[0],
-        "Error: Second value in {} must be larger than first value",
-        argument_name
+        "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
+        argument_name,
+        limits[1],
+        limits[0]
     );
     (limits[0], limits[1])
 }
