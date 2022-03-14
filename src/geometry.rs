@@ -406,6 +406,12 @@ impl<'a, F: BFloat> IntoIterator for &'a Vec3<F> {
     }
 }
 
+impl<F: BFloat + fmt::Display> fmt::Display for Vec3<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {}, {})", self[X], self[Y], self[Z])
+    }
+}
+
 /// A 2D vector.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Vec2<F: BFloat>(In2D<F>);
@@ -613,6 +619,12 @@ impl<'a, F: BFloat> IntoIterator for &'a Vec2<F> {
     }
 }
 
+impl<F: BFloat + fmt::Display> fmt::Display for Vec2<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self[Dim2::X], self[Dim2::Y])
+    }
+}
+
 /// A 3D spatial coordinate.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Point3<F: BFloat>(In3D<F>);
@@ -765,6 +777,12 @@ impl<'a, F: BFloat> IntoIterator for &'a Point3<F> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<F: BFloat + fmt::Display> fmt::Display for Point3<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {}, {})", self[X], self[Y], self[Z])
     }
 }
 
@@ -923,6 +941,12 @@ impl<'a, F: BFloat> IntoIterator for &'a Point2<F> {
     }
 }
 
+impl<F: BFloat + fmt::Display> fmt::Display for Point2<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self[Dim2::X], self[Dim2::Y])
+    }
+}
+
 /// A 3D index.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Idx3<I: num::Integer>(In3D<I>);
@@ -998,6 +1022,12 @@ impl<'a, I: num::Integer> IntoIterator for &'a Idx3<I> {
     }
 }
 
+impl<I: num::Integer + fmt::Display> fmt::Display for Idx3<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}, {}, {}]", self[X], self[Y], self[Z])
+    }
+}
+
 /// A 2D index.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Idx2<I: num::Integer>(In2D<I>);
@@ -1067,6 +1097,12 @@ impl<'a, I: num::Integer> IntoIterator for &'a Idx2<I> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<I: num::Integer + fmt::Display> fmt::Display for Idx2<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}, {}]", self[Dim2::X], self[Dim2::Y])
     }
 }
 
