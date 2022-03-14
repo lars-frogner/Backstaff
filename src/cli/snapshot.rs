@@ -104,6 +104,7 @@ pub fn create_snapshot_subcommand() -> Command<'static> {
         )
         .subcommand(create_subcommand!(snapshot, inspect))
         .subcommand(create_subcommand!(snapshot, slice))
+        .subcommand(create_subcommand!(snapshot, extract))
         .subcommand(create_subcommand!(snapshot, resample))
         .subcommand(create_subcommand!(snapshot, write))
         .subcommand(create_subcommand!(snapshot, corks));
@@ -258,21 +259,20 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                     protected_file_types,
                 );
             }
+            if let Some(extract_arguments) = arguments.subcommand_matches("extract") {
+                extract::run_extract_subcommand(
+                    extract_arguments,
+                    snapshot.reader(),
+                    $snap_num_in_range,
+                    protected_file_types,
+                );
+            }
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
                 resample::run_resample_subcommand(
                     resample_arguments,
                     snapshot.reader(),
                     $snap_num_in_range,
                     protected_file_types,
-                );
-            }
-            if let Some(corks_arguments) = arguments.subcommand_matches("corks") {
-                corks::run_corks_subcommand(
-                    corks_arguments,
-                    &mut snapshot,
-                    $snap_num_in_range,
-                    protected_file_types,
-                    &mut corks_state,
                 );
             }
             if let Some(write_arguments) = arguments.subcommand_matches("write") {
@@ -284,6 +284,15 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                     HashMap::new(),
                     |field| Ok(field),
                     protected_file_types,
+                );
+            }
+            if let Some(corks_arguments) = arguments.subcommand_matches("corks") {
+                corks::run_corks_subcommand(
+                    corks_arguments,
+                    &mut snapshot,
+                    $snap_num_in_range,
+                    protected_file_types,
+                    &mut corks_state,
                 );
             }
             #[cfg(feature = "tracing")]
