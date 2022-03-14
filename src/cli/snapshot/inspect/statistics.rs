@@ -338,7 +338,7 @@ fn print_statistics_report<G, R, I>(
                     || point[Z] < z_range.0
                     || point[Z] > z_range.1
                 {
-                    *value = std::f32::NAN;
+                    *value = fdt::NAN;
                 }
             });
     }
@@ -355,7 +355,7 @@ fn print_statistics_report<G, R, I>(
             .count();
         print_name_value_pair("Number of values", number_of_values);
 
-        match filtered_field.find_minimum() {
+        let min_value = match filtered_field.find_minimum() {
             Some((min_indices, min_value)) => {
                 let min_point = coords.point(&min_indices);
                 print_name_value_pair(
@@ -371,11 +371,15 @@ fn print_statistics_report<G, R, I>(
                         format_idx(min_indices[Z]),
                     ),
                 );
+                min_value
             }
-            None => print_name_value_pair("Minimum value", "N/A"),
-        }
+            None => {
+                print_name_value_pair("Minimum value", "N/A");
+                fdt::NAN
+            }
+        };
 
-        match filtered_field.find_maximum() {
+        let max_value = match filtered_field.find_maximum() {
             Some((max_indices, max_value)) => {
                 let max_point = coords.point(&max_indices);
                 print_name_value_pair(
@@ -391,9 +395,13 @@ fn print_statistics_report<G, R, I>(
                         format_idx(max_indices[Z]),
                     ),
                 );
+                max_value
             }
-            None => print_name_value_pair("Maximum value", "N/A"),
-        }
+            None => {
+                print_name_value_pair("Maximum value", "N/A");
+                fdt::NAN
+            }
+        };
 
         if number_of_values > 0 {
             let sum: fdt = values_slice
@@ -407,7 +415,7 @@ fn print_statistics_report<G, R, I>(
         }
 
         if let Some(quantile_p_values) = quantile_p_values {
-            if number_of_values > 0 {
+            if number_of_values > 0 && max_value > min_value {
                 let percentiles: Vec<_> = quantile_p_values
                     .par_iter()
                     .map(|&p| {
@@ -480,7 +488,7 @@ fn print_slice_statistics_report<G: Grid3<fdt>, I: Interpolator3>(
         .count();
     print_name_value_pair("Number of values", number_of_values);
 
-    match sliced_field.find_minimum() {
+    let min_value = match sliced_field.find_minimum() {
         Some((min_indices, min_value)) => {
             let min_point = coords.point(&min_indices);
             let z_idx = field
@@ -500,11 +508,15 @@ fn print_slice_statistics_report<G: Grid3<fdt>, I: Interpolator3>(
                     format_idx(z_idx),
                 ),
             );
+            min_value
         }
-        None => print_name_value_pair("Minimum value", "N/A"),
-    }
+        None => {
+            print_name_value_pair("Minimum value", "N/A");
+            fdt::NAN
+        }
+    };
 
-    match sliced_field.find_maximum() {
+    let max_value = match sliced_field.find_maximum() {
         Some((max_indices, max_value)) => {
             let max_point = coords.point(&max_indices);
             let z_idx = field
@@ -524,9 +536,13 @@ fn print_slice_statistics_report<G: Grid3<fdt>, I: Interpolator3>(
                     format_idx(z_idx),
                 ),
             );
+            max_value
         }
-        None => print_name_value_pair("Maximum value", "N/A"),
-    }
+        None => {
+            print_name_value_pair("Maximum value", "N/A");
+            fdt::NAN
+        }
+    };
 
     if number_of_values > 0 {
         let sum: fdt = values_slice
@@ -540,7 +556,7 @@ fn print_slice_statistics_report<G: Grid3<fdt>, I: Interpolator3>(
     }
 
     if let Some(quantile_p_values) = quantile_p_values {
-        if number_of_values > 0 {
+        if number_of_values > 0 && max_value > min_value {
             let percentiles: Vec<_> = quantile_p_values
                 .par_iter()
                 .map(|&p| {
