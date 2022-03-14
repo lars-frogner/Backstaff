@@ -161,6 +161,21 @@ where
         self.values
     }
 
+    /// Creates a new scalar field restricted to slices of the coordinate arrays of
+    /// the original field.
+    pub fn subfield(&self, subgrid: Arc<G>, start_indices: &Idx3<usize>) -> Self {
+        let subgrid_shape = subgrid.shape();
+        let values = self
+            .values
+            .slice(s![
+                start_indices[X]..(start_indices[X] + subgrid_shape[X]),
+                start_indices[Y]..(start_indices[Y] + subgrid_shape[Y]),
+                start_indices[Z]..(start_indices[Z] + subgrid_shape[Z])
+            ])
+            .to_owned();
+        Self::new(self.name.clone(), subgrid, self.locations.clone(), values)
+    }
+
     /// Computes the 3D indices and value of the minimum of the field.
     ///
     /// NaN values are ignored. Returns `None` if there are no finite values.

@@ -9,6 +9,7 @@ use crate::{
     },
 };
 use clap::{self, ArgMatches};
+use num;
 use std::str::FromStr;
 
 #[macro_export]
@@ -266,6 +267,71 @@ where
             })
             .collect()
     })
+}
+
+pub fn parse_limits(arguments: &ArgMatches, argument_name: &str) -> (fdt, fdt) {
+    let limits: Vec<_> = arguments
+        .values_of(argument_name)
+        .expect("No value for argument with default")
+        .into_iter()
+        .map(|string| match string {
+            "-inf" => std::f32::NEG_INFINITY,
+            "inf" => std::f32::INFINITY,
+            values_str => exit_on_error!(
+                values_str.parse::<fdt>(),
+                "Error: Could not parse value in {0}: {1}",
+                argument_name
+            ),
+        })
+        .collect();
+    exit_on_false!(
+        limits[1] >= limits[0],
+        "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
+        argument_name,
+        limits[1],
+        limits[0]
+    );
+    (limits[0], limits[1])
+}
+
+pub fn parse_int_limits<I>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    min_value: I,
+    max_value: I,
+) -> (I, I)
+where
+    I: num::Integer + Copy + FromStr + std::fmt::Display,
+    <I as FromStr>::Err: std::fmt::Display,
+{
+    assert!(
+        max_value >= min_value,
+        "Max int value ({}) not larger than or equal to min value ({})",
+        max_value,
+        min_value
+    );
+    let limits: Vec<_> = arguments
+        .values_of(argument_name)
+        .expect("No value for argument with default")
+        .into_iter()
+        .map(|string| match string {
+            "min" => min_value,
+            "max" => max_value,
+            values_str => exit_on_error!(
+                values_str.parse::<I>(),
+                "Error: Could not parse value in {0}: {1}",
+                argument_name
+            ),
+        })
+        .collect();
+    exit_on_false!(
+        limits[1] >= limits[0],
+        "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
+        argument_name,
+        limits[1],
+        limits[0]
+    );
+    (limits[0], limits[1])
 }
 
 pub fn overwrite_mode_from_arguments(arguments: &ArgMatches) -> OverwriteMode {

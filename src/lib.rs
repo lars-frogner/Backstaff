@@ -22,6 +22,13 @@ macro_rules! exit_on_false {
 }
 
 #[macro_export]
+macro_rules! exit_on_none {
+    ($option:expr, $($print_arg:tt)*) => {
+        $option.unwrap_or_else(|| exit_with_error!($($print_arg)*))
+    };
+}
+
+#[macro_export]
 macro_rules! exit_with_error {
     ($($print_arg:tt)*) => {{
         eprintln!($($print_arg)*);

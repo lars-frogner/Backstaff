@@ -150,6 +150,47 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// Sets the downward derivatives of the grid coordinates.
     fn set_down_derivatives(&mut self, down_derivatives: Option<Coords3<F>>);
 
+    /// Creates a new 3D grid restricted to slices of the coordinate arrays of
+    /// the original grid.
+    fn subgrid(&self, start_indices: &Idx3<usize>, end_indices: &Idx3<usize>) -> Self {
+        let shape = self.shape();
+        let mut is_periodic = self.periodicity().clone();
+
+        for &dim in &Dim3::slice() {
+            assert!(
+                start_indices[dim] <= end_indices[dim],
+                "Start index is not smaller than or equal to end index"
+            );
+            assert!(
+                end_indices[dim] < shape[dim],
+                "End index is outside of grid bound"
+            );
+            is_periodic[dim] =
+                is_periodic[dim] && start_indices[dim] == 0 && end_indices[dim] == shape[dim] - 1;
+        }
+
+        Self::from_coords(
+            self.centers().subcoords(start_indices, end_indices),
+            self.lower_edges().subcoords(start_indices, end_indices),
+            is_periodic,
+            self.up_derivatives()
+                .map(|coords| coords.subcoords(start_indices, end_indices)),
+            self.down_derivatives()
+                .map(|coords| coords.subcoords(start_indices, end_indices)),
+        )
+    }
+
+    /// Returns the lower corner of the grid cell of the given 3D index.
+    fn grid_cell_lower_corner(&self, indices: &Idx3<usize>) -> Point3<F> {
+        self.lower_edges().point(indices)
+    }
+
+    /// Returns the upper corner of the grid cell of the given 3D index.
+    fn grid_cell_upper_corner(&self, indices: &Idx3<usize>) -> Point3<F> {
+        let grid_cell_extents = self.grid_cell_extents(indices);
+        self.grid_cell_lower_corner(indices) + &grid_cell_extents
+    }
+
     /// Returns the lower and upper corner of the grid cell of the given 3D index.
     fn grid_cell_extremal_corners(&self, indices: &Idx3<usize>) -> (Point3<F>, Point3<F>) {
         let lower_corner = self.lower_edges().point(indices);
@@ -313,6 +354,77 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         } else {
             GridPointQuery3::Inside(indices)
         }
+    }
+
+    /// Given a point representing a lower boundary in each dimension, returns
+    /// the index of the lowermost grid cell that lies completely within the
+    /// boundaries (inclusive), or `None` if no such grid cell exists.
+    fn find_fist_grid_cell_inside_lower_bounds(
+        &self,
+        lower_bounds: &Point3<F>,
+    ) -> Option<Idx3<usize>> {
+        let grid_lower_edges = self.lower_edges();
+        let shape = self.shape();
+
+        let mut indices = Idx3::origin();
+
+        for &dim in &Dim3::slice() {
+            let lower_bound = lower_bounds[dim];
+            let lower_edges = &grid_lower_edges[dim];
+            let size = shape[dim];
+            if lower_bound > lower_edges[size - 1] {
+                return None;
+            } else if lower_bound <= lower_edges[0] {
+                indices[dim] = 0;
+            } else {
+                indices[dim] = search_idx_of_coord(lower_edges, lower_bound.prev())
+                    .expect("Coordinate index search failed")
+                    + 1;
+            }
+        }
+        debug_assert!(
+            self.indices_are_inside(&indices),
+            "Found inside index is actually on the outside."
+        );
+
+        Some(indices)
+    }
+
+    /// Given a point representing an upper boundary in each dimension, returns
+    /// the index of the uppermost grid cell that lies completely within the
+    /// boundaries (inclusive), or `None` if no such grid cell exists.
+    fn find_last_grid_cell_inside_upper_bounds(
+        &self,
+        upper_bounds: &Point3<F>,
+    ) -> Option<Idx3<usize>> {
+        let grid_centers = self.centers();
+        let grid_lower_edges = self.lower_edges();
+        let grid_upper_bounds = self.upper_bounds();
+        let shape = self.shape();
+
+        let mut indices = Idx3::origin();
+
+        for &dim in &Dim3::slice() {
+            let upper_bound = upper_bounds[dim];
+            let centers = &grid_centers[dim];
+            let lower_edges = &grid_lower_edges[dim];
+            let size = shape[dim];
+            if upper_bound < upper_edge_from_center_and_lower_edge(centers[0], lower_edges[0]) {
+                return None;
+            } else if upper_bound >= grid_upper_bounds[dim] {
+                indices[dim] = size - 1;
+            } else {
+                indices[dim] = search_idx_of_coord(lower_edges, upper_bound)
+                    .expect("Coordinate index search failed")
+                    - 1;
+            }
+        }
+        debug_assert!(
+            self.indices_are_inside(&indices),
+            "Found inside index is actually on the outside."
+        );
+
+        Some(indices)
     }
 
     /// Given a point that may be outside the grid boundaries, returns a new point
@@ -1358,9 +1470,10 @@ fn compute_grid_cell_extents<F: BFloat>(centers: &[F], lower_edges: &[F]) -> Vec
             .zip(lower_edges.iter().skip(1))
             .map(|(&lower, &upper)| upper - lower),
     );
-    grid_cell_extents.push(
-        F::from_f32(2.0).unwrap() * (*centers.last().unwrap() - *lower_edges.last().unwrap()),
-    );
+    grid_cell_extents.push(cell_extent_from_center_and_lower_edge(
+        *centers.last().unwrap(),
+        *lower_edges.last().unwrap(),
+    ));
     grid_cell_extents
 }
 
@@ -1376,8 +1489,16 @@ fn cell_extent_from_bounds<F: BFloat>(size: usize, lower_bound: F, upper_bound: 
 fn bounds_from_coords<F: BFloat>(size: usize, centers: &[F], lower_edges: &[F]) -> (F, F) {
     (
         lower_edges[0],
-        F::from_f32(2.0).unwrap() * centers[size - 1] - lower_edges[size - 1],
+        upper_edge_from_center_and_lower_edge(centers[size - 1], lower_edges[size - 1]),
     )
+}
+
+fn cell_extent_from_center_and_lower_edge<F: BFloat>(center: F, lower_edge: F) -> F {
+    F::from_f32(2.0).unwrap() * (center - lower_edge)
+}
+
+fn upper_edge_from_center_and_lower_edge<F: BFloat>(center: F, lower_edge: F) -> F {
+    lower_edge + cell_extent_from_center_and_lower_edge(center, lower_edge)
 }
 
 fn search_idx_of_coord<F: BFloat>(lower_edges: &[F], coord: F) -> Option<usize> {
