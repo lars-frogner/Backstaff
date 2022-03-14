@@ -80,8 +80,8 @@ pub fn create_snapshot_subcommand() -> Command<'static> {
                 .require_value_delimiter(true)
                 .value_names(&["FIRST", "LAST"])
                 .help(
-                    "Inclusive range of snapshot numbers associated with the input snapshot to\n\
-                     process [default: only process INPUT_FILE]",
+                    "Inclusive range of snapshot numbers associated with the input\n\
+                     snapshot to process [default: only process INPUT_FILE]",
                 )
                 .takes_value(true),
         )
