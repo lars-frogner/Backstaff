@@ -38,7 +38,7 @@ pub fn create_completions_subcommand() -> Command<'static> {
     Run the command:
 
         $ mkdir -p ~/.local/share/bash-completion/completions
-        $ backstaff completions bash >> ~/.local/share/bash-completion/completions/backstaff
+        $ backstaff completions bash > ~/.local/share/bash-completion/completions/backstaff
 
     This installs the completion script. You may have to log out and
     log back in to your shell session for the changes to take affect.
