@@ -165,14 +165,15 @@ where
     /// the original field.
     pub fn subfield(&self, subgrid: Arc<G>, start_indices: &Idx3<usize>) -> Self {
         let subgrid_shape = subgrid.shape();
-        let values = self
-            .values
-            .slice(s![
-                start_indices[X]..(start_indices[X] + subgrid_shape[X]),
-                start_indices[Y]..(start_indices[Y] + subgrid_shape[Y]),
-                start_indices[Z]..(start_indices[Z] + subgrid_shape[Z])
-            ])
-            .to_owned();
+
+        let buffer = self.values.slice(s![
+            start_indices[X]..(start_indices[X] + subgrid_shape[X]),
+            start_indices[Y]..(start_indices[Y] + subgrid_shape[Y]),
+            start_indices[Z]..(start_indices[Z] + subgrid_shape[Z])
+        ]);
+        let values =
+            Array::from_shape_vec(buffer.raw_dim().f(), buffer.t().iter().cloned().collect())
+                .unwrap();
         Self::new(self.name.clone(), subgrid, self.locations.clone(), values)
     }
 
