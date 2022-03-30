@@ -446,17 +446,30 @@ class LogScaling(LinearScaling):
 
 
 class PlotDescription:
-    def __init__(self, quantity, reduction, scaling, **extra_plot_kwargs):
+    def __init__(self, quantity, reduction, scaling, name=None, **extra_plot_kwargs):
         self.quantity = quantity
         self.reduction = reduction
         self.scaling = scaling
+        self.name = name
         self.extra_plot_kwargs = extra_plot_kwargs
 
     @classmethod
-    def parse(cls, quantities, plot_config, logger=logging):
-        if not isinstance(plot_config, dict):
-            abort(logger,
-                  f'plots list entry must be dict, is {type(plot_config)}')
+    def parse(cls, quantities, plot_config, allow_reference=True, logger=logging):
+        try:
+            plot_config = dict(plot_config)
+        except ValueError:
+            if allow_reference and isinstance(plot_config, str):
+                name = plot_config
+                return [name]
+            else:
+                abort(logger,
+                  f'plots list entry must be dict{", or str referring to plot" if allow_reference else ""}, is {type(plot_config)}')
+
+        return cls._parse_dict(quantities, plot_config, logger=logger)
+
+    @classmethod
+    def _parse_dict(cls, quantities, plot_config, logger=logging):
+        name = plot_config.pop('name', None)
 
         if 'quantity' not in plot_config:
             abort(logger, f'Missing entry quantity')
@@ -485,7 +498,7 @@ class PlotDescription:
         scaling = Scaling.parse(plot_config.pop('scaling'), logger=logger)
 
         return [
-            cls(quantity, reduction, scaling, **plot_config)
+            cls(quantity, reduction, scaling, name=name, **plot_config)
             for reduction in reductions
         ]
 
@@ -1130,12 +1143,28 @@ def parse_config_file(file_path, logger=logging):
         if not isinstance(local_plots, list):
             local_plots = [local_plots]
 
-        plots = global_plots + local_plots
-
-        plot_descriptions = [
-            plot_description for plot_config in plots for plot_description in
-            PlotDescription.parse(quantities, dict(plot_config), logger=logger)
+        global_plot_descriptions = [
+            plot_description for plot_config in global_plots for plot_description in
+            PlotDescription.parse(quantities, plot_config, allow_reference=False, logger=logger)
         ]
+
+        references, plot_descriptions = [], []
+        for plot_config in local_plots:
+            for p in PlotDescription.parse(quantities, plot_config, allow_reference=True, logger=logger):
+                (references, plot_descriptions)[isinstance(p, PlotDescription)].append(p)
+
+        global_plot_descriptions_with_name = []
+        for plot_description in global_plot_descriptions:
+            (global_plot_descriptions_with_name, plot_descriptions)[plot_description.name is None].append(plot_description)
+
+        for name in references:
+            found_plot = False
+            for plot_description in global_plot_descriptions_with_name:
+                if name == plot_description.name:
+                    plot_descriptions.append(plot_description)
+                    found_plot = True
+            if not found_plot:
+                logger.warning(f'No plots found with name {name}, skipping')
 
         visualizer = Visualizer(simulation_run)
         visualizations.append(Visualization(visualizer, *plot_descriptions))
