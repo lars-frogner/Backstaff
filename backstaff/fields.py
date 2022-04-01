@@ -6,8 +6,10 @@ import numpy as np
 import scipy.interpolate
 try:
     import backstaff.plotting as plotting
+    import backstaff.helita_utils as helita_utils
 except ModuleNotFoundError:
     import plotting
+    import helita_utils
 
 
 class Coords3:
@@ -33,7 +35,7 @@ class Coords2:
     def from_bifrost_data(bifrost_data, omitted_axis):
         all_coords = [
             bifrost_data.xdn, bifrost_data.ydn,
-            -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
+            helita_utils.inverted_zdn(bifrost_data)
         ]
         all_coords.pop(omitted_axis)
         return Coords2(all_coords[0], all_coords[1])
@@ -66,9 +68,8 @@ class ScalarField3:
         scale=None,
         value_processor=lambda x: x,
     ):
-        z_coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
-        if not isinstance(quantities, list) and not isinstance(
-                quantities, tuple):
+        z_coords = helita_utils.inverted_zdn(bifrost_data)
+        if not isinstance(quantities, (list, tuple)):
             quantities = [quantities]
 
         def get_quantity(quantity):
@@ -77,8 +78,7 @@ class ScalarField3:
             else:
                 return quantity
 
-        k_slice = slice(*((None, ) if height_range is None else np.
-                          searchsorted(z_coords, height_range)))
+        k_slice = helita_utils.inclusive_coord_slice(z_coords, height_range)
         values = value_processor(*(get_quantity(quantity)[:, :, ::-1][:, :,
                                                                       k_slice]
                                    for quantity in quantities))
@@ -267,12 +267,10 @@ class ScalarField1:
         scale=None,
         value_processor=lambda x: x,
     ):
-        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
-        if not isinstance(quantities, list) and not isinstance(
-                quantities, tuple):
+        coords = helita_utils.inverted_zdn(bifrost_data)
+        if not isinstance(quantities, (list, tuple)):
             quantities = [quantities]
-        k_slice = slice(*((None, ) if height_range is None else np.
-                          searchsorted(coords, height_range)))
+        k_slice = helita_utils.inclusive_coord_slice(coords, height_range)
         all_values = value_processor(
             *(bifrost_data.get_var(quantity)[:, :, ::-1][:, :, k_slice]
               for quantity in quantities))
@@ -293,12 +291,10 @@ class ScalarField1:
         scale=None,
         value_processor=lambda x: x,
     ):
-        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
-        if not isinstance(quantities, list) and not isinstance(
-                quantities, tuple):
+        coords = helita_utils.inverted_zdn(bifrost_data)
+        if not isinstance(quantities, (list, tuple)):
             quantities = [quantities]
-        k_slice = slice(*((None, ) if height_range is None else np.
-                          searchsorted(coords, height_range)))
+        k_slice = helita_utils.inclusive_coord_slice(coords, height_range)
         values = value_processor(
             *(bifrost_data.get_var(quantity)[i, j, ::-1][k_slice]
               for quantity in quantities))
@@ -310,9 +306,8 @@ class ScalarField1:
 
     @staticmethod
     def dz_in_bifrost_data(bifrost_data, height_range=None, scale=None):
-        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
-        k_slice = slice(*((None, ) if height_range is None else np.
-                          searchsorted(coords, height_range)))
+        coords = helita_utils.inverted_zdn(bifrost_data)
+        k_slice = helita_utils.inclusive_coord_slice(coords, height_range)
         values = (bifrost_data.z - bifrost_data.zdn)[::-1][k_slice]
         coords = coords[k_slice]
         scale = 2 if scale is None else (2 * scale)
@@ -322,11 +317,10 @@ class ScalarField1:
 
     @staticmethod
     def volumes_in_bifrost_data(bifrost_data, height_range=None, scale=None):
-        coords = -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
+        coords = helita_utils.inverted_zdn(bifrost_data)
         dx = bifrost_data.params['dx'][0]
         dy = bifrost_data.params['dy'][0]
-        k_slice = slice(*((None, ) if height_range is None else np.
-                          searchsorted(coords, height_range)))
+        k_slice = helita_utils.inclusive_coord_slice(coords, height_range)
         values = (bifrost_data.z - bifrost_data.zdn)[::-1][k_slice]
         coords = coords[k_slice]
         scale = (2 * dx * dy) if scale is None else (2 * dx * dy * scale)
@@ -458,8 +452,7 @@ class ScalarField2:
         all_slices = [slice(None)] * 3
         all_slices[slice_axis] = slice_idx
 
-        if not isinstance(quantities, list) and not isinstance(
-                quantities, tuple):
+        if not isinstance(quantities, (list, tuple)):
             quantities = [quantities]
 
         values = value_processor(
@@ -491,8 +484,7 @@ class ScalarField2:
                                       scale=None,
                                       value_processor=lambda x: x,
                                       accum_operator=np.sum):
-        if not isinstance(quantities, list) and not isinstance(
-                quantities, tuple):
+        if not isinstance(quantities, (list, tuple)):
             quantities = [quantities]
 
         all_values = value_processor(*(bifrost_data.get_var(quantity)

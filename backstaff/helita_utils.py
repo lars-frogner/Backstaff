@@ -6,6 +6,57 @@ import numpy as np
 from helita.sim.bifrost import BifrostData
 
 
+def inverted_zdn(bifrost_data):
+    return -(2 * bifrost_data.z - bifrost_data.zdn)[::-1]
+
+
+def exclusive_coord_slice(lower_edges, coord_range):
+    if coord_range is None:
+        return slice(None)
+
+    if not isinstance(coord_range, (tuple, list)):
+        coord_range = float(coord_range)
+        return slice(0, 0)
+
+    if coord_range[0] is None:
+        start_idx = None
+    else:
+        start_idx = np.searchsorted(lower_edges, coord_range[0])
+
+    if coord_range[1] is None or coord_range[1] >= lower_edges[-1] + (
+            lower_edges[-1] - lower_edges[-2]):
+        end_idx = None
+    else:
+        end_idx = np.searchsorted(lower_edges, coord_range[1],
+                                  side='right') - 1
+
+    return slice(start_idx, end_idx)
+
+
+def inclusive_coord_slice(lower_edges, coord_range):
+    if coord_range is None:
+        return slice(None)
+
+    if not isinstance(coord_range, (tuple, list)):
+        coord_range = float(coord_range)
+        coord_range = (coord_range, coord_range)
+
+    if coord_range[0] is None or coord_range[0] <= lower_edges[0]:
+        start_idx = None
+    else:
+        start_idx = np.searchsorted(lower_edges, coord_range[0],
+                                    side='right') - 1
+
+    if coord_range[1] is None:
+        end_idx = None
+    else:
+        end_idx = np.searchsorted(lower_edges, coord_range[1])
+        if end_idx == start_idx:
+            end_idx += 1
+
+    return slice(start_idx, end_idx)
+
+
 class BifrostDataCache:
     def __init__(self, logger=logging):
         self.snaps = []
