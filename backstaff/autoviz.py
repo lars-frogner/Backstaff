@@ -252,7 +252,10 @@ class Scan(Reduction):
                           stride)
 
     def get_slice_label(self, bifrost_data, slice_idx):
-        return f'${self.axis_name} = {getattr(bifrost_data, self.axis_name)[slice_idx]:.2f}$ Mm'
+        coords = getattr(bifrost_data, self.axis_name)
+        if self.axis == 2:
+            coords = coords[::-1]
+        return f'${self.axis_name} = {coords[slice_idx]:.2f}$ Mm'
 
 
 class ScanSlices:
