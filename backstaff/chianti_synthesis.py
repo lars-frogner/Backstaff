@@ -1545,6 +1545,32 @@ class IonEmissivities:
             None if data['mask'].shape == () else array_utils.CompactArrayMask(
                 data['mask']), data['emissivities'], **kwargs)
 
+    def compute_intensity_contributions(self):
+        atmos_shape = (self.bifrost_data.nx, self.bifrost_data.ny, self.bifrost_data.nz)
+
+        if atmos_shape[2] != self.z_coords.size:
+            dz = np.zeros_like(self.z_coords)
+            dz[:-1] = self.z_coords[1:] - self.z_coords[:-1]
+            dz[-1] = self.z_coords[-1] - self.z_coords[-2]
+            dz *= units.U_L
+
+            atmos_shape = atmos_shape[:2] + (self.z_coords.size, )
+        else:
+            dz = fields.ScalarField1.dz_in_bifrost_data(
+                self.bifrost_data,
+                height_range=self.height_range,
+                scale=units.U_L).get_values()  # [cm]
+
+        if self.mask is None:
+            intensity_contributions = self.emissivities * dz[np.newaxis,
+                                                             np.newaxis,
+                                                             np.newaxis, :]
+        else:
+            intensity_contributions = self.emissivities * self.mask.apply(
+                np.broadcast_to(dz, atmos_shape))[np.newaxis, :]
+
+        return intensity_contributions
+
     def synthesize_spectral_lines(self,
                                   spectrum,
                                   extra_quantity_names=None,
@@ -1578,28 +1604,14 @@ class IonEmissivities:
                     quantity_name] = quantity_field.resampled_to_coords_along_axis(
                         2, self.z_coords)
 
-            dz = np.zeros_like(self.z_coords)
-            dz[:-1] = self.z_coords[1:] - self.z_coords[:-1]
-            dz[-1] = self.z_coords[-1] - self.z_coords[-2]
-            dz *= units.U_L
-
-            atmos_shape = atmos_shape[:2] + (self.z_coords.size, )
-        else:
-            dz = fields.ScalarField1.dz_in_bifrost_data(
-                self.bifrost_data,
-                height_range=self.height_range,
-                scale=units.U_L).get_values()  # [cm]
-
         temperatures = temperatures.get_values()
         vertical_speeds = vertical_speeds.get_values()
         for quantity_name, quantity in extra_quantity_fields.items():
             extra_quantity_fields[quantity_name] = quantity.get_values()
 
-        if self.mask is None:
-            intensity_contributions = self.emissivities * dz[np.newaxis,
-                                                             np.newaxis,
-                                                             np.newaxis, :]
+        intensity_contributions = self.compute_intensity_contributions()
 
+        if self.mask is None:
             def integrate_emissivities(line_idx, weights=None):
                 if weights is None:
                     return np.sum(intensity_contributions[line_idx, :, :, :],
@@ -1614,8 +1626,6 @@ class IonEmissivities:
             for quantity_name, quantity in extra_quantity_fields.items():
                 extra_quantity_fields[quantity_name] = self.mask.apply(
                     quantity)
-            intensity_contributions = self.emissivities * self.mask.apply(
-                np.broadcast_to(dz, atmos_shape))[np.newaxis, :]
 
             def integrate_emissivities(line_idx, weights=None):
                 if weights is None:
