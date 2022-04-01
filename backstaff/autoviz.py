@@ -1257,9 +1257,10 @@ if __name__ == '__main__':
     logger_builder = LoggerBuilder(
         level=(logging.DEBUG if args.debug else logging.INFO),
         log_file=args.log_file)
+    logger = logger_builder()
 
     all_visualizations = parse_config_file(args.config_file,
-                                           logger=logger_builder())
+                                           logger=logger)
 
     if args.simulations is None:
         visualizations = all_visualizations
@@ -1269,6 +1270,10 @@ if __name__ == '__main__':
             v for v in all_visualizations
             if v.visualizer.simulation_name in simulation_names
         ]
+
+    if len(visualizations) == 0:
+        logger.info('Nothing to visualize')
+        sys.exit()
 
     if args.clean:
         for visualization in visualizations:
