@@ -86,7 +86,7 @@ def set_3d_axis_labels(ax, xlabel, ylabel, zlabel):
 
 
 def get_default_colors():
-    return plt.rcParams['axes.prop_cycle'].by_key()['color']
+    return CB_COLOR_CYCLE  # plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
 class ColorCycle:
@@ -177,14 +177,14 @@ def size_from_values(values, norm, max_size, min_size=1):
                       np.minimum(max_size, max_size * normalized_values**2))
 
 
-def create_colorbar_axis(ax, loc='right', pad=0.05):
+def create_colorbar_axis(ax, loc='right', size='5%', pad=0.05):
     if hasattr(ax, 'backstaff_axis_divider'):
         divider = ax.backstaff_axis_divider
     else:
         divider = make_axes_locatable(
             ax)  # Should not be repeated for same axis
         ax.backstaff_axis_divider = divider
-    cax = divider.append_axes(loc, size='5%', pad=pad)
+    cax = divider.append_axes(loc, size=size, pad=pad)
     return cax
 
 
@@ -272,12 +272,14 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
                                        norm,
                                        cmap,
                                        loc='right',
+                                       width='5%',
                                        pad=0.05,
                                        minorticks_on=False,
                                        opposite_side_ticks=False,
                                        tick_formatter=None,
-                                       label=''):
-    cax = create_colorbar_axis(ax, loc=loc, pad=pad)
+                                       label='',
+                                       **kwargs):
+    cax = create_colorbar_axis(ax, loc=loc, size=width, pad=pad)
     sm = get_scalar_mappable(norm, cmap)
     sm.set_array([])
     cb = fig.colorbar(
@@ -285,7 +287,8 @@ def add_2d_colorbar_from_cmap_and_norm(fig,
         cax=cax,
         label=label,
         orientation=('vertical' if loc in ['left', 'right'] else 'horizontal'),
-        ticklocation=loc)
+        ticklocation=loc,
+        **kwargs)
 
     if minorticks_on:
         cb.ax.minorticks_on()
@@ -330,14 +333,14 @@ def add_textbox(ax, text, loc, pad=0.4):
 def render(fig=None,
            tight_layout=True,
            bbox_extra_artists=None,
-           bbox_inches=None,
+           bbox_inches='tight',
            output_path=None,
            force_show=False,
            close=True):
     if fig is not None and tight_layout:
         fig.tight_layout()
     if output_path is not None:
-        plt.savefig(output_path,
+        fig.savefig(output_path,
                     bbox_extra_artists=bbox_extra_artists,
                     bbox_inches=bbox_inches)
         if force_show:
@@ -368,6 +371,7 @@ def plot_1d_field(coords,
                   ylabel=None,
                   label=None,
                   legend_loc=None,
+                  legend_fontsize=None,
                   title=None,
                   zorder=2,
                   output_path=None,
@@ -409,7 +413,7 @@ def plot_1d_field(coords,
         ax.set_title(title)
 
     if legend_loc is not None:
-        ax.legend(loc=legend_loc)
+        ax.legend(loc=legend_loc, fontsize=legend_fontsize)
 
     if render_now:
         render(fig, output_path=output_path)
@@ -433,6 +437,8 @@ def plot_2d_field(hor_coords,
                   symlog=False,
                   linthresh=np.inf,
                   linscale=1.0,
+                  x_lims=None,
+                  y_lims=None,
                   cmap_name='viridis',
                   cmap_bad_color='white',
                   cbar_loc='right',
@@ -455,10 +461,22 @@ def plot_2d_field(hor_coords,
                   output_path=None,
                   picker=None,
                   render_now=True,
-                  fig_kwargs=dict(width=6.0, aspect_ratio=4.0 / 3.0)):
+                  fig_kwargs=dict(width=None, aspect_ratio=None)):
 
     if fig is None or ax is None:
-        fig, ax = create_2d_subplots(**fig_kwargs)
+        width = fig_kwargs.pop('width', None)
+        aspect_ratio = fig_kwargs.pop('aspect_ratio', None)
+        dpi = fig_kwargs.pop('dpi', 300)
+
+        if width is None:
+            width = 3.0 * hor_coords.size / dpi
+
+        if aspect_ratio is None:
+            aspect_ratio = (
+                (hor_coords[-1] - hor_coords[0]) /
+                (vert_coords[-1] - vert_coords[0])) if aspect_equal else (4 /
+                                                                          3)
+        fig, ax = create_2d_subplots(aspect_ratio=aspect_ratio, **fig_kwargs)
 
     if symlog:
         norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
@@ -470,7 +488,15 @@ def plot_2d_field(hor_coords,
     if log_y:
         vert_coords = np.log10(vert_coords)
 
-    mesh = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
+    lower_edges_hor = np.empty(hor_coords.size + 1, dtype=hor_coords.dtype)
+    lower_edges_vert = np.empty(vert_coords.size + 1, dtype=vert_coords.dtype)
+    lower_edges_hor[:-1] = hor_coords
+    lower_edges_vert[:-1] = vert_coords
+    lower_edges_hor[-1] = hor_coords[-1] + (hor_coords[-1] - hor_coords[-2])
+    lower_edges_vert[-1] = vert_coords[-1] + (vert_coords[-1] -
+                                              vert_coords[-2])
+
+    mesh = ax.pcolormesh(*np.meshgrid(lower_edges_hor, lower_edges_vert),
                          values.T,
                          shading='auto',
                          norm=norm,
@@ -495,8 +521,12 @@ def plot_2d_field(hor_coords,
         for artist in extra_artists:
             ax.add_artist(artist)
 
-    set_2d_plot_extent(ax, (hor_coords[0], hor_coords[-1]),
-                       (vert_coords[0], vert_coords[-1]))
+    if x_lims is None:
+        x_lims = hor_coords[0], hor_coords[-1]
+    if y_lims is None:
+        y_lims = vert_coords[0], vert_coords[-1]
+    set_2d_plot_extent(ax, x_lims, y_lims)
+
     set_2d_axis_labels(ax, xlabel, ylabel)
 
     if cbar_loc is not None:
@@ -534,11 +564,13 @@ def plot_histogram(values,
                    ax=None,
                    bin_weighted=False,
                    divided_by_bin_size=False,
+                   min_n_values=None,
                    hist_scale=1.0,
                    bins='auto',
                    weighted_average=False,
                    log_x=False,
                    log_y=False,
+                   show_log_x=False,
                    linthresh_x=None,
                    linthresh_y=None,
                    vmin=None,
@@ -551,10 +583,12 @@ def plot_histogram(values,
                    lw=1.0,
                    ls='-',
                    alpha=1.0,
+                   fill_alpha=1.0,
                    x_lims=None,
                    y_lims=None,
                    label=None,
                    legend_loc=None,
+                   legend_fontsize=None,
                    xlabel=None,
                    ylabel=None,
                    xlabel_color='k',
@@ -572,6 +606,7 @@ def plot_histogram(values,
         weights=weights,
         bins=bins,
         weighted_average=weighted_average,
+        min_n_values=min_n_values,
         vmin=vmin,
         vmax=vmax,
         decide_bins_in_log_space=(log_y if horizontal else log_x),
@@ -634,14 +669,14 @@ def plot_histogram(values,
                                  hist,
                                  step='pre',
                                  color=color,
-                                 alpha=alpha))
+                                 alpha=fill_alpha))
         else:
             line.append(
                 ax.fill_between(bin_edges[:-1],
                                 hist,
                                 step='pre',
                                 color=color,
-                                alpha=alpha))
+                                alpha=fill_alpha))
         if horizontal:
             line.append(
                 ax.step(hist,
@@ -665,15 +700,13 @@ def plot_histogram(values,
                 ax.fill_betweenx(bin_centers,
                                  hist,
                                  color=color,
-                                 alpha=alpha,
-                                 label=label))
+                                 alpha=fill_alpha))
         else:
             line.append(
                 ax.fill_between(bin_centers,
                                 hist,
                                 color=color,
-                                alpha=alpha,
-                                label=label))
+                                alpha=fill_alpha))
         if horizontal:
             line.append(
                 ax.plot(hist,
@@ -716,7 +749,7 @@ def plot_histogram(values,
         for artist in extra_artists:
             ax.add_artist(artist)
 
-    if log_x:
+    if log_x or show_log_x:
         if linthresh_x is None:
             ax.set_xscale('log')
         else:
@@ -777,7 +810,7 @@ def plot_histogram(values,
     ax.tick_params(axis='y', labelcolor=ylabel_color)
 
     if legend_loc:
-        ax.legend(loc=legend_loc)
+        ax.legend(loc=legend_loc, fontsize=legend_fontsize)
 
     if render_now:
         render(fig, output_path=output_path)
@@ -794,6 +827,7 @@ def plot_scatter(values_x,
                  log_y=False,
                  linthresh_x=None,
                  linthresh_y=None,
+                 linthresh_c=None,
                  log_c=False,
                  vmin_c=None,
                  vmax_c=None,
@@ -817,30 +851,52 @@ def plot_scatter(values_x,
                  cbar_minorticks_on=False,
                  cbar_opposite_side_ticks=False,
                  cbar_tick_loc='right',
-                 cbar_width='3%',
+                 cbar_width='5%',
                  cbar_height='60%',
                  cbar_orientation='vertical',
                  clabel='',
                  label=None,
                  legend_loc=None,
                  extra_artists=None,
+                 show_break_lines=False,
                  output_path=None,
                  fig_kwargs={},
                  render_now=True):
 
+    broken_x = isinstance(x_lims, (tuple, list)) and isinstance(
+        x_lims[0], (tuple, list)) and isinstance(x_lims[1], (tuple, list))
+
     if fig is None or ax is None:
-        fig, ax = create_2d_subplots(**fig_kwargs)
+        if broken_x:
+            fig, axes = create_2d_subplots(ncols=2, sharey=True, **fig_kwargs)
+            extra_ax, ax = axes
+            fig.subplots_adjust(wspace=0)
+            cbar_width = f'{2*float(cbar_width.replace("%", ""))}%'
+        else:
+            fig, ax = create_2d_subplots(**fig_kwargs)
+            axes = [ax]
+    else:
+        if isinstance(ax, (list, tuple, np.ndarray)):
+            axes = ax
+            extra_ax, ax = axes
+            broken_x = True
+        else:
+            axes = [ax]
 
     if log_x:
         if linthresh_x is None:
-            ax.set_xscale('log')
+            for ax in axes:
+                ax.set_xscale('log')
         else:
-            ax.set_xscale('symlog', linthresh=linthresh_x)
+            for ax in axes:
+                ax.set_xscale('symlog', linthresh=linthresh_x)
     if log_y:
         if linthresh_y is None:
-            ax.set_yscale('log')
+            for ax in axes:
+                ax.set_yscale('log')
         else:
-            ax.set_yscale('symlog', linthresh=linthresh_y)
+            for ax in axes:
+                ax.set_yscale('symlog', linthresh=linthresh_y)
 
     if values_c is None:
         c = color
@@ -850,7 +906,11 @@ def plot_scatter(values_x,
         if vmax_c is None:
             vmax_c = np.nanmax(values_c)
 
-        norm = get_normalizer(vmin_c, vmax_c, log=log_c)
+        if linthresh_c is None:
+            norm = get_normalizer(vmin_c, vmax_c, log=log_c)
+        else:
+            norm = get_symlog_normalizer(vmin_c, vmax_c, linthresh_c)
+
         cmap = get_cmap(cmap_name)
         c = colors_from_values(values_c,
                                norm,
@@ -881,10 +941,25 @@ def plot_scatter(values_x,
                     norm,
                     cmap,
                     loc=cbar_loc,
+                    width=cbar_width,
                     pad=cbar_pad,
                     minorticks_on=cbar_minorticks_on,
                     opposite_side_ticks=cbar_opposite_side_ticks,
                     label=clabel)
+                if broken_x:
+                    cb = add_2d_colorbar_from_cmap_and_norm(
+                        fig,
+                        extra_ax,
+                        norm,
+                        cmap,
+                        loc=cbar_loc,
+                        width=cbar_width,
+                        pad=cbar_pad,
+                        minorticks_on=cbar_minorticks_on,
+                        opposite_side_ticks=cbar_opposite_side_ticks,
+                        label=clabel,
+                        filled=False)
+                    cb.ax.axis('off')
 
     ax.scatter(values_x,
                values_y,
@@ -895,25 +970,68 @@ def plot_scatter(values_x,
                alpha=alpha,
                label=label)
 
+    if broken_x:
+        extra_ax.scatter(values_x,
+                         values_y,
+                         c=c,
+                         s=s,
+                         marker=marker,
+                         edgecolors=edgecolors,
+                         alpha=alpha,
+                         label=label)
+
+        extra_ax.spines.right.set_visible(False)
+        ax.spines.left.set_visible(False)
+        ax.tick_params(which='both', left=False, labelleft=False)
+        extra_ax.tick_params(which='both', right=False, labelright=False)
+
+        if show_break_lines:
+            d = 0.5  # Proportion of vertical to horizontal extent of the slanted line
+            kwargs = dict(marker=[(-d, -1), (d, 1)],
+                          markersize=8,
+                          linestyle="none",
+                          color='k',
+                          mec='k',
+                          mew=1,
+                          clip_on=False)
+            extra_ax.plot([1, 1], [0, 1],
+                          transform=extra_ax.transAxes,
+                          **kwargs)
+            ax.plot([0, 0], [0, 1], transform=ax.transAxes, **kwargs)
+
     if extra_artists is not None:
         for artist in extra_artists:
             ax.add_artist(artist)
 
     if minorticks_on:
-        ax.minorticks_on()
+        for ax in axes:
+            ax.minorticks_on()
 
-    ax.set_aspect(aspect)
+    for ax in axes:
+        ax.set_aspect(aspect)
 
-    set_2d_plot_extent(ax, x_lims, y_lims)
-    set_2d_axis_labels(ax, xlabel, ylabel)
+    if x_lims is not None:
+        if broken_x:
+            extra_ax.set_xlim(*x_lims[0])
+            ax.set_xlim(*x_lims[1])
+        else:
+            ax.set_xlim(*x_lims)
+    if y_lims is not None:
+        ax.set_ylim(*y_lims)
+
+    if broken_x:
+        fig.supxlabel(xlabel, y=0.04, fontsize='medium')
+        extra_ax.set_ylabel(ylabel)
+    else:
+        set_2d_axis_labels(ax, xlabel, ylabel)
 
     if legend_loc is not None:
         ax.legend(loc=legend_loc)
 
     if render_now:
-        render(fig, output_path=output_path)
+        render(fig, output_path=output_path, tight_layout=False)
 
-    return fig, ax
+    return fig, (axes[0] if len(axes) == 1 else axes)
 
 
 def plot_scatter_with_histograms(values_x,
@@ -1330,6 +1448,7 @@ def setup_2d_field_animation(hor_coords,
                              use_varying_alpha=False,
                              title=None,
                              rasterized=None,
+                             extra_artists=[],
                              fig_kwargs=dict(width=7.2,
                                              aspect_ratio=5.0 / 4.0),
                              picker=None):
@@ -1344,7 +1463,15 @@ def setup_2d_field_animation(hor_coords,
 
     cmap = get_cmap(cmap_name, bad_color=cmap_bad_color)
 
-    mesh = ax.pcolormesh(*np.meshgrid(hor_coords, vert_coords),
+    lower_edges_hor = np.empty(hor_coords.size + 1, dtype=hor_coords.dtype)
+    lower_edges_vert = np.empty(vert_coords.size + 1, dtype=vert_coords.dtype)
+    lower_edges_hor[:-1] = hor_coords
+    lower_edges_vert[:-1] = vert_coords
+    lower_edges_hor[-1] = hor_coords[-1] + (hor_coords[-1] - hor_coords[-2])
+    lower_edges_vert[-1] = vert_coords[-1] + (vert_coords[-1] -
+                                              vert_coords[-2])
+
+    mesh = ax.pcolormesh(*np.meshgrid(lower_edges_hor, lower_edges_vert),
                          np.ones((len(vert_coords), len(hor_coords))),
                          shading='auto',
                          norm=norm,
@@ -1384,6 +1511,10 @@ def setup_2d_field_animation(hor_coords,
                         minorticks_on=cbar_minorticks_on,
                         opposite_side_ticks=cbar_opposite_side_ticks,
                         label=clabel)
+
+    if extra_artists is not None:
+        for artist in extra_artists:
+            ax.add_artist(artist)
 
     if minorticks_on:
         ax.minorticks_on()
@@ -1545,10 +1676,14 @@ def compute_histogram(values,
                       decide_bins_in_log_space=False,
                       linthresh=None,
                       weighted_average=False,
+                      min_n_values=None,
                       density=False):
 
     min_value = np.nanmin(values) if vmin is None else vmin
     max_value = np.nanmax(values) if vmax is None else vmax
+
+    if isinstance(bins, list):
+        bins = np.array(bins)
 
     if decide_bins_in_log_space:
         if linthresh is None:
@@ -1563,6 +1698,8 @@ def compute_histogram(values,
     values = normalizer(values)
     min_value = normalizer(min_value)
     max_value = normalizer(max_value)
+    if isinstance(bins, np.ndarray):
+        bins = normalizer(bins)
 
     hist, bin_edges = np.histogram(values,
                                    bins=bins,
@@ -1575,6 +1712,8 @@ def compute_histogram(values,
                                           bins=bin_edges,
                                           range=(min_value, max_value))
         hist /= unweighted_hist
+        if min_n_values is not None:
+            hist[unweighted_hist < min_n_values] = np.nan
 
     bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
 
