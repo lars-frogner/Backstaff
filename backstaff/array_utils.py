@@ -85,11 +85,20 @@ class CompactArrayMask:
             assert remaining_shape.pop() == s
         return arr.reshape(*remaining_shape, -1)[..., flat_indices]
 
-    def sum_over_axis(self, subsectioned_arr, axis=0):
+    def sum_over_axis(self, *args, **kwargs):
+        return self.operation_over_axis(np.add, *args, **kwargs)
+
+    def operation_over_axis(self, operation_ufunc, subsectioned_arr, axis=0):
         assert subsectioned_arr.shape == self.included_flat_indices.shape
-        return np.add.reduceat(subsectioned_arr,
+        return operation_ufunc.reduceat(subsectioned_arr,
                                self.axis_splits[axis]).reshape(
                                    self.shape_except_axis(axis))
+
+    def intersect(self, other):
+        return CompactArrayMask(np.logical_and(self.mask, other.mask))
+
+    def union(self, other):
+        return CompactArrayMask(np.logical_or(self.mask, other.mask))
 
     def apply_intersected(self,
                           other,
