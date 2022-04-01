@@ -14,7 +14,7 @@ use crate::{
     create_subcommand, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::In3D,
-    grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
+    grid::Grid3,
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotReader3},
 };
@@ -75,52 +75,16 @@ pub fn run_resampling_for_reshaped_grid<G, R, I>(
     );
     let new_shape = Some(In3D::new(shape[0], shape[1], shape[2]));
 
-    let grid = reader.grid();
-
-    match grid.grid_type() {
-        GridType::Regular => {
-            let grid = RegularGrid3::from_coords(
-                grid.centers().clone(),
-                grid.lower_edges().clone(),
-                grid.periodicity().clone(),
-                grid.up_derivatives().cloned(),
-                grid.down_derivatives().cloned(),
-            );
-            super::resample_to_regular_grid(
-                grid,
-                new_shape,
-                write_arguments,
-                reader,
-                snap_num_in_range,
-                resampled_locations,
-                resampling_method,
-                continue_on_warnings,
-                is_verbose,
-                interpolator,
-                protected_file_types,
-            );
-        }
-        GridType::HorRegular => {
-            let grid = HorRegularGrid3::from_coords(
-                grid.centers().clone(),
-                grid.lower_edges().clone(),
-                grid.periodicity().clone(),
-                grid.up_derivatives().cloned(),
-                grid.down_derivatives().cloned(),
-            );
-            super::resample_to_horizontally_regular_grid(
-                grid,
-                new_shape,
-                write_arguments,
-                reader,
-                snap_num_in_range,
-                resampled_locations,
-                resampling_method,
-                continue_on_warnings,
-                is_verbose,
-                interpolator,
-                protected_file_types,
-            );
-        }
-    }
+    super::resample_to_same_or_reshaped_grid(
+        write_arguments,
+        new_shape,
+        reader,
+        snap_num_in_range,
+        resampled_locations,
+        resampling_method,
+        continue_on_warnings,
+        is_verbose,
+        interpolator,
+        protected_file_types,
+    );
 }

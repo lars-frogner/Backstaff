@@ -4,6 +4,7 @@ mod direct_sampling;
 mod mesh_file;
 mod regular_grid;
 mod reshaped_grid;
+mod same_grid;
 mod weighted_cell_averaging;
 mod weighted_sample_averaging;
 
@@ -11,6 +12,7 @@ use self::{
     mesh_file::{create_mesh_file_subcommand, run_resampling_for_mesh_file},
     regular_grid::{create_regular_grid_subcommand, run_resampling_for_regular_grid},
     reshaped_grid::{create_reshaped_grid_subcommand, run_resampling_for_reshaped_grid},
+    same_grid::{create_same_grid_subcommand, run_resampling_for_same_grid},
 };
 use super::SnapNumInRange;
 use crate::{
@@ -25,7 +27,7 @@ use crate::{
         Dim3::{self, X, Y, Z},
         In3D,
     },
-    grid::{self, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
+    grid::{self, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::{
         poly_fit::{PolyFitInterpolator1, PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
@@ -45,7 +47,8 @@ pub fn create_resample_subcommand() -> Command<'static> {
         .long_about(
             "Create a resampled version of the snapshot.\n\
              The snapshot is resampled to a regular grid of configurable shape and bounds,\n\
-             or to an arbitrary grid specified by a Bifrost mesh file.",
+             to a potentially reshaped version of the original grid, or to an arbitrary\n\
+             grid specified by a Bifrost mesh file.",
         )
         .subcommand_required(true)
         .arg(
@@ -72,12 +75,14 @@ pub fn create_resample_subcommand() -> Command<'static> {
         )
         .subcommand(create_subcommand!(resample, regular_grid))
         .subcommand(create_subcommand!(resample, reshaped_grid))
+        .subcommand(create_subcommand!(resample, same_grid))
         .subcommand(create_subcommand!(resample, mesh_file))
 }
 
 enum ResampleGridType {
     Regular,
     Reshaped,
+    Same,
     MeshFile,
 }
 
@@ -103,23 +108,42 @@ pub fn run_resample_subcommand<G, R>(
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let is_verbose = arguments.is_present("verbose");
 
-    let (resample_grid_type, grid_type_arguments) = if let Some(regular_grid_arguments) =
-        arguments.subcommand_matches("regular_grid")
-    {
-        (ResampleGridType::Regular, regular_grid_arguments)
-    } else if let Some(reshaped_grid_arguments) = arguments.subcommand_matches("reshaped_grid") {
-        (ResampleGridType::Reshaped, reshaped_grid_arguments)
-    } else if let Some(mesh_file_arguments) = arguments.subcommand_matches("mesh_file") {
-        (ResampleGridType::MeshFile, mesh_file_arguments)
-    } else {
-        unreachable!()
-    };
+    let (resample_grid_type, default_method, grid_type_arguments) =
+        if let Some(regular_grid_arguments) = arguments.subcommand_matches("regular_grid") {
+            (
+                ResampleGridType::Regular,
+                ResamplingMethod::WeightedSampleAveraging,
+                regular_grid_arguments,
+            )
+        } else if let Some(reshaped_grid_arguments) = arguments.subcommand_matches("reshaped_grid")
+        {
+            (
+                ResampleGridType::Reshaped,
+                ResamplingMethod::WeightedSampleAveraging,
+                reshaped_grid_arguments,
+            )
+        } else if let Some(same_grid_arguments) = arguments.subcommand_matches("same_grid") {
+            (
+                ResampleGridType::Same,
+                ResamplingMethod::DirectSampling,
+                same_grid_arguments,
+            )
+        } else if let Some(mesh_file_arguments) = arguments.subcommand_matches("mesh_file") {
+            (
+                ResampleGridType::MeshFile,
+                ResamplingMethod::WeightedSampleAveraging,
+                mesh_file_arguments,
+            )
+        } else {
+            unreachable!()
+        };
 
     run_with_selected_method(
         grid_type_arguments,
         reader,
         snap_num_in_range,
         resample_grid_type,
+        default_method,
         &resampled_locations,
         continue_on_warnings,
         is_verbose,
@@ -132,6 +156,7 @@ fn run_with_selected_method<G, R>(
     reader: &R,
     snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
+    default_method: ResamplingMethod,
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
     is_verbose: bool,
@@ -152,10 +177,7 @@ fn run_with_selected_method<G, R>(
     {
         (ResamplingMethod::DirectSampling, method_arguments)
     } else {
-        (
-            ResamplingMethod::WeightedSampleAveraging,
-            grid_type_arguments,
-        )
+        (default_method, grid_type_arguments)
     };
 
     run_with_selected_interpolator(
@@ -236,6 +258,83 @@ fn run_with_selected_interpolator<G, R>(
             interpolator,
             protected_file_types,
         ),
+        ResampleGridType::Same => run_resampling_for_same_grid(
+            arguments,
+            reader,
+            snap_num_in_range,
+            resampled_locations,
+            resampling_method,
+            continue_on_warnings,
+            is_verbose,
+            interpolator,
+            protected_file_types,
+        ),
+    }
+}
+
+fn resample_to_same_or_reshaped_grid<G, R, I>(
+    write_arguments: &ArgMatches,
+    new_shape: Option<In3D<usize>>,
+    reader: &R,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    resampled_locations: &In3D<ResampledCoordLocation>,
+    resampling_method: ResamplingMethod,
+    continue_on_warnings: bool,
+    is_verbose: bool,
+    interpolator: I,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    R: SnapshotReader3<G>,
+    I: Interpolator3,
+{
+    let grid = reader.grid();
+
+    match grid.grid_type() {
+        GridType::Regular => {
+            let grid = RegularGrid3::from_coords(
+                grid.centers().clone(),
+                grid.lower_edges().clone(),
+                grid.periodicity().clone(),
+                grid.up_derivatives().cloned(),
+                grid.down_derivatives().cloned(),
+            );
+            resample_to_regular_grid(
+                grid,
+                new_shape,
+                write_arguments,
+                reader,
+                snap_num_in_range,
+                resampled_locations,
+                resampling_method,
+                continue_on_warnings,
+                is_verbose,
+                interpolator,
+                protected_file_types,
+            );
+        }
+        GridType::HorRegular => {
+            let grid = HorRegularGrid3::from_coords(
+                grid.centers().clone(),
+                grid.lower_edges().clone(),
+                grid.periodicity().clone(),
+                grid.up_derivatives().cloned(),
+                grid.down_derivatives().cloned(),
+            );
+            resample_to_horizontally_regular_grid(
+                grid,
+                new_shape,
+                write_arguments,
+                reader,
+                snap_num_in_range,
+                resampled_locations,
+                resampling_method,
+                continue_on_warnings,
+                is_verbose,
+                interpolator,
+                protected_file_types,
+            );
+        }
     }
 }
 
