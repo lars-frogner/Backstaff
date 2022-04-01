@@ -609,18 +609,10 @@ class ScalarField2:
                       np.diff(self.get_vertical_coords()))
 
     def plot(self, inverted_vertically=False, **plot_kwargs):
-        aspect_ratio = 5 / 4 if np.abs(
-            (self.get_horizontal_extent() - self.get_vertical_extent()) /
-            self.get_horizontal_extent()) < 1e-3 else 4.5 / 3
-        fig_kwargs = plot_kwargs.pop('fig_kwargs', {})
-        fig_kwargs['width'] = fig_kwargs.pop('width', 7.2)
-        fig_kwargs['aspect_ratio'] = fig_kwargs.pop('aspect_ratio',
-                                                    aspect_ratio)
         return plotting.plot_2d_field(
             self.get_horizontal_coords(),
             self.get_vertical_coords(inverted=inverted_vertically),
             self.get_values(inverted_vertically=inverted_vertically),
-            fig_kwargs=fig_kwargs,
             **plot_kwargs)
 
     def save(self, file_path, compressed=True, overwrite=True):
