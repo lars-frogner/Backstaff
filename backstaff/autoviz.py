@@ -172,13 +172,8 @@ class Reduction:
     def get_plot_kwargs(self, field):
         plot_axis_names = list(self.AXIS_NAMES)
         plot_axis_names.pop(self.axis)
-        hor_coords = field.get_horizontal_coords()
-        vert_coords = field.get_vertical_coords()
-        aspect_ratio = (hor_coords[-1] - hor_coords[0]) / (
-            vert_coords[-1] - vert_coords[0]) + 0.25
         return dict(xlabel=f'${plot_axis_names[0]}$ [Mm]',
-                    ylabel=f'${plot_axis_names[1]}$ [Mm]',
-                    fig_kwargs=dict(aspect_ratio=aspect_ratio))
+                    ylabel=f'${plot_axis_names[1]}$ [Mm]')
 
     def _get_axis_size(self, bifrost_data):
         return getattr(bifrost_data, self.axis_name).size
