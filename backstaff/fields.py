@@ -86,8 +86,66 @@ class ScalarField3:
         if scale is not None:
             values = values * scale
 
-        return ScalarField3(Coords3(bifrost_data.x, bifrost_data.y, z_coords),
-                            values)
+        return ScalarField3(
+            Coords3(bifrost_data.xdn, bifrost_data.ydn, z_coords), values)
+
+    @staticmethod
+    def at_horizontal_indices_in_bifrost_data(
+        bifrost_data,
+        i_slice,
+        j_slice,
+        quantities,
+        height_range=None,
+        scale=None,
+        value_processor=lambda x: x,
+    ):
+        x_coords = bifrost_data.xdn
+        y_coords = bifrost_data.ydn
+        z_coords = helita_utils.inverted_zdn(bifrost_data)
+        if not isinstance(quantities, (list, tuple)):
+            quantities = [quantities]
+        k_slice = helita_utils.inclusive_coord_slice(z_coords, height_range)
+        values = value_processor(
+            *(bifrost_data.get_var(quantity)[i_slice, j_slice, ::-1][:, :,
+                                                                     k_slice]
+              for quantity in quantities))
+        x_coords = x_coords[i_slice]
+        y_coords = y_coords[j_slice]
+        z_coords = z_coords[k_slice]
+        if scale is not None:
+            values = values * scale
+
+        return ScalarField3(Coords3(x_coords, y_coords, z_coords), values)
+
+    @staticmethod
+    def for_subdomain_of_bifrost_data(
+        bifrost_data,
+        quantities,
+        x_range=None,
+        y_range=None,
+        height_range=None,
+        scale=None,
+        value_processor=lambda x: x,
+    ):
+        x_coords = bifrost_data.xdn
+        y_coords = bifrost_data.ydn
+        z_coords = helita_utils.inverted_zdn(bifrost_data)
+        if not isinstance(quantities, (list, tuple)):
+            quantities = [quantities]
+        i_slice = helita_utils.inclusive_coord_slice(x_coords, x_range)
+        j_slice = helita_utils.inclusive_coord_slice(y_coords, y_range)
+        k_slice = helita_utils.inclusive_coord_slice(z_coords, height_range)
+        values = value_processor(
+            *(bifrost_data.get_var(quantity)[i_slice, j_slice, ::-1][:, :,
+                                                                     k_slice]
+              for quantity in quantities))
+        x_coords = x_coords[i_slice]
+        y_coords = y_coords[j_slice]
+        z_coords = z_coords[k_slice]
+        if scale is not None:
+            values = values * scale
+
+        return ScalarField3(Coords3(x_coords, y_coords, z_coords), values)
 
     def __init__(self, coords, values):
         assert isinstance(coords, Coords3)
@@ -194,6 +252,10 @@ class ScalarField3:
             assume_sorted=True)(new_axis_coords)
 
         return ScalarField3(Coords3(*new_coords), new_values)
+
+    def horizontal_mean(self):
+        mean_values = np.nanmean(self.values, axis=(0, 1))
+        return ScalarField1(Coords1(self.coords[2]), mean_values)
 
 
 class ScalarField1:
