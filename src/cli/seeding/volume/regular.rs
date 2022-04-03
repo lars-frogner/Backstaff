@@ -10,8 +10,12 @@ use crate::{
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the regular volume seeder.
-pub fn create_regular_subcommand() -> Command<'static> {
-    Command::new("regular")
+pub fn create_regular_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "regular";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the regular volume seeder")
         .long_about(
             "Use the regular volume seeder.\n\

@@ -13,11 +13,11 @@ use self::{
 };
 use crate::{
     cli::utils,
-    create_subcommand, exit_on_false, exit_with_error,
+    exit_on_false, exit_with_error,
     geometry::{Dim2, Dim3, Point2},
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
     seeding::{fsd, slice::SliceSeeder3},
 };
 use clap::{Arg, ArgMatches, Command};
@@ -29,8 +29,12 @@ pub struct CommonSliceSeederParameters {
 }
 
 /// Creates a subcommand for using a slice seeder.
-pub fn create_slice_seeder_subcommand() -> Command<'static> {
-    Command::new("slice_seeder")
+pub fn create_slice_seeder_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "slice_seeder";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use a slice seeder")
         .subcommand_required(true)
         .arg(
@@ -83,21 +87,21 @@ pub fn create_slice_seeder_subcommand() -> Command<'static> {
                 )
                 .takes_value(true),
         )
-        .subcommand(create_subcommand!(slice_seeder, regular))
-        .subcommand(create_subcommand!(slice_seeder, random))
-        .subcommand(create_subcommand!(slice_seeder, stratified))
-        .subcommand(create_subcommand!(slice_seeder, value_pdf))
+        .subcommand(create_regular_subcommand(command_name))
+        .subcommand(create_random_subcommand(command_name))
+        .subcommand(create_stratified_subcommand(command_name))
+        .subcommand(create_value_pdf_subcommand(command_name))
 }
 
 /// Creates a slice seeder based on the provided arguments.
-pub fn create_slice_seeder_from_arguments<G, R, I>(
+pub fn create_slice_seeder_from_arguments<G, P, I>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: &I,
 ) -> SliceSeeder3
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     let axis = utils::get_value_from_required_constrained_argument(
@@ -140,21 +144,21 @@ where
         create_regular_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            snapshot.reader().grid(),
+            snapshot.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("random") {
         create_random_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            snapshot.reader().grid(),
+            snapshot.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("stratified") {
         create_stratified_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            snapshot.reader().grid(),
+            snapshot.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("value_pdf") {

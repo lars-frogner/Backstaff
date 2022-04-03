@@ -13,8 +13,14 @@ use crate::{
 use clap::{App, Arg, ArgMatches};
 
 /// Creates a subcommand for using the DC power-law distribution accelerator.
-pub fn create_dc_power_law_accelerator_subcommand<'a, 'b>() -> App<'a, 'b> {
-    Command::new("dc_power_law_accelerator")
+pub fn create_dc_power_law_accelerator_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "dc_power_law_accelerator";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the direct current power-law distribution accelerator model")
         .long_about(
             "Use the direct current power-law distribution accelerator model.\n\

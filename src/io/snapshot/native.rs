@@ -8,7 +8,7 @@ use super::{
         utils::{self, AtomicOutputPath},
         Endianness, OverwriteMode, Verbose,
     },
-    fdt, ParameterValue, SnapshotFormat, SnapshotParameters, SnapshotReader3, FALLBACK_SNAP_NUM,
+    fdt, ParameterValue, SnapshotParameters, SnapshotProvider3, FALLBACK_SNAP_NUM,
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
@@ -70,6 +70,16 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
         let grid = create_grid_from_mesh_file(&mesh_path, is_periodic, config.verbose())?;
 
         Self::new_from_parameters_and_grid(config, parameters, grid)
+    }
+
+    /// Returns the path to the file representing the snapshot.
+    pub fn path(&self) -> &Path {
+        self.config.param_file_path()
+    }
+
+    /// Whether the reader is verbose.
+    pub fn verbose(&self) -> Verbose {
+        self.config.verbose()
     }
 
     /// Creates a reader for a 3D Bifrost snapshot.
@@ -245,52 +255,8 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
             )),
         }
     }
-}
 
-impl<G: Grid3<fdt>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
-    type Parameters = NativeSnapshotParameters;
-
-    const FORMAT: SnapshotFormat = SnapshotFormat::Native;
-
-    fn path(&self) -> &Path {
-        self.config.param_file_path()
-    }
-
-    fn verbose(&self) -> Verbose {
-        self.config.verbose()
-    }
-
-    fn grid(&self) -> &G {
-        self.grid.as_ref()
-    }
-
-    fn arc_with_grid(&self) -> Arc<G> {
-        Arc::clone(&self.grid)
-    }
-
-    fn parameters(&self) -> &Self::Parameters {
-        &self.parameters
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.config.endianness
-    }
-
-    fn primary_variable_names(&self) -> Vec<&str> {
-        self.primary_variable_names.clone()
-    }
-
-    fn auxiliary_variable_names(&self) -> Vec<&str> {
-        self.auxiliary_variable_names
-            .iter()
-            .map(|s| s.as_str())
-            .collect()
-    }
-
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
-        super::extract_name_and_num_from_snapshot_path(self.config.param_file_path())
-    }
-
+    #[allow(dead_code)]
     fn reread(&mut self) -> io::Result<()> {
         let Self {
             parameters,
@@ -347,6 +313,45 @@ impl<G: Grid3<fdt>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
     }
 }
 
+impl<G: Grid3<fdt>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
+    type Parameters = NativeSnapshotParameters;
+
+    fn grid(&self) -> &G {
+        self.grid.as_ref()
+    }
+
+    fn arc_with_grid(&self) -> Arc<G> {
+        Arc::clone(&self.grid)
+    }
+
+    fn parameters(&self) -> &Self::Parameters {
+        &self.parameters
+    }
+
+    fn endianness(&self) -> Endianness {
+        self.config.endianness
+    }
+
+    fn primary_variable_names(&self) -> Vec<&str> {
+        self.primary_variable_names.clone()
+    }
+
+    fn auxiliary_variable_names(&self) -> Vec<&str> {
+        self.auxiliary_variable_names
+            .iter()
+            .map(|s| s.as_str())
+            .collect()
+    }
+
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+        super::extract_name_and_num_from_snapshot_path(self.config.param_file_path())
+    }
+
+    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+        self.read_scalar_field(variable_name)
+    }
+}
+
 impl NativeSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
     pub fn new<P: AsRef<Path>>(
@@ -371,8 +376,8 @@ impl NativeSnapshotReaderConfig {
 }
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
-    reader: &RIN,
+pub fn write_modified_snapshot<P, GIN, PIN, GOUT, FP>(
+    provider: &PIN,
     new_grid: Option<Arc<GOUT>>,
     quantity_names: &[&str],
     mut modified_parameters: HashMap<&str, ParameterValue>,
@@ -387,7 +392,7 @@ pub fn write_modified_snapshot<P, GIN, RIN, GOUT, FP>(
 where
     P: AsRef<Path>,
     GIN: Grid3<fdt>,
-    RIN: SnapshotReader3<GIN>,
+    PIN: SnapshotProvider3<GIN>,
     GOUT: Grid3<fdt>,
     FP: Fn(&str) -> io::Result<ScalarField3<fdt, GOUT>>,
 {
@@ -410,7 +415,7 @@ where
     );
 
     let (included_primary_variable_names, included_auxiliary_variable_names) =
-        reader.classify_variable_names(quantity_names);
+        provider.classify_variable_names(quantity_names);
 
     modified_parameters.insert(
         "aux",
@@ -479,7 +484,7 @@ where
     macro_rules! perform_writing {
         ($grid:expr) => {{
             if write_param_file {
-                let mut new_parameters = reader.parameters().clone();
+                let mut new_parameters = provider.parameters().clone();
                 new_parameters.modify_values(modified_parameters);
 
                 if verbose.is_yes() {
@@ -516,7 +521,7 @@ where
                             field.into_values()
                         })
                     },
-                    reader.endianness(),
+                    provider.endianness(),
                 )?;
             }
             if write_aux_file {
@@ -531,7 +536,7 @@ where
                             field.into_values()
                         })
                     },
-                    reader.endianness(),
+                    provider.endianness(),
                 )?;
             }
 
@@ -561,7 +566,7 @@ where
         modified_parameters.insert("dz", ParameterValue::Float(average_grid_cell_extents[Z]));
         perform_writing!(new_grid.as_ref());
     } else {
-        perform_writing!(reader.grid());
+        perform_writing!(provider.grid());
     };
 
     Ok(())

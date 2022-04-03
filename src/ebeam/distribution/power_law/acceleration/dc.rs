@@ -74,7 +74,7 @@ impl DCPowerLawAccelerator {
     where
         G: Grid3<fdt>,
     {
-        feb::from(snapshot.reader().grid().grid_cell_volume(indices)) * U_L3 // [cm^3]
+        feb::from(snapshot.grid().grid_cell_volume(indices)) * U_L3 // [cm^3]
     }
 
     fn determine_temperature<G>(snapshot: &SnapshotCacher3<G>, indices: &Idx3<usize>) -> feb
@@ -197,8 +197,7 @@ impl Accelerator for DCPowerLawAccelerator {
         let properties: Vec<_> = properties
             .into_par_iter()
             .filter_map(|(indices, total_power_density)| {
-                let start_position =
-                    Point3::from(&snapshot.reader().grid().centers().point(&indices));
+                let start_position = Point3::from(&snapshot.grid().centers().point(&indices));
                 if let Some(acceleration_region_data) = self.acceleration_region_tracer.trace(
                     "",
                     snapshot,
@@ -338,8 +337,8 @@ impl Accelerator for DCPowerLawAccelerator {
                 .unzip();
 
         let mut acceleration_regions = DCAccelerationRegions::new(
-            Vec3::from(snapshot.reader().grid().lower_bounds()),
-            Vec3::from(snapshot.reader().grid().upper_bounds()),
+            Vec3::from(snapshot.grid().lower_bounds()),
+            Vec3::from(snapshot.grid().upper_bounds()),
             acceleration_region_properties,
             verbose,
         );

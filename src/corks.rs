@@ -7,7 +7,7 @@ use crate::{
     interpolation::Interpolator3,
     io::{
         snapshot::{
-            self, fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3,
+            self, fdt, SnapshotCacher3, SnapshotParameters, SnapshotProvider3,
             MASS_DENSITY_VARIABLE_NAME, MOMENTUM_VARIABLE_NAME, OUTPUT_TIME_STEP_NAME,
         },
         utils, Verbose,
@@ -305,9 +305,9 @@ impl CorkSet {
     /// - `G`: Type of grid.
     /// - `R`: Type of snapshot reader.
     /// - `I`: Type of interpolator.
-    pub fn new<P, G, R, I>(
-        initial_positions: P,
-        initial_snapshot: &mut SnapshotCacher3<G, R>,
+    pub fn new<Po, G, P, I>(
+        initial_positions: Po,
+        initial_snapshot: &mut SnapshotCacher3<G, P>,
         interpolator: &I,
         scalar_quantity_names: Vec<String>,
         vector_magnitude_names: Vec<String>,
@@ -315,9 +315,9 @@ impl CorkSet {
         verbose: Verbose,
     ) -> io::Result<Self>
     where
-        P: IntoParallelIterator<Item = Point3<fco>>,
+        Po: IntoParallelIterator<Item = Point3<fco>>,
         G: Grid3<fdt>,
-        R: SnapshotReader3<G> + Sync,
+        P: SnapshotProvider3<G> + Sync,
         I: Interpolator3,
     {
         initial_snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
@@ -326,8 +326,8 @@ impl CorkSet {
         let mass_density_field = initial_snapshot.cached_scalar_field(MASS_DENSITY_VARIABLE_NAME);
         let momentum_field = initial_snapshot.cached_vector_field(MOMENTUM_VARIABLE_NAME);
 
-        let lower_bounds = initial_snapshot.reader().grid().lower_bounds().clone();
-        let upper_bounds = initial_snapshot.reader().grid().upper_bounds().clone();
+        let lower_bounds = initial_snapshot.grid().lower_bounds().clone();
+        let upper_bounds = initial_snapshot.grid().upper_bounds().clone();
 
         let number_of_scalar_quantities =
             scalar_quantity_names.len() + vector_magnitude_names.len();
@@ -462,14 +462,14 @@ impl CorkSet {
         self.corks.par_iter_mut().for_each(updater);
     }
 
-    fn sample_field_values<G, R, I>(
+    fn sample_field_values<G, P, I>(
         &mut self,
-        snapshot: &mut SnapshotCacher3<G, R>,
+        snapshot: &mut SnapshotCacher3<G, P>,
         interpolator: &I,
     ) -> io::Result<()>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G> + Sync,
+        P: SnapshotProvider3<G> + Sync,
         I: Interpolator3,
     {
         if self.verbose().is_yes() {
@@ -570,19 +570,19 @@ pub trait CorkStepper: Sync {
         G: Grid3<fdt>,
         I: Interpolator3;
 
-    fn step_all_corks<G, R, I>(
+    fn step_all_corks<G, P, I>(
         &self,
         corks: &mut CorkSet,
-        snapshot: &mut SnapshotCacher3<G, R>,
+        snapshot: &mut SnapshotCacher3<G, P>,
         interpolator: &I,
     ) -> io::Result<()>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G> + Sync,
+        P: SnapshotProvider3<G> + Sync,
         I: Interpolator3,
     {
         let step_duration = snapshot
-            .reader()
+            .provider()
             .parameters()
             .get_value(OUTPUT_TIME_STEP_NAME)?
             .try_as_float()?;
@@ -686,31 +686,31 @@ pub trait CorkAdvector {
     /// - `R`: Type of snapshot reader.
     /// - `I`: Type of interpolator.
     /// - `S`: Type of stepper.
-    fn advect_corks<G, R, I, S>(
+    fn advect_corks<G, P, I, S>(
         &self,
         corks: &mut CorkSet,
-        snapshot: &mut SnapshotCacher3<G, R>,
+        snapshot: &mut SnapshotCacher3<G, P>,
         interpolator: &I,
         stepper: &S,
     ) -> io::Result<()>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G> + Sync,
+        P: SnapshotProvider3<G> + Sync,
         I: Interpolator3,
         S: CorkStepper;
 }
 
 impl CorkAdvector for ConstantCorkAdvector {
-    fn advect_corks<G, R, I, S>(
+    fn advect_corks<G, P, I, S>(
         &self,
         corks: &mut CorkSet,
-        snapshot: &mut SnapshotCacher3<G, R>,
+        snapshot: &mut SnapshotCacher3<G, P>,
         interpolator: &I,
         stepper: &S,
     ) -> io::Result<()>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G> + Sync,
+        P: SnapshotProvider3<G> + Sync,
         I: Interpolator3,
         S: CorkStepper,
     {

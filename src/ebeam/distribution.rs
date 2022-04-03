@@ -7,7 +7,7 @@ use crate::{
     geometry::{Idx3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
     tracing::{ftr, stepping::SteppingSense},
 };
 use ndarray::prelude::*;
@@ -55,9 +55,9 @@ pub trait Distribution {
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
-    fn propagate<G, R, I>(
+    fn propagate<G, P, I>(
         &mut self,
-        snapshot: &SnapshotCacher3<G, R>,
+        snapshot: &SnapshotCacher3<G, P>,
         acceleration_map: &Array3<bool>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
@@ -65,6 +65,6 @@ pub trait Distribution {
     ) -> PropagationResult
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
         I: Interpolator3;
 }

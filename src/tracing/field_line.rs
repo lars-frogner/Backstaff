@@ -12,7 +12,7 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
         utils, Endianness, Verbose,
     },
     num::BFloat,
@@ -62,17 +62,17 @@ pub trait FieldLineTracer3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `St`: Type of stepper.
-    fn trace<G, R, I, St>(
+    fn trace<G, P, I, St>(
         &self,
         field_name: &str,
-        snapshot: &SnapshotCacher3<G, R>,
+        snapshot: &SnapshotCacher3<G, P>,
         interpolator: &I,
         stepper: St,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
         I: Interpolator3,
         St: Stepper3;
 }
@@ -140,9 +140,9 @@ impl FieldLineSet3 {
     /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn trace<Sd, Tr, G, R, I, StF>(
+    pub fn trace<Sd, Tr, G, P, I, StF>(
         field_name: &str,
-        snapshot: &SnapshotCacher3<G, R>,
+        snapshot: &SnapshotCacher3<G, P>,
         seeder: Sd,
         tracer: &Tr,
         interpolator: &I,
@@ -155,7 +155,7 @@ impl FieldLineSet3 {
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
         G: Grid3<fdt>,
-        R: SnapshotReader3<G> + Sync,
+        P: SnapshotProvider3<G> + Sync,
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
     {
@@ -183,8 +183,8 @@ impl FieldLineSet3 {
             );
         }
 
-        let lower_bounds = Vec3::from(snapshot.reader().grid().lower_bounds());
-        let upper_bounds = Vec3::from(snapshot.reader().grid().upper_bounds());
+        let lower_bounds = Vec3::from(snapshot.grid().lower_bounds());
+        let upper_bounds = Vec3::from(snapshot.grid().upper_bounds());
 
         Self::new(lower_bounds, upper_bounds, properties, verbose)
     }

@@ -18,7 +18,7 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
         utils, Verbose,
     },
     num::BFloat,
@@ -323,9 +323,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<G, R, D, I, StF>(snapshot: &mut SnapshotCacher3<G, R>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_unpropagated<G, P, D, I, StF>(snapshot: &mut SnapshotCacher3<G, P>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
-          R: SnapshotReader3<G> + Sync,
+          P: SnapshotProvider3<G> + Sync,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
@@ -342,8 +342,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .map(UnpropagatedElectronBeam::<A::DistributionType>::generate)
             .collect();
 
-        let lower_bounds = Vec3::from(snapshot.reader().grid().lower_bounds());
-        let upper_bounds = Vec3::from(snapshot.reader().grid().upper_bounds());
+        let lower_bounds = Vec3::from(snapshot.grid().lower_bounds());
+        let upper_bounds = Vec3::from(snapshot.grid().upper_bounds());
 
         ElectronBeamSwarm {
             lower_bounds,
@@ -376,9 +376,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<G, R, D, I, StF>(snapshot: &mut SnapshotCacher3<G, R>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_propagated<G, P, D, I, StF>(snapshot: &mut SnapshotCacher3<G, P>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
-          R: SnapshotReader3<G> + Sync,
+          P: SnapshotProvider3<G> + Sync,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
@@ -390,8 +390,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
-        let mut acceleration_map =
-            Array::from_elem(snapshot.reader().grid().shape().to_tuple(), false);
+        let mut acceleration_map = Array::from_elem(snapshot.grid().shape().to_tuple(), false);
 
         for distribution in distributions.iter() {
             let indices = distribution.acceleration_indices();
@@ -425,8 +424,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             );
         }
 
-        let lower_bounds = Vec3::from(snapshot.reader().grid().lower_bounds());
-        let upper_bounds = Vec3::from(snapshot.reader().grid().upper_bounds());
+        let lower_bounds = Vec3::from(snapshot.grid().lower_bounds());
+        let upper_bounds = Vec3::from(snapshot.grid().upper_bounds());
 
         ElectronBeamSwarm {
             lower_bounds,
@@ -766,16 +765,16 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
 }
 
 impl<D: Distribution> PropagatedElectronBeam<D> {
-    fn generate<G, R, I, S>(
+    fn generate<G, P, I, S>(
         mut distribution: D,
-        snapshot: &SnapshotCacher3<G, R>,
+        snapshot: &SnapshotCacher3<G, P>,
         acceleration_map: &Array3<bool>,
         interpolator: &I,
         stepper: S,
     ) -> Option<Self>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
         I: Interpolator3,
         S: Stepper3,
     {

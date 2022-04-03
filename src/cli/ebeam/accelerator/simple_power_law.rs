@@ -1,18 +1,28 @@
 //! Command line interface for the simple power-law distribution accelerator.
 
 use crate::{
-    cli::utils,
+    add_subcommand_combinations,
+    cli::{
+        interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
+        tracing::stepping::rkf::create_rkf_stepper_subcommand, utils,
+    },
     ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig,
     exit_on_error,
     grid::Grid3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
     units::solar::U_T,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the simple power-law distribution accelerator.
-pub fn create_simple_power_law_accelerator_subcommand() -> Command<'static> {
-    Command::new("simple_power_law_accelerator")
+pub fn create_simple_power_law_accelerator_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "simple_power_law_accelerator";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Use the simple power-law distribution accelerator model")
         .long_about(
             "Use the simple power-law distribution accelerator model.\n\
@@ -156,21 +166,23 @@ pub fn create_simple_power_law_accelerator_subcommand() -> Command<'static> {
                 .help("Maximum number of iterations when estimating lower cut-off energy\n")
                 .takes_value(true)
                 .default_value("100"),
-        )
+        );
+
+    add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }
 
 /// Determines simple power-law distribution accelerator parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_power_law_accelerator_config_from_options<G, R>(
+pub fn construct_simple_power_law_accelerator_config_from_options<G, P>(
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
 ) -> SimplePowerLawAccelerationConfig
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let acceleration_duration = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "acceleration-duration",
         "dt",
@@ -179,7 +191,7 @@ where
     );
 
     let particle_energy_fraction = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "particle-energy-fraction",
         "qjoule_acc_frac",
@@ -188,7 +200,7 @@ where
     );
 
     let power_law_delta = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "power-law-delta",
         "power_law_index",
@@ -197,7 +209,7 @@ where
     );
 
     let min_total_power_density = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "min-total-power-density",
         "min_beam_en",
@@ -206,7 +218,7 @@ where
     );
 
     let min_depletion_distance = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "min-depletion-distance",
         "min_stop_dist",

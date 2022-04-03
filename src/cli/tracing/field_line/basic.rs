@@ -1,7 +1,16 @@
 //! Command line interface for basic field line tracer.
 
 use crate::{
-    cli::utils,
+    add_subcommand_combinations,
+    cli::{
+        interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
+        seeding::{
+            manual::create_manual_seeder_subcommand, slice::create_slice_seeder_subcommand,
+            volume::create_volume_seeder_subcommand,
+        },
+        tracing::stepping::rkf::create_rkf_stepper_subcommand,
+        utils,
+    },
     exit_on_error,
     tracing::field_line::basic::{
         BasicFieldLineTracerConfig, FieldLinePointSpacing, FieldLineTracingSense,
@@ -10,8 +19,14 @@ use crate::{
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the basic field line tracer.
-pub fn create_basic_field_line_tracer_subcommand() -> Command<'static> {
-    Command::new("basic_tracer")
+pub fn create_basic_field_line_tracer_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "basic_field_line_tracer";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Use the basic field line tracer")
         .long_about(
             "Use the basic field line tracer.\n\
@@ -48,7 +63,9 @@ pub fn create_basic_field_line_tracer_subcommand() -> Command<'static> {
                 .help("Field lines reaching lengths larger than this will be terminated\n")
                 .takes_value(true)
                 .default_value("inf"),
-        )
+        );
+
+    add_subcommand_combinations!(command, command_name, true; rkf_stepper, poly_fit_interpolator, (slice_seeder, volume_seeder, manual_seeder))
 }
 
 /// Determines basic field line tracer parameters based on

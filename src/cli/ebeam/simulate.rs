@@ -21,6 +21,7 @@ use super::{
     },
 };
 use crate::{
+    add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::{
             construct_poly_fit_interpolator_config_from_options,
@@ -32,7 +33,6 @@ use crate::{
         },
         utils as cli_utils,
     },
-    create_subcommand,
     ebeam::{
         accelerator::Accelerator,
         detection::{
@@ -57,7 +57,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     tracing::stepping::rkf::{
@@ -73,8 +73,12 @@ use std::{
 };
 
 /// Builds a representation of the `ebeam-simulate` command line subcommand.
-pub fn create_simulate_subcommand() -> Command<'static> {
-    let app = Command::new("simulate")
+pub fn create_simulate_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "simulate";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Simulate electron beams in the snapshot")
         .long_about(
             "Simulate electron beams in the snapshot.\n\
@@ -193,148 +197,28 @@ pub fn create_simulate_subcommand() -> Command<'static> {
                 .short('p')
                 .long("print-parameter-values")
                 .help("Prints the values of all the parameters that will be used"),
-        );
+        )
+        .subcommand(create_simple_reconnection_site_detector_subcommand(
+            command_name,
+        ))
+        .subcommand(create_manual_reconnection_site_detector_subcommand(
+            command_name,
+        ))
+        .subcommand(create_power_law_distribution_subcommand(command_name))
+        .subcommand(create_simple_power_law_accelerator_subcommand(command_name));
 
-    app.subcommand(
-        create_subcommand!(simulate, simple_reconnection_site_detector)
-            .subcommand(
-                create_subcommand!(simple_reconnection_site_detector, power_law_distribution)
-                    .subcommand(
-                        create_subcommand!(power_law_distribution, simple_power_law_accelerator)
-                            .subcommand(
-                                create_subcommand!(
-                                    simple_power_law_accelerator,
-                                    poly_fit_interpolator
-                                )
-                                .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-                            )
-                            .subcommand(create_subcommand!(
-                                simple_power_law_accelerator,
-                                rkf_stepper
-                            )),
-                    )
-                    .subcommand(
-                        create_subcommand!(power_law_distribution, poly_fit_interpolator)
-                            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-                    )
-                    .subcommand(create_subcommand!(power_law_distribution, rkf_stepper)),
-            )
-            .subcommand(
-                create_subcommand!(
-                    simple_reconnection_site_detector,
-                    simple_power_law_accelerator
-                )
-                .subcommand(
-                    create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
-                        .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-                )
-                .subcommand(create_subcommand!(
-                    simple_power_law_accelerator,
-                    rkf_stepper
-                )),
-            )
-            .subcommand(
-                create_subcommand!(simple_reconnection_site_detector, poly_fit_interpolator)
-                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-            )
-            .subcommand(create_subcommand!(
-                simple_reconnection_site_detector,
-                rkf_stepper
-            )),
-    )
-    .subcommand(
-        create_subcommand!(simulate, manual_reconnection_site_detector)
-            .subcommand(
-                create_subcommand!(manual_reconnection_site_detector, power_law_distribution)
-                    .subcommand(
-                        create_subcommand!(power_law_distribution, simple_power_law_accelerator)
-                            .subcommand(
-                                create_subcommand!(
-                                    simple_power_law_accelerator,
-                                    poly_fit_interpolator
-                                )
-                                .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-                            )
-                            .subcommand(create_subcommand!(
-                                simple_power_law_accelerator,
-                                rkf_stepper
-                            )),
-                    )
-                    .subcommand(
-                        create_subcommand!(power_law_distribution, poly_fit_interpolator)
-                            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-                    )
-                    .subcommand(create_subcommand!(power_law_distribution, rkf_stepper)),
-            )
-            .subcommand(
-                create_subcommand!(
-                    manual_reconnection_site_detector,
-                    simple_power_law_accelerator
-                )
-                .subcommand(
-                    create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
-                        .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-                )
-                .subcommand(create_subcommand!(
-                    simple_power_law_accelerator,
-                    rkf_stepper
-                )),
-            )
-            .subcommand(
-                create_subcommand!(manual_reconnection_site_detector, poly_fit_interpolator)
-                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-            )
-            .subcommand(create_subcommand!(
-                manual_reconnection_site_detector,
-                rkf_stepper
-            )),
-    )
-    .subcommand(
-        create_subcommand!(simulate, power_law_distribution)
-            .subcommand(
-                create_subcommand!(power_law_distribution, simple_power_law_accelerator)
-                    .subcommand(
-                        create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
-                            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-                    )
-                    .subcommand(create_subcommand!(
-                        simple_power_law_accelerator,
-                        rkf_stepper
-                    )),
-            )
-            .subcommand(
-                create_subcommand!(power_law_distribution, poly_fit_interpolator)
-                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-            )
-            .subcommand(create_subcommand!(power_law_distribution, rkf_stepper)),
-    )
-    .subcommand(
-        create_subcommand!(simulate, simple_power_law_accelerator)
-            .subcommand(
-                create_subcommand!(simple_power_law_accelerator, poly_fit_interpolator)
-                    .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-            )
-            .subcommand(create_subcommand!(
-                simple_power_law_accelerator,
-                rkf_stepper
-            )),
-    )
-    .subcommand(
-        create_subcommand!(simulate, poly_fit_interpolator)
-            .subcommand(create_subcommand!(poly_fit_interpolator, rkf_stepper)),
-    )
-    .subcommand(create_subcommand!(simulate, rkf_stepper))
+    add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }
 
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
-pub fn run_simulate_subcommand<G, R>(
+pub fn run_simulate_subcommand<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
 {
     run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
@@ -417,14 +301,14 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_detector<G, R>(
+fn run_with_selected_detector<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
 {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
         let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
@@ -442,14 +326,14 @@ fn run_with_selected_detector<G, R>(
                 (
                     construct_simple_reconnection_site_detector_config_from_options(
                         detector_arguments,
-                        snapshot.reader(),
+                        snapshot.provider(),
                     ),
                     detector_arguments,
                 )
             } else {
                 (
                     SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(
-                        snapshot.reader(),
+                        snapshot.provider(),
                     ),
                     arguments,
                 )
@@ -472,16 +356,16 @@ fn run_with_selected_detector<G, R>(
     }
 }
 
-fn run_with_selected_accelerator<G, R, D>(
+fn run_with_selected_accelerator<G, P, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     D: ReconnectionSiteDetector,
 {
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
@@ -490,13 +374,13 @@ fn run_with_selected_accelerator<G, R, D>(
         (
             construct_power_law_distribution_config_from_options(
                 distribution_arguments,
-                snapshot.reader(),
+                snapshot.provider(),
             ),
             distribution_arguments,
         )
     } else {
         (
-            PowerLawDistributionConfig::with_defaults_from_param_file(snapshot.reader()),
+            PowerLawDistributionConfig::with_defaults_from_param_file(snapshot.provider()),
             arguments,
         )
     };
@@ -514,7 +398,7 @@ fn run_with_selected_accelerator<G, R, D>(
     {
         let accelerator_config = construct_simple_power_law_accelerator_config_from_options(
             accelerator_arguments,
-            snapshot.reader(),
+            snapshot.provider(),
         );
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
@@ -531,7 +415,7 @@ fn run_with_selected_accelerator<G, R, D>(
         );
     } else {
         let accelerator_config =
-            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(snapshot.reader());
+            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(snapshot.provider());
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
         }
@@ -548,16 +432,16 @@ fn run_with_selected_accelerator<G, R, D>(
     };
 }
 
-fn run_with_selected_interpolator<G, R, D, A>(
+fn run_with_selected_interpolator<G, P, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     protected_file_types: &[&str])
 where G: Grid3<fdt>,
-      R: SnapshotReader3<G> + Sync,
+      P: SnapshotProvider3<G> + Sync,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -592,17 +476,17 @@ where G: Grid3<fdt>,
     );
 }
 
-fn run_with_selected_stepper_factory<G, R, D, A, I>(
+fn run_with_selected_stepper_factory<G, P, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     interpolator: I,
     protected_file_types: &[&str])
 where G: Grid3<fdt>,
-      R: SnapshotReader3<G> + Sync,
+      P: SnapshotProvider3<G> + Sync,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,
@@ -730,17 +614,17 @@ where G: Grid3<fdt>,
     );
 }
 
-fn perform_post_simulation_actions<G, R, A, I>(
+fn perform_post_simulation_actions<G, P, A, I>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_path: AtomicOutputPath,
     extra_atomic_output_path: Option<AtomicOutputPath>,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     A: Accelerator,
     I: Interpolator3,
 {

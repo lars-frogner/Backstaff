@@ -6,20 +6,24 @@ use crate::{
         snapshot::write::{create_write_subcommand, run_write_subcommand},
         utils,
     },
-    create_subcommand, exit_with_error,
+    exit_with_error,
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, Point3,
     },
     grid::Grid3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{collections::HashMap, sync::Arc};
 
 /// Builds a representation of the `snapshot-extract` command line subcommand.
-pub fn create_extract_subcommand() -> Command<'static> {
-    Command::new("extract")
+pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "extract";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Extract a subdomain of the snapshot")
         .long_about(
             "Extract a subdomain of the snapshot.\n\
@@ -109,20 +113,20 @@ pub fn create_extract_subcommand() -> Command<'static> {
                 .long("verbose")
                 .help("Print status messages related to extraction"),
         )
-        .subcommand(create_subcommand!(mesh_file, write))
+        .subcommand(create_write_subcommand(command_name))
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
-pub fn run_extract_subcommand<G, R>(
+pub fn run_extract_subcommand<G, P>(
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let original_grid = reader.grid();
+    let original_grid = provider.grid();
     let original_shape = original_grid.shape();
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
@@ -207,7 +211,7 @@ pub fn run_extract_subcommand<G, R>(
 
     run_write_subcommand(
         write_arguments,
-        reader,
+        provider,
         snap_num_in_range,
         Some(Arc::clone(&new_grid)),
         HashMap::new(),

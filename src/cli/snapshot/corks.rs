@@ -2,6 +2,7 @@
 
 use super::SnapNumInRange;
 use crate::{
+    add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::{
             construct_poly_fit_interpolator_config_from_options,
@@ -15,14 +16,13 @@ use crate::{
         utils as cli_utils,
     },
     corks::{ConstantCorkAdvector, CorkAdvector, CorkSet, CorkStepper, HeunCorkStepper},
-    create_subcommand,
     grid::Grid3,
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -37,8 +37,12 @@ use std::{
 pub type CorksState = CorkSet;
 
 /// Builds a representation of the `snapshot-corks` command line subcommand.
-pub fn create_corks_subcommand() -> Command<'static> {
-    Command::new("corks")
+pub fn create_corks_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "corks";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Trace corks in the velocity field of a set of snapshots")
         .after_help(
             "You can use subcommands to configure each action. The subcommands must be\n\
@@ -47,7 +51,6 @@ pub fn create_corks_subcommand() -> Command<'static> {
              can be left unspecified, in which case the default implementation and parameters\n\
              are used for that action.",
         )
-        .subcommand_required(true)
         .arg(
             Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
@@ -105,29 +108,21 @@ pub fn create_corks_subcommand() -> Command<'static> {
                 .short('v')
                 .long("verbose")
                 .help("Print status messages while tracing corks"),
-        )
-        .subcommand(
-            create_subcommand!(corks, poly_fit_interpolator)
-                .subcommand_required(true)
-                .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
-                .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
-                .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
-        )
-        .subcommand(create_subcommand!(corks, slice_seeder))
-        .subcommand(create_subcommand!(corks, volume_seeder))
-        .subcommand(create_subcommand!(corks, manual_seeder))
+        );
+
+    add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, (slice_seeder, volume_seeder, manual_seeder))
 }
 
 /// Runs the actions for the `snapshot-corks` subcommand using the given arguments.
-pub fn run_corks_subcommand<G, R>(
+pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
 {
     run_with_selected_interpolator(
         arguments,
@@ -138,15 +133,15 @@ pub fn run_corks_subcommand<G, R>(
     );
 }
 
-fn run_with_selected_interpolator<G, R>(
+fn run_with_selected_interpolator<G, P>(
     root_arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
 {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         root_arguments.subcommand_matches("poly_fit_interpolator")
@@ -172,17 +167,17 @@ fn run_with_selected_interpolator<G, R>(
     );
 }
 
-fn run_tracing<G, R, I>(
+fn run_tracing<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     interpolator: I,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     I: Interpolator3,
 {
     if is_first_iteration(corks_state) {
@@ -209,15 +204,15 @@ fn is_first_iteration(corks_state: &Option<CorksState>) -> bool {
     corks_state.is_none()
 }
 
-fn initialize_with_selected_seeder<G, R, I>(
+fn initialize_with_selected_seeder<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: I,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     I: Interpolator3,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
@@ -279,15 +274,15 @@ fn obtain_sampled_quantity_names(
     )
 }
 
-fn initialize_corks<G, R, I, Sd>(
+fn initialize_corks<G, P, I, Sd>(
     root_arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: I,
     seeder: Sd,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     I: Interpolator3,
     Sd: Seeder3,
 {
@@ -309,13 +304,13 @@ fn initialize_corks<G, R, I, Sd>(
     snapshot.drop_all_fields();
 }
 
-fn advect_with_selected_advector<G, R, I>(
-    snapshot: &mut SnapshotCacher3<G, R>,
+fn advect_with_selected_advector<G, P, I>(
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: I,
     corks: &mut CorkSet,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     I: Interpolator3,
 {
     let advector = ConstantCorkAdvector;
@@ -323,14 +318,14 @@ fn advect_with_selected_advector<G, R, I>(
     advect_with_selected_stepper(snapshot, interpolator, advector, corks);
 }
 
-fn advect_with_selected_stepper<G, R, I, A>(
-    snapshot: &mut SnapshotCacher3<G, R>,
+fn advect_with_selected_stepper<G, P, I, A>(
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: I,
     advector: A,
     corks: &mut CorkSet,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     I: Interpolator3,
     A: CorkAdvector,
 {
@@ -339,15 +334,15 @@ fn advect_with_selected_stepper<G, R, I, A>(
     advect_corks(snapshot, interpolator, advector, stepper, corks);
 }
 
-fn advect_corks<G, R, I, A, St>(
-    snapshot: &mut SnapshotCacher3<G, R>,
+fn advect_corks<G, P, I, A, St>(
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: I,
     advector: A,
     stepper: St,
     corks: &mut CorkSet,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     I: Interpolator3,
     A: CorkAdvector,
     St: CorkStepper,

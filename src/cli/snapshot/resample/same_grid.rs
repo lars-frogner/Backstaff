@@ -3,22 +3,26 @@
 //! sample location within the grid cells).
 
 use crate::{
+    add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
         snapshot::{write::create_write_subcommand, SnapNumInRange},
     },
-    create_subcommand,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::In3D,
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-resample-same_grid` command line subcommand.
-pub fn create_same_grid_subcommand() -> Command<'static> {
-    Command::new("same_grid")
+pub fn create_same_grid_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "same_grid";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Resample to the original grid")
         .long_about(
             "Resample to the original grid.\n\
@@ -28,19 +32,14 @@ pub fn create_same_grid_subcommand() -> Command<'static> {
         .after_help(
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
-        )
-        .subcommand_required(true)
-        .subcommand(
-            create_subcommand!(resample, poly_fit_interpolator)
-                .subcommand_required(true)
-                .subcommand(create_subcommand!(poly_fit_interpolator, write)),
-        )
-        .subcommand(create_subcommand!(resample, write))
+        );
+
+    add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, write)
 }
 
-pub fn run_resampling_for_same_grid<G, R, I>(
+pub fn run_resampling_for_same_grid<G, P, I>(
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -50,7 +49,7 @@ pub fn run_resampling_for_same_grid<G, R, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     let write_arguments = arguments.subcommand_matches("write").unwrap();
@@ -58,7 +57,7 @@ pub fn run_resampling_for_same_grid<G, R, I>(
     super::resample_to_same_or_reshaped_grid(
         write_arguments,
         None,
-        reader,
+        provider,
         snap_num_in_range,
         resampled_locations,
         resampling_method,

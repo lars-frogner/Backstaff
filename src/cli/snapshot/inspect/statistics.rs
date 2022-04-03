@@ -8,7 +8,7 @@ use crate::{
         },
         utils,
     },
-    create_subcommand, exit_on_error,
+    exit_on_error,
     field::{self, ResampledCoordLocation, ScalarField3},
     geometry::{
         CoordRefs3,
@@ -21,7 +21,7 @@ use crate::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 use float_pretty_print::PrettyPrintFloat;
@@ -40,8 +40,12 @@ const COORD_WIDTH: usize = 7;
 const IDX_WIDTH: usize = 3;
 
 /// Builds a representation of the `snapshot-inspect-statistics` command line subcommand.
-pub fn create_statistics_subcommand() -> Command<'static> {
-    Command::new("statistics")
+pub fn create_statistics_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "statistics";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Print statistics for quantities in the snapshot")
 
         .arg(
@@ -131,18 +135,18 @@ pub fn create_statistics_subcommand() -> Command<'static> {
                 .long("no-global")
                 .help("Skip computation of global statistics"),
         )
-        .subcommand(create_subcommand!(statistics, poly_fit_interpolator))
+        .subcommand(create_poly_fit_interpolator_subcommand(command_name))
 }
 
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
-pub fn run_statistics_subcommand<'a, G, R, FP>(
+pub fn run_statistics_subcommand<'a, G, P, FP>(
     arguments: &'a ArgMatches,
-    reader: &'a R,
+    provider: &'a P,
     field_producer: FP,
     quantity_names: Vec<&'a str>,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     FP: Fn(&str) -> io::Result<ScalarField3<fdt, G>>,
 {
     let value_range = utils::parse_limits(arguments, "value-range");
@@ -179,7 +183,7 @@ pub fn run_statistics_subcommand<'a, G, R, FP>(
 
     for name in quantity_names {
         print_statistics_report(
-            reader,
+            provider,
             name,
             exit_on_error!(
                 field_producer(name),
@@ -258,8 +262,8 @@ where
     }
 }
 
-fn print_statistics_report<G, R, I>(
-    reader: &R,
+fn print_statistics_report<G, P, I>(
+    provider: &P,
     quantity_name: &str,
     field: ScalarField3<fdt, G>,
     value_range: (fdt, fdt),
@@ -272,7 +276,7 @@ fn print_statistics_report<G, R, I>(
     interpolator: &I,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     let locations = field.locations().clone();
@@ -283,7 +287,7 @@ fn print_statistics_report<G, R, I>(
         &format!(
             "Statistics for {} from {}",
             quantity_name,
-            match reader.obtain_snap_name_and_num() {
+            match provider.obtain_snap_name_and_num() {
                 (snap_name, Some(snap_num)) => format!("snapshot {} of {}", snap_num, snap_name),
                 (snap_name, None) => snap_name,
             }
@@ -310,7 +314,7 @@ fn print_statistics_report<G, R, I>(
         eprintln!("Warning: NaN values detected (will be ignored in statistics)");
     }
 
-    let grid = reader.arc_with_grid();
+    let grid = provider.arc_with_grid();
     // Create local scope to ensure borrowed variables are dropped before move
     {
         let grid_shape = grid.shape();

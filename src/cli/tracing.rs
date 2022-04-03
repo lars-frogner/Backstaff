@@ -11,6 +11,7 @@ use self::{
     stepping::rkf::{construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand},
 };
 use crate::{
+    add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::{
             construct_poly_fit_interpolator_config_from_options,
@@ -24,14 +25,14 @@ use crate::{
         snapshot::SnapNumInRange,
         utils as cli_utils,
     },
-    create_subcommand, exit_on_error, exit_with_error,
+    exit_on_error, exit_with_error,
     grid::Grid3,
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -58,8 +59,12 @@ use std::{
 };
 
 /// Builds a representation of the `trace` command line subcommand.
-pub fn create_trace_subcommand() -> Command<'static> {
-    let app = Command::new("trace")
+pub fn create_trace_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "trace";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Trace field lines of a vector field in the snapshot")
         .after_help(
             "You can use subcommands to configure each action. The subcommands must be\n\
@@ -142,78 +147,22 @@ pub fn create_trace_subcommand() -> Command<'static> {
                 .long("print-parameter-values")
                 .help("Prints the values of all the parameters that will be used")
                 .hide(true),
-        );
+        )
+        .subcommand_required(true)
+        .subcommand(create_basic_field_line_tracer_subcommand(command_name));
 
-    app.subcommand_required(true)
-        .subcommand(
-            create_subcommand!(trace, basic_field_line_tracer)
-                .subcommand_required(true)
-                .subcommand(
-                    create_subcommand!(basic_field_line_tracer, rkf_stepper)
-                        .subcommand_required(true)
-                        .subcommand(
-                            create_subcommand!(rkf_stepper, poly_fit_interpolator)
-                                .subcommand_required(true)
-                                .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
-                                .subcommand(create_subcommand!(
-                                    poly_fit_interpolator,
-                                    volume_seeder
-                                ))
-                                .subcommand(create_subcommand!(
-                                    poly_fit_interpolator,
-                                    manual_seeder
-                                )),
-                        )
-                        .subcommand(create_subcommand!(rkf_stepper, slice_seeder))
-                        .subcommand(create_subcommand!(rkf_stepper, volume_seeder))
-                        .subcommand(create_subcommand!(rkf_stepper, manual_seeder)),
-                )
-                .subcommand(
-                    create_subcommand!(basic_field_line_tracer, poly_fit_interpolator)
-                        .subcommand_required(true)
-                        .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
-                        .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
-                        .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
-                )
-                .subcommand(create_subcommand!(basic_field_line_tracer, slice_seeder))
-                .subcommand(create_subcommand!(basic_field_line_tracer, volume_seeder))
-                .subcommand(create_subcommand!(basic_field_line_tracer, manual_seeder)),
-        )
-        .subcommand(
-            create_subcommand!(trace, rkf_stepper)
-                .subcommand_required(true)
-                .subcommand(
-                    create_subcommand!(rkf_stepper, poly_fit_interpolator)
-                        .subcommand_required(true)
-                        .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
-                        .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
-                        .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
-                )
-                .subcommand(create_subcommand!(rkf_stepper, slice_seeder))
-                .subcommand(create_subcommand!(rkf_stepper, volume_seeder))
-                .subcommand(create_subcommand!(rkf_stepper, manual_seeder)),
-        )
-        .subcommand(
-            create_subcommand!(trace, poly_fit_interpolator)
-                .subcommand_required(true)
-                .subcommand(create_subcommand!(poly_fit_interpolator, slice_seeder))
-                .subcommand(create_subcommand!(poly_fit_interpolator, volume_seeder))
-                .subcommand(create_subcommand!(poly_fit_interpolator, manual_seeder)),
-        )
-        .subcommand(create_subcommand!(trace, slice_seeder))
-        .subcommand(create_subcommand!(trace, volume_seeder))
-        .subcommand(create_subcommand!(trace, manual_seeder))
+    add_subcommand_combinations!(command, command_name, true; rkf_stepper, poly_fit_interpolator, (slice_seeder, volume_seeder, manual_seeder))
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_trace_subcommand<G, R>(
+pub fn run_trace_subcommand<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
 {
     run_with_selected_tracer(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
@@ -296,14 +245,14 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_tracer<G, R>(
+fn run_with_selected_tracer<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
 {
     let (tracer_config, tracer_arguments) =
         if let Some(tracer_arguments) = arguments.subcommand_matches("basic_tracer") {
@@ -331,16 +280,16 @@ fn run_with_selected_tracer<G, R>(
     );
 }
 
-fn run_with_selected_stepper_factory<G, R, Tr>(
+fn run_with_selected_stepper_factory<G, P, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -384,17 +333,17 @@ fn run_with_selected_stepper_factory<G, R, Tr>(
     }
 }
 
-fn run_with_selected_interpolator<G, R, Tr, StF>(
+fn run_with_selected_interpolator<G, P, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -429,10 +378,10 @@ fn run_with_selected_interpolator<G, R, Tr, StF>(
     );
 }
 
-fn run_with_selected_seeder<G, R, Tr, StF, I>(
+fn run_with_selected_seeder<G, P, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
@@ -440,7 +389,7 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -488,9 +437,9 @@ fn run_with_selected_seeder<G, R, Tr, StF, I>(
     };
 }
 
-fn run_tracing<G, R, Tr, StF, I, Sd>(
+fn run_tracing<G, P, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
@@ -499,7 +448,7 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G> + Sync,
+    P: SnapshotProvider3<G> + Sync,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -589,17 +538,17 @@ fn run_tracing<G, R, Tr, StF, I, Sd>(
     );
 }
 
-fn perform_post_tracing_actions<G, R, I>(
+fn perform_post_tracing_actions<G, P, I>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_path: AtomicOutputPath,
     extra_atomic_output_path: Option<AtomicOutputPath>,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: I,
     mut field_lines: FieldLineSet3,
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     if let Some(extra_fixed_scalars) = root_arguments

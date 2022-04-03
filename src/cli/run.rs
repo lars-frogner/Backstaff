@@ -9,9 +9,9 @@ use std::time::Instant;
 
 /// Runs the `backstaff` command line program.
 pub fn run() {
-    let app = build::build();
+    let command = build::build();
 
-    let arguments = app.get_matches();
+    let arguments = command.get_matches();
 
     let protected_file_types: Vec<_> = arguments
         .values_of("protected-file-types")

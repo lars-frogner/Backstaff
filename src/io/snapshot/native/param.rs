@@ -230,10 +230,7 @@ mod tests {
 
     use super::{
         super::{
-            super::{
-                super::{Endianness, Verbose},
-                SnapshotReader3,
-            },
+            super::super::{Endianness, Verbose},
             NativeSnapshotReader3, NativeSnapshotReaderConfig,
         },
         *,

@@ -1,16 +1,23 @@
 //! Command line interface for the power-law electron distribution.
 
+use super::super::accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand;
 use crate::{
     cli::utils,
     ebeam::distribution::power_law::PowerLawDistributionConfig,
     grid::Grid3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the power-law distribution.
-pub fn create_power_law_distribution_subcommand() -> Command<'static> {
-    Command::new("power_law_distribution")
+pub fn create_power_law_distribution_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "power_law_distribution";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the power-law distribution")
         .long_about(
             "Use the power-law distribution.\n\
@@ -71,20 +78,21 @@ pub fn create_power_law_distribution_subcommand() -> Command<'static> {
                 .long("continue-depleted-beams")
                 .help("Keep propagating beams even after they are considered depleted"),
         )
+        .subcommand(create_simple_power_law_accelerator_subcommand(command_name))
 }
 
 /// Determines power-law distribution parameters based on
 /// provided options and values in parameter file.
-pub fn construct_power_law_distribution_config_from_options<G, R>(
+pub fn construct_power_law_distribution_config_from_options<G, P>(
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
 ) -> PowerLawDistributionConfig
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "min-residual-factor",
         "min_residual",
@@ -92,7 +100,7 @@ where
         PowerLawDistributionConfig::DEFAULT_MIN_RESIDUAL_FACTOR,
     );
     let min_deposited_power_per_distance = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "min-deposited-power-per-distance",
         "min_dep_en",
@@ -100,7 +108,7 @@ where
         PowerLawDistributionConfig::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
     );
     let max_propagation_distance = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "max-propagation-distance",
         "max_dist",
@@ -108,7 +116,7 @@ where
         PowerLawDistributionConfig::DEFAULT_MAX_PROPAGATION_DISTANCE,
     );
     let outside_deposition_threshold = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        provider,
         arguments,
         "outside-deposition-threshold",
         "out_dep_thresh",

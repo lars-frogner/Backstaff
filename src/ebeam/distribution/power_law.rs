@@ -14,7 +14,7 @@ use crate::{
     },
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotProvider3},
     math,
     plasma::ionization,
     tracing::{ftr, stepping::SteppingSense},
@@ -421,9 +421,9 @@ impl Distribution for PowerLawDistribution {
         }
     }
 
-    fn propagate<G, R, I>(
+    fn propagate<G, P, I>(
         &mut self,
-        snapshot: &SnapshotCacher3<G, R>,
+        snapshot: &SnapshotCacher3<G, P>,
         acceleration_map: &Array3<bool>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
@@ -431,13 +431,12 @@ impl Distribution for PowerLawDistribution {
     ) -> PropagationResult
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
         I: Interpolator3,
     {
         let mut deposition_position = new_position - displacement * 0.5;
 
         let deposition_indices = snapshot
-            .reader()
             .grid()
             .find_grid_cell(&Point3::from(&deposition_position))
             .unwrap_and_update_position(&mut deposition_position);
@@ -510,12 +509,7 @@ impl Distribution for PowerLawDistribution {
             self.hydrogen_column_depth = new_hydrogen_column_depth;
             self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
 
-            let volume = feb::from(
-                snapshot
-                    .reader()
-                    .grid()
-                    .grid_cell_volume(&deposition_indices),
-            ) * U_L3;
+            let volume = feb::from(snapshot.grid().grid_cell_volume(&deposition_indices)) * U_L3;
             let deposited_power_density = deposited_power / volume;
 
             let depletion_status = if self.config.continue_depleted_beams
@@ -548,10 +542,10 @@ impl PowerLawDistributionConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<G, R>(reader: &R) -> Self
+    pub fn with_defaults_from_param_file<G, P>(reader: &P) -> Self
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
     {
         let min_residual_factor = reader
             .parameters()

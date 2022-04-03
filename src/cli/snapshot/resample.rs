@@ -20,7 +20,7 @@ use crate::{
         interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options,
         snapshot::write::run_write_subcommand,
     },
-    create_subcommand, exit_with_error,
+    exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Coords3,
@@ -33,7 +33,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, SnapshotReader3},
+        snapshot::{fdt, SnapshotProvider3},
         utils,
     },
 };
@@ -41,8 +41,12 @@ use clap::{Arg, ArgMatches, Command};
 use std::{collections::HashMap, process, sync::Arc};
 
 /// Builds a representation of the `snapshot-resample` command line subcommand.
-pub fn create_resample_subcommand() -> Command<'static> {
-    Command::new("resample")
+pub fn create_resample_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "resample";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Create a resampled version of the snapshot")
         .long_about(
             "Create a resampled version of the snapshot.\n\
@@ -73,10 +77,10 @@ pub fn create_resample_subcommand() -> Command<'static> {
                 .long("verbose")
                 .help("Print status messages related to resampling"),
         )
-        .subcommand(create_subcommand!(resample, regular_grid))
-        .subcommand(create_subcommand!(resample, reshaped_grid))
-        .subcommand(create_subcommand!(resample, same_grid))
-        .subcommand(create_subcommand!(resample, mesh_file))
+        .subcommand(create_regular_grid_subcommand(command_name))
+        .subcommand(create_reshaped_grid_subcommand(command_name))
+        .subcommand(create_same_grid_subcommand(command_name))
+        .subcommand(create_mesh_file_subcommand(command_name))
 }
 
 enum ResampleGridType {
@@ -87,14 +91,14 @@ enum ResampleGridType {
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
-pub fn run_resample_subcommand<G, R>(
+pub fn run_resample_subcommand<G, P>(
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let resampled_locations = match arguments
         .value_of("sample-location")
@@ -140,7 +144,7 @@ pub fn run_resample_subcommand<G, R>(
 
     run_with_selected_method(
         grid_type_arguments,
-        reader,
+        provider,
         snap_num_in_range,
         resample_grid_type,
         default_method,
@@ -151,9 +155,9 @@ pub fn run_resample_subcommand<G, R>(
     );
 }
 
-fn run_with_selected_method<G, R>(
+fn run_with_selected_method<G, P>(
     grid_type_arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     default_method: ResamplingMethod,
@@ -163,7 +167,7 @@ fn run_with_selected_method<G, R>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let (resampling_method, method_arguments) = if let Some(method_arguments) =
         grid_type_arguments.subcommand_matches("weighted_sample_averaging")
@@ -183,7 +187,7 @@ fn run_with_selected_method<G, R>(
     run_with_selected_interpolator(
         grid_type_arguments,
         method_arguments,
-        reader,
+        provider,
         snap_num_in_range,
         resample_grid_type,
         resampled_locations,
@@ -194,10 +198,10 @@ fn run_with_selected_method<G, R>(
     )
 }
 
-fn run_with_selected_interpolator<G, R>(
+fn run_with_selected_interpolator<G, P>(
     grid_type_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     resampled_locations: &In3D<ResampledCoordLocation>,
@@ -207,7 +211,7 @@ fn run_with_selected_interpolator<G, R>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let (interpolator_config, arguments) = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
@@ -225,7 +229,7 @@ fn run_with_selected_interpolator<G, R>(
         ResampleGridType::Regular => run_resampling_for_regular_grid(
             grid_type_arguments,
             arguments,
-            reader,
+            provider,
             snap_num_in_range,
             resampled_locations,
             resampling_method,
@@ -237,7 +241,7 @@ fn run_with_selected_interpolator<G, R>(
         ResampleGridType::Reshaped => run_resampling_for_reshaped_grid(
             grid_type_arguments,
             arguments,
-            reader,
+            provider,
             snap_num_in_range,
             resampled_locations,
             resampling_method,
@@ -249,7 +253,7 @@ fn run_with_selected_interpolator<G, R>(
         ResampleGridType::MeshFile => run_resampling_for_mesh_file(
             grid_type_arguments,
             arguments,
-            reader,
+            provider,
             snap_num_in_range,
             resampled_locations,
             resampling_method,
@@ -260,7 +264,7 @@ fn run_with_selected_interpolator<G, R>(
         ),
         ResampleGridType::Same => run_resampling_for_same_grid(
             arguments,
-            reader,
+            provider,
             snap_num_in_range,
             resampled_locations,
             resampling_method,
@@ -272,10 +276,10 @@ fn run_with_selected_interpolator<G, R>(
     }
 }
 
-fn resample_to_same_or_reshaped_grid<G, R, I>(
+fn resample_to_same_or_reshaped_grid<G, P, I>(
     write_arguments: &ArgMatches,
     new_shape: Option<In3D<usize>>,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -285,10 +289,10 @@ fn resample_to_same_or_reshaped_grid<G, R, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
-    let grid = reader.grid();
+    let grid = provider.grid();
 
     match grid.grid_type() {
         GridType::Regular => {
@@ -303,7 +307,7 @@ fn resample_to_same_or_reshaped_grid<G, R, I>(
                 grid,
                 new_shape,
                 write_arguments,
-                reader,
+                provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,
@@ -325,7 +329,7 @@ fn resample_to_same_or_reshaped_grid<G, R, I>(
                 grid,
                 new_shape,
                 write_arguments,
-                reader,
+                provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,
@@ -338,11 +342,11 @@ fn resample_to_same_or_reshaped_grid<G, R, I>(
     }
 }
 
-fn resample_to_regular_grid<G, R, I>(
+fn resample_to_regular_grid<G, P, I>(
     mut grid: RegularGrid3<fdt>,
     new_shape: Option<In3D<usize>>,
     write_arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -352,7 +356,7 @@ fn resample_to_regular_grid<G, R, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     if let Some(new_shape) = new_shape {
@@ -364,12 +368,12 @@ fn resample_to_regular_grid<G, R, I>(
         );
     }
 
-    correct_periodicity_for_new_grid(reader.grid(), &mut grid, continue_on_warnings, is_verbose);
+    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, is_verbose);
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
         write_arguments,
-        reader,
+        provider,
         snap_num_in_range,
         &new_grid,
         resampled_locations,
@@ -380,11 +384,11 @@ fn resample_to_regular_grid<G, R, I>(
     );
 }
 
-fn resample_to_horizontally_regular_grid<G, R, I>(
+fn resample_to_horizontally_regular_grid<G, P, I>(
     mut grid: HorRegularGrid3<fdt>,
     new_shape: Option<In3D<usize>>,
     write_arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -394,7 +398,7 @@ fn resample_to_horizontally_regular_grid<G, R, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     const TARGET_CONTROL_SIZE: usize = 100;
@@ -463,12 +467,12 @@ fn resample_to_horizontally_regular_grid<G, R, I>(
         );
     }
 
-    correct_periodicity_for_new_grid(reader.grid(), &mut grid, continue_on_warnings, is_verbose);
+    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, is_verbose);
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
         write_arguments,
-        reader,
+        provider,
         snap_num_in_range,
         &new_grid,
         resampled_locations,
@@ -592,9 +596,9 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
     new_grid.set_periodicity(is_periodic);
 }
 
-fn resample_snapshot_for_grid<GIN, R, GOUT, I>(
+fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
     write_arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: &Arc<GOUT>,
     resampled_locations: &In3D<ResampledCoordLocation>,
@@ -604,13 +608,13 @@ fn resample_snapshot_for_grid<GIN, R, GOUT, I>(
     protected_file_types: &[&str],
 ) where
     GIN: Grid3<fdt>,
-    R: SnapshotReader3<GIN>,
+    P: SnapshotProvider3<GIN>,
     GOUT: Grid3<fdt>,
     I: Interpolator3,
 {
     run_write_subcommand(
         write_arguments,
-        reader,
+        provider,
         snap_num_in_range,
         Some(Arc::clone(new_grid)),
         HashMap::new(),

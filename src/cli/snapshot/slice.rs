@@ -9,13 +9,13 @@ use crate::{
         },
         utils as cli_utils,
     },
-    create_subcommand, exit_on_error, exit_with_error,
+    exit_on_error, exit_with_error,
     field::ResampledCoordLocation,
     geometry::Dim3,
     grid::{CoordLocation, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
     io::{
-        snapshot::{self, fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{self, fdt, SnapshotCacher3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
 };
@@ -27,8 +27,12 @@ use std::{
 };
 
 /// Builds a representation of the `snapshot-slice` command line subcommand.
-pub fn create_slice_subcommand() -> Command<'static> {
-    Command::new("slice")
+pub fn create_slice_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "slice";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Extract a 2D slice of a quantity field in the snapshot")
         .long_about(
             "Extract a 2D slice of a quantity field in the snapshot.\n\
@@ -109,18 +113,18 @@ pub fn create_slice_subcommand() -> Command<'static> {
                     "Make sampled slice values follow the potentially non-uniform underlying grid",
                 ),
         )
-        .subcommand(create_subcommand!(slice, poly_fit_interpolator))
+        .subcommand(create_poly_fit_interpolator_subcommand(command_name))
 }
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
-pub fn run_slice_subcommand<G, R>(
+pub fn run_slice_subcommand<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let quantity = arguments
         .value_of("quantity")

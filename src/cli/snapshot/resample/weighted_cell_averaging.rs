@@ -1,11 +1,17 @@
 //! Command line interface for resampling a snapshot using weighted cell averaging.
 
-use crate::{cli::snapshot::write::create_write_subcommand, create_subcommand};
+use crate::cli::snapshot::write::create_write_subcommand;
 use clap::Command;
 
 /// Builds a representation of the `snapshot-resample-weighted_cell_averaging` command line subcommand.
-pub fn create_weighted_cell_averaging_subcommand() -> Command<'static> {
-    Command::new("weighted_cell_averaging")
+pub fn create_weighted_cell_averaging_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "weighted_cell_averaging";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the weighted cell averaging method")
         .long_about(
             "Use the weighted cell averaging method.\n\
@@ -15,5 +21,5 @@ pub fn create_weighted_cell_averaging_subcommand() -> Command<'static> {
              averaging, but slightly less accurate.",
         )
         .subcommand_required(true)
-        .subcommand(create_subcommand!(weighted_cell_averaging, write))
+        .subcommand(create_write_subcommand(command_name))
 }

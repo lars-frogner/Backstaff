@@ -11,7 +11,7 @@ use crate::{
     },
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
     tracing::{self, ftr, TracerResult},
 };
 use rayon::prelude::*;
@@ -65,17 +65,17 @@ impl BasicFieldLineTracer3 {
 impl FieldLineTracer3 for BasicFieldLineTracer3 {
     type Data = BasicFieldLineData3;
 
-    fn trace<G, R, I, S>(
+    fn trace<G, P, I, S>(
         &self,
         field_name: &str,
-        snapshot: &SnapshotCacher3<G, R>,
+        snapshot: &SnapshotCacher3<G, P>,
         interpolator: &I,
         stepper: S,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
         I: Interpolator3,
         S: Stepper3,
     {
@@ -367,7 +367,7 @@ mod tests {
         let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
         let stepper_factory = RKF45StepperFactory3::new(RKFStepperConfig::default());
         let seeder = SliceSeeder3::stratified(
-            snapshot.reader().grid(),
+            snapshot.grid(),
             Dim3::Z,
             0.0,
             In2D::same(3),

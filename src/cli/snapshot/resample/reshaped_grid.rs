@@ -11,18 +11,22 @@ use crate::{
         snapshot::{write::create_write_subcommand, SnapNumInRange},
         utils,
     },
-    create_subcommand, exit_with_error,
+    exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::In3D,
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-resample-reshaped_grid` command line subcommand.
-pub fn create_reshaped_grid_subcommand() -> Command<'static> {
-    Command::new("reshaped_grid")
+pub fn create_reshaped_grid_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "reshaped_grid";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Resample to a reshaped version of the original grid")
         .long_about("Resample to a reshaped version of the original grid.")
         .after_help(
@@ -42,16 +46,16 @@ pub fn create_reshaped_grid_subcommand() -> Command<'static> {
                 .takes_value(true)
                 .required(true),
         )
-        .subcommand(create_subcommand!(reshaped_grid, weighted_sample_averaging))
-        .subcommand(create_subcommand!(reshaped_grid, weighted_cell_averaging))
-        .subcommand(create_subcommand!(reshaped_grid, direct_sampling))
-        .subcommand(create_subcommand!(reshaped_grid, write))
+        .subcommand(create_weighted_sample_averaging_subcommand(command_name))
+        .subcommand(create_weighted_cell_averaging_subcommand(command_name))
+        .subcommand(create_direct_sampling_subcommand(command_name))
+        .subcommand(create_write_subcommand(command_name))
 }
 
-pub fn run_resampling_for_reshaped_grid<G, R, I>(
+pub fn run_resampling_for_reshaped_grid<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -61,7 +65,7 @@ pub fn run_resampling_for_reshaped_grid<G, R, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     let write_arguments = arguments.subcommand_matches("write").unwrap();
@@ -78,7 +82,7 @@ pub fn run_resampling_for_reshaped_grid<G, R, I>(
     super::resample_to_same_or_reshaped_grid(
         write_arguments,
         new_shape,
-        reader,
+        provider,
         snap_num_in_range,
         resampled_locations,
         resampling_method,

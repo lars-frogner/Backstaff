@@ -17,7 +17,7 @@ use self::{
 };
 use crate::{
     cli::utils as cli_utils,
-    create_subcommand, exit_on_error, exit_with_error,
+    exit_on_error, exit_with_error,
     field::quantities,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     io::{
@@ -26,7 +26,7 @@ use crate::{
             native::{
                 self, NativeSnapshotParameters, NativeSnapshotReader3, NativeSnapshotReaderConfig,
             },
-            SnapshotCacher3, SnapshotReader3,
+            SnapshotCacher3, SnapshotProvider3,
         },
         utils as io_utils, Endianness,
     },
@@ -54,8 +54,12 @@ use crate::io::snapshot::netcdf::{
 
 /// Builds a representation of the `snapshot` command line subcommand.
 #[allow(clippy::let_and_return)]
-pub fn create_snapshot_subcommand() -> Command<'static> {
-    let app = Command::new("snapshot")
+pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "snapshot";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Specify input snapshot to perform further actions on")
         .subcommand_required(true)
         .arg(
@@ -102,20 +106,20 @@ pub fn create_snapshot_subcommand() -> Command<'static> {
                 .long("verbose")
                 .help("Print status messages related to reading"),
         )
-        .subcommand(create_subcommand!(snapshot, inspect))
-        .subcommand(create_subcommand!(snapshot, slice))
-        .subcommand(create_subcommand!(snapshot, extract))
-        .subcommand(create_subcommand!(snapshot, resample))
-        .subcommand(create_subcommand!(snapshot, write))
-        .subcommand(create_subcommand!(snapshot, corks));
+        .subcommand(create_inspect_subcommand(command_name))
+        .subcommand(create_slice_subcommand(command_name))
+        .subcommand(create_extract_subcommand(command_name))
+        .subcommand(create_resample_subcommand(command_name))
+        .subcommand(create_write_subcommand(command_name))
+        .subcommand(create_corks_subcommand(command_name));
 
     #[cfg(feature = "tracing")]
-    let app = app.subcommand(create_subcommand!(snapshot, trace));
+    let command = command.subcommand(create_trace_subcommand(command_name));
 
     #[cfg(feature = "ebeam")]
-    let app = app.subcommand(create_subcommand!(snapshot, ebeam));
+    let command = command.subcommand(create_ebeam_subcommand(command_name));
 
-    app
+    command
 }
 
 macro_rules! create_native_reader_and_run {
@@ -249,7 +253,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
             let mut snapshot = SnapshotCacher3::new($reader);
 
             if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-                inspect::run_inspect_subcommand(inspect_arguments, snapshot.reader());
+                inspect::run_inspect_subcommand(inspect_arguments, snapshot.provider());
             }
             if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
                 slice::run_slice_subcommand(
@@ -262,7 +266,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
             if let Some(extract_arguments) = arguments.subcommand_matches("extract") {
                 extract::run_extract_subcommand(
                     extract_arguments,
-                    snapshot.reader(),
+                    snapshot.provider(),
                     $snap_num_in_range,
                     protected_file_types,
                 );
@@ -270,7 +274,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
             if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
                 resample::run_resample_subcommand(
                     resample_arguments,
-                    snapshot.reader(),
+                    snapshot.provider(),
                     $snap_num_in_range,
                     protected_file_types,
                 );
@@ -278,7 +282,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
             if let Some(write_arguments) = arguments.subcommand_matches("write") {
                 write::run_write_subcommand(
                     write_arguments,
-                    snapshot.reader(),
+                    snapshot.provider(),
                     $snap_num_in_range,
                     None,
                     HashMap::new(),
@@ -531,17 +535,17 @@ impl fmt::Display for InputType {
     }
 }
 
-fn parse_quantity_lists<'a, G, R>(
+fn parse_quantity_lists<'a, G, P>(
     arguments: &'a ArgMatches,
-    reader: &'a R,
+    provider: &'a P,
     continue_on_warnings: bool,
 ) -> (Vec<&'a str>, Vec<&'a str>)
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let included_quantities = if arguments.is_present("all-quantities") {
-        reader.all_variable_names()
+        provider.all_variable_names()
     } else if let Some(included_quantities) = arguments
         .values_of("included-quantities")
         .map(|values| values.collect::<Vec<_>>())
@@ -549,7 +553,7 @@ where
         included_quantities
             .into_iter()
             .filter(|name| {
-                let has_variable = reader.has_variable(name);
+                let has_variable = provider.has_variable(name);
                 if !has_variable {
                     eprintln!("Warning: Quantity {} not present in snapshot", name);
                     if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
@@ -563,7 +567,7 @@ where
         .values_of("excluded-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
-        reader.all_variable_names_except(&excluded_quantities)
+        provider.all_variable_names_except(&excluded_quantities)
     } else {
         Vec::new()
     };
@@ -574,7 +578,7 @@ where
         .unwrap_or(Vec::new())
         .into_iter()
         .filter(|quantity_name| {
-            match quantities::find_missing_quantity_dependencies(reader, quantity_name) {
+            match quantities::find_missing_quantity_dependencies(provider, quantity_name) {
                 Some(missing_dependencies) => {
                     if missing_dependencies.is_empty() {
                         true

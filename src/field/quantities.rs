@@ -6,7 +6,7 @@ use crate::{
     grid::{CoordLocation, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
     io::{
-        snapshot::{fdt, SnapshotReader3},
+        snapshot::{fdt, SnapshotProvider3},
         Verbose,
     },
     units::solar::{U_B, U_U},
@@ -150,12 +150,15 @@ pub fn quantity_supported(name: &str) -> bool {
 /// Returns a list of the dependencies for the given derived quantity that
 /// are not present in the given snapshot, or `None` if the derived quantity
 /// is not known.
-pub fn find_missing_quantity_dependencies<G, R>(reader: &R, name: &str) -> Option<Vec<&'static str>>
+pub fn find_missing_quantity_dependencies<G, P>(
+    provider: &P,
+    name: &str,
+) -> Option<Vec<&'static str>>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let all_variable_names = reader.all_variable_names();
+    let all_variable_names = provider.all_variable_names();
     DERIVED_QUANTITIES.get(name).map(|(_, dependencies)| {
         dependencies
             .iter()
@@ -166,31 +169,31 @@ where
 }
 
 /// Computes the derived quantity field with the given name.
-pub fn compute_quantity<G, R>(
-    reader: &R,
+pub fn compute_quantity<G, P>(
+    provider: &P,
     name: &str,
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     if verbose.is_yes() {
         println!("Computing {}", name);
     }
     let (values, locations) = match name {
-        "bx_cgs" => compute_bx_cgs_values(reader),
-        "by_cgs" => compute_by_cgs_values(reader),
-        "bz_cgs" => compute_bz_cgs_values(reader),
-        "ux_cgs" => compute_ux_cgs_values(reader),
-        "uy_cgs" => compute_uy_cgs_values(reader),
-        "uz_cgs" => compute_uz_cgs_values(reader),
-        "ux" => compute_ux_values(reader),
-        "uy" => compute_uy_values(reader),
-        "uz" => compute_uz_values(reader),
-        "ubeam" => compute_ubeam_values(reader),
-        "log10_pos_qbeam" => compute_log10_pos_qbeam_values(reader),
-        "log10_neg_qbeam" => compute_log10_neg_qbeam_values(reader),
+        "bx_cgs" => compute_bx_cgs_values(provider),
+        "by_cgs" => compute_by_cgs_values(provider),
+        "bz_cgs" => compute_bz_cgs_values(provider),
+        "ux_cgs" => compute_ux_cgs_values(provider),
+        "uy_cgs" => compute_uy_cgs_values(provider),
+        "uz_cgs" => compute_uz_cgs_values(provider),
+        "ux" => compute_ux_values(provider),
+        "uy" => compute_uy_values(provider),
+        "uz" => compute_uz_values(provider),
+        "ubeam" => compute_ubeam_values(provider),
+        "log10_pos_qbeam" => compute_log10_pos_qbeam_values(provider),
+        "log10_neg_qbeam" => compute_log10_neg_qbeam_values(provider),
         invalid => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!("Quantity {} not supported", invalid),
@@ -198,18 +201,18 @@ where
     }?;
     Ok(ScalarField3::new(
         name.to_string(),
-        reader.arc_with_grid(),
+        provider.arc_with_grid(),
         locations,
         values,
     ))
 }
 
-fn compute_bx_cgs_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_bx_cgs_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let field = reader.read_scalar_field("bx")?;
+    let field = provider.provide_scalar_field("bx")?;
     let coord_locations = field.locations().clone();
     let mut values = field.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
@@ -221,12 +224,12 @@ where
     Ok((values, coord_locations))
 }
 
-fn compute_by_cgs_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_by_cgs_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let field = reader.read_scalar_field("by")?;
+    let field = provider.provide_scalar_field("by")?;
     let coord_locations = field.locations().clone();
     let mut values = field.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
@@ -238,12 +241,12 @@ where
     Ok((values, coord_locations))
 }
 
-fn compute_bz_cgs_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_bz_cgs_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let field = reader.read_scalar_field("bz")?;
+    let field = provider.provide_scalar_field("bz")?;
     let coord_locations = field.locations().clone();
     let mut values = field.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
@@ -255,16 +258,16 @@ where
     Ok((values, coord_locations))
 }
 
-fn compute_ux_cgs_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_ux_cgs_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
-    let px_field = reader.read_scalar_field("px")?;
+    let px_field = provider.provide_scalar_field("px")?;
     let mut values = px_field
         .resampled_to_grid(
-            reader.arc_with_grid(),
+            provider.arc_with_grid(),
             In3D::same(ResampledCoordLocation::center()),
             &interpolator,
             ResamplingMethod::DirectSampling,
@@ -272,7 +275,7 @@ where
         .into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
-    let r_field = reader.read_scalar_field("r")?;
+    let r_field = provider.provide_scalar_field("r")?;
     let r_buffer = r_field.values().as_slice_memory_order().unwrap();
 
     values_buffer
@@ -285,16 +288,16 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_uy_cgs_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_uy_cgs_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
-    let py_field = reader.read_scalar_field("py")?;
+    let py_field = provider.provide_scalar_field("py")?;
     let mut values = py_field
         .resampled_to_grid(
-            reader.arc_with_grid(),
+            provider.arc_with_grid(),
             In3D::same(ResampledCoordLocation::center()),
             &interpolator,
             ResamplingMethod::DirectSampling,
@@ -302,7 +305,7 @@ where
         .into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
-    let r_field = reader.read_scalar_field("r")?;
+    let r_field = provider.provide_scalar_field("r")?;
     let r_buffer = r_field.values().as_slice_memory_order().unwrap();
 
     values_buffer
@@ -315,16 +318,16 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_uz_cgs_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_uz_cgs_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
-    let pz_field = reader.read_scalar_field("pz")?;
+    let pz_field = provider.provide_scalar_field("pz")?;
     let mut values = pz_field
         .resampled_to_grid(
-            reader.arc_with_grid(),
+            provider.arc_with_grid(),
             In3D::same(ResampledCoordLocation::center()),
             &interpolator,
             ResamplingMethod::DirectSampling,
@@ -332,7 +335,7 @@ where
         .into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
-    let r_field = reader.read_scalar_field("r")?;
+    let r_field = provider.provide_scalar_field("r")?;
     let r_buffer = r_field.values().as_slice_memory_order().unwrap();
 
     values_buffer
@@ -345,16 +348,16 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_ux_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_ux_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
-    let px_field = reader.read_scalar_field("px")?;
+    let px_field = provider.provide_scalar_field("px")?;
     let mut values = px_field
         .resampled_to_grid(
-            reader.arc_with_grid(),
+            provider.arc_with_grid(),
             In3D::same(ResampledCoordLocation::center()),
             &interpolator,
             ResamplingMethod::DirectSampling,
@@ -362,7 +365,7 @@ where
         .into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
-    let r_field = reader.read_scalar_field("r")?;
+    let r_field = provider.provide_scalar_field("r")?;
     let r_buffer = r_field.values().as_slice_memory_order().unwrap();
 
     values_buffer
@@ -375,16 +378,16 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_uy_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_uy_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
-    let py_field = reader.read_scalar_field("py")?;
+    let py_field = provider.provide_scalar_field("py")?;
     let mut values = py_field
         .resampled_to_grid(
-            reader.arc_with_grid(),
+            provider.arc_with_grid(),
             In3D::same(ResampledCoordLocation::center()),
             &interpolator,
             ResamplingMethod::DirectSampling,
@@ -392,7 +395,7 @@ where
         .into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
-    let r_field = reader.read_scalar_field("r")?;
+    let r_field = provider.provide_scalar_field("r")?;
     let r_buffer = r_field.values().as_slice_memory_order().unwrap();
 
     values_buffer
@@ -405,16 +408,16 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_uz_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_uz_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
-    let pz_field = reader.read_scalar_field("pz")?;
+    let pz_field = provider.provide_scalar_field("pz")?;
     let mut values = pz_field
         .resampled_to_grid(
-            reader.arc_with_grid(),
+            provider.arc_with_grid(),
             In3D::same(ResampledCoordLocation::center()),
             &interpolator,
             ResamplingMethod::DirectSampling,
@@ -422,7 +425,7 @@ where
         .into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
-    let r_field = reader.read_scalar_field("r")?;
+    let r_field = provider.provide_scalar_field("r")?;
     let r_buffer = r_field.values().as_slice_memory_order().unwrap();
 
     values_buffer
@@ -435,15 +438,15 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_ubeam_values<G, R>(reader: &R) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
+fn compute_ubeam_values<G, P>(provider: &P) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let grid = reader.grid();
+    let grid = provider.grid();
     let grid_shape = grid.shape();
 
-    let mut values = reader.read_scalar_field("qbeam")?.into_values();
+    let mut values = provider.provide_scalar_field("qbeam")?.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
     values_buffer
@@ -457,14 +460,14 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_log10_pos_qbeam_values<G, R>(
-    reader: &R,
+fn compute_log10_pos_qbeam_values<G, P>(
+    provider: &P,
 ) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let mut values = reader.read_scalar_field("qbeam")?.into_values();
+    let mut values = provider.provide_scalar_field("qbeam")?.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
     values_buffer.par_iter_mut().for_each(|value| {
@@ -478,14 +481,14 @@ where
     Ok((values, In3D::same(CoordLocation::Center)))
 }
 
-fn compute_log10_neg_qbeam_values<G, R>(
-    reader: &R,
+fn compute_log10_neg_qbeam_values<G, P>(
+    provider: &P,
 ) -> io::Result<(Array3<fdt>, In3D<CoordLocation>)>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
-    let mut values = reader.read_scalar_field("qbeam")?.into_values();
+    let mut values = provider.provide_scalar_field("qbeam")?.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
 
     values_buffer.par_iter_mut().for_each(|value| {

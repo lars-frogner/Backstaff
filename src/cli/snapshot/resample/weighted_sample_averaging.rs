@@ -1,17 +1,23 @@
 //! Command line interface for resampling a snapshot using weighted sample averaging.
 
 use crate::{
+    add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
         snapshot::write::create_write_subcommand,
     },
-    create_subcommand,
 };
 use clap::Command;
 
 /// Builds a representation of the `snapshot-resample-weighted_sample_averaging` command line subcommand.
-pub fn create_weighted_sample_averaging_subcommand() -> Command<'static> {
-    Command::new("weighted_sample_averaging")
+pub fn create_weighted_sample_averaging_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "weighted_sample_averaging";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Use the weighted sample averaging method")
         .long_about(
             "Use the weighted sample averaging method.\n\
@@ -25,12 +31,7 @@ pub fn create_weighted_sample_averaging_subcommand() -> Command<'static> {
         .after_help(
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
-        )
-        .subcommand_required(true)
-        .subcommand(
-            create_subcommand!(weighted_sample_averaging, poly_fit_interpolator)
-                .subcommand_required(true)
-                .subcommand(create_subcommand!(poly_fit_interpolator, write)),
-        )
-        .subcommand(create_subcommand!(weighted_sample_averaging, write))
+        );
+
+    add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, write)
 }

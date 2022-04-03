@@ -1,17 +1,21 @@
 //! Command line interface for resampling a snapshot using direct sampling.
 
 use crate::{
+    add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
         snapshot::write::create_write_subcommand,
     },
-    create_subcommand,
 };
 use clap::Command;
 
 /// Builds a representation of the `snapshot-resample-direct_sampling` command line subcommand.
-pub fn create_direct_sampling_subcommand() -> Command<'static> {
-    Command::new("direct_sampling")
+pub fn create_direct_sampling_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "direct_sampling";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Use the direct sampling method")
         .long_about(
             "Use the direct sampling method.\n\
@@ -23,12 +27,7 @@ pub fn create_direct_sampling_subcommand() -> Command<'static> {
         .after_help(
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
-        )
-        .subcommand_required(true)
-        .subcommand(
-            create_subcommand!(direct_sampling, poly_fit_interpolator)
-                .subcommand_required(true)
-                .subcommand(create_subcommand!(poly_fit_interpolator, write)),
-        )
-        .subcommand(create_subcommand!(direct_sampling, write))
+        );
+
+    add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, write)
 }

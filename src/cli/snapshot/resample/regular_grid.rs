@@ -10,7 +10,6 @@ use crate::{
         snapshot::{write::create_write_subcommand, SnapNumInRange},
         utils as cli_utils,
     },
-    create_subcommand,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Dim3::{X, Y, Z},
@@ -18,13 +17,17 @@ use crate::{
     },
     grid::{regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-resample-regular_grid` command line subcommand.
-pub fn create_regular_grid_subcommand() -> Command<'static> {
-    Command::new("regular_grid")
+pub fn create_regular_grid_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "regular_grid";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Resample to a regular grid")
         .long_about("Resample to a regular grid of configurable shape and bounds.")
         .after_help(
@@ -88,16 +91,16 @@ pub fn create_regular_grid_subcommand() -> Command<'static> {
                 )
                 .takes_value(true),
         )
-        .subcommand(create_subcommand!(regular_grid, weighted_sample_averaging))
-        .subcommand(create_subcommand!(regular_grid, weighted_cell_averaging))
-        .subcommand(create_subcommand!(regular_grid, direct_sampling))
-        .subcommand(create_subcommand!(regular_grid, write))
+        .subcommand(create_weighted_sample_averaging_subcommand(command_name))
+        .subcommand(create_weighted_cell_averaging_subcommand(command_name))
+        .subcommand(create_direct_sampling_subcommand(command_name))
+        .subcommand(create_write_subcommand(command_name))
 }
 
-pub fn run_resampling_for_regular_grid<G, R, I>(
+pub fn run_resampling_for_regular_grid<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -107,10 +110,10 @@ pub fn run_resampling_for_regular_grid<G, R, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
-    let original_grid = reader.grid();
+    let original_grid = provider.grid();
 
     let original_shape = original_grid.shape();
 
@@ -168,7 +171,7 @@ pub fn run_resampling_for_regular_grid<G, R, I>(
         grid,
         None,
         write_arguments,
-        reader,
+        provider,
         snap_num_in_range,
         resampled_locations,
         resampling_method,

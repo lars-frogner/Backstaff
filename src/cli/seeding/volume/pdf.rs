@@ -10,14 +10,18 @@ use crate::{
     },
     grid::{regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
     seeding::volume::VolumeSeeder3,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the volume PDF seeder.
-pub fn create_value_pdf_subcommand() -> Command<'static> {
-    Command::new("value_pdf")
+pub fn create_value_pdf_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "value_pdf";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the value PDF seeder")
         .long_about(
             "Use the value PDF seeder.\n\
@@ -62,17 +66,17 @@ pub fn create_value_pdf_subcommand() -> Command<'static> {
 }
 
 /// Creates a volume PDF seeder based on the provided arguments.
-pub fn create_volume_pdf_seeder_from_arguments<G, R, I, S>(
+pub fn create_volume_pdf_seeder_from_arguments<G, P, I, S>(
     arguments: &ArgMatches,
     lower_bounds: Vec3<fdt>,
     upper_bounds: Vec3<fdt>,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: &I,
     satisfies_constraints: &S,
 ) -> VolumeSeeder3
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
     S: Fn(&Point3<fdt>) -> bool + Sync,
 {
@@ -82,7 +86,7 @@ where
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
     let power = utils::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
-    let grid_cell_extents = snapshot.reader().grid().average_grid_cell_extents();
+    let grid_cell_extents = snapshot.grid().average_grid_cell_extents();
     let new_shape = In3D::new(
         ((upper_bounds[X] - lower_bounds[X]) / grid_cell_extents[X]).round() as usize,
         ((upper_bounds[Y] - lower_bounds[Y]) / grid_cell_extents[Y]).round() as usize,

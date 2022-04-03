@@ -5,8 +5,12 @@ use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for using a manual seeder.
-pub fn create_manual_seeder_subcommand() -> Command<'static> {
-    Command::new("manual_seeder")
+pub fn create_manual_seeder_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "manual_seeder";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Read seed point from input file")
         .long_about(
             "Read seed point from input file.\n\

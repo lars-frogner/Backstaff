@@ -6,7 +6,7 @@ use crate::{
     exit_on_error, exit_with_error,
     field::{quantities, ScalarField3},
     grid::Grid3,
-    io::snapshot::{self, fdt, native, ParameterValue, SnapshotReader3},
+    io::snapshot::{self, fdt, native, ParameterValue, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{
@@ -22,8 +22,12 @@ use std::{
 use crate::io::snapshot::netcdf;
 
 /// Builds a representation of the `snapshot-write` command line subcommand.
-pub fn create_write_subcommand() -> Command<'static> {
-    let app = Command::new("write")
+pub fn create_write_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "write";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    let command = Command::new(command_name)
         .about("Write snapshot data to file")
 
         .arg(
@@ -112,20 +116,20 @@ pub fn create_write_subcommand() -> Command<'static> {
         );
 
     #[cfg(feature = "netcdf")]
-    let app = app.arg(
+    let command = command.arg(
         Arg::new("strip")
             .short('s')
             .long("strip")
             .help("Strip away metadata not required for visualization"),
     );
 
-    app
+    command
 }
 
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
-pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
+pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
     arguments: &ArgMatches,
-    reader: &RIN,
+    provider: &PIN,
     snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: Option<Arc<GOUT>>,
     modified_parameters: HashMap<&str, ParameterValue>,
@@ -133,7 +137,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     protected_file_types: &[&str],
 ) where
     GIN: Grid3<fdt>,
-    RIN: SnapshotReader3<GIN>,
+    PIN: SnapshotProvider3<GIN>,
     GOUT: Grid3<fdt>,
     FM: Fn(ScalarField3<fdt, GIN>) -> io::Result<ScalarField3<fdt, GOUT>>,
 {
@@ -171,7 +175,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     let verbose = arguments.is_present("verbose").into();
 
     let (included_quantities, derived_quantities) =
-        super::parse_quantity_lists(arguments, reader, continue_on_warnings);
+        super::parse_quantity_lists(arguments, provider, continue_on_warnings);
 
     let quantity_names: Vec<_> = included_quantities
         .iter()
@@ -186,9 +190,9 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     macro_rules! modified_field_producer {
         () => {
             |name| match if included_quantities.contains(&name) {
-                reader.read_scalar_field(name)
+                provider.provide_scalar_field(name)
             } else if derived_quantities.contains(&name) {
-                quantities::compute_quantity(reader, name, verbose)
+                quantities::compute_quantity(provider, name, verbose)
             } else {
                 unreachable!()
             } {
@@ -201,7 +205,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
     exit_on_error!(
         match output_type {
             OutputType::Native(native_type) => native::write_modified_snapshot(
-                reader,
+                provider,
                 new_grid,
                 &quantity_names,
                 modified_parameters,
@@ -217,7 +221,7 @@ pub fn run_write_subcommand<GIN, RIN, GOUT, FM>(
             OutputType::NetCDF => {
                 let strip_metadata = arguments.is_present("strip");
                 netcdf::write_modified_snapshot(
-                    reader,
+                    provider,
                     new_grid,
                     &quantity_names,
                     modified_parameters,

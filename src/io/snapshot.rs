@@ -71,17 +71,9 @@ pub const PRIMARY_VARIABLE_NAMES_HD: [&'static str; 5] = [
     ENERGY_DENSITY_VARIABLE_NAME,
 ];
 
-/// Defines the properties of a reader for 3D Bifrost snapshots.
-pub trait SnapshotReader3<G: Grid3<fdt>> {
+/// Defines the properties of a provider of 3D Bifrost snapshot variables.
+pub trait SnapshotProvider3<G: Grid3<fdt>> {
     type Parameters: SnapshotParameters;
-
-    const FORMAT: SnapshotFormat;
-
-    /// Returns the path to the file representing the snapshot.
-    fn path(&self) -> &Path;
-
-    /// Whether the reader is verbose.
-    fn verbose(&self) -> Verbose;
 
     /// Returns a reference to the grid.
     fn grid(&self) -> &G;
@@ -101,14 +93,14 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
     /// Returns the names of the auxiliary variables of the snapshot.
     fn auxiliary_variable_names(&self) -> Vec<&str>;
 
-    /// Returns the names of all the variables of the snapshot.
+    /// Returns the names of all the variables that can be provided.
     fn all_variable_names(&self) -> Vec<&str> {
         let mut all_variable_names = self.primary_variable_names();
         all_variable_names.append(&mut self.auxiliary_variable_names());
         all_variable_names
     }
 
-    /// Returns the names of all the variables of the snapshot, except the ones
+    /// Returns the names of all the variables that can be provided, except the ones
     /// in the given list.
     fn all_variable_names_except(&self, excluded_variable_names: &[&str]) -> Vec<&str> {
         self.all_variable_names()
@@ -144,7 +136,7 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
         )
     }
 
-    /// Returns whether the given variable is present in the snapshot.
+    /// Returns whether the given variable can be provided.
     fn has_variable(&self, variable_name: &str) -> bool {
         self.all_variable_names().contains(&variable_name)
     }
@@ -152,21 +144,18 @@ pub trait SnapshotReader3<G: Grid3<fdt>> {
     /// Returns the name and (if available) number of the snapshot.
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
 
-    /// Updates the reader to reflect the current content of the files.
-    fn reread(&mut self) -> io::Result<()>;
+    /// Provides the specified 3D scalar variable.
+    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>>;
 
-    /// Reads the specified primary or auxiliary 3D variable from the output files.
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>>;
-
-    /// Reads the component variables of the specified 3D vector quantity from the output files.
-    fn read_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
+    /// Provides the specified 3D vector variable.
+    fn provide_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
         Ok(VectorField3::new(
             variable_name.to_string(),
             self.arc_with_grid(),
             In3D::new(
-                self.read_scalar_field(&format!("{}x", variable_name))?,
-                self.read_scalar_field(&format!("{}y", variable_name))?,
-                self.read_scalar_field(&format!("{}z", variable_name))?,
+                self.provide_scalar_field(&format!("{}x", variable_name))?,
+                self.provide_scalar_field(&format!("{}y", variable_name))?,
+                self.provide_scalar_field(&format!("{}z", variable_name))?,
             ),
         ))
     }
@@ -276,56 +265,65 @@ impl ParameterValue {
     }
 }
 
-/// Wrapper for `SnapshotReader3` that reads snapshot variables only on first request and
+/// Wrapper for `SnapshotProvider3` that reads or computes snapshot variables only on first request and
 /// then caches the results.
 #[derive(Clone, Debug)]
-pub struct SnapshotCacher3<G: Grid3<fdt>, R> {
-    reader: R,
+pub struct SnapshotCacher3<G: Grid3<fdt>, P> {
+    provider: P,
     scalar_fields: HashMap<String, ScalarField3<fdt, G>>,
     vector_fields: HashMap<String, VectorField3<fdt, G>>,
 }
 
-impl<G: Grid3<fdt>, R: SnapshotReader3<G>> SnapshotCacher3<G, R> {
-    /// Creates a new snapshot cacher from the given reader.
-    pub fn new(reader: R) -> Self {
+impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotCacher3<G, P> {
+    /// Creates a new snapshot cacher from the given provider.
+    pub fn new(provider: P) -> Self {
         SnapshotCacher3 {
-            reader,
+            provider,
             scalar_fields: HashMap::new(),
             vector_fields: HashMap::new(),
         }
     }
 
-    /// Returns a reference to the reader.
-    pub fn reader(&self) -> &R {
-        &self.reader
+    /// Returns a reference to the provider.
+    pub fn provider(&self) -> &P {
+        &self.provider
     }
 
-    /// Returns a mutable reference to the reader.
-    pub fn reader_mut(&mut self) -> &mut R {
-        &mut self.reader
+    /// Returns a mutable reference to the provider.
+    pub fn provider_mut(&mut self) -> &mut P {
+        &mut self.provider
+    }
+
+    /// Returns a reference to the grid.
+    pub fn grid(&self) -> &G {
+        self.provider.grid()
     }
 
     /// Returns a `Result` with a reference to the scalar field representing the given variable,
-    /// reading it from file and caching it if has not already been cached.
+    /// reading it from file or computing it and caching it if has not already been cached.
     pub fn obtain_scalar_field(
         &mut self,
         variable_name: &str,
     ) -> io::Result<&ScalarField3<fdt, G>> {
         Ok(match self.scalar_fields.entry(variable_name.to_string()) {
             Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(self.reader.read_scalar_field(variable_name)?),
+            Entry::Vacant(entry) => {
+                entry.insert(self.provider.provide_scalar_field(variable_name)?)
+            }
         })
     }
 
     /// Returns a `Result` with a reference to the vector field representing the given variable,
-    /// reading it from file and caching it if has not already been cached.
+    /// reading it from file or computing it and caching it if has not already been cached.
     pub fn obtain_vector_field(
         &mut self,
         variable_name: &str,
     ) -> io::Result<&VectorField3<fdt, G>> {
         Ok(match self.vector_fields.entry(variable_name.to_string()) {
             Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(self.reader.read_vector_field(variable_name)?),
+            Entry::Vacant(entry) => {
+                entry.insert(self.provider.provide_vector_field(variable_name)?)
+            }
         })
     }
 

@@ -5,11 +5,12 @@ use super::{
     mesh::create_create_mesh_subcommand, quantities::create_derivable_quantities_subcommand,
     snapshot::create_snapshot_subcommand,
 };
-use crate::create_subcommand;
 use clap::{self, AppSettings, Arg, Command};
 
 /// Build the `backstaff` command line hierarchy.
 pub fn build() -> Command<'static> {
+    let command_name = "backstaff";
+
     Command::new(clap::crate_name!())
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
@@ -41,9 +42,9 @@ pub fn build() -> Command<'static> {
                 .multiple_values(true)
                 .default_value("idl,snap,aux"),
         )
-        .subcommand(create_subcommand!(backstaff, snapshot))
-        .subcommand(create_subcommand!(backstaff, create_mesh))
-        .subcommand(create_subcommand!(backstaff, derivable_quantities))
-        .subcommand(create_subcommand!(backstaff, command_graph))
-        .subcommand(create_subcommand!(backstaff, completions))
+        .subcommand(create_snapshot_subcommand(command_name))
+        .subcommand(create_create_mesh_subcommand(command_name))
+        .subcommand(create_derivable_quantities_subcommand(command_name))
+        .subcommand(create_command_graph_subcommand())
+        .subcommand(create_completions_subcommand())
 }

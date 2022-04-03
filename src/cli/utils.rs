@@ -4,26 +4,87 @@ use crate::{
     exit_on_error,
     grid::Grid3,
     io::{
-        snapshot::{fdt, SnapshotParameters, SnapshotReader3},
+        snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
         OverwriteMode,
     },
 };
-use clap::{self, ArgMatches};
+use clap::{self, ArgMatches, Command};
 use num;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
+
+pub type CommandCreator = fn(&'static str) -> Command<'static>;
 
 #[macro_export]
-macro_rules! create_subcommand {
-    ($parent_command:ident, $child_command:ident) => {{
-        let subcommand = paste::expr! { [<create_ $child_command _subcommand>]() };
-        if !subcommand.is_hide_set() {
-            crate::cli::command_graph::insert_command_graph_edge(
-                stringify!($parent_command),
-                stringify!($child_command),
+macro_rules! add_subcommand_combinations {
+    ($command:expr, $command_name:expr, $subcommand_required:expr; $($child_subcommand_names:tt),+) => {{
+        let mut nested_subcommand_names = Vec::new();
+        let mut subcommand_creators = Vec::<crate::cli::utils::CommandCreator>::new();
+
+        $(
+            add_subcommand_combinations!(
+                @extend nested_subcommand_names,
+                subcommand_creators;
+                $child_subcommand_names
             );
-        }
-        subcommand
+        )+
+
+        let subcommand_creator_map = nested_subcommand_names
+            .clone()
+            .into_iter()
+            .flatten()
+            .zip(subcommand_creators.into_iter())
+            .collect::<std::collections::HashMap<_, _>>();
+
+        crate::cli::utils::add_subcommand_combinations_with_map(
+            $command,
+            $command_name,
+            &nested_subcommand_names,
+            &subcommand_creator_map,
+            $subcommand_required,
+        )
     }};
+    (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; ($($subcommand_name:ident),+)) => {{
+        let mut same_level_subcommand_names = Vec::new();
+        $(
+            same_level_subcommand_names.push(stringify!($subcommand_name));
+            $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
+        )+
+        $nested_subcommand_names.push(same_level_subcommand_names);
+    }};
+    (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; $subcommand_name:ident) => {{
+        $nested_subcommand_names.push(vec![stringify!($subcommand_name)]);
+        $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
+    }};
+}
+
+pub fn add_subcommand_combinations_with_map(
+    mut command: Command<'static>,
+    command_name: &'static str,
+    nested_subcommand_names: &[Vec<&'static str>],
+    subcommand_creators: &HashMap<&'static str, CommandCreator>,
+    subcommand_required: bool,
+) -> Command<'static> {
+    command = command.subcommand_required(subcommand_required);
+
+    for (idx, same_level_subcommand_names) in nested_subcommand_names.iter().enumerate() {
+        for subcommand_name in same_level_subcommand_names {
+            let mut subcommand =
+                subcommand_creators.get(subcommand_name).unwrap_or_else(|| {
+                    panic!("Missing creator for subcommand {}", subcommand_name)
+                })(command_name);
+            if idx + 1 < nested_subcommand_names.len() {
+                subcommand = add_subcommand_combinations_with_map(
+                    subcommand,
+                    subcommand_name,
+                    &nested_subcommand_names[idx + 1..],
+                    subcommand_creators,
+                    subcommand_required,
+                );
+            }
+            command = command.subcommand(subcommand);
+        }
+    }
+    command
 }
 
 pub fn parse_value_string<T>(argument_name: &str, value_string: &str) -> T
@@ -215,8 +276,8 @@ where
     })
 }
 
-pub fn get_value_from_param_file_argument_with_default<G, R, T, C>(
-    reader: &R,
+pub fn get_value_from_param_file_argument_with_default<G, P, T, C>(
+    reader: &P,
     arguments: &ArgMatches,
     argument_name: &str,
     param_file_argument_name: &str,
@@ -225,7 +286,7 @@ pub fn get_value_from_param_file_argument_with_default<G, R, T, C>(
 ) -> T
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     T: From<fdt> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,
@@ -242,8 +303,8 @@ where
     })
 }
 
-pub fn get_values_from_param_file_argument_with_defaults<G, R, T, C>(
-    reader: &R,
+pub fn get_values_from_param_file_argument_with_defaults<G, P, T, C>(
+    reader: &P,
     arguments: &ArgMatches,
     argument_name: &str,
     param_file_argument_names: &[&str],
@@ -252,7 +313,7 @@ pub fn get_values_from_param_file_argument_with_defaults<G, R, T, C>(
 ) -> Vec<T>
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     T: From<fdt> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,

@@ -10,19 +10,23 @@ use crate::{
         snapshot::{write::create_write_subcommand, SnapNumInRange},
         utils,
     },
-    create_subcommand, exit_on_error, exit_with_error,
+    exit_on_error, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::In3D,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, native, SnapshotReader3},
+    io::snapshot::{fdt, native, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
 
 /// Builds a representation of the `snapshot-resample-mesh_file` command line subcommand.
-pub fn create_mesh_file_subcommand() -> Command<'static> {
-    Command::new("mesh_file")
+pub fn create_mesh_file_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "mesh_file";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Resample to a grid specified by a mesh file")
         .long_about("Resample to a grid specified by a mesh file.")
         .after_help(
@@ -49,16 +53,16 @@ pub fn create_mesh_file_subcommand() -> Command<'static> {
                 .help("Shape of the grid to resample to [default: same as in mesh file]")
                 .takes_value(true),
         )
-        .subcommand(create_subcommand!(mesh_file, weighted_sample_averaging))
-        .subcommand(create_subcommand!(mesh_file, weighted_cell_averaging))
-        .subcommand(create_subcommand!(mesh_file, direct_sampling))
-        .subcommand(create_subcommand!(mesh_file, write))
+        .subcommand(create_weighted_sample_averaging_subcommand(command_name))
+        .subcommand(create_weighted_cell_averaging_subcommand(command_name))
+        .subcommand(create_direct_sampling_subcommand(command_name))
+        .subcommand(create_write_subcommand(command_name))
 }
 
-pub fn run_resampling_for_mesh_file<G, R, I>(
+pub fn run_resampling_for_mesh_file<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    reader: &R,
+    provider: &P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -68,7 +72,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     let mesh_file_path = exit_on_error!(
@@ -106,7 +110,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
             let grid = RegularGrid3::from_coords(
                 center_coords,
                 lower_edge_coords,
-                reader.grid().periodicity().clone(),
+                provider.grid().periodicity().clone(),
                 Some(up_derivatives),
                 Some(down_derivatives),
             );
@@ -114,7 +118,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
                 grid,
                 new_shape,
                 write_arguments,
-                reader,
+                provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,
@@ -128,7 +132,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
             let grid = HorRegularGrid3::from_coords(
                 center_coords,
                 lower_edge_coords,
-                reader.grid().periodicity().clone(),
+                provider.grid().periodicity().clone(),
                 Some(up_derivatives),
                 Some(down_derivatives),
             );
@@ -136,7 +140,7 @@ pub fn run_resampling_for_mesh_file<G, R, I>(
                 grid,
                 new_shape,
                 write_arguments,
-                reader,
+                provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,

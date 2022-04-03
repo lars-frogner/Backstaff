@@ -8,14 +8,18 @@ use crate::{
     geometry::Point2,
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
     seeding::slice::SliceSeeder3,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the slice PDF seeder.
-pub fn create_value_pdf_subcommand() -> Command<'static> {
-    Command::new("value_pdf")
+pub fn create_value_pdf_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "value_pdf";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the slice value PDF seeder")
         .long_about(
             "Use the slice value PDF seeder.\n\
@@ -60,16 +64,16 @@ pub fn create_value_pdf_subcommand() -> Command<'static> {
 }
 
 /// Creates a slice PDF seeder based on the provided arguments.
-pub fn create_slice_pdf_seeder_from_arguments<G, R, I, S>(
+pub fn create_slice_pdf_seeder_from_arguments<G, P, I, S>(
     arguments: &ArgMatches,
     parameters: &CommonSliceSeederParameters,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: &I,
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {

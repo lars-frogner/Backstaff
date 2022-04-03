@@ -4,16 +4,19 @@ mod statistics;
 
 use self::statistics::{create_statistics_subcommand, run_statistics_subcommand};
 use crate::{
-    create_subcommand,
     field::quantities,
     grid::Grid3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-inspect` command line subcommand.
-pub fn create_inspect_subcommand() -> Command<'static> {
-    Command::new("inspect")
+pub fn create_inspect_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "inspect";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Inspect properties of the snapshot")
         .subcommand_required(true)
         .arg(
@@ -74,20 +77,20 @@ pub fn create_inspect_subcommand() -> Command<'static> {
                 .long("verbose")
                 .help("Print status messages related to inspection"),
         )
-        .subcommand(create_subcommand!(inspect, statistics))
+        .subcommand(create_statistics_subcommand(command_name))
 }
 
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
-pub fn run_inspect_subcommand<G, R>(arguments: &ArgMatches, reader: &R)
+pub fn run_inspect_subcommand<G, P>(arguments: &ArgMatches, provider: &P)
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
     let (included_quantities, derived_quantities) =
-        super::parse_quantity_lists(arguments, reader, continue_on_warnings);
+        super::parse_quantity_lists(arguments, provider, continue_on_warnings);
 
     let quantity_names: Vec<_> = included_quantities
         .iter()
@@ -102,11 +105,11 @@ where
     if let Some(statistics_arguments) = arguments.subcommand_matches("statistics") {
         run_statistics_subcommand(
             statistics_arguments,
-            reader,
+            provider,
             |name| match if included_quantities.contains(&name) {
-                reader.read_scalar_field(name)
+                provider.provide_scalar_field(name)
             } else if derived_quantities.contains(&name) {
-                quantities::compute_quantity(reader, name, verbose)
+                quantities::compute_quantity(provider, name, verbose)
             } else {
                 unreachable!()
             } {

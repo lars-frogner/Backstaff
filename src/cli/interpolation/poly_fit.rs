@@ -4,8 +4,14 @@ use crate::{cli::utils, interpolation::poly_fit::PolyFitInterpolatorConfig};
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the polynomial fitting interpolator.
-pub fn create_poly_fit_interpolator_subcommand() -> Command<'static> {
-    Command::new("poly_fit_interpolator")
+pub fn create_poly_fit_interpolator_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "poly_fit_interpolator";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the polynomial fitting interpolator")
         .long_about(
             "Use the polynomial fitting interpolator.\n\

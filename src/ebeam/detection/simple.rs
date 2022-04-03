@@ -6,7 +6,7 @@ use crate::{
     geometry::Dim3,
     grid::Grid3,
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotReader3},
+        snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotProvider3},
         Verbose,
     },
     seeding::{criterion::CriterionSeeder3, IndexSeeder3},
@@ -41,14 +41,14 @@ impl SimpleReconnectionSiteDetector {
 impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
     type Seeder = CriterionSeeder3;
 
-    fn detect_reconnection_sites<G, R>(
+    fn detect_reconnection_sites<G, P>(
         &self,
-        snapshot: &mut SnapshotCacher3<G, R>,
+        snapshot: &mut SnapshotCacher3<G, P>,
         verbose: Verbose,
     ) -> Self::Seeder
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
     {
         let reconnection_factor_field = exit_on_error!(
             snapshot.obtain_scalar_field("krec"),
@@ -80,12 +80,12 @@ impl SimpleReconnectionSiteDetectorConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<G, R>(reader: &R) -> Self
+    pub fn with_defaults_from_param_file<G, P>(provider: &P) -> Self
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G>,
+        P: SnapshotProvider3<G>,
     {
-        let reconnection_factor_threshold = reader
+        let reconnection_factor_threshold = provider
             .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "reconnection_factor_threshold",
@@ -93,7 +93,7 @@ impl SimpleReconnectionSiteDetectorConfig {
                 &|krec_lim| krec_lim,
                 Self::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
             );
-        let min_detection_depth = reader
+        let min_detection_depth = provider
             .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "min_detection_depth",
@@ -101,7 +101,7 @@ impl SimpleReconnectionSiteDetectorConfig {
                 &|z_rec_ulim| z_rec_ulim,
                 Self::DEFAULT_MIN_DETECTION_DEPTH,
             );
-        let max_detection_depth = reader
+        let max_detection_depth = provider
             .parameters()
             .get_converted_numerical_param_or_fallback_to_default_with_warning(
                 "max_detection_depth",

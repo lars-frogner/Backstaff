@@ -7,7 +7,7 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
         Verbose,
     },
     tracing::stepping::StepperFactory3,
@@ -21,9 +21,9 @@ pub trait Accelerator {
 
     /// Generates a set of distributions with associated acceleration data in the given snapshot,
     /// at the 3D indices produced by the given seeder.
-    fn generate_distributions<G, R, D, I, StF>(
+    fn generate_distributions<G, P, D, I, StF>(
         &self,
-        snapshot: &mut SnapshotCacher3<G, R>,
+        snapshot: &mut SnapshotCacher3<G, P>,
         detector: D,
         interpolator: &I,
         stepper_factory: &StF,
@@ -34,7 +34,7 @@ pub trait Accelerator {
     )>
     where
         G: Grid3<fdt>,
-        R: SnapshotReader3<G> + Sync,
+        P: SnapshotProvider3<G> + Sync,
         D: ReconnectionSiteDetector,
         I: Interpolator3,
         StF: StepperFactory3 + Sync;

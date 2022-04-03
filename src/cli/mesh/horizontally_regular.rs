@@ -14,11 +14,17 @@ use crate::{
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `create_mesh-horizontally_regular` command line subcommand.
-pub fn create_horizontally_regular_mesh_subcommand() -> Command<'static> {
-    Command::new("horizontally_regular")
-        .about("Create a horizontally regular grid")
+pub fn create_horizontally_regular_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "horizontally_regular";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
+        .about("Create a horizontally regular mesh")
         .long_about(
-            "Create a horizontally regular grid.\n\
+            "Create a horizontally regular mesh.\n\
              Cell extents in z-direction can be prescribed at the boundaries and at specified\n\
              interior control points. A cubic Hermite spline will be fitted to the control\n\
              points and used to obtain dz(z). Note that the specified dz scales are not\n\
@@ -32,7 +38,7 @@ pub fn create_horizontally_regular_mesh_subcommand() -> Command<'static> {
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the grid")
+                .help("Shape of the mesh")
                 .takes_value(true)
                 .required(true),
         )

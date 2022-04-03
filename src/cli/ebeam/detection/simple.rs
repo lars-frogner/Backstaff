@@ -1,16 +1,23 @@
 //! Command line interface for the simple reconnection site detector.
 
+use super::super::distribution::power_law::create_power_law_distribution_subcommand;
 use crate::{
     cli::utils,
     ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
     grid::Grid3,
-    io::snapshot::{fdt, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotProvider3},
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the simple reconnection site detector.
-pub fn create_simple_reconnection_site_detector_subcommand() -> Command<'static> {
-    Command::new("simple_detector")
+pub fn create_simple_reconnection_site_detector_subcommand(
+    parent_command_name: &'static str,
+) -> Command<'static> {
+    let command_name = "simple_detector";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use the simple reconnection site detection method")
         .long_about(
             "Use the simple reconnection site detection method.\n\
@@ -43,17 +50,18 @@ pub fn create_simple_reconnection_site_detector_subcommand() -> Command<'static>
                 )
                 .takes_value(true),
         )
+        .subcommand(create_power_law_distribution_subcommand(command_name))
 }
 
 /// Determines simple reconnection site detector parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_reconnection_site_detector_config_from_options<G, R>(
+pub fn construct_simple_reconnection_site_detector_config_from_options<G, P>(
     arguments: &ArgMatches,
-    reader: &R,
+    reader: &P,
 ) -> SimpleReconnectionSiteDetectorConfig
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
 {
     let reconnection_factor_threshold = utils::get_value_from_param_file_argument_with_default(
         reader,

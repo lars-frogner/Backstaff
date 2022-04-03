@@ -5,13 +5,13 @@ mod regular;
 
 use self::{
     horizontally_regular::{
-        create_horizontally_regular_mesh_subcommand, run_horizontally_regular_subcommand,
+        create_horizontally_regular_subcommand, run_horizontally_regular_subcommand,
     },
-    regular::{create_regular_mesh_subcommand, run_regular_subcommand},
+    regular::{create_regular_subcommand, run_regular_subcommand},
 };
 use crate::{
     cli::utils as cli_utils,
-    create_subcommand, exit_on_error, exit_with_error,
+    exit_on_error, exit_with_error,
     grid::Grid3,
     io::{
         snapshot::{fdt, native},
@@ -22,8 +22,12 @@ use clap::{Arg, ArgMatches, Command};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for generating a Bifrost mesh file.
-pub fn create_create_mesh_subcommand() -> Command<'static> {
-    Command::new("create_mesh")
+pub fn create_create_mesh_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "create_mesh";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Create a Bifrost mesh file")
         .subcommand_required(true)
         .arg(
@@ -45,8 +49,8 @@ pub fn create_create_mesh_subcommand() -> Command<'static> {
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
-        .subcommand(create_subcommand!(create_mesh, regular_mesh))
-        .subcommand(create_subcommand!(create_mesh, horizontally_regular_mesh))
+        .subcommand(create_regular_subcommand(command_name))
+        .subcommand(create_horizontally_regular_subcommand(command_name))
 }
 
 /// Runs the actions for the `create_mesh` subcommand using the given arguments.

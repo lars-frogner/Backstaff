@@ -9,9 +9,13 @@ use crate::{
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `create_mesh-regular` command line subcommand.
-pub fn create_regular_mesh_subcommand() -> Command<'static> {
-    Command::new("regular")
-        .about("Create a regular grid")
+pub fn create_regular_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "regular";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
+        .about("Create a regular mesh")
         .arg(
             Arg::new("shape")
                 .short('s')
@@ -20,7 +24,7 @@ pub fn create_regular_mesh_subcommand() -> Command<'static> {
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the grid")
+                .help("Shape of the mesh")
                 .takes_value(true)
                 .required(true),
         )

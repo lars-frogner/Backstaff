@@ -13,21 +13,25 @@ use self::{
 };
 use crate::{
     cli::utils as cli_utils,
-    create_subcommand, exit_on_false, exit_with_error,
+    exit_on_false, exit_with_error,
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotReader3},
+    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
     seeding::volume::VolumeSeeder3,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using a volume seeder.
-pub fn create_volume_seeder_subcommand() -> Command<'static> {
-    Command::new("volume_seeder")
+pub fn create_volume_seeder_subcommand(parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "volume_seeder";
+
+    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+
+    Command::new(command_name)
         .about("Use a volume seeder")
         .subcommand_required(true)
         .arg(
@@ -72,24 +76,24 @@ pub fn create_volume_seeder_subcommand() -> Command<'static> {
                 )
                 .takes_value(true),
         )
-        .subcommand(create_subcommand!(volume_seeder, regular))
-        .subcommand(create_subcommand!(volume_seeder, random))
-        .subcommand(create_subcommand!(volume_seeder, stratified))
-        .subcommand(create_subcommand!(volume_seeder, value_pdf))
+        .subcommand(create_regular_subcommand(command_name))
+        .subcommand(create_random_subcommand(command_name))
+        .subcommand(create_stratified_subcommand(command_name))
+        .subcommand(create_value_pdf_subcommand(command_name))
 }
 
 /// Creates a volume seeder based on the provided arguments.
-pub fn create_volume_seeder_from_arguments<G, R, I>(
+pub fn create_volume_seeder_from_arguments<G, P, I>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, R>,
+    snapshot: &mut SnapshotCacher3<G, P>,
     interpolator: &I,
 ) -> VolumeSeeder3
 where
     G: Grid3<fdt>,
-    R: SnapshotReader3<G>,
+    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
-    let original_grid = snapshot.reader().grid();
+    let original_grid = snapshot.grid();
 
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();

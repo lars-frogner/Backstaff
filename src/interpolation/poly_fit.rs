@@ -2281,21 +2281,21 @@ mod tests {
     use crate::io::snapshot::{
         fdt,
         native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
-        SnapshotReader3,
+        SnapshotProvider3,
     };
     use crate::io::{Endianness, Verbose};
     use ndarray_stats::QuantileExt;
 
     #[test]
     fn interpolation_at_original_data_points_works() {
-        let reader =
+        let provider =
             NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
                 "data/cb24ni_ebeam_offline/cb24ni_ebeam_offline_462.idl",
                 Endianness::Little,
                 Verbose::No,
             ))
             .unwrap();
-        let field = reader.read_scalar_field("r").unwrap();
+        let field = provider.provide_scalar_field("r").unwrap();
 
         let coords = field.coords();
         let idx = 300;
