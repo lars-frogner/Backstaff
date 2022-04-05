@@ -28,8 +28,10 @@ pub fn create_derive_subcommand(parent_command_name: &'static str) -> Command<'s
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_name("NAMES")
-                .help("List of derived quantities to compute (comma-separated)")
-                .required(true)
+                .help(
+                    "List of derived quantities to explicitly compute\n\
+                     (comma-separated) [default: none]",
+                )
                 .takes_value(true)
                 .multiple_values(true),
         )
