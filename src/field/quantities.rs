@@ -70,6 +70,8 @@ lazy_static! {
         ("by", (*U_B as fdt)),
         ("bz", (*U_B as fdt)),
         ("p", (U_P as fdt)),
+        ("tg", 1.0),
+        ("nel", 1.0),
         ("ux", (U_U as fdt)),
         ("uy", (U_U as fdt)),
         ("uz", (U_U as fdt)),
@@ -483,7 +485,15 @@ where
                 }
             } else {
                 if let Some(&scale) = QUANTITY_CGS_SCALES.get(base_name) {
-                    compute_quantity_unary(quantity_name, provider, base_name, |val| val * scale)
+                    if scale == 1.0 {
+                        provider
+                            .provide_scalar_field(base_name)
+                            .map(|field| field.with_name(quantity_name.to_string()))
+                    } else {
+                        compute_quantity_unary(quantity_name, provider, base_name, |val| {
+                            val * scale
+                        })
+                    }
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
