@@ -15,7 +15,9 @@ macro_rules! exit_on_error {
 #[macro_export]
 macro_rules! exit_on_false {
     ($logic:expr, $($print_arg:tt)*) => {
-        if !$logic {
+        if $logic {
+            true
+        } else {
             exit_with_error!($($print_arg)*)
         }
     };
