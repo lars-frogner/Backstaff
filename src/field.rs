@@ -185,6 +185,16 @@ where
         self.values
     }
 
+    /// Consumes the scalar field and returns a version with the given name.
+    pub fn with_name(self, name: String) -> Self {
+        Self {
+            name,
+            grid: self.grid,
+            locations: self.locations,
+            values: self.values,
+        }
+    }
+
     /// Creates a new scalar field restricted to slices of the coordinate arrays of
     /// the original field.
     pub fn subfield(&self, subgrid: Arc<G>, start_indices: &Idx3<usize>) -> Self {
@@ -1393,6 +1403,16 @@ where
         self.values
     }
 
+    /// Consumes the scalar field and returns a version with the given name.
+    pub fn with_name(self, name: String) -> Self {
+        Self {
+            name,
+            grid: self.grid,
+            locations: self.locations,
+            values: self.values,
+        }
+    }
+
     /// Computes the 2D indices and value of the minimum of the field.
     ///
     /// NaN values are ignored. Returns `None` if there are no finite values.
@@ -1762,6 +1782,16 @@ where
     /// Consumes the scalar field and returns the owned array of field values.
     pub fn into_values(self) -> Array1<F> {
         self.values
+    }
+
+    /// Consumes the scalar field and returns a version with the given name.
+    pub fn with_name(self, name: String) -> Self {
+        Self {
+            name,
+            grid: self.grid,
+            location: self.location,
+            values: self.values,
+        }
     }
 
     /// Computes the index and value of the minimum of the field.
