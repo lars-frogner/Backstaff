@@ -12,7 +12,7 @@ use super::{
     FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
-    field::ScalarField3,
+    field::{ScalarField3, ScalarFieldProvider3},
     geometry::{
         Dim3::{X, Y, Z},
         In3D,
@@ -161,9 +161,7 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fdt>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
-    type Parameters = NetCDFSnapshotParameters;
-
+impl<G: Grid3<fdt>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
     fn grid(&self) -> &G {
         self.grid.as_ref()
     }
@@ -171,6 +169,14 @@ impl<G: Grid3<fdt>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
     fn arc_with_grid(&self) -> Arc<G> {
         Arc::clone(&self.grid)
     }
+
+    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+        self.read_scalar_field(variable_name)
+    }
+}
+
+impl<G: Grid3<fdt>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
+    type Parameters = NetCDFSnapshotParameters;
 
     fn parameters(&self) -> &Self::Parameters {
         &self.parameters
@@ -196,10 +202,6 @@ impl<G: Grid3<fdt>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
         super::extract_name_and_num_from_snapshot_path(self.config.file_path())
-    }
-
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
-        self.read_scalar_field(variable_name)
     }
 }
 

@@ -2,8 +2,7 @@
 
 use super::{
     build, command_graph::run_command_graph_subcommand, completions::run_completions_subcommand,
-    mesh::run_create_mesh_subcommand, quantities::run_derivable_quantities_subcommand,
-    snapshot::run_snapshot_subcommand,
+    mesh::run_create_mesh_subcommand, snapshot::run_snapshot_subcommand,
 };
 use std::time::Instant;
 
@@ -25,11 +24,6 @@ pub fn run() {
     }
     if let Some(create_mesh_arguments) = arguments.subcommand_matches("create_mesh") {
         run_create_mesh_subcommand(create_mesh_arguments, &protected_file_types);
-    }
-    if let Some(derivable_quantities_arguments) =
-        arguments.subcommand_matches("derivable_quantities")
-    {
-        run_derivable_quantities_subcommand(derivable_quantities_arguments);
     }
     if let Some(command_graph_arguments) = arguments.subcommand_matches("command_graph") {
         run_command_graph_subcommand(command_graph_arguments, &protected_file_types);

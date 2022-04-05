@@ -2,8 +2,7 @@
 
 use super::{
     command_graph::create_command_graph_subcommand, completions::create_completions_subcommand,
-    mesh::create_create_mesh_subcommand, quantities::create_derivable_quantities_subcommand,
-    snapshot::create_snapshot_subcommand,
+    mesh::create_create_mesh_subcommand, snapshot::create_snapshot_subcommand,
 };
 use clap::{self, AppSettings, Arg, Command};
 
@@ -44,7 +43,6 @@ pub fn build() -> Command<'static> {
         )
         .subcommand(create_snapshot_subcommand(command_name))
         .subcommand(create_create_mesh_subcommand(command_name))
-        .subcommand(create_derivable_quantities_subcommand(command_name))
         .subcommand(create_command_graph_subcommand())
         .subcommand(create_completions_subcommand())
 }

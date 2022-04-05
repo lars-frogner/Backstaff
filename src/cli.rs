@@ -5,7 +5,6 @@ pub mod command_graph;
 pub mod completions;
 pub mod interpolation;
 pub mod mesh;
-pub mod quantities;
 pub mod run;
 pub mod seeding;
 pub mod snapshot;

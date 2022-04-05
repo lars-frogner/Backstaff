@@ -19,6 +19,18 @@ use rayon::prelude::*;
 use serde::Serialize;
 use std::{io, iter, path::Path, sync::Arc};
 
+/// Defines the properties of a provider of 3D scalar fields.
+pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<F>>: Sync {
+    /// Returns a reference to the grid.
+    fn grid(&self) -> &G;
+
+    /// Returns a new atomic reference counted pointer to the grid.
+    fn arc_with_grid(&self) -> Arc<G>;
+
+    /// Provides the specified 3D scalar variable.
+    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<F, G>>;
+}
+
 /// Location in the grid cell for resampled field values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ResampledCoordLocation {
@@ -47,6 +59,14 @@ impl ResampledCoordLocation {
             resampled[X].into_location(original[X]),
             resampled[Y].into_location(original[Y]),
             resampled[Z].into_location(original[Z]),
+        )
+    }
+
+    pub fn from_locations_3d(locations: &In3D<CoordLocation>) -> In3D<Self> {
+        In3D::new(
+            Self::Specific(locations[X]),
+            Self::Specific(locations[Y]),
+            Self::Specific(locations[Z]),
         )
     }
 }

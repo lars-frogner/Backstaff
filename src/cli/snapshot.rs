@@ -1,24 +1,28 @@
 //! Command line interface for actions related to snapshots.
 
 mod corks;
+mod derive;
 mod extract;
 mod inspect;
 mod resample;
 mod slice;
+mod synthesize;
 mod write;
 
 use self::{
     corks::{create_corks_subcommand, CorksState},
+    derive::create_derive_subcommand,
     extract::create_extract_subcommand,
     inspect::create_inspect_subcommand,
     resample::create_resample_subcommand,
     slice::create_slice_subcommand,
+    synthesize::create_synthesize_subcommand,
     write::create_write_subcommand,
 };
 use crate::{
+    add_subcommand_combinations,
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    field::quantities,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     io::{
         snapshot::{
@@ -59,9 +63,8 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
 
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
-    let command = Command::new(command_name)
+    let mut command = Command::new(command_name)
         .about("Specify input snapshot to perform further actions on")
-        .subcommand_required(true)
         .arg(
             Arg::new("input-file")
                 .value_name("INPUT_FILE")
@@ -105,13 +108,11 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
                 .short('v')
                 .long("verbose")
                 .help("Print status messages related to reading"),
-        )
-        .subcommand(create_inspect_subcommand(command_name))
-        .subcommand(create_slice_subcommand(command_name))
-        .subcommand(create_extract_subcommand(command_name))
-        .subcommand(create_resample_subcommand(command_name))
-        .subcommand(create_write_subcommand(command_name))
-        .subcommand(create_corks_subcommand(command_name));
+        );
+
+    command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (inspect, slice, extract, resample, write));
+
+    command = command.subcommand(create_corks_subcommand(command_name));
 
     #[cfg(feature = "tracing")]
     let command = command.subcommand(create_trace_subcommand(command_name));
@@ -248,12 +249,44 @@ macro_rules! create_netcdf_reader_and_run {
 pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     macro_rules! run_subcommands_for_reader {
         ($reader:expr, $snap_num_in_range:expr) => {
-            run_snapshot_subcommand_for_provider(
-                arguments,
-                $reader,
-                $snap_num_in_range,
-                protected_file_types,
-            )
+            if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
+                let provider = derive::create_derive_provider(derive_arguments, $reader);
+                if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+                    let provider =
+                        synthesize::create_synthesize_provider(synthesize_arguments, provider);
+                    run_snapshot_subcommand_for_provider(
+                        synthesize_arguments,
+                        provider,
+                        $snap_num_in_range,
+                        protected_file_types,
+                    );
+                } else {
+                    run_snapshot_subcommand_for_provider(
+                        derive_arguments,
+                        provider,
+                        $snap_num_in_range,
+                        protected_file_types,
+                    );
+                }
+            } else {
+                if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+                    let provider =
+                        synthesize::create_synthesize_provider(synthesize_arguments, $reader);
+                    run_snapshot_subcommand_for_provider(
+                        synthesize_arguments,
+                        provider,
+                        $snap_num_in_range,
+                        protected_file_types,
+                    );
+                } else {
+                    run_snapshot_subcommand_for_provider(
+                        arguments,
+                        $reader,
+                        $snap_num_in_range,
+                        protected_file_types,
+                    );
+                }
+            }
         };
     }
 
@@ -550,16 +583,16 @@ impl fmt::Display for InputType {
     }
 }
 
-fn parse_quantity_lists<'a, G, P>(
+fn parse_included_quantity_list<'a, G, P>(
     arguments: &'a ArgMatches,
     provider: &'a P,
     continue_on_warnings: bool,
-) -> (Vec<&'a str>, Vec<&'a str>)
+) -> Vec<&'a str>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    let included_quantities = if arguments.is_present("all-quantities") {
+    if arguments.is_present("all-quantities") {
         provider.all_variable_names()
     } else if let Some(included_quantities) = arguments
         .values_of("included-quantities")
@@ -585,42 +618,5 @@ where
         provider.all_variable_names_except(&excluded_quantities)
     } else {
         Vec::new()
-    };
-
-    let derived_quantities: Vec<_> = arguments
-        .values_of("derived-quantities")
-        .map(|values| values.collect::<Vec<_>>())
-        .unwrap_or(Vec::new())
-        .into_iter()
-        .filter(|quantity_name| {
-            match quantities::find_missing_quantity_dependencies(provider, quantity_name) {
-                Some(missing_dependencies) => {
-                    if missing_dependencies.is_empty() {
-                        true
-                    } else {
-                        eprintln!(
-                            "Warning: Missing following dependencies for derived quantity {}: {}",
-                            quantity_name,
-                            missing_dependencies.join(", ")
-                        );
-                        if !continue_on_warnings
-                            && !io_utils::user_says_yes("Still continue?", true)
-                        {
-                            process::exit(1);
-                        }
-                        false
-                    }
-                }
-                None => {
-                    eprintln!("Warning: Derived quantity {} not supported", quantity_name);
-                    if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
-                        process::exit(1);
-                    }
-                    false
-                }
-            }
-        })
-        .collect();
-
-    (included_quantities, derived_quantities)
+    }
 }

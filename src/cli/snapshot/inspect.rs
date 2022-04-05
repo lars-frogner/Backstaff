@@ -4,7 +4,6 @@ mod statistics;
 
 use self::statistics::{create_statistics_subcommand, run_statistics_subcommand};
 use crate::{
-    field::quantities,
     grid::Grid3,
     io::snapshot::{fdt, SnapshotProvider3},
 };
@@ -56,29 +55,9 @@ pub fn create_inspect_subcommand(parent_command_name: &'static str) -> Command<'
                 .conflicts_with_all(&["all-quantities", "included-quantities"]),
         )
         .arg(
-            Arg::new("derived-quantities")
-                .long("derived-quantities")
-                .require_equals(true)
-                .use_value_delimiter(true)
-                .require_value_delimiter(true)
-                .value_name("NAMES")
-                .help(
-                    "List of derived quantities to compute and inspect (comma-separated)\n\
-                     [default: none]",
-                )
-                .takes_value(true)
-                .multiple_values(true),
-        )
-        .arg(
             Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
-        )
-        .arg(
-            Arg::new("verbose")
-                .short('v')
-                .long("verbose")
-                .help("Print status messages related to inspection"),
         )
         .subcommand(create_statistics_subcommand(command_name))
 }
@@ -90,16 +69,9 @@ where
     P: SnapshotProvider3<G>,
 {
     let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let verbose = arguments.is_present("verbose").into();
 
-    let (included_quantities, derived_quantities) =
-        super::parse_quantity_lists(arguments, &provider, continue_on_warnings);
-
-    let quantity_names: Vec<_> = included_quantities
-        .iter()
-        .cloned()
-        .chain(derived_quantities.iter().cloned())
-        .collect();
+    let quantity_names =
+        super::parse_included_quantity_list(arguments, &provider, continue_on_warnings);
 
     if quantity_names.is_empty() {
         exit_with_error!("Aborted: No quantities to inspect");
@@ -109,16 +81,7 @@ where
         run_statistics_subcommand(
             statistics_arguments,
             &provider,
-            |name| match if included_quantities.contains(&name) {
-                provider.provide_scalar_field(name)
-            } else if derived_quantities.contains(&name) {
-                quantities::compute_quantity(&provider, name, verbose)
-            } else {
-                unreachable!()
-            } {
-                Ok(field) => Ok(field),
-                Err(err) => Err(err),
-            },
+            |name| provider.provide_scalar_field(name),
             quantity_names,
         );
     }

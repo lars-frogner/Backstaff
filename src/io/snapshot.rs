@@ -7,7 +7,7 @@ pub mod netcdf;
 
 use super::{Endianness, Verbose};
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{ScalarField3, ScalarFieldProvider3, VectorField3},
     geometry::In3D,
     grid::Grid3,
 };
@@ -15,6 +15,7 @@ use regex::Regex;
 use std::{
     collections::{hash_map::Entry, HashMap},
     io,
+    marker::PhantomData,
     path::Path,
     str,
     sync::Arc,
@@ -72,14 +73,8 @@ pub const PRIMARY_VARIABLE_NAMES_HD: [&'static str; 5] = [
 ];
 
 /// Defines the properties of a provider of 3D Bifrost snapshot variables.
-pub trait SnapshotProvider3<G: Grid3<fdt>> {
+pub trait SnapshotProvider3<G: Grid3<fdt>>: ScalarFieldProvider3<fdt, G> {
     type Parameters: SnapshotParameters;
-
-    /// Returns a reference to the grid.
-    fn grid(&self) -> &G;
-
-    /// Returns a new atomic reference counted pointer to the grid.
-    fn arc_with_grid(&self) -> Arc<G>;
 
     /// Returns a reference to the parameters associated with the snapshot.
     fn parameters(&self) -> &Self::Parameters;
@@ -143,9 +138,6 @@ pub trait SnapshotProvider3<G: Grid3<fdt>> {
 
     /// Returns the name and (if available) number of the snapshot.
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
-
-    /// Provides the specified 3D scalar variable.
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>>;
 
     /// Provides the specified 3D vector variable.
     fn provide_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
@@ -381,6 +373,14 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotCacher3<G, P> {
         self.vector_fields.clear();
     }
 }
+
+// pub struct SnapshotResampler<G, P> {
+//     provider: P,
+//     computer: Option<SnapshotComputer3<G, P>>,
+//     phantom: PhantomData<G>,
+// }
+
+// impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotResampler<G, P> {}
 
 /// Parses the file name of the given path and returns the interpreted
 /// snapshot name and (if detected) number.

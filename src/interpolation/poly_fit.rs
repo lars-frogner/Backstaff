@@ -2276,12 +2276,11 @@ impl Default for PolyFitInterpolatorConfig {
 mod tests {
 
     use super::*;
-    use crate::field::ResampledCoordLocation;
+    use crate::field::{ResampledCoordLocation, ScalarFieldProvider3};
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::io::snapshot::{
         fdt,
         native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
-        SnapshotProvider3,
     };
     use crate::io::{Endianness, Verbose};
     use ndarray_stats::QuantileExt;

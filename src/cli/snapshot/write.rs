@@ -4,7 +4,7 @@ use super::SnapNumInRange;
 use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    field::{quantities, ScalarField3},
+    field::ScalarField3,
     grid::Grid3,
     io::snapshot::{self, fdt, native, ParameterValue, SnapshotProvider3},
 };
@@ -94,19 +94,6 @@ pub fn create_write_subcommand(parent_command_name: &'static str) -> Command<'st
                 .conflicts_with_all(&["all-quantities", "included-quantities"]),
         )
         .arg(
-            Arg::new("derived-quantities")
-                .long("derived-quantities")
-                .require_equals(true)
-                .use_value_delimiter(true).require_value_delimiter(true)
-                .value_name("NAMES")
-                .help(
-                    "List of derived quantities to compute and include in the output snapshot\n\
-                    (comma-separated) [default: none]",
-                )
-                .takes_value(true)
-                .multiple_values(true),
-        )
-        .arg(
             Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
@@ -177,32 +164,11 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
-    let (included_quantities, derived_quantities) =
-        super::parse_quantity_lists(arguments, &provider, continue_on_warnings);
-
-    let quantity_names: Vec<_> = included_quantities
-        .iter()
-        .cloned()
-        .chain(derived_quantities.iter().cloned())
-        .collect();
+    let quantity_names =
+        super::parse_included_quantity_list(arguments, &provider, continue_on_warnings);
 
     if quantity_names.is_empty() {
         exit_with_error!("Aborted: No quantities to write");
-    }
-
-    macro_rules! modified_field_producer {
-        () => {
-            |name| match if included_quantities.contains(&name) {
-                provider.provide_scalar_field(name)
-            } else if derived_quantities.contains(&name) {
-                quantities::compute_quantity(&provider, name, verbose)
-            } else {
-                unreachable!()
-            } {
-                Ok(field) => field_modifier(field),
-                Err(err) => Err(err),
-            }
-        };
     }
 
     exit_on_error!(
@@ -212,7 +178,9 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
                 new_grid,
                 &quantity_names,
                 modified_parameters,
-                modified_field_producer!(),
+                |name| provider
+                    .provide_scalar_field(name)
+                    .and_then(|field| field_modifier(field)),
                 &output_file_path,
                 native_type == NativeType::Scratch,
                 write_mesh_file,
@@ -228,7 +196,11 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
                     new_grid,
                     &quantity_names,
                     modified_parameters,
-                    modified_field_producer!(),
+                    |name| {
+                        provider
+                            .provide_scalar_field(name)
+                            .and_then(|field| field_modifier(field))
+                    },
                     &output_file_path,
                     strip_metadata,
                     overwrite_mode,
