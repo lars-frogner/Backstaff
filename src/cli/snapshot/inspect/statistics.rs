@@ -141,7 +141,7 @@ pub fn create_statistics_subcommand(parent_command_name: &'static str) -> Comman
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
 pub fn run_statistics_subcommand<'a, G, P, FP>(
     arguments: &'a ArgMatches,
-    provider: &'a P,
+    provider: &P,
     field_producer: FP,
     quantity_names: Vec<&'a str>,
 ) where

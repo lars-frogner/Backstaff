@@ -62,7 +62,7 @@ pub fn create_mesh_file_subcommand(parent_command_name: &'static str) -> Command
 pub fn run_resampling_for_mesh_file<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,

@@ -55,7 +55,7 @@ pub fn create_reshaped_grid_subcommand(parent_command_name: &'static str) -> Com
 pub fn run_resampling_for_reshaped_grid<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,

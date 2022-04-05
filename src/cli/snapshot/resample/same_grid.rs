@@ -39,7 +39,7 @@ pub fn create_same_grid_subcommand(parent_command_name: &'static str) -> Command
 
 pub fn run_resampling_for_same_grid<G, P, I>(
     arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
