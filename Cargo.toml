@@ -9,7 +9,7 @@ default-run = "backstaff"
 [features]
 default = ["cli"]
 cli = ["chrono", "clap", "clap_complete", "pad", "paste", "petgraph", "float-pretty-print"]
-serialization = ["serde"]
+serialization = ["serde", "ndarray/serde"]
 json = ["serialization", "serde_json"]
 pickle = ["serialization", "serde-pickle"]
 netcdf = ["netcdf-rs"]
@@ -25,7 +25,7 @@ byteorder = "*"
 ieee754 = "*"
 itertools = "*"
 lazy_static = "*"
-ndarray = { version = "*", features = ["serde-1", "rayon"] }
+ndarray = { version = "*", features = ["rayon"] }
 ndarray-stats = "*"
 noisy_float = "*"
 num = "*"
