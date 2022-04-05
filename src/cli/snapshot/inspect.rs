@@ -22,12 +22,14 @@ pub fn create_inspect_subcommand(parent_command_name: &'static str) -> Command<'
         .arg(
             Arg::new("all-quantities")
                 .long("all-quantities")
+                .short('A')
                 .help("Include all original quantities in the output snapshot")
                 .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
         )
         .arg(
             Arg::new("included-quantities")
                 .long("included-quantities")
+                .short('I')
                 .require_equals(true)
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
@@ -43,6 +45,7 @@ pub fn create_inspect_subcommand(parent_command_name: &'static str) -> Command<'
         .arg(
             Arg::new("excluded-quantities")
                 .long("excluded-quantities")
+                .short('E')
                 .require_equals(true)
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
