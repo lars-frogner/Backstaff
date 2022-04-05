@@ -10,7 +10,7 @@ default-run = "backstaff"
 default = ["cli"]
 cli = ["chrono", "clap", "clap_complete", "pad", "paste", "petgraph", "float-pretty-print"]
 tracing = []
-ebeam = []
+ebeam = ["tracing"]
 netcdf = ["netcdf-rs"]
 hdf5 = ["hdf5-rs"]
 
