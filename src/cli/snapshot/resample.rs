@@ -93,7 +93,7 @@ enum ResampleGridType {
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
 pub fn run_resample_subcommand<G, P>(
     arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -157,7 +157,7 @@ pub fn run_resample_subcommand<G, P>(
 
 fn run_with_selected_method<G, P>(
     grid_type_arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     default_method: ResamplingMethod,
@@ -201,7 +201,7 @@ fn run_with_selected_method<G, P>(
 fn run_with_selected_interpolator<G, P>(
     grid_type_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     resampled_locations: &In3D<ResampledCoordLocation>,
@@ -279,7 +279,7 @@ fn run_with_selected_interpolator<G, P>(
 fn resample_to_same_or_reshaped_grid<G, P, I>(
     write_arguments: &ArgMatches,
     new_shape: Option<In3D<usize>>,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -346,7 +346,7 @@ fn resample_to_regular_grid<G, P, I>(
     mut grid: RegularGrid3<fdt>,
     new_shape: Option<In3D<usize>>,
     write_arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -388,7 +388,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     mut grid: HorRegularGrid3<fdt>,
     new_shape: Option<In3D<usize>>,
     write_arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -598,7 +598,7 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
 
 fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
     write_arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: &Arc<GOUT>,
     resampled_locations: &In3D<ResampledCoordLocation>,

@@ -81,7 +81,7 @@ pub fn create_inspect_subcommand(parent_command_name: &'static str) -> Command<'
 }
 
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
-pub fn run_inspect_subcommand<G, P>(arguments: &ArgMatches, provider: &P)
+pub fn run_inspect_subcommand<G, P>(arguments: &ArgMatches, provider: P)
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
@@ -90,7 +90,7 @@ where
     let verbose = arguments.is_present("verbose").into();
 
     let (included_quantities, derived_quantities) =
-        super::parse_quantity_lists(arguments, provider, continue_on_warnings);
+        super::parse_quantity_lists(arguments, &provider, continue_on_warnings);
 
     let quantity_names: Vec<_> = included_quantities
         .iter()
@@ -99,17 +99,17 @@ where
         .collect();
 
     if quantity_names.is_empty() {
-        exit_with_error!("Aborted: No quantities to write");
+        exit_with_error!("Aborted: No quantities to inspect");
     }
 
     if let Some(statistics_arguments) = arguments.subcommand_matches("statistics") {
         run_statistics_subcommand(
             statistics_arguments,
-            provider,
+            &provider,
             |name| match if included_quantities.contains(&name) {
                 provider.provide_scalar_field(name)
             } else if derived_quantities.contains(&name) {
-                quantities::compute_quantity(provider, name, verbose)
+                quantities::compute_quantity(&provider, name, verbose)
             } else {
                 unreachable!()
             } {

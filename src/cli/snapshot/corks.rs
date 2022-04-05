@@ -116,7 +116,7 @@ pub fn create_corks_subcommand(parent_command_name: &'static str) -> Command<'st
 /// Runs the actions for the `snapshot-corks` subcommand using the given arguments.
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
@@ -124,9 +124,10 @@ pub fn run_corks_subcommand<G, P>(
     G: Grid3<fdt>,
     P: SnapshotProvider3<G> + Sync,
 {
+    let mut snapshot = SnapshotCacher3::new(provider);
     run_with_selected_interpolator(
         arguments,
-        snapshot,
+        &mut snapshot,
         snap_num_in_range,
         protected_file_types,
         corks_state,

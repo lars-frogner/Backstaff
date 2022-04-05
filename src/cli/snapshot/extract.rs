@@ -1,4 +1,4 @@
-//! Command line interface for resampling a snapshot.
+//! Command line interface for extracting a subdomain of a snapshot.
 
 use super::SnapNumInRange;
 use crate::{
@@ -119,7 +119,7 @@ pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
 pub fn run_extract_subcommand<G, P>(
     arguments: &ArgMatches,
-    provider: &P,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where

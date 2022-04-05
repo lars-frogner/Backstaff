@@ -26,7 +26,7 @@ use crate::{
             native::{
                 self, NativeSnapshotParameters, NativeSnapshotReader3, NativeSnapshotReaderConfig,
             },
-            SnapshotCacher3, SnapshotProvider3,
+            SnapshotProvider3,
         },
         utils as io_utils, Endianness,
     },
@@ -246,82 +246,15 @@ macro_rules! create_netcdf_reader_and_run {
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
-    let mut corks_state: Option<CorksState> = None;
-
     macro_rules! run_subcommands_for_reader {
-        ($reader:expr, $snap_num_in_range:expr) => {{
-            let mut snapshot = SnapshotCacher3::new($reader);
-
-            if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-                inspect::run_inspect_subcommand(inspect_arguments, snapshot.provider());
-            }
-            if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
-                slice::run_slice_subcommand(
-                    slice_arguments,
-                    &mut snapshot,
-                    $snap_num_in_range,
-                    protected_file_types,
-                );
-            }
-            if let Some(extract_arguments) = arguments.subcommand_matches("extract") {
-                extract::run_extract_subcommand(
-                    extract_arguments,
-                    snapshot.provider(),
-                    $snap_num_in_range,
-                    protected_file_types,
-                );
-            }
-            if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-                resample::run_resample_subcommand(
-                    resample_arguments,
-                    snapshot.provider(),
-                    $snap_num_in_range,
-                    protected_file_types,
-                );
-            }
-            if let Some(write_arguments) = arguments.subcommand_matches("write") {
-                write::run_write_subcommand(
-                    write_arguments,
-                    snapshot.provider(),
-                    $snap_num_in_range,
-                    None,
-                    HashMap::new(),
-                    |field| Ok(field),
-                    protected_file_types,
-                );
-            }
-            if let Some(corks_arguments) = arguments.subcommand_matches("corks") {
-                corks::run_corks_subcommand(
-                    corks_arguments,
-                    &mut snapshot,
-                    $snap_num_in_range,
-                    protected_file_types,
-                    &mut corks_state,
-                );
-            }
-            #[cfg(feature = "tracing")]
-            {
-                if let Some(trace_arguments) = arguments.subcommand_matches("trace") {
-                    crate::cli::tracing::run_trace_subcommand(
-                        trace_arguments,
-                        &mut snapshot,
-                        $snap_num_in_range,
-                        protected_file_types,
-                    );
-                }
-            }
-            #[cfg(feature = "ebeam")]
-            {
-                if let Some(ebeam_arguments) = arguments.subcommand_matches("ebeam") {
-                    crate::cli::ebeam::run_ebeam_subcommand(
-                        ebeam_arguments,
-                        &mut snapshot,
-                        $snap_num_in_range,
-                        protected_file_types,
-                    );
-                }
-            }
-        }};
+        ($reader:expr, $snap_num_in_range:expr) => {
+            run_snapshot_subcommand_for_provider(
+                arguments,
+                $reader,
+                $snap_num_in_range,
+                protected_file_types,
+            )
+        };
     }
 
     let input_file_path = exit_on_error!(
@@ -410,6 +343,88 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                     run_subcommands_for_reader
                 );
             }
+        }
+    }
+}
+
+fn run_snapshot_subcommand_for_provider<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
+        inspect::run_inspect_subcommand(inspect_arguments, provider);
+    } else if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
+        slice::run_slice_subcommand(
+            slice_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+    } else if let Some(extract_arguments) = arguments.subcommand_matches("extract") {
+        extract::run_extract_subcommand(
+            extract_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+    } else if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
+        resample::run_resample_subcommand(
+            resample_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+    } else if let Some(write_arguments) = arguments.subcommand_matches("write") {
+        write::run_write_subcommand(
+            write_arguments,
+            provider,
+            snap_num_in_range,
+            None,
+            HashMap::new(),
+            |field| Ok(field),
+            protected_file_types,
+        );
+    } else if let Some(corks_arguments) = arguments.subcommand_matches("corks") {
+        let mut corks_state: Option<CorksState> = None;
+        corks::run_corks_subcommand(
+            corks_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+            &mut corks_state,
+        );
+    } else {
+        let trace_arguments = if cfg!(feature = "tracing") {
+            arguments.subcommand_matches("trace")
+        } else {
+            None
+        };
+        let ebeam_arguments = if cfg!(feature = "ebeam") {
+            arguments.subcommand_matches("ebeam")
+        } else {
+            None
+        };
+        if let Some(_trace_arguments) = trace_arguments {
+            #[cfg(feature = "tracing")]
+            crate::cli::tracing::run_trace_subcommand(
+                _trace_arguments,
+                provider,
+                snap_num_in_range,
+                protected_file_types,
+            );
+        } else if let Some(_ebeam_arguments) = ebeam_arguments {
+            #[cfg(feature = "ebeam")]
+            crate::cli::ebeam::run_ebeam_subcommand(
+                _ebeam_arguments,
+                provider,
+                snap_num_in_range,
+                protected_file_types,
+            );
         }
     }
 }

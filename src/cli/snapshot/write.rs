@@ -129,7 +129,7 @@ pub fn create_write_subcommand(parent_command_name: &'static str) -> Command<'st
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
 pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
     arguments: &ArgMatches,
-    provider: &PIN,
+    provider: PIN,
     snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: Option<Arc<GOUT>>,
     modified_parameters: HashMap<&str, ParameterValue>,
@@ -192,7 +192,7 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
             |name| match if included_quantities.contains(&name) {
                 provider.provide_scalar_field(name)
             } else if derived_quantities.contains(&name) {
-                quantities::compute_quantity(provider, name, verbose)
+                quantities::compute_quantity(&provider, name, verbose)
             } else {
                 unreachable!()
             } {
@@ -205,7 +205,7 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
     exit_on_error!(
         match output_type {
             OutputType::Native(native_type) => native::write_modified_snapshot(
-                provider,
+                &provider,
                 new_grid,
                 &quantity_names,
                 modified_parameters,
@@ -221,7 +221,7 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
             OutputType::NetCDF => {
                 let strip_metadata = arguments.is_present("strip");
                 netcdf::write_modified_snapshot(
-                    provider,
+                    &provider,
                     new_grid,
                     &quantity_names,
                     modified_parameters,

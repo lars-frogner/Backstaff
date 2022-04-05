@@ -119,13 +119,15 @@ pub fn create_slice_subcommand(parent_command_name: &'static str) -> Command<'st
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
 pub fn run_slice_subcommand<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
+    let mut snapshot = SnapshotCacher3::new(provider);
+
     let quantity = arguments
         .value_of("quantity")
         .expect("No value for required argument");
