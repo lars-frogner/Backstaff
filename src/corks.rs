@@ -14,11 +14,13 @@ use crate::{
     },
 };
 use rayon::prelude::*;
+use std::{io, iter, path::Path};
+
+#[cfg(feature = "serialization")]
 use serde::{
     ser::{SerializeStruct, Serializer},
     Serialize,
 };
-use std::{io, iter, path::Path};
 
 /// Floating-point precision to use for cork tracing.
 #[allow(non_camel_case_types)]
@@ -268,6 +270,7 @@ impl Cork {
     }
 }
 
+#[cfg(feature = "serialization")]
 impl Serialize for Cork {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut s = serializer.serialize_struct("Cork", 5)?;
@@ -544,6 +547,7 @@ impl CorkSet {
     }
 }
 
+#[cfg(feature = "serialization")]
 impl Serialize for CorkSet {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut s = serializer.serialize_struct("CorkSet", 7)?;

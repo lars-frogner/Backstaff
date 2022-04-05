@@ -15,8 +15,10 @@ use crate::{
 use itertools::Itertools;
 use ndarray::prelude::*;
 use rayon::prelude::*;
-use serde::Serialize;
 use std::{io, iter, path::Path, sync::Arc};
+
+#[cfg(feature = "serialization")]
+use serde::Serialize;
 
 #[cfg(feature = "pickle")]
 use crate::io::utils::save_data_as_pickle;
@@ -1309,7 +1311,7 @@ where
     values: Array2<F>,
 }
 
-#[derive(Serialize)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 struct ScalarFieldSerializeData2<F: BFloat> {
     coords: Coords2<F>,
     values: Array2<F>,
@@ -1688,7 +1690,7 @@ where
     values: Array1<F>,
 }
 
-#[derive(Serialize)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 struct ScalarFieldSerializeData1<F: BFloat> {
     coords: Vec<F>,
     values: Array1<F>,

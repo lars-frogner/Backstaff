@@ -2,7 +2,6 @@
 
 use super::{Endianness, OverwriteMode};
 use byteorder::{self, ByteOrder, ReadBytesExt};
-use serde::Serialize;
 use std::{
     fs, io,
     io::{Read, Seek, SeekFrom, Write},
@@ -10,6 +9,9 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::{Builder, TempPath};
+
+#[cfg(feature = "serialization")]
+use serde::Serialize;
 
 #[cfg(feature = "json")]
 use serde_json;

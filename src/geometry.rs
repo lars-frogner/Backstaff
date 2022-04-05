@@ -2,11 +2,13 @@
 
 use crate::num::BFloat;
 use num;
-use serde::Serialize;
 use std::{
     fmt,
     ops::{Add, Div, Index, IndexMut, Mul, Sub},
 };
+
+#[cfg(feature = "serialization")]
+use serde::Serialize;
 
 /// Denotes the x-, y- or z-dimension.
 #[derive(Clone, Copy, Debug)]
@@ -81,7 +83,8 @@ impl fmt::Display for Dim2 {
 }
 
 /// Represents any quantity with three dimensional components.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct In3D<T>([T; 3]);
 
 impl<T> In3D<T> {
@@ -138,7 +141,8 @@ impl<'a, T> IntoIterator for &'a In3D<T> {
 }
 
 /// Represents any quantity with two dimensional components.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct In2D<T>([T; 2]);
 
 impl<T> In2D<T> {
@@ -195,7 +199,8 @@ impl<'a, T> IntoIterator for &'a In2D<T> {
 }
 
 /// A 3D vector.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Vec3<F: BFloat>(In3D<F>);
 
 impl<F: BFloat> Vec3<F> {
@@ -413,7 +418,8 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec3<F> {
 }
 
 /// A 2D vector.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Vec2<F: BFloat>(In2D<F>);
 
 impl<F: BFloat> Vec2<F> {
@@ -626,7 +632,8 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec2<F> {
 }
 
 /// A 3D spatial coordinate.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Point3<F: BFloat>(In3D<F>);
 
 impl<F: BFloat> Point3<F> {
@@ -787,7 +794,8 @@ impl<F: BFloat + fmt::Display> fmt::Display for Point3<F> {
 }
 
 /// A 2D spatial coordinate.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Point2<F: BFloat>(In2D<F>);
 
 impl<F: BFloat> Point2<F> {
@@ -1107,7 +1115,8 @@ impl<I: num::Integer + fmt::Display> fmt::Display for Idx2<I> {
 }
 
 /// 3D spatial coordinate arrays.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Coords3<F: BFloat>(In3D<Vec<F>>);
 
 impl<F: BFloat> Coords3<F> {
@@ -1150,7 +1159,8 @@ impl<F: BFloat> IndexMut<Dim3> for Coords3<F> {
 }
 
 /// 2D spatial coordinate arrays.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Coords2<F: BFloat>(In2D<Vec<F>>);
 
 impl<F: BFloat> Coords2<F> {

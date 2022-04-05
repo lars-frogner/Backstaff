@@ -9,8 +9,9 @@ default-run = "backstaff"
 [features]
 default = ["cli"]
 cli = ["chrono", "clap", "clap_complete", "pad", "paste", "petgraph", "float-pretty-print"]
-json = ["serde_json"]
-pickle = ["serde-pickle"]
+serialization = ["serde"]
+json = ["serialization", "serde_json"]
+pickle = ["serialization", "serde-pickle"]
 netcdf = ["netcdf-rs"]
 hdf5 = ["hdf5-rs"]
 seeding = []
@@ -31,7 +32,6 @@ num = "*"
 rayon = "*"
 rand = "*"
 regex = "*"
-serde = { version = "*", features = ["derive"] }
 tempfile = "*"
 
 # Dependencies for cli
@@ -43,8 +43,8 @@ pad = { version = "*", optional = true }
 paste = { version = "*", optional = true }
 petgraph = { version = "*", features = [], optional = true }
 
-# Dependencies for ebeam
-special = { version = "*", optional = true }
+# Dependencies for serialization
+serde = { version = "*", features = ["derive"], optional = true }
 
 # Dependencies for json
 serde_json = { version = "*", optional = true }
@@ -57,3 +57,6 @@ netcdf-rs = { package = "netcdf", version = "*", optional = true}
 
 # Dependencies for hdf5
 hdf5-rs = { package = "hdf5", version = "*", optional = true}
+
+# Dependencies for ebeam
+special = { version = "*", optional = true }

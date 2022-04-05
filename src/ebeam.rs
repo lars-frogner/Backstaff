@@ -32,14 +32,16 @@ use crate::{
 };
 use ndarray::prelude::*;
 use rayon::prelude::*;
-use serde::{
-    ser::{SerializeStruct, Serializer},
-    Serialize,
-};
 use std::{
     collections::HashMap,
     io::{self, Write},
     path::Path,
+};
+
+#[cfg(feature = "serialization")]
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Serialize,
 };
 
 /// Floating-point precision to use for electron beam physics.
@@ -66,9 +68,16 @@ pub trait BeamPropertiesCollection: Default + Sync + Send {
     );
 }
 
+#[cfg(feature = "serialization")]
+pub trait MaybeSerialize: Serialize {}
+#[cfg(not(feature = "serialization"))]
+pub trait MaybeSerialize {}
+
+impl MaybeSerialize for () {}
+
 /// Defines the required behaviour of a type representing
 /// a collection of objects holding electron beam acceleration data.
-pub trait AccelerationDataCollection: Serialize + Sync {
+pub trait AccelerationDataCollection: MaybeSerialize + Sync {
     /// Writes the acceleration data into the given writer.
     fn write<W: io::Write>(&self, format_hint: &str, writer: &mut W) -> io::Result<()>;
 
@@ -852,6 +861,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
     }
 }
 
+#[cfg(feature = "serialization")]
 impl<A: Accelerator> Serialize for ElectronBeamSwarm<A> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut s = serializer.serialize_struct("ElectronBeamSwarm", 7)?;

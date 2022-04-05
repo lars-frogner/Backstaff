@@ -19,11 +19,13 @@ use crate::{
     seeding::Seeder3,
 };
 use rayon::prelude::*;
+use std::{collections::HashMap, fs, io, mem, path::Path};
+
+#[cfg(feature = "serialization")]
 use serde::{
     ser::{SerializeStruct, Serializer},
     Serialize,
 };
-use std::{collections::HashMap, fs, io, mem, path::Path};
 
 #[cfg(feature = "hdf5")]
 use crate::io_result;
@@ -564,6 +566,7 @@ impl Default for FieldLineSetProperties3 {
     }
 }
 
+#[cfg(feature = "serialization")]
 impl Serialize for FieldLineSet3 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut s = serializer.serialize_struct("FieldLineSet3", 7)?;
