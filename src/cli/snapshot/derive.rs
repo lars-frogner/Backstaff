@@ -64,7 +64,13 @@ where
         .map(|values| values.collect::<Vec<_>>())
         .unwrap_or(Vec::new())
         .into_iter()
-        .map(String::from)
+        .filter_map(|name| {
+            if name.is_empty() {
+                None
+            } else {
+                Some(String::from(name))
+            }
+        })
         .collect();
 
     DerivedSnapshotProvider3::new(provider, verbose).with_derived_quantities(

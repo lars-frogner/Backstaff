@@ -611,20 +611,30 @@ where
         included_quantities
             .into_iter()
             .filter(|name| {
-                let has_variable = provider.has_variable(name);
-                if !has_variable {
-                    eprintln!("Warning: Quantity {} not present in snapshot", name);
-                    if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
-                        process::exit(1);
+                if name.is_empty() {
+                    false
+                } else {
+                    let has_variable = provider.has_variable(name);
+                    if !has_variable {
+                        eprintln!("Warning: Quantity {} not present in snapshot", name);
+                        if !continue_on_warnings
+                            && !io_utils::user_says_yes("Still continue?", true)
+                        {
+                            process::exit(1);
+                        }
                     }
+                    has_variable
                 }
-                has_variable
             })
             .collect()
     } else if let Some(excluded_quantities) = arguments
         .values_of("excluded-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
+        let excluded_quantities: Vec<_> = excluded_quantities
+            .into_iter()
+            .filter(|name| !name.is_empty())
+            .collect();
         provider.all_variable_names_except(&excluded_quantities)
     } else {
         Vec::new()
