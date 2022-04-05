@@ -39,24 +39,30 @@ macro_rules! exit_with_error {
 }
 
 pub mod constants;
-pub mod corks;
 pub mod field;
 pub mod geometry;
 pub mod grid;
 pub mod interpolation;
 pub mod io;
-pub mod math;
 pub mod num;
-pub mod plasma;
 pub mod random;
-pub mod seeding;
 pub mod units;
 
 #[cfg(feature = "cli")]
 pub mod cli;
 
+#[cfg(feature = "seeding")]
+pub mod seeding;
+
 #[cfg(feature = "tracing")]
 pub mod tracing;
 
+#[cfg(feature = "corks")]
+pub mod corks;
+
 #[cfg(feature = "ebeam")]
 pub mod ebeam;
+#[cfg(feature = "ebeam")]
+pub mod math;
+#[cfg(feature = "ebeam")]
+pub mod plasma;

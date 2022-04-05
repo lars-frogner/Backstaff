@@ -3,8 +3,6 @@
 use super::{Endianness, OverwriteMode};
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use serde::Serialize;
-use serde_json;
-use serde_pickle;
 use std::{
     fs, io,
     io::{Read, Seek, SeekFrom, Write},
@@ -12,6 +10,12 @@ use std::{
     path::{Path, PathBuf},
 };
 use tempfile::{Builder, TempPath};
+
+#[cfg(feature = "json")]
+use serde_json;
+
+#[cfg(feature = "pickle")]
+use serde_pickle;
 
 #[macro_export]
 macro_rules! io_result {
@@ -278,6 +282,7 @@ where
 }
 
 /// Serializes the given data into JSON format and saves at the given path.
+#[cfg(feature = "json")]
 pub fn save_data_as_json<P, T>(output_file_path: P, data: &T) -> io::Result<()>
 where
     P: AsRef<Path>,
@@ -288,6 +293,7 @@ where
 }
 
 /// Serializes the given data into protocol 3 pickle format and saves at the given path.
+#[cfg(feature = "pickle")]
 pub fn save_data_as_pickle<P, T>(output_file_path: P, data: &T) -> io::Result<()>
 where
     P: AsRef<Path>,
@@ -298,11 +304,13 @@ where
 }
 
 /// Serializes the given data into JSON format and writes to the given writer.
+#[cfg(feature = "json")]
 pub fn write_data_as_json<T: Serialize, W: io::Write>(writer: &mut W, data: &T) -> io::Result<()> {
     serde_json::to_writer(writer, data).map_err(|err| err.into())
 }
 
 /// Serializes the given data into protocol 3 pickle format and writes to the given writer.
+#[cfg(feature = "pickle")]
 pub fn write_data_as_pickle<T: Serialize, W: io::Write>(
     writer: &mut W,
     data: &T,

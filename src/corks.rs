@@ -516,11 +516,13 @@ impl CorkSet {
     }
 
     /// Serializes the cork data into JSON format and writes to the given writer.
+    #[cfg(feature = "json")]
     pub fn write_as_json<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         utils::write_data_as_json(writer, &self)
     }
 
     /// Serializes the cork data into JSON format and saves at the given path.
+    #[cfg(feature = "json")]
     pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         utils::save_data_as_json(output_file_path, &self)
     }
@@ -528,6 +530,7 @@ impl CorkSet {
     /// Serializes the cork data into pickle format and writes to the given writer.
     ///
     /// All the cork data is saved as a single pickled structure.
+    #[cfg(feature = "pickle")]
     pub fn write_as_pickle<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         utils::write_data_as_pickle(writer, &self)
     }
@@ -535,6 +538,7 @@ impl CorkSet {
     /// Serializes the cork data into pickle format and saves at the given path.
     ///
     /// All the cork data is saved as a single pickled structure.
+    #[cfg(feature = "pickle")]
     pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         utils::save_data_as_pickle(output_file_path, &self)
     }

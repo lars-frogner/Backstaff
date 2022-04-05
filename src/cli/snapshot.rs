@@ -1,6 +1,5 @@
 //! Command line interface for actions related to snapshots.
 
-mod corks;
 mod derive;
 mod extract;
 mod inspect;
@@ -9,14 +8,13 @@ mod slice;
 mod synthesize;
 mod write;
 
+#[cfg(feature = "corks")]
+mod corks;
+
 use self::{
-    corks::{create_corks_subcommand, CorksState},
-    derive::create_derive_subcommand,
-    extract::create_extract_subcommand,
-    inspect::create_inspect_subcommand,
-    resample::create_resample_subcommand,
-    slice::create_slice_subcommand,
-    synthesize::create_synthesize_subcommand,
+    derive::create_derive_subcommand, extract::create_extract_subcommand,
+    inspect::create_inspect_subcommand, resample::create_resample_subcommand,
+    slice::create_slice_subcommand, synthesize::create_synthesize_subcommand,
     write::create_write_subcommand,
 };
 use crate::{
@@ -47,6 +45,9 @@ use std::{
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
+
+#[cfg(feature = "corks")]
+use self::corks::{create_corks_subcommand, CorksState};
 
 #[cfg(feature = "ebeam")]
 use super::ebeam::create_ebeam_subcommand;
@@ -112,7 +113,8 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
 
     command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (inspect, slice, extract, resample, write));
 
-    command = command.subcommand(create_corks_subcommand(command_name));
+    #[cfg(feature = "corks")]
+    let command = command.subcommand(create_corks_subcommand(command_name));
 
     #[cfg(feature = "tracing")]
     let command = command.subcommand(create_trace_subcommand(command_name));
@@ -422,16 +424,12 @@ fn run_snapshot_subcommand_for_provider<G, P>(
             |field| Ok(field),
             protected_file_types,
         );
-    } else if let Some(corks_arguments) = arguments.subcommand_matches("corks") {
-        let mut corks_state: Option<CorksState> = None;
-        corks::run_corks_subcommand(
-            corks_arguments,
-            provider,
-            snap_num_in_range,
-            protected_file_types,
-            &mut corks_state,
-        );
     } else {
+        let corks_arguments = if cfg!(feature = "corks") {
+            arguments.subcommand_matches("corks")
+        } else {
+            None
+        };
         let trace_arguments = if cfg!(feature = "tracing") {
             arguments.subcommand_matches("trace")
         } else {
@@ -442,7 +440,19 @@ fn run_snapshot_subcommand_for_provider<G, P>(
         } else {
             None
         };
-        if let Some(_trace_arguments) = trace_arguments {
+        if let Some(_corks_arguments) = corks_arguments {
+            #[cfg(feature = "corks")]
+            {
+                let mut corks_state: Option<CorksState> = None;
+                corks::run_corks_subcommand(
+                    _corks_arguments,
+                    provider,
+                    snap_num_in_range,
+                    protected_file_types,
+                    &mut corks_state,
+                );
+            }
+        } else if let Some(_trace_arguments) = trace_arguments {
             #[cfg(feature = "tracing")]
             crate::cli::tracing::run_trace_subcommand(
                 _trace_arguments,

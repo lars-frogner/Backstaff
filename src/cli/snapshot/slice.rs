@@ -46,7 +46,11 @@ pub fn create_slice_subcommand(parent_command_name: &'static str) -> Command<'st
         .arg(
             Arg::new("output-file")
                 .value_name("OUTPUT_FILE")
-                .help("Path where the slice field should be saved in pickle format")
+                .help(
+                    "Path where the slice field should be saved\n\
+                     Writes in the following format based on the file extension:\
+                     \n    *.pickle: Creates a Python pickle file (requires the pickle feature)",
+                )
                 .required(true)
                 .takes_value(true),
         )
@@ -116,7 +120,20 @@ pub fn create_slice_subcommand(parent_command_name: &'static str) -> Command<'st
         .subcommand(create_poly_fit_interpolator_subcommand(command_name))
 }
 
+#[cfg(not(feature = "pickle"))]
+pub fn run_slice_subcommand<G, P>(_: &ArgMatches, _: P, _: &Option<SnapNumInRange>, _: &[&str])
+where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    exit_with_error!(
+        "Error: Compile with pickle feature in order to write Pickle files\n\
+                      Tip: Use cargo flag --features=pickle"
+    );
+}
+
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
+#[cfg(feature = "pickle")]
 pub fn run_slice_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
@@ -251,10 +268,13 @@ pub fn run_slice_subcommand<G, P>(
 }
 
 #[derive(Copy, Clone, Debug)]
+#[cfg(feature = "pickle")]
 enum OutputType {
+    #[cfg(feature = "pickle")]
     Pickle,
 }
 
+#[cfg(feature = "pickle")]
 impl OutputType {
     fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
         Self::from_extension(
@@ -275,7 +295,17 @@ impl OutputType {
 
     fn from_extension(extension: &str) -> Self {
         match extension {
-            "pickle" => Self::Pickle,
+            "pickle" => {
+                #[cfg(feature = "pickle")]
+                {
+                    Self::Pickle
+                }
+                #[cfg(not(feature = "pickle"))]
+                exit_with_error!(
+                    "Error: Compile with pickle feature in order to write Pickle files\n\
+                                  Tip: Use cargo flag --features=pickle"
+                );
+            }
             invalid => exit_with_error!(
                 "Error: Invalid extension {} for output file\n\
                  Valid extensions are: {}",
@@ -290,12 +320,14 @@ impl OutputType {
     }
 }
 
+#[cfg(feature = "pickle")]
 impl fmt::Display for OutputType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
             match self {
+                #[cfg(feature = "pickle")]
                 Self::Pickle => "pickle",
             }
         )

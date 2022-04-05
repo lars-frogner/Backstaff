@@ -80,8 +80,8 @@ pub fn create_trace_subcommand(parent_command_name: &'static str) -> Command<'st
                     "Path of the file where the field line data should be saved\n\
                        Writes in the following format based on the file extension:\
                        \n    *.fl: Creates a binary file readable by the backstaff Python package\
-                       \n    *.pickle: Creates a Python pickle file\
-                       \n    *.json: Creates a JSON file\
+                       \n    *.pickle: Creates a Python pickle file (requires the pickle feature)\
+                       \n    *.json: Creates a JSON file (requires the json feature)\
                        \n    *.h5part: Creates a H5Part file (requires the hdf5 feature)",
                 )
                 .required(true)
@@ -176,7 +176,9 @@ pub fn run_trace_subcommand<G, P>(
 #[derive(Copy, Clone, Debug)]
 enum OutputType {
     Fl,
+    #[cfg(feature = "pickle")]
     Pickle,
+    #[cfg(feature = "json")]
     JSON,
     #[cfg(feature = "hdf5")]
     H5Part,
@@ -203,8 +205,28 @@ impl OutputType {
     fn from_extension(extension: &str) -> Self {
         match extension {
             "fl" => Self::Fl,
-            "pickle" => Self::Pickle,
-            "json" => Self::JSON,
+            "pickle" => {
+                #[cfg(feature = "pickle")]
+                {
+                    Self::Pickle
+                }
+                #[cfg(not(feature = "pickle"))]
+                exit_with_error!(
+                    "Error: Compile with pickle feature in order to write Pickle files\n\
+                                  Tip: Use cargo flag --features=pickle"
+                );
+            }
+            "json" => {
+                #[cfg(feature = "json")]
+                {
+                    Self::JSON
+                }
+                #[cfg(not(feature = "json"))]
+                exit_with_error!(
+                    "Error: Compile with json feature in order to write JSON files\n\
+                                  Tip: Use cargo flag --features=json"
+                );
+            }
             "h5part" => {
                 #[cfg(feature = "hdf5")]
                 {
@@ -242,7 +264,9 @@ impl fmt::Display for OutputType {
             "{}",
             match self {
                 Self::Fl => "fl",
+                #[cfg(feature = "pickle")]
                 Self::Pickle => "pickle",
+                #[cfg(feature = "json")]
                 Self::JSON => "json",
                 #[cfg(feature = "hdf5")]
                 Self::H5Part => "h5part",
@@ -617,8 +641,10 @@ fn perform_post_tracing_actions<G, P, I>(
         match output_type {
             OutputType::Fl =>
                 field_lines.save_into_custom_binary(atomic_output_path.temporary_path()),
+            #[cfg(feature = "pickle")]
             OutputType::Pickle =>
                 field_lines.save_as_combined_pickles(atomic_output_path.temporary_path()),
+            #[cfg(feature = "json")]
             OutputType::JSON => field_lines.save_as_json(atomic_output_path.temporary_path()),
             #[cfg(feature = "hdf5")]
             OutputType::H5Part => field_lines.save_as_h5part(

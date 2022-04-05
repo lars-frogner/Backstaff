@@ -386,11 +386,13 @@ impl FieldLineSet3 {
     }
 
     /// Serializes the field line data into JSON format and writes to the given writer.
+    #[cfg(feature = "json")]
     pub fn write_as_json<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         utils::write_data_as_json(writer, &self)
     }
 
     /// Serializes the field line data into JSON format and saves at the given path.
+    #[cfg(feature = "json")]
     pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         utils::save_data_as_json(output_file_path, &self)
     }
@@ -398,6 +400,7 @@ impl FieldLineSet3 {
     /// Serializes the field line data into pickle format and writes to the given writer.
     ///
     /// All the field line data is saved as a single pickled structure.
+    #[cfg(feature = "pickle")]
     pub fn write_as_pickle<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         utils::write_data_as_pickle(writer, &self)
     }
@@ -405,6 +408,7 @@ impl FieldLineSet3 {
     /// Serializes the field line data into pickle format and saves at the given path.
     ///
     /// All the field line data is saved as a single pickled structure.
+    #[cfg(feature = "pickle")]
     pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         utils::save_data_as_pickle(output_file_path, &self)
     }
@@ -412,6 +416,7 @@ impl FieldLineSet3 {
     /// Serializes the field line data fields in parallel into pickle format and writes to the given writer.
     ///
     /// The data fields are written as separate pickle objects.
+    #[cfg(feature = "pickle")]
     pub fn write_as_combined_pickles<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         let mut buffer_1 = Vec::new();
         utils::write_data_as_pickle(&mut buffer_1, &self.lower_bounds)?;
@@ -463,6 +468,7 @@ impl FieldLineSet3 {
     /// Serializes the field line data fields in parallel into pickle format and saves at the given path.
     ///
     /// The data fields are saved as separate pickle objects in the same file.
+    #[cfg(feature = "pickle")]
     pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         let mut file = utils::create_file_and_required_directories(output_file_path)?;
         self.write_as_combined_pickles(&mut file)

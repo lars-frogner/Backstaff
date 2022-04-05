@@ -387,6 +387,7 @@ mod tests {
             &stepper_factory,
             Verbose::No,
         );
+        #[cfg(feature = "pickle")]
         field_line_set
             .save_as_combined_pickles("data/natural_field_line_set.pickle")
             .unwrap();

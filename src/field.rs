@@ -10,7 +10,6 @@ use crate::{
     },
     grid::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3},
     interpolation::Interpolator3,
-    io::utils::save_data_as_pickle,
     num::{BFloat, OrderableIndexValuePair},
 };
 use itertools::Itertools;
@@ -18,6 +17,9 @@ use ndarray::prelude::*;
 use rayon::prelude::*;
 use serde::Serialize;
 use std::{io, iter, path::Path, sync::Arc};
+
+#[cfg(feature = "pickle")]
+use crate::io::utils::save_data_as_pickle;
 
 /// Defines the properties of a provider of 3D scalar fields.
 pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<F>>: Sync {
@@ -1440,6 +1442,7 @@ where
     }
 
     /// Serializes the field data into pickle format and save at the given path.
+    #[cfg(feature = "pickle")]
     pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()>
     where
         F: Serialize,
@@ -1804,6 +1807,7 @@ where
     }
 
     /// Serializes the field data into pickle format and save at the given path.
+    #[cfg(feature = "pickle")]
     pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()>
     where
         F: Serialize,

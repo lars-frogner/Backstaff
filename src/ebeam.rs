@@ -632,6 +632,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Serializes the electron beam data into JSON format and saves at the given path.
+    #[cfg(feature = "json")]
     pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         utils::save_data_as_json(output_file_path, &self)
     }
@@ -639,6 +640,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// Serializes the electron beam data into pickle format and saves at the given path.
     ///
     /// All the electron beam data is saved as a single pickled structure.
+    #[cfg(feature = "pickle")]
     pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         utils::save_data_as_pickle(output_file_path, &self)
     }
@@ -646,6 +648,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// Serializes the electron beam data fields in parallel into pickle format and saves at the given path.
     ///
     /// The data fields are saved as separate pickle objects in the same file.
+    #[cfg(feature = "pickle")]
     pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
         let mut buffer_1 = Vec::new();
         utils::write_data_as_pickle(&mut buffer_1, &self.lower_bounds)?;
