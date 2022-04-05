@@ -178,7 +178,7 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
     let verbose = arguments.is_present("verbose").into();
 
     let (included_quantities, derived_quantities) =
-        super::parse_quantity_lists(arguments, provider, continue_on_warnings);
+        super::parse_quantity_lists(arguments, &provider, continue_on_warnings);
 
     let quantity_names: Vec<_> = included_quantities
         .iter()
