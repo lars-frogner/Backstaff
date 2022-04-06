@@ -6,8 +6,11 @@ use super::{
     weighted_sample_averaging::create_weighted_sample_averaging_subcommand,
 };
 use crate::{
+    add_subcommand_combinations,
     cli::{
-        snapshot::{write::create_write_subcommand, SnapNumInRange},
+        snapshot::{
+            derive::create_derive_subcommand, write::create_write_subcommand, SnapNumInRange,
+        },
         utils,
     },
     exit_on_error, exit_with_error,
@@ -15,7 +18,10 @@ use crate::{
     geometry::In3D,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, native, SnapshotProvider3},
+    io::{
+        snapshot::{fdt, native, SnapshotProvider3},
+        Verbose,
+    },
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
@@ -26,14 +32,13 @@ pub fn create_mesh_file_subcommand(parent_command_name: &'static str) -> Command
 
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
-    Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Resample to a grid specified by a mesh file")
         .long_about("Resample to a grid specified by a mesh file.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
                    weighted sample averaging with the default prameters is used.",
         )
-        .subcommand_required(true)
         .arg(
             Arg::new("mesh-file")
                 .value_name("MESH_FILE")
@@ -55,8 +60,9 @@ pub fn create_mesh_file_subcommand(parent_command_name: &'static str) -> Command
         )
         .subcommand(create_weighted_sample_averaging_subcommand(command_name))
         .subcommand(create_weighted_cell_averaging_subcommand(command_name))
-        .subcommand(create_direct_sampling_subcommand(command_name))
-        .subcommand(create_write_subcommand(command_name))
+        .subcommand(create_direct_sampling_subcommand(command_name));
+
+    add_subcommand_combinations!(command, command_name, true; derive, write)
 }
 
 pub fn run_resampling_for_mesh_file<G, P, I>(
@@ -67,7 +73,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -83,8 +89,6 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         ),
         "Error: Could not interpret path to mesh file: {}"
     );
-
-    let write_arguments = arguments.subcommand_matches("write").unwrap();
 
     let shape: Vec<usize> = utils::get_values_from_parseable_argument_with_custom_defaults(
         root_arguments,
@@ -102,7 +106,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     };
 
     let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(
-        native::parse_mesh_file(mesh_file_path, is_verbose.into()),
+        native::parse_mesh_file(mesh_file_path, verbose),
         "Error: Could not parse mesh file: {}"
     );
     match detected_grid_type {
@@ -117,13 +121,13 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
             super::resample_to_regular_grid(
                 grid,
                 new_shape,
-                write_arguments,
+                arguments,
                 provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                is_verbose,
+                verbose,
                 interpolator,
                 protected_file_types,
             );
@@ -139,13 +143,13 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
             super::resample_to_horizontally_regular_grid(
                 grid,
                 new_shape,
-                write_arguments,
+                arguments,
                 provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                is_verbose,
+                verbose,
                 interpolator,
                 protected_file_types,
             );

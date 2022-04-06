@@ -6,8 +6,11 @@ use super::{
     weighted_sample_averaging::create_weighted_sample_averaging_subcommand,
 };
 use crate::{
+    add_subcommand_combinations,
     cli::{
-        snapshot::{write::create_write_subcommand, SnapNumInRange},
+        snapshot::{
+            derive::create_derive_subcommand, write::create_write_subcommand, SnapNumInRange,
+        },
         utils as cli_utils,
     },
     field::{ResampledCoordLocation, ResamplingMethod},
@@ -17,7 +20,10 @@ use crate::{
     },
     grid::{regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::{
+        snapshot::{fdt, SnapshotProvider3},
+        Verbose,
+    },
 };
 use clap::{Arg, ArgMatches, Command};
 
@@ -27,14 +33,13 @@ pub fn create_regular_grid_subcommand(parent_command_name: &'static str) -> Comm
 
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
-    Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Resample to a regular grid")
         .long_about("Resample to a regular grid of configurable shape and bounds.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
                    weighted sample averaging with the default prameters is used.",
         )
-        .subcommand_required(true)
         .arg(
             Arg::new("shape")
                 .short('s')
@@ -93,8 +98,9 @@ pub fn create_regular_grid_subcommand(parent_command_name: &'static str) -> Comm
         )
         .subcommand(create_weighted_sample_averaging_subcommand(command_name))
         .subcommand(create_weighted_cell_averaging_subcommand(command_name))
-        .subcommand(create_direct_sampling_subcommand(command_name))
-        .subcommand(create_write_subcommand(command_name))
+        .subcommand(create_direct_sampling_subcommand(command_name));
+
+    add_subcommand_combinations!(command, command_name, true; derive, write)
 }
 
 pub fn run_resampling_for_regular_grid<G, P, I>(
@@ -105,7 +111,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -119,8 +125,6 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
 
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
-
-    let write_arguments = arguments.subcommand_matches("write").unwrap();
 
     let shape = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
         root_arguments,
@@ -170,13 +174,13 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     super::resample_to_regular_grid(
         grid,
         None,
-        write_arguments,
+        arguments,
         provider,
         snap_num_in_range,
         resampled_locations,
         resampling_method,
         continue_on_warnings,
-        is_verbose,
+        verbose,
         interpolator,
         protected_file_types,
     );

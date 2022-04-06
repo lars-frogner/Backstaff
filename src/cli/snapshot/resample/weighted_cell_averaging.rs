@@ -1,6 +1,9 @@
 //! Command line interface for resampling a snapshot using weighted cell averaging.
 
-use crate::cli::snapshot::write::create_write_subcommand;
+use crate::{
+    add_subcommand_combinations,
+    cli::snapshot::{derive::create_derive_subcommand, write::create_write_subcommand},
+};
 use clap::Command;
 
 /// Builds a representation of the `snapshot-resample-weighted_cell_averaging` command line subcommand.
@@ -11,7 +14,7 @@ pub fn create_weighted_cell_averaging_subcommand(
 
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
-    Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Use the weighted cell averaging method")
         .long_about(
             "Use the weighted cell averaging method.\n\
@@ -19,7 +22,7 @@ pub fn create_weighted_cell_averaging_subcommand(
              averaged with weights according to the intersected volumes.\n\
              This method is suited for downsampling. It is faster than weighted sample\n\
              averaging, but slightly less accurate.",
-        )
-        .subcommand_required(true)
-        .subcommand(create_write_subcommand(command_name))
+        );
+
+    add_subcommand_combinations!(command, command_name, true; derive, write)
 }

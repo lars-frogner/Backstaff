@@ -241,10 +241,8 @@ where
     quantity_names.append(&mut provider.auxiliary_variable_names());
     write_modified_snapshot(
         provider,
-        None,
         &quantity_names,
         HashMap::new(),
-        |name| provider.provide_scalar_field(name),
         output_file_path,
         strip_metadata,
         overwrite_mode,
@@ -254,24 +252,20 @@ where
 }
 
 /// Writes modified data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_modified_snapshot<P, GIN, PIN, GOUT, FP>(
-    provider: &PIN,
-    new_grid: Option<Arc<GOUT>>,
+pub fn write_modified_snapshot<Pa, G, P>(
+    provider: &P,
     quantity_names: &[&str],
     mut modified_parameters: HashMap<&str, ParameterValue>,
-    field_producer: FP,
-    output_file_path: P,
+    output_file_path: Pa,
     strip_metadata: bool,
     overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
 where
-    P: AsRef<Path>,
-    GIN: Grid3<fdt>,
-    GOUT: Grid3<fdt>,
-    PIN: SnapshotProvider3<GIN>,
-    FP: Fn(&str) -> io::Result<ScalarField3<fdt, GOUT>>,
+    Pa: AsRef<Path>,
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
 {
     let output_file_path = output_file_path.as_ref();
 
@@ -298,6 +292,17 @@ where
         )),
     );
 
+    let grid = provider.grid();
+
+    let shape = grid.shape();
+    let average_grid_cell_extents = grid.average_grid_cell_extents();
+    modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
+    modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
+    modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
+    modified_parameters.insert("dx", ParameterValue::Float(average_grid_cell_extents[X]));
+    modified_parameters.insert("dy", ParameterValue::Float(average_grid_cell_extents[Y]));
+    modified_parameters.insert("dz", ParameterValue::Float(average_grid_cell_extents[Z]));
+
     let atomic_output_path = AtomicOutputPath::new(output_file_path)?;
     if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
         return Ok(());
@@ -312,46 +317,28 @@ where
     let mut file = create_file(atomic_output_path.temporary_path())?;
     let mut root_group = file.root_mut().unwrap();
 
-    macro_rules! perform_writing {
-        ($grid:expr) => {{
-            let mut new_parameters = provider.parameters().clone();
-            new_parameters.modify_values(modified_parameters);
+    let mut new_parameters = provider.parameters().clone();
+    new_parameters.modify_values(modified_parameters);
 
-            if !strip_metadata {
-                if verbose.is_yes() {
-                    println!("Writing parameters to {}", output_file_name);
-                }
-                param::write_snapshot_parameters(&mut root_group, &new_parameters)?;
-            }
-
-            if verbose.is_yes() {
-                println!("Writing grid to {}", output_file_name);
-            }
-            mesh::write_grid(&mut root_group, $grid, strip_metadata)?;
-
-            for &name in quantity_names {
-                let field = field_producer(name)?;
-                if verbose.is_yes() {
-                    println!("Writing {} to {}", name, output_file_name);
-                }
-                write_3d_scalar_field(&mut root_group, &field)?;
-            }
-        }};
+    if !strip_metadata {
+        if verbose.is_yes() {
+            println!("Writing parameters to {}", output_file_name);
+        }
+        param::write_snapshot_parameters(&mut root_group, &new_parameters)?;
     }
 
-    if let Some(new_grid) = new_grid {
-        let shape = new_grid.shape();
-        let average_grid_cell_extents = new_grid.average_grid_cell_extents();
-        modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
-        modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
-        modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
-        modified_parameters.insert("dx", ParameterValue::Float(average_grid_cell_extents[X]));
-        modified_parameters.insert("dy", ParameterValue::Float(average_grid_cell_extents[Y]));
-        modified_parameters.insert("dz", ParameterValue::Float(average_grid_cell_extents[Z]));
-        perform_writing!(new_grid.as_ref());
-    } else {
-        perform_writing!(provider.grid());
-    };
+    if verbose.is_yes() {
+        println!("Writing grid to {}", output_file_name);
+    }
+    mesh::write_grid(&mut root_group, grid, strip_metadata)?;
+
+    for &name in quantity_names {
+        let field = provider.provide_scalar_field(name)?;
+        if verbose.is_yes() {
+            println!("Writing {} to {}", name, output_file_name);
+        }
+        write_3d_scalar_field(&mut root_group, &field)?;
+    }
 
     drop(file);
     atomic_output_path.perform_replace()?;

@@ -7,9 +7,12 @@ pub mod netcdf;
 
 use super::{Endianness, Verbose};
 use crate::{
-    field::{ScalarField3, ScalarFieldProvider3, VectorField3},
-    geometry::In3D,
+    field::{
+        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldProvider3, VectorField3,
+    },
+    geometry::{Idx3, In3D},
     grid::Grid3,
+    interpolation::Interpolator3,
 };
 use regex::Regex;
 use std::{
@@ -257,6 +260,180 @@ impl ParameterValue {
     }
 }
 
+pub struct ResampledSnapshotProvider<GOLD, G, P, I> {
+    provider: P,
+    new_grid: Arc<G>,
+    resampled_locations: In3D<ResampledCoordLocation>,
+    interpolator: I,
+    resampling_method: ResamplingMethod,
+    verbose: Verbose,
+    phantom: PhantomData<GOLD>,
+}
+
+impl<GOLD, G, P, I> ResampledSnapshotProvider<GOLD, G, P, I>
+where
+    GOLD: Grid3<fdt>,
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<GOLD>,
+    I: Interpolator3,
+{
+    pub fn new(
+        provider: P,
+        new_grid: Arc<G>,
+        resampled_locations: In3D<ResampledCoordLocation>,
+        interpolator: I,
+        resampling_method: ResamplingMethod,
+        verbose: Verbose,
+    ) -> Self {
+        Self {
+            provider,
+            new_grid,
+            resampled_locations,
+            interpolator,
+            resampling_method,
+            verbose,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<GOLD, G, P, I> ScalarFieldProvider3<fdt, G> for ResampledSnapshotProvider<GOLD, G, P, I>
+where
+    GOLD: Grid3<fdt>,
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<GOLD>,
+    I: Interpolator3,
+{
+    fn grid(&self) -> &G {
+        self.new_grid.as_ref()
+    }
+
+    fn arc_with_grid(&self) -> Arc<G> {
+        Arc::clone(&self.new_grid)
+    }
+
+    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+        if self.verbose.is_yes() {
+            println!("Resampling {}", variable_name);
+        }
+        let field = self.provider.provide_scalar_field(variable_name)?;
+        Ok(field.resampled_to_grid(
+            self.arc_with_grid(),
+            self.resampled_locations.clone(),
+            &self.interpolator,
+            self.resampling_method,
+        ))
+    }
+}
+
+impl<GOLD, G, P, I> SnapshotProvider3<G> for ResampledSnapshotProvider<GOLD, G, P, I>
+where
+    GOLD: Grid3<fdt>,
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<GOLD>,
+    I: Interpolator3,
+{
+    type Parameters = P::Parameters;
+
+    fn parameters(&self) -> &Self::Parameters {
+        self.provider.parameters()
+    }
+
+    fn endianness(&self) -> Endianness {
+        self.provider.endianness()
+    }
+
+    fn primary_variable_names(&self) -> Vec<&str> {
+        self.provider.primary_variable_names()
+    }
+
+    fn auxiliary_variable_names(&self) -> Vec<&str> {
+        self.provider.auxiliary_variable_names()
+    }
+
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+        self.provider.obtain_snap_name_and_num()
+    }
+}
+
+pub struct ExtractedSnapshotProvider<G, P> {
+    provider: P,
+    new_grid: Arc<G>,
+    lower_indices: Idx3<usize>,
+    verbose: Verbose,
+}
+
+impl<G, P> ExtractedSnapshotProvider<G, P>
+where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    pub fn new(
+        provider: P,
+        lower_indices: Idx3<usize>,
+        upper_indices: Idx3<usize>,
+        verbose: Verbose,
+    ) -> Self {
+        let new_grid = Arc::new(provider.grid().subgrid(&lower_indices, &upper_indices));
+        Self {
+            provider,
+            new_grid,
+            lower_indices,
+            verbose,
+        }
+    }
+}
+
+impl<G, P> ScalarFieldProvider3<fdt, G> for ExtractedSnapshotProvider<G, P>
+where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    fn grid(&self) -> &G {
+        self.new_grid.as_ref()
+    }
+
+    fn arc_with_grid(&self) -> Arc<G> {
+        Arc::clone(&self.new_grid)
+    }
+
+    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+        if self.verbose.is_yes() {
+            println!("Extracting {}", variable_name);
+        }
+        let field = self.provider.provide_scalar_field(variable_name)?;
+        Ok(field.subfield(self.arc_with_grid(), &self.lower_indices))
+    }
+}
+
+impl<G, P> SnapshotProvider3<G> for ExtractedSnapshotProvider<G, P>
+where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    type Parameters = P::Parameters;
+
+    fn parameters(&self) -> &Self::Parameters {
+        self.provider.parameters()
+    }
+
+    fn endianness(&self) -> Endianness {
+        self.provider.endianness()
+    }
+
+    fn primary_variable_names(&self) -> Vec<&str> {
+        self.provider.primary_variable_names()
+    }
+
+    fn auxiliary_variable_names(&self) -> Vec<&str> {
+        self.provider.auxiliary_variable_names()
+    }
+
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+        self.provider.obtain_snap_name_and_num()
+    }
+}
+
 /// Wrapper for `SnapshotProvider3` that reads or computes snapshot variables only on first request and
 /// then caches the results.
 #[derive(Clone, Debug)]
@@ -373,14 +550,6 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotCacher3<G, P> {
         self.vector_fields.clear();
     }
 }
-
-// pub struct SnapshotResampler<G, P> {
-//     provider: P,
-//     computer: Option<SnapshotComputer3<G, P>>,
-//     phantom: PhantomData<G>,
-// }
-
-// impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotResampler<G, P> {}
 
 /// Parses the file name of the given path and returns the interpreted
 /// snapshot name and (if detected) number.

@@ -419,9 +419,7 @@ fn run_snapshot_subcommand_for_provider<G, P>(
             write_arguments,
             provider,
             snap_num_in_range,
-            None,
             HashMap::new(),
-            |field| Ok(field),
             protected_file_types,
         );
     } else {

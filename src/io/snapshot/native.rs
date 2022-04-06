@@ -378,13 +378,11 @@ impl NativeSnapshotReaderConfig {
 }
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_modified_snapshot<P, GIN, PIN, GOUT, FP>(
-    provider: &PIN,
-    new_grid: Option<Arc<GOUT>>,
+pub fn write_modified_snapshot<Pa, G, P>(
+    provider: &P,
     quantity_names: &[&str],
     mut modified_parameters: HashMap<&str, ParameterValue>,
-    field_producer: FP,
-    output_param_path: P,
+    output_param_path: Pa,
     is_scratch: bool,
     write_mesh_file: bool,
     overwrite_mode: OverwriteMode,
@@ -392,11 +390,9 @@ pub fn write_modified_snapshot<P, GIN, PIN, GOUT, FP>(
     verbose: Verbose,
 ) -> io::Result<()>
 where
-    P: AsRef<Path>,
-    GIN: Grid3<fdt>,
-    PIN: SnapshotProvider3<GIN>,
-    GOUT: Grid3<fdt>,
-    FP: Fn(&str) -> io::Result<ScalarField3<fdt, GOUT>>,
+    Pa: AsRef<Path>,
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
 {
     let output_param_path = output_param_path.as_ref();
 
@@ -426,6 +422,17 @@ where
             included_auxiliary_variable_names.join(" ")
         )),
     );
+
+    let grid = provider.grid();
+
+    let shape = grid.shape();
+    let average_grid_cell_extents = grid.average_grid_cell_extents();
+    modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
+    modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
+    modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
+    modified_parameters.insert("dx", ParameterValue::Float(average_grid_cell_extents[X]));
+    modified_parameters.insert("dy", ParameterValue::Float(average_grid_cell_extents[Y]));
+    modified_parameters.insert("dz", ParameterValue::Float(average_grid_cell_extents[Z]));
 
     let has_primary = !included_primary_variable_names.is_empty();
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
@@ -467,109 +474,93 @@ where
     let write_aux_file = has_auxiliary
         && atomic_aux_path.check_if_write_allowed(overwrite_mode, protected_file_types);
 
-    let output_param_file_name = atomic_param_path
-        .target_path()
-        .file_name()
-        .unwrap()
-        .to_string_lossy();
-    let output_snap_file_name = atomic_snap_path
-        .target_path()
-        .file_name()
-        .unwrap()
-        .to_string_lossy();
-    let output_aux_file_name = atomic_aux_path
-        .target_path()
-        .file_name()
-        .unwrap()
-        .to_string_lossy();
+    if write_param_file {
+        let output_param_file_name = atomic_param_path
+            .target_path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy();
 
-    macro_rules! perform_writing {
-        ($grid:expr) => {{
-            if write_param_file {
-                let mut new_parameters = provider.parameters().clone();
-                new_parameters.modify_values(modified_parameters);
+        let mut new_parameters = provider.parameters().clone();
+        new_parameters.modify_values(modified_parameters);
 
-                if verbose.is_yes() {
-                    println!("Writing parameters to {}", output_param_file_name);
-                }
-                utils::write_text_file(
-                    &new_parameters.native_text_representation(),
-                    atomic_param_path.temporary_path(),
-                )?;
-            }
-            if write_mesh_file {
-                let atomic_mesh_path = atomic_mesh_path.as_ref().unwrap();
-                if verbose.is_yes() {
-                    println!(
-                        "Writing grid to {}",
-                        atomic_mesh_path
-                            .target_path()
-                            .file_name()
-                            .unwrap()
-                            .to_string_lossy()
-                    );
-                }
-                mesh::write_mesh_file_from_grid($grid, atomic_mesh_path.temporary_path())?;
-            }
-            if write_snap_file {
-                write_3d_snapfile(
-                    atomic_snap_path.temporary_path(),
-                    &included_primary_variable_names,
-                    &|name| {
-                        field_producer(name).map(|field| {
-                            if verbose.is_yes() {
-                                println!("Writing {} to {}", name, output_snap_file_name);
-                            }
-                            field.into_values()
-                        })
-                    },
-                    provider.endianness(),
-                )?;
-            }
-            if write_aux_file {
-                write_3d_snapfile(
-                    atomic_aux_path.temporary_path(),
-                    &included_auxiliary_variable_names,
-                    &|name| {
-                        field_producer(name).map(|field| {
-                            if verbose.is_yes() {
-                                println!("Writing {} to {}", name, output_aux_file_name);
-                            }
-                            field.into_values()
-                        })
-                    },
-                    provider.endianness(),
-                )?;
-            }
+        if verbose.is_yes() {
+            println!("Writing parameters to {}", output_param_file_name);
+        }
+        utils::write_text_file(
+            &new_parameters.native_text_representation(),
+            atomic_param_path.temporary_path(),
+        )?;
+    }
+    if write_mesh_file {
+        let atomic_mesh_path = atomic_mesh_path.as_ref().unwrap();
+        if verbose.is_yes() {
+            println!(
+                "Writing grid to {}",
+                atomic_mesh_path
+                    .target_path()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+            );
+        }
+        mesh::write_mesh_file_from_grid(grid, atomic_mesh_path.temporary_path())?;
+    }
+    if write_snap_file {
+        let output_snap_file_name = atomic_snap_path
+            .target_path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy();
 
-            if write_param_file {
-                atomic_param_path.perform_replace()?;
-            }
-            if write_mesh_file {
-                atomic_mesh_path.take().unwrap().perform_replace()?;
-            }
-            if write_snap_file {
-                atomic_snap_path.perform_replace()?;
-            }
-            if write_aux_file {
-                atomic_aux_path.perform_replace()?;
-            }
-        }};
+        write_3d_snapfile(
+            atomic_snap_path.temporary_path(),
+            &included_primary_variable_names,
+            &|name| {
+                provider.provide_scalar_field(name).map(|field| {
+                    if verbose.is_yes() {
+                        println!("Writing {} to {}", name, output_snap_file_name);
+                    }
+                    field.into_values()
+                })
+            },
+            provider.endianness(),
+        )?;
+    }
+    if write_aux_file {
+        let output_aux_file_name = atomic_aux_path
+            .target_path()
+            .file_name()
+            .unwrap()
+            .to_string_lossy();
+
+        write_3d_snapfile(
+            atomic_aux_path.temporary_path(),
+            &included_auxiliary_variable_names,
+            &|name| {
+                provider.provide_scalar_field(name).map(|field| {
+                    if verbose.is_yes() {
+                        println!("Writing {} to {}", name, output_aux_file_name);
+                    }
+                    field.into_values()
+                })
+            },
+            provider.endianness(),
+        )?;
     }
 
-    if let Some(new_grid) = new_grid {
-        let shape = new_grid.shape();
-        let average_grid_cell_extents = new_grid.average_grid_cell_extents();
-        modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
-        modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
-        modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
-        modified_parameters.insert("dx", ParameterValue::Float(average_grid_cell_extents[X]));
-        modified_parameters.insert("dy", ParameterValue::Float(average_grid_cell_extents[Y]));
-        modified_parameters.insert("dz", ParameterValue::Float(average_grid_cell_extents[Z]));
-        perform_writing!(new_grid.as_ref());
-    } else {
-        perform_writing!(provider.grid());
-    };
+    if write_param_file {
+        atomic_param_path.perform_replace()?;
+    }
+    if write_mesh_file {
+        atomic_mesh_path.take().unwrap().perform_replace()?;
+    }
+    if write_snap_file {
+        atomic_snap_path.perform_replace()?;
+    }
+    if write_aux_file {
+        atomic_aux_path.perform_replace()?;
+    }
 
     Ok(())
 }

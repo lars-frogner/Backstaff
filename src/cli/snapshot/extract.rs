@@ -2,8 +2,12 @@
 
 use super::SnapNumInRange;
 use crate::{
+    add_subcommand_combinations,
     cli::{
-        snapshot::write::{create_write_subcommand, run_write_subcommand},
+        snapshot::{
+            derive::{create_derive_provider, create_derive_subcommand},
+            write::{create_write_subcommand, run_write_subcommand},
+        },
         utils,
     },
     exit_with_error,
@@ -12,10 +16,13 @@ use crate::{
         Idx3, Point3,
     },
     grid::Grid3,
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::{
+        snapshot::{fdt, ExtractedSnapshotProvider, SnapshotProvider3},
+        Verbose,
+    },
 };
 use clap::{Arg, ArgMatches, Command};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 /// Builds a representation of the `snapshot-extract` command line subcommand.
 pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'static> {
@@ -23,7 +30,7 @@ pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'
 
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
-    Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Extract a subdomain of the snapshot")
         .long_about(
             "Extract a subdomain of the snapshot.\n\
@@ -31,7 +38,6 @@ pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'
              original one, with identical values. The subgrid can be specified\n\
              with coordinate bounds, index ranges or a combination of these.",
         )
-        .subcommand_required(true)
         .arg(
             Arg::new("x-bounds")
                 .short('x')
@@ -112,8 +118,9 @@ pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'
                 .short('v')
                 .long("verbose")
                 .help("Print status messages related to extraction"),
-        )
-        .subcommand(create_write_subcommand(command_name))
+        );
+
+    add_subcommand_combinations!(command, command_name, true; derive, write)
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
@@ -184,11 +191,9 @@ pub fn run_extract_subcommand<G, P>(
         lower_indices, upper_indices
     );
 
-    let is_verbose = arguments.is_present("verbose");
+    let verbose: Verbose = arguments.is_present("verbose").into();
 
-    let write_arguments = arguments.subcommand_matches("write").unwrap();
-
-    if is_verbose {
+    if verbose.is_yes() {
         let new_lower_bounds = original_grid.grid_cell_lower_corner(&lower_indices);
         let new_upper_bounds = original_grid.grid_cell_upper_corner(&upper_indices);
         println!(
@@ -207,20 +212,30 @@ pub fn run_extract_subcommand<G, P>(
             &new_upper_bounds - &new_lower_bounds
         );
     }
-    let new_grid = Arc::new(original_grid.subgrid(&lower_indices, &upper_indices));
 
-    run_write_subcommand(
-        write_arguments,
-        provider,
-        snap_num_in_range,
-        Some(Arc::clone(&new_grid)),
-        HashMap::new(),
-        |field| {
-            if is_verbose {
-                println!("Extracting {}", field.name());
-            }
-            Ok(field.subfield(Arc::clone(&new_grid), &lower_indices))
-        },
-        protected_file_types,
-    );
+    let provider = ExtractedSnapshotProvider::new(provider, lower_indices, upper_indices, verbose);
+
+    if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
+        let provider = create_derive_provider(derive_arguments, provider);
+
+        let write_arguments = derive_arguments.subcommand_matches("write").unwrap();
+
+        run_write_subcommand(
+            write_arguments,
+            provider,
+            snap_num_in_range,
+            HashMap::new(),
+            protected_file_types,
+        );
+    } else {
+        let write_arguments = arguments.subcommand_matches("write").unwrap();
+
+        run_write_subcommand(
+            write_arguments,
+            provider,
+            snap_num_in_range,
+            HashMap::new(),
+            protected_file_types,
+        );
+    }
 }

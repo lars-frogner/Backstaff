@@ -4,7 +4,6 @@ use super::SnapNumInRange;
 use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    field::ScalarField3,
     grid::Grid3,
     io::snapshot::{self, fdt, native, ParameterValue, SnapshotProvider3},
 };
@@ -12,10 +11,9 @@ use clap::{Arg, ArgMatches, Command};
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fmt, io,
+    fmt,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::Arc,
 };
 
 #[cfg(feature = "netcdf")]
@@ -117,19 +115,15 @@ pub fn create_write_subcommand(parent_command_name: &'static str) -> Command<'st
 }
 
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
-pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
+pub fn run_write_subcommand<G, P>(
     arguments: &ArgMatches,
-    provider: PIN,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    new_grid: Option<Arc<GOUT>>,
     modified_parameters: HashMap<&str, ParameterValue>,
-    field_modifier: FM,
     protected_file_types: &[&str],
 ) where
-    GIN: Grid3<fdt>,
-    PIN: SnapshotProvider3<GIN>,
-    GOUT: Grid3<fdt>,
-    FM: Fn(ScalarField3<fdt, GIN>) -> io::Result<ScalarField3<fdt, GOUT>>,
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
 {
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
@@ -175,12 +169,8 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
         match output_type {
             OutputType::Native(native_type) => native::write_modified_snapshot(
                 &provider,
-                new_grid,
                 &quantity_names,
                 modified_parameters,
-                |name| provider
-                    .provide_scalar_field(name)
-                    .and_then(|field| field_modifier(field)),
                 &output_file_path,
                 native_type == NativeType::Scratch,
                 write_mesh_file,
@@ -193,14 +183,8 @@ pub fn run_write_subcommand<GIN, PIN, GOUT, FM>(
                 let strip_metadata = arguments.is_present("strip");
                 netcdf::write_modified_snapshot(
                     &provider,
-                    new_grid,
                     &quantity_names,
                     modified_parameters,
-                    |name| {
-                        provider
-                            .provide_scalar_field(name)
-                            .and_then(|field| field_modifier(field))
-                    },
                     &output_file_path,
                     strip_metadata,
                     overwrite_mode,

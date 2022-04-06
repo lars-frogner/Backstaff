@@ -4,7 +4,7 @@ use crate::{
     add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
-        snapshot::write::create_write_subcommand,
+        snapshot::{derive::create_derive_subcommand, write::create_write_subcommand},
     },
 };
 use clap::Command;
@@ -33,5 +33,5 @@ pub fn create_weighted_sample_averaging_subcommand(
              the default interpolator implementation and parameters are used.",
         );
 
-    add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, write)
+    add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, derive, write)
 }

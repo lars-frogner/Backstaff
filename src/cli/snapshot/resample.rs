@@ -18,7 +18,7 @@ use super::SnapNumInRange;
 use crate::{
     cli::{
         interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options,
-        snapshot::write::run_write_subcommand,
+        snapshot::{derive::create_derive_provider, write::run_write_subcommand},
     },
     exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
@@ -33,8 +33,8 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, SnapshotProvider3},
-        utils,
+        snapshot::{fdt, ResampledSnapshotProvider, SnapshotProvider3},
+        utils, Verbose,
     },
 };
 use clap::{Arg, ArgMatches, Command};
@@ -110,7 +110,7 @@ pub fn run_resample_subcommand<G, P>(
     };
 
     let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let is_verbose = arguments.is_present("verbose");
+    let verbose = arguments.is_present("verbose").into();
 
     let (resample_grid_type, default_method, grid_type_arguments) =
         if let Some(regular_grid_arguments) = arguments.subcommand_matches("regular_grid") {
@@ -150,7 +150,7 @@ pub fn run_resample_subcommand<G, P>(
         default_method,
         &resampled_locations,
         continue_on_warnings,
-        is_verbose,
+        verbose,
         protected_file_types,
     );
 }
@@ -163,7 +163,7 @@ fn run_with_selected_method<G, P>(
     default_method: ResamplingMethod,
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
@@ -193,7 +193,7 @@ fn run_with_selected_method<G, P>(
         resampled_locations,
         resampling_method,
         continue_on_warnings,
-        is_verbose,
+        verbose,
         protected_file_types,
     )
 }
@@ -207,7 +207,7 @@ fn run_with_selected_interpolator<G, P>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
@@ -234,7 +234,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            is_verbose,
+            verbose,
             interpolator,
             protected_file_types,
         ),
@@ -246,7 +246,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            is_verbose,
+            verbose,
             interpolator,
             protected_file_types,
         ),
@@ -258,7 +258,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            is_verbose,
+            verbose,
             interpolator,
             protected_file_types,
         ),
@@ -269,7 +269,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            is_verbose,
+            verbose,
             interpolator,
             protected_file_types,
         ),
@@ -277,14 +277,14 @@ fn run_with_selected_interpolator<G, P>(
 }
 
 fn resample_to_same_or_reshaped_grid<G, P, I>(
-    write_arguments: &ArgMatches,
+    arguments: &ArgMatches,
     new_shape: Option<In3D<usize>>,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -306,13 +306,13 @@ fn resample_to_same_or_reshaped_grid<G, P, I>(
             resample_to_regular_grid(
                 grid,
                 new_shape,
-                write_arguments,
+                arguments,
                 provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                is_verbose,
+                verbose,
                 interpolator,
                 protected_file_types,
             );
@@ -328,13 +328,13 @@ fn resample_to_same_or_reshaped_grid<G, P, I>(
             resample_to_horizontally_regular_grid(
                 grid,
                 new_shape,
-                write_arguments,
+                arguments,
                 provider,
                 snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                is_verbose,
+                verbose,
                 interpolator,
                 protected_file_types,
             );
@@ -345,13 +345,13 @@ fn resample_to_same_or_reshaped_grid<G, P, I>(
 fn resample_to_regular_grid<G, P, I>(
     mut grid: RegularGrid3<fdt>,
     new_shape: Option<In3D<usize>>,
-    write_arguments: &ArgMatches,
+    arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -368,17 +368,17 @@ fn resample_to_regular_grid<G, P, I>(
         );
     }
 
-    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, is_verbose);
+    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, verbose);
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
-        write_arguments,
+        arguments,
         provider,
         snap_num_in_range,
         &new_grid,
         resampled_locations,
         resampling_method,
-        is_verbose,
+        verbose,
         interpolator,
         protected_file_types,
     );
@@ -387,13 +387,13 @@ fn resample_to_regular_grid<G, P, I>(
 fn resample_to_horizontally_regular_grid<G, P, I>(
     mut grid: HorRegularGrid3<fdt>,
     new_shape: Option<In3D<usize>>,
-    write_arguments: &ArgMatches,
+    arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -467,17 +467,17 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         );
     }
 
-    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, is_verbose);
+    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, verbose);
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
-        write_arguments,
+        arguments,
         provider,
         snap_num_in_range,
         &new_grid,
         resampled_locations,
         resampling_method,
-        is_verbose,
+        verbose,
         interpolator,
         protected_file_types,
     );
@@ -487,7 +487,7 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
     original_grid: &GIN,
     new_grid: &mut GOUT,
     continue_on_warnings: bool,
-    is_verbose: bool,
+    verbose: Verbose,
 ) {
     // A coordinate difference must exceed this fraction of a grid cell
     // extent in order to be detected
@@ -564,7 +564,7 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
                     if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
                         process::exit(1);
                     }
-                } else if is_verbose {
+                } else if verbose.is_yes() {
                     println!(
                         "Field is no longer periodic in {}-direction after resampling\n\
                          because new bounds do not coincide with periodic boundaries:\n\
@@ -597,13 +597,13 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
 }
 
 fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
-    write_arguments: &ArgMatches,
+    arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: &Arc<GOUT>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
-    is_verbose: bool,
+    verbose: Verbose,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -612,23 +612,36 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
     GOUT: Grid3<fdt>,
     I: Interpolator3,
 {
-    run_write_subcommand(
-        write_arguments,
+    let provider = ResampledSnapshotProvider::new(
         provider,
-        snap_num_in_range,
-        Some(Arc::clone(new_grid)),
-        HashMap::new(),
-        |field| {
-            if is_verbose {
-                println!("Resampling {}", field.name());
-            }
-            Ok(field.resampled_to_grid(
-                Arc::clone(new_grid),
-                resampled_locations.clone(),
-                &interpolator,
-                resampling_method,
-            ))
-        },
-        protected_file_types,
+        Arc::clone(new_grid),
+        resampled_locations.clone(),
+        interpolator,
+        resampling_method,
+        verbose,
     );
+
+    if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
+        let provider = create_derive_provider(derive_arguments, provider);
+
+        let write_arguments = derive_arguments.subcommand_matches("write").unwrap();
+
+        run_write_subcommand(
+            write_arguments,
+            provider,
+            snap_num_in_range,
+            HashMap::new(),
+            protected_file_types,
+        );
+    } else {
+        let write_arguments = arguments.subcommand_matches("write").unwrap();
+
+        run_write_subcommand(
+            write_arguments,
+            provider,
+            snap_num_in_range,
+            HashMap::new(),
+            protected_file_types,
+        );
+    }
 }
