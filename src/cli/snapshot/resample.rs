@@ -33,7 +33,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, ResampledSnapshotProvider, SnapshotProvider3},
+        snapshot::{fdt, ResampledSnapshotProvider3, SnapshotProvider3},
         utils, Verbose,
     },
 };
@@ -612,7 +612,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
     GOUT: Grid3<fdt>,
     I: Interpolator3,
 {
-    let provider = ResampledSnapshotProvider::new(
+    let provider = ResampledSnapshotProvider3::new(
         provider,
         Arc::clone(new_grid),
         resampled_locations.clone(),

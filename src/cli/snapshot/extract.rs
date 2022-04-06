@@ -17,7 +17,7 @@ use crate::{
     },
     grid::Grid3,
     io::{
-        snapshot::{fdt, ExtractedSnapshotProvider, SnapshotProvider3},
+        snapshot::{fdt, ExtractedSnapshotProvider3, SnapshotProvider3},
         Verbose,
     },
 };
@@ -213,7 +213,7 @@ pub fn run_extract_subcommand<G, P>(
         );
     }
 
-    let provider = ExtractedSnapshotProvider::new(provider, lower_indices, upper_indices, verbose);
+    let provider = ExtractedSnapshotProvider3::new(provider, lower_indices, upper_indices, verbose);
 
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = create_derive_provider(derive_arguments, provider);

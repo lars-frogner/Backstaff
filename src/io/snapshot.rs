@@ -260,7 +260,9 @@ impl ParameterValue {
     }
 }
 
-pub struct ResampledSnapshotProvider<GOLD, G, P, I> {
+/// Wrapper for a `SnapshotProvider3` that resamples the provided fields
+/// to a given grid.
+pub struct ResampledSnapshotProvider3<GOLD, G, P, I> {
     provider: P,
     new_grid: Arc<G>,
     resampled_locations: In3D<ResampledCoordLocation>,
@@ -270,7 +272,7 @@ pub struct ResampledSnapshotProvider<GOLD, G, P, I> {
     phantom: PhantomData<GOLD>,
 }
 
-impl<GOLD, G, P, I> ResampledSnapshotProvider<GOLD, G, P, I>
+impl<GOLD, G, P, I> ResampledSnapshotProvider3<GOLD, G, P, I>
 where
     GOLD: Grid3<fdt>,
     G: Grid3<fdt>,
@@ -297,7 +299,7 @@ where
     }
 }
 
-impl<GOLD, G, P, I> ScalarFieldProvider3<fdt, G> for ResampledSnapshotProvider<GOLD, G, P, I>
+impl<GOLD, G, P, I> ScalarFieldProvider3<fdt, G> for ResampledSnapshotProvider3<GOLD, G, P, I>
 where
     GOLD: Grid3<fdt>,
     G: Grid3<fdt>,
@@ -326,7 +328,7 @@ where
     }
 }
 
-impl<GOLD, G, P, I> SnapshotProvider3<G> for ResampledSnapshotProvider<GOLD, G, P, I>
+impl<GOLD, G, P, I> SnapshotProvider3<G> for ResampledSnapshotProvider3<GOLD, G, P, I>
 where
     GOLD: Grid3<fdt>,
     G: Grid3<fdt>,
@@ -356,14 +358,16 @@ where
     }
 }
 
-pub struct ExtractedSnapshotProvider<G, P> {
+/// Wrapper for a `SnapshotProvider3` that extracts a subdomain of the
+/// provided fields.
+pub struct ExtractedSnapshotProvider3<G, P> {
     provider: P,
     new_grid: Arc<G>,
     lower_indices: Idx3<usize>,
     verbose: Verbose,
 }
 
-impl<G, P> ExtractedSnapshotProvider<G, P>
+impl<G, P> ExtractedSnapshotProvider3<G, P>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
@@ -384,7 +388,7 @@ where
     }
 }
 
-impl<G, P> ScalarFieldProvider3<fdt, G> for ExtractedSnapshotProvider<G, P>
+impl<G, P> ScalarFieldProvider3<fdt, G> for ExtractedSnapshotProvider3<G, P>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
@@ -406,7 +410,7 @@ where
     }
 }
 
-impl<G, P> SnapshotProvider3<G> for ExtractedSnapshotProvider<G, P>
+impl<G, P> SnapshotProvider3<G> for ExtractedSnapshotProvider3<G, P>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
