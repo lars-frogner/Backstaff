@@ -132,11 +132,19 @@ fn create_available_quantity_table_string() -> String {
         .collect();
     lines.sort();
     format!(
-        "DIRECTLY DERIVABLE QUANTITIES:\n--------------------------------------------------------------------------------\n{}{}",
+        "DERIVABLE QUANTITIES:\n\
+        ================================================================================\n\
+         {}\n\
+         ================================================================================\n\
+         mod<vector quantity> - Magnitude of any vector quantity (cell centered)\n\
+         E.g., write modb to derive magnetic field strength from components bx, by and bz\n\
+         --------------------------------------------------------------------------------\n\
+         <quantity>_cgs - Values of a quantity converted to CGS units\n\
+         (not available for all quantities)\n\
+         ================================================================================",
         lines.join(
             "\n--------------------------------------------------------------------------------\n"
-        ),
-        "\n--------------------------------------------------------------------------------"
+        )
     )
 }
 
