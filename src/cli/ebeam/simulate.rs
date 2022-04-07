@@ -213,13 +213,14 @@ pub fn create_simulate_subcommand(parent_command_name: &'static str) -> Command<
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
 pub fn run_simulate_subcommand<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G> + Sync,
 {
+    let snapshot = SnapshotCacher3::new(provider);
     run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
@@ -327,7 +328,7 @@ impl fmt::Display for OutputType {
 
 fn run_with_selected_detector<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -383,7 +384,7 @@ fn run_with_selected_detector<G, P>(
 fn run_with_selected_accelerator<G, P, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     protected_file_types: &[&str],
@@ -459,7 +460,7 @@ fn run_with_selected_accelerator<G, P, D>(
 fn run_with_selected_interpolator<G, P, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
@@ -503,7 +504,7 @@ where G: Grid3<fdt>,
 fn run_with_selected_stepper_factory<G, P, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    mut snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
@@ -585,7 +586,7 @@ where G: Grid3<fdt>,
             let stepper_factory = RKF23StepperFactory3::new(stepper_config);
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
-                    snapshot,
+                    &mut snapshot,
                     detector,
                     accelerator,
                     &interpolator,
@@ -594,7 +595,7 @@ where G: Grid3<fdt>,
                 )
             } else {
                 ElectronBeamSwarm::generate_propagated(
-                    snapshot,
+                    &mut snapshot,
                     detector,
                     accelerator,
                     &interpolator,
@@ -607,7 +608,7 @@ where G: Grid3<fdt>,
             let stepper_factory = RKF45StepperFactory3::new(stepper_config);
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
-                    snapshot,
+                    &mut snapshot,
                     detector,
                     accelerator,
                     &interpolator,
@@ -616,7 +617,7 @@ where G: Grid3<fdt>,
                 )
             } else {
                 ElectronBeamSwarm::generate_propagated(
-                    snapshot,
+                    &mut snapshot,
                     detector,
                     accelerator,
                     &interpolator,
@@ -626,13 +627,12 @@ where G: Grid3<fdt>,
             }
         }
     };
-    snapshot.drop_all_fields();
     perform_post_simulation_actions(
         root_arguments,
         output_type,
         atomic_output_path,
         extra_atomic_output_path,
-        snapshot,
+        snapshot.into_provider(),
         interpolator,
         beams,
     );
@@ -643,7 +643,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
     output_type: OutputType,
     atomic_output_path: AtomicOutputPath,
     extra_atomic_output_path: Option<AtomicOutputPath>,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: P,
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
 ) where
@@ -659,13 +659,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
         for name in extra_fixed_scalars {
             beams.extract_fixed_scalars(
                 exit_on_error!(
-                    snapshot.obtain_scalar_field(name),
+                    &provider.provide_scalar_field(name),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     name
                 ),
                 &interpolator,
             );
-            snapshot.drop_scalar_field(name);
         }
     }
     if let Some(extra_fixed_vectors) = root_arguments
@@ -675,13 +674,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
         for name in extra_fixed_vectors {
             beams.extract_fixed_vectors(
                 exit_on_error!(
-                    snapshot.obtain_vector_field(name),
+                    &provider.provide_vector_field(name),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     name
                 ),
                 &interpolator,
             );
-            snapshot.drop_vector_field(name);
         }
     }
     if let Some(extra_varying_scalars) = root_arguments
@@ -689,27 +687,14 @@ fn perform_post_simulation_actions<G, P, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
-            if let Some(name) = snapshot::extract_magnitude_name(name) {
-                beams.extract_varying_vector_magnitudes(
-                    exit_on_error!(
-                        snapshot.obtain_vector_field(name),
-                        "Error: Could not read quantity {0} from snapshot: {1}",
-                        name
-                    ),
-                    &interpolator,
-                );
-                snapshot.drop_vector_field(name);
-            } else {
-                beams.extract_varying_scalars(
-                    exit_on_error!(
-                        snapshot.obtain_scalar_field(name),
-                        "Error: Could not read quantity {0} from snapshot: {1}",
-                        name
-                    ),
-                    &interpolator,
-                );
-                snapshot.drop_scalar_field(name);
-            }
+            beams.extract_varying_scalars(
+                exit_on_error!(
+                    &provider.provide_scalar_field(name),
+                    "Error: Could not read quantity {0} from snapshot: {1}",
+                    name
+                ),
+                &interpolator,
+            );
         }
     }
     if let Some(extra_varying_vectors) = root_arguments
@@ -719,13 +704,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
         for name in extra_varying_vectors {
             beams.extract_varying_vectors(
                 exit_on_error!(
-                    snapshot.obtain_vector_field(name),
+                    &provider.provide_vector_field(name),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     name
                 ),
                 &interpolator,
             );
-            snapshot.drop_vector_field(name);
         }
     }
 

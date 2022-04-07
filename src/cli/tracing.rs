@@ -164,13 +164,8 @@ pub fn run_trace_subcommand<G, P>(
     G: Grid3<fdt>,
     P: SnapshotProvider3<G> + Sync,
 {
-    let mut snapshot = SnapshotCacher3::new(provider);
-    run_with_selected_tracer(
-        arguments,
-        &mut snapshot,
-        snap_num_in_range,
-        protected_file_types,
-    );
+    let snapshot = SnapshotCacher3::new(provider);
+    run_with_selected_tracer(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -277,7 +272,7 @@ impl fmt::Display for OutputType {
 
 fn run_with_selected_tracer<G, P>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -313,7 +308,7 @@ fn run_with_selected_tracer<G, P>(
 fn run_with_selected_stepper_factory<G, P, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     protected_file_types: &[&str],
@@ -366,7 +361,7 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
 fn run_with_selected_interpolator<G, P, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
@@ -411,7 +406,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
 fn run_with_selected_seeder<G, P, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    mut snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
@@ -427,7 +422,8 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     I: Interpolator3,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
-        let seeder = create_slice_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
+        let seeder =
+            create_slice_seeder_from_arguments(seeder_arguments, &mut snapshot, &interpolator);
         run_tracing(
             root_arguments,
             snapshot,
@@ -439,7 +435,8 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
             protected_file_types,
         );
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
-        let seeder = create_volume_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
+        let seeder =
+            create_volume_seeder_from_arguments(seeder_arguments, &mut snapshot, &interpolator);
         run_tracing(
             root_arguments,
             snapshot,
@@ -469,7 +466,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
 
 fn run_tracing<G, P, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    mut snapshot: SnapshotCacher3<G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
@@ -549,20 +546,19 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
 
     let field_lines = FieldLineSet3::trace(
         quantity,
-        snapshot,
+        &mut snapshot,
         seeder,
         &tracer,
         &interpolator,
         &stepper_factory,
         root_arguments.is_present("verbose").into(),
     );
-    snapshot.drop_all_fields();
     perform_post_tracing_actions(
         root_arguments,
         output_type,
         atomic_output_path,
         extra_atomic_output_path,
-        snapshot,
+        snapshot.into_provider(),
         interpolator,
         field_lines,
     );
@@ -573,7 +569,7 @@ fn perform_post_tracing_actions<G, P, I>(
     output_type: OutputType,
     atomic_output_path: AtomicOutputPath,
     extra_atomic_output_path: Option<AtomicOutputPath>,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: P,
     interpolator: I,
     mut field_lines: FieldLineSet3,
 ) where
@@ -588,13 +584,12 @@ fn perform_post_tracing_actions<G, P, I>(
         for name in extra_fixed_scalars {
             field_lines.extract_fixed_scalars(
                 exit_on_error!(
-                    snapshot.obtain_scalar_field(name),
+                    &provider.provide_scalar_field(name),
                     "Error: Could not read quantity {0} in snapshot: {1}",
                     name
                 ),
                 &interpolator,
             );
-            snapshot.drop_scalar_field(name);
         }
     }
     if let Some(extra_varying_scalars) = root_arguments
@@ -602,27 +597,14 @@ fn perform_post_tracing_actions<G, P, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
-            if let Some(name) = snapshot::extract_magnitude_name(name) {
-                field_lines.extract_varying_vector_magnitudes(
-                    exit_on_error!(
-                        snapshot.obtain_vector_field(name),
-                        "Error: Could not read quantity {0} from snapshot: {1}",
-                        name
-                    ),
-                    &interpolator,
-                );
-                snapshot.drop_vector_field(name);
-            } else {
-                field_lines.extract_varying_scalars(
-                    exit_on_error!(
-                        snapshot.obtain_scalar_field(name),
-                        "Error: Could not read quantity {0} from snapshot: {1}",
-                        name
-                    ),
-                    &interpolator,
-                );
-                snapshot.drop_scalar_field(name);
-            }
+            field_lines.extract_varying_scalars(
+                exit_on_error!(
+                    &provider.provide_scalar_field(name),
+                    "Error: Could not read quantity {0} from snapshot: {1}",
+                    name
+                ),
+                &interpolator,
+            );
         }
     }
 
