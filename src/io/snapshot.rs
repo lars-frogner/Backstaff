@@ -467,6 +467,11 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotCacher3<G, P> {
         &mut self.provider
     }
 
+    /// Consumes the `SnapshotCacher3` and returns the owned provider.
+    pub fn into_provider(self) -> P {
+        self.provider
+    }
+
     /// Returns a reference to the grid.
     pub fn grid(&self) -> &G {
         self.provider.grid()
