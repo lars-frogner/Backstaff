@@ -15,7 +15,9 @@ use std::{
     sync::Mutex,
 };
 
-pub const CONFIG_COMMANDS: [&'static str; 15] = [
+pub const CONFIG_COMMANDS: [&'static str; 17] = [
+    "derive",
+    "synthesize",
     "weighted_sample_averaging",
     "weighted_cell_averaging",
     "direct_sampling",
