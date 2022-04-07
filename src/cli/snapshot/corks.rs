@@ -57,10 +57,8 @@ pub fn create_corks_subcommand(parent_command_name: &'static str) -> Command<'st
                 .help(
                     "Path of the file where the cork data should be saved\n\
                      Writes in the following format based on the file extension:\
-                     \n    *.corks: Creates a binary file readable by the backstaff Python package\
                      \n    *.pickle: Creates a Python pickle file (requires the pickle feature)\
-                     \n    *.json: Creates a JSON file (requires the json feature)\
-                     \n    *.h5part: Creates a H5Part file (requires the hdf5 feature)",
+                     \n    *.json: Creates a JSON file (requires the json feature)",
                 )
                 .required(true)
                 .takes_value(true),
@@ -99,10 +97,10 @@ pub fn create_corks_subcommand(parent_command_name: &'static str) -> Command<'st
                 .takes_value(true)
                 .multiple_values(true),
         )
-        .arg(Arg::new("drop-h5part-id").long("drop-h5part-id").help(
-            "Reduce H5Part file size by excluding particle IDs required by some tools\n\
-                     (e.g. VisIt)",
-        ))
+        // .arg(Arg::new("drop-h5part-id").long("drop-h5part-id").help(
+        //     "Reduce H5Part file size by excluding particle IDs required by some tools\n\
+        //              (e.g. VisIt)",
+        // ))
         .arg(
             Arg::new("verbose")
                 .short('v')
@@ -113,7 +111,25 @@ pub fn create_corks_subcommand(parent_command_name: &'static str) -> Command<'st
     add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, (slice_seeder, volume_seeder, manual_seeder))
 }
 
+#[cfg(not(any(feature = "json", feature = "pickle")))]
+pub fn run_corks_subcommand<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+    corks_state: &mut Option<CorksState>,
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    exit_with_error!(
+        "Error: Compile with json and/or pickle feature in order to write cork output\n\
+         Tip: Use cargo flag --features=json,pickle"
+    );
+}
+
 /// Runs the actions for the `snapshot-corks` subcommand using the given arguments.
+#[cfg(any(feature = "json", feature = "pickle"))]
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
@@ -370,6 +386,12 @@ fn should_write_output(snap_num_in_range: &Option<SnapNumInRange>) -> bool {
     }
 }
 
+#[cfg(not(any(feature = "json", feature = "pickle")))]
+fn write_output(_: &ArgMatches, _: &Option<SnapNumInRange>, _: &[&str], _: &Option<CorksState>) {
+    unreachable!()
+}
+
+#[cfg(any(feature = "json", feature = "pickle"))]
 fn write_output(
     root_arguments: &ArgMatches,
     snap_num_in_range: &Option<SnapNumInRange>,
