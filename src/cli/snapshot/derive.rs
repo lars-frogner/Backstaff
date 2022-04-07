@@ -19,7 +19,7 @@ pub fn create_derive_subcommand(parent_command_name: &'static str) -> Command<'s
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
     Command::new(command_name)
-        .about("Computes derived quantities for the snapshot")
+        .about("Compute derived quantities for the snapshot")
         .arg(
             Arg::new("quantities")
                 .short('q')
