@@ -12,18 +12,21 @@ Rust is highly suited for this project, for a number of reasons. It is a low-lev
 
 ## Features
 
-The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` flag to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be use to include all features.
+The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` option to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be use to include all features.
 
 Currently the available features are:
 * `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
 * `netcdf`: Support for reading and writing snapshot data in the [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) format (using the [CF conventions](http://cfconventions.org/)).
-* `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
 * `hdf5`: Support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, in particular for writing field line data using the [H5Part](https://dav.lbl.gov/archive/Research/AcceleratorSAPP/) conventions.
-* `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI. Requires `tracing`.
+* `json`: Support for serialization of certain output, like traced field lines, into JSON format.
+* `pickle`: Support for serialization of certain output, like field slices or traced field lines, into Python's [`pickle`](https://docs.python.org/3/library/pickle.html) format.
+* `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
+* `corks`: A module for tracing corks. Including it will add the `snapshot-corks` subcommand to the CLI.
+* `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI.
 
 ## API documentation
 
-The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` flag in order for them to be included in the documentation.
+The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` option in order for them to be included in the documentation.
 
 ## Prerequesites
 
@@ -89,15 +92,18 @@ OPTIONS:
     -h, --help                         Print help information
 
 SUBCOMMANDS:
-    inspect     Inspect properties of the snapshot
-    slice       Extract a 2D slice of a quantity field in the snapshot
-    extract     Extract a subdomain of the snapshot
-    resample    Create a resampled version of the snapshot
-    write       Write snapshot data to file
-    corks       Trace corks in the velocity field of a set of snapshots
+    derive        Compute derived quantities for the snapshot
+    inspect       Inspect properties of the snapshot
+    slice         Extract a 2D slice of a quantity field in the snapshot
+    extract       Extract a subdomain of the snapshot
+    resample      Create a resampled version of the snapshot
+    write         Write snapshot data to file
+    corks         Trace corks in the velocity field of a set of snapshots
+    trace         Trace field lines of a vector field in the snapshot
+    ebeam         Perform actions related to electron beams in the snapshot
 ```
 
-Here is a graph of the command hierarchy available when all features are enabled.
+Here is a simplified overview of the command hierarchy available when all features are enabled.
 ![command_graph](figures/command_graph.png "Command graph")
 
 This graph was created with the hidden `backstaff-command_graph` command, which outputs the command hierarchy graph in DOT format for rendering with [Graphviz](https://www.graphviz.org/).
@@ -192,7 +198,7 @@ Resampling bz
 Writing bz to photo_tr_hires_001.snap
 ```
 
-Here the purpose was to produce a high-resolution version of the `photo_tr_001` snapshot to continue the simulation from, so only the primary variables were included (using the `--included-quantities` flag), and the staggered locations of the variables were set to be preserved (`--sample-location=original`, which is the default and could be omitted). The generated files are `photo_tr_hires.mesh`, `photo_tr_hires_001.idl` and `photo_tr_hires_001.snap`.
+Here the purpose was to produce a high-resolution version of the `photo_tr_001` snapshot to continue the simulation from, so only the primary variables were included (using the `--included-quantities` option), and the staggered locations of the variables were set to be preserved (`--sample-location=original`, which is the default and could be omitted). The generated files are `photo_tr_hires.mesh`, `photo_tr_hires_001.idl` and `photo_tr_hires_001.snap`.
 
 **_NOTE:_** The default resampling method, `weighted_sample_averaging` (which, being the default, could have been omitted above), where the resampled value is computed in each new grid cell by averaging samples of the original field from each overlapped segment of the old grid, is highly robust and works well for any kind of resampling. However, it can be time consuming, so if you are in a hurry you can use `weighted_cell_averaging` (only suitable for downsampling) or `direct_sampling` (only suitable for upsampling).
 
