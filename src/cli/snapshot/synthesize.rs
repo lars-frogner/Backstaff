@@ -8,7 +8,7 @@ use crate::{
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-synthesize` command line subcommand.
-pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn _create_synthesize_subcommand(parent_command_name: &'static str) -> Command<'static> {
     let command_name = "synthesize";
 
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
@@ -25,8 +25,8 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
 }
 
 pub fn create_synthesize_provider<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
+    _arguments: &ArgMatches,
+    _provider: P,
 ) -> DerivedSnapshotProvider3<G, P>
 where
     G: Grid3<fdt>,

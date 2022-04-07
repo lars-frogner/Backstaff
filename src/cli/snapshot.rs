@@ -14,8 +14,7 @@ mod corks;
 use self::{
     derive::create_derive_subcommand, extract::create_extract_subcommand,
     inspect::create_inspect_subcommand, resample::create_resample_subcommand,
-    slice::create_slice_subcommand, synthesize::create_synthesize_subcommand,
-    write::create_write_subcommand,
+    slice::create_slice_subcommand, write::create_write_subcommand,
 };
 use crate::{
     add_subcommand_combinations,
@@ -111,7 +110,7 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
                 .help("Print status messages related to reading"),
         );
 
-    command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (inspect, slice, extract, resample, write));
+    command = add_subcommand_combinations!(command, command_name, true; derive, (inspect, slice, extract, resample, write));
 
     #[cfg(feature = "corks")]
     let command = command.subcommand(create_corks_subcommand(command_name));
