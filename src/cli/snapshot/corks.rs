@@ -22,7 +22,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotCacher3, SnapshotProvider3},
+        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -246,36 +246,9 @@ fn initialize_with_selected_seeder<G, P, I>(
     };
 }
 
-fn obtain_sampled_quantity_names(
-    root_arguments: &ArgMatches,
-) -> (Vec<String>, Vec<String>, Vec<String>) {
-    let (scalar_quantity_names, vector_magnitude_names) = if let Some(sampled_scalar_values) =
+fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, Vec<String>) {
+    let scalar_quantity_names = if let Some(sampled_scalar_values) =
         root_arguments.values_of("sampled-scalar-quantities")
-    {
-        let (scalar_quantity_names, vector_magnitude_names): (Vec<_>, Vec<_>) =
-            sampled_scalar_values
-                .into_iter()
-                .map(|name| match snapshot::extract_magnitude_name(name) {
-                    Some(magnitude_name) => (None, Some(magnitude_name.to_string())),
-                    None => (Some(name.to_string()), None),
-                })
-                .unzip();
-        (
-            scalar_quantity_names
-                .into_iter()
-                .filter_map(|name| name)
-                .collect(),
-            vector_magnitude_names
-                .into_iter()
-                .filter_map(|name| name)
-                .collect(),
-        )
-    } else {
-        (Vec::new(), Vec::new())
-    };
-
-    let vector_quantity_names = if let Some(sampled_scalar_values) =
-        root_arguments.values_of("sampled-vector-quantities")
     {
         sampled_scalar_values
             .into_iter()
@@ -284,11 +257,18 @@ fn obtain_sampled_quantity_names(
     } else {
         Vec::new()
     };
-    (
-        scalar_quantity_names,
-        vector_quantity_names,
-        vector_magnitude_names,
-    )
+
+    let vector_quantity_names = if let Some(sampled_vector_values) =
+        root_arguments.values_of("sampled-vector-quantities")
+    {
+        sampled_vector_values
+            .into_iter()
+            .map(|name| name.to_string())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    (scalar_quantity_names, vector_quantity_names)
 }
 
 fn initialize_corks<G, P, I, Sd>(
@@ -303,7 +283,7 @@ fn initialize_corks<G, P, I, Sd>(
     I: Interpolator3,
     Sd: Seeder3,
 {
-    let (scalar_quantity_names, vector_quantity_names, vector_magnitude_names) =
+    let (scalar_quantity_names, vector_quantity_names) =
         obtain_sampled_quantity_names(root_arguments);
 
     *corks_state = Some(exit_on_error!(
@@ -313,7 +293,6 @@ fn initialize_corks<G, P, I, Sd>(
             &interpolator,
             scalar_quantity_names,
             vector_quantity_names,
-            vector_magnitude_names,
             root_arguments.is_present("verbose").into(),
         ),
         "Error: Could not initialize corks: {}"
