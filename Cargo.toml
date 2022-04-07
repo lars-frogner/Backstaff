@@ -1,6 +1,6 @@
 [package]
 name = "backstaff"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Lars Frogner <lars.frogner@astro.uio.no>"]
 description = "A flexible tookit for working with Bifrost simulations"
 edition = "2021"
