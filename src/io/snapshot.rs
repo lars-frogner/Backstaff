@@ -472,11 +472,6 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotCacher3<G, P> {
         self.provider
     }
 
-    /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
-        self.provider.grid()
-    }
-
     /// Returns a `Result` with a reference to the scalar field representing the given variable,
     /// reading it from file or computing it and caching it if has not already been cached.
     pub fn obtain_scalar_field(
@@ -557,6 +552,52 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotCacher3<G, P> {
     pub fn drop_all_fields(&mut self) {
         self.scalar_fields.clear();
         self.vector_fields.clear();
+    }
+}
+
+impl<G, P> ScalarFieldProvider3<fdt, G> for SnapshotCacher3<G, P>
+where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    fn grid(&self) -> &G {
+        self.provider.grid()
+    }
+
+    fn arc_with_grid(&self) -> Arc<G> {
+        self.provider.arc_with_grid()
+    }
+
+    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+        self.provider.provide_scalar_field(variable_name)
+    }
+}
+
+impl<G, P> SnapshotProvider3<G> for SnapshotCacher3<G, P>
+where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    type Parameters = P::Parameters;
+
+    fn parameters(&self) -> &Self::Parameters {
+        self.provider.parameters()
+    }
+
+    fn endianness(&self) -> Endianness {
+        self.provider.endianness()
+    }
+
+    fn primary_variable_names(&self) -> Vec<&str> {
+        self.provider.primary_variable_names()
+    }
+
+    fn auxiliary_variable_names(&self) -> Vec<&str> {
+        self.provider.auxiliary_variable_names()
+    }
+
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+        self.provider.obtain_snap_name_and_num()
     }
 }
 

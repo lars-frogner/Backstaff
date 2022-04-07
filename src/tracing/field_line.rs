@@ -7,7 +7,7 @@ use super::{
     stepping::{Stepper3, StepperFactory3},
 };
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{ScalarField3, ScalarFieldProvider3, VectorField3},
     geometry::{Dim3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,

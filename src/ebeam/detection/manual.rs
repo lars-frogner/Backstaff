@@ -2,6 +2,7 @@
 
 use super::ReconnectionSiteDetector;
 use crate::{
+    field::ScalarFieldProvider3,
     geometry::Idx3,
     grid::Grid3,
     io::{

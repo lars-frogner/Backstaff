@@ -337,6 +337,7 @@ impl Default for BasicFieldLineTracerConfig {
 mod tests {
 
     use super::*;
+    use crate::field::ScalarFieldProvider3;
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};

@@ -10,7 +10,7 @@ use self::{
     distribution::{DepletionStatus, Distribution, PropagationResult},
 };
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{ScalarField3, ScalarFieldProvider3, VectorField3},
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,

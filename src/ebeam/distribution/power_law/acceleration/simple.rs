@@ -6,6 +6,7 @@ use super::super::{
 };
 use crate::{
     constants::{INFINITY, KBOLTZMANN, KEV_TO_ERG, PI},
+    field::ScalarFieldProvider3,
     geometry::{Dim3, Idx3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,

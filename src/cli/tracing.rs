@@ -558,7 +558,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
         output_type,
         atomic_output_path,
         extra_atomic_output_path,
-        snapshot.into_provider(),
+        snapshot,
         interpolator,
         field_lines,
     );

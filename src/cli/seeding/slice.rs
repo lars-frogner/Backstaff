@@ -14,6 +14,7 @@ use self::{
 use crate::{
     cli::utils,
     exit_on_false, exit_with_error,
+    field::ScalarFieldProvider3,
     geometry::{Dim2, Dim3, Point2},
     grid::Grid3,
     interpolation::Interpolator3,

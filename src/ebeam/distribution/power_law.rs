@@ -8,6 +8,7 @@ use super::{
 };
 use crate::{
     constants::{KEV_TO_ERG, M_H, PI, Q_ELECTRON},
+    field::ScalarFieldProvider3,
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, Point3, Vec3,

@@ -4,6 +4,7 @@
 use crate::{
     cli::utils,
     exit_on_error,
+    field::ScalarFieldProvider3,
     geometry::{
         Dim3::{X, Y, Z},
         In3D, Point3, Vec3,

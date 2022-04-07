@@ -351,15 +351,13 @@ fn run_with_selected_detector<G, P>(
                 (
                     construct_simple_reconnection_site_detector_config_from_options(
                         detector_arguments,
-                        snapshot.provider(),
+                        &snapshot,
                     ),
                     detector_arguments,
                 )
             } else {
                 (
-                    SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(
-                        snapshot.provider(),
-                    ),
+                    SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(&snapshot),
                     arguments,
                 )
             };
@@ -397,15 +395,12 @@ fn run_with_selected_accelerator<G, P, D>(
         arguments.subcommand_matches("power_law_distribution")
     {
         (
-            construct_power_law_distribution_config_from_options(
-                distribution_arguments,
-                snapshot.provider(),
-            ),
+            construct_power_law_distribution_config_from_options(distribution_arguments, &snapshot),
             distribution_arguments,
         )
     } else {
         (
-            PowerLawDistributionConfig::with_defaults_from_param_file(snapshot.provider()),
+            PowerLawDistributionConfig::with_defaults_from_param_file(&snapshot),
             arguments,
         )
     };
@@ -423,7 +418,7 @@ fn run_with_selected_accelerator<G, P, D>(
     {
         let accelerator_config = construct_simple_power_law_accelerator_config_from_options(
             accelerator_arguments,
-            snapshot.provider(),
+            &snapshot,
         );
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
@@ -440,7 +435,7 @@ fn run_with_selected_accelerator<G, P, D>(
         );
     } else {
         let accelerator_config =
-            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(snapshot.provider());
+            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(&snapshot);
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
         }
@@ -632,7 +627,7 @@ where G: Grid3<fdt>,
         output_type,
         atomic_output_path,
         extra_atomic_output_path,
-        snapshot.into_provider(),
+        snapshot,
         interpolator,
         beams,
     );

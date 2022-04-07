@@ -1,7 +1,7 @@
 //! Tracing of corks in an evolving velocity field.
 
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{ScalarField3, ScalarFieldProvider3, VectorField3},
     geometry::{Idx3, Point3, Vec3},
     grid::{Grid3, GridPointQuery3},
     interpolation::Interpolator3,

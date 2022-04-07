@@ -14,6 +14,7 @@ use self::{
 use crate::{
     cli::utils as cli_utils,
     exit_on_false, exit_with_error,
+    field::ScalarFieldProvider3,
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
