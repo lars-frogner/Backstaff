@@ -1,19 +1,29 @@
 import os
 import pathlib
+import sys
 import time
 import re
+import contextlib
 import numpy as np
 import scipy.interpolate
 import scipy.integrate
 from numba import njit
-from tabulate import tabulate
-import tempfile
-import joblib
-from joblib import Parallel, delayed
 
-import ChiantiPy.tools.util as ch_util
-import ChiantiPy.tools.io as ch_io
-import ChiantiPy.tools.data as ch_data
+try:
+    from tabulate import tabulate
+except ModuleNotFoundError:
+    pass
+
+try:
+    import joblib
+    from joblib import Parallel, delayed
+except ModuleNotFoundError:
+    pass
+
+with contextlib.redirect_stdout(None):
+    import ChiantiPy.tools.util as ch_util
+    import ChiantiPy.tools.io as ch_io
+    import ChiantiPy.tools.data as ch_data
 
 try:
     import backstaff.units as units
@@ -510,8 +520,8 @@ class Ion:
         closest_wavelength = self.central_wavelengths[line_idx] * 1e8  # [Å]
         if not np.allclose(closest_wavelength, wavelength):
             print(
-                f'Warning: No line sufficiently close to requested wavelength of {wavelength:.3f} Å (smallest difference is {(closest_wavelength - wavelength):g} Å)'
-            )
+                f'Warning: No line sufficiently close to requested wavelength of {wavelength:.3f} Å\nfor ion {self.ion_name}, using closest at {closest_wavelength:g} Å',
+                file=sys.stderr)
         return line_idx
 
     def find_line_indices(self, wavelengths):
@@ -703,6 +713,8 @@ class Ion:
                         line_indices, np.newaxis]
 
         self.info(f'Took {time.time() - start_time:g} s')
+
+        return self.__emissivities
 
     def plot(self,
              quantity_x,
@@ -1152,11 +1164,15 @@ class LookupIonAtmosphere(IonAtmosphere):
                  n_electron_density_points=100,
                  compute_proton_densities=True,
                  compute_hydrogen_densities=False,
+                 dtype=np.float32,
                  **kwargs):
         self.__log_table_temperatures = np.linspace(*log_temperature_limits,
-                                                    n_temperature_points)
+                                                    n_temperature_points,
+                                                    dtype=dtype)
         self.__log_table_electron_densities = np.linspace(
-            *log_electron_density_limits, n_electron_density_points)
+            *log_electron_density_limits,
+            n_electron_density_points,
+            dtype=dtype)
 
         table_temperatures = 10**self.log_table_temperatures
         table_electron_densities = 10**self.log_table_electron_densities
@@ -1546,7 +1562,8 @@ class IonEmissivities:
                 data['mask']), data['emissivities'], **kwargs)
 
     def compute_intensity_contributions(self):
-        atmos_shape = (self.bifrost_data.nx, self.bifrost_data.ny, self.bifrost_data.nz)
+        atmos_shape = (self.bifrost_data.nx, self.bifrost_data.ny,
+                       self.bifrost_data.nz)
 
         if atmos_shape[2] != self.z_coords.size:
             dz = np.zeros_like(self.z_coords)
@@ -1612,6 +1629,7 @@ class IonEmissivities:
         intensity_contributions = self.compute_intensity_contributions()
 
         if self.mask is None:
+
             def integrate_emissivities(line_idx, weights=None):
                 if weights is None:
                     return np.sum(intensity_contributions[line_idx, :, :, :],
@@ -2182,3 +2200,75 @@ def join_tags(*tags, as_str=False):
             return combined[1:]
     else:
         return combined
+
+
+def compute_emissivity_tables(ion_lines,
+                              dtype=np.float32,
+                              verbose=False,
+                              **kwargs):
+    table_atmosphere = LookupIonAtmosphere(compute_proton_densities=True,
+                                           compute_hydrogen_densities=True,
+                                           verbose=verbose,
+                                           dtype=dtype,
+                                           **kwargs)
+
+    emissivity_tables = {}
+
+    for ion_name, central_wavelengths in ion_lines.items():
+        ion = Ion(ion_name, table_atmosphere, verbose=verbose)
+
+        line_indices = ion.find_line_indices(central_wavelengths)
+
+        emissivities = ion.compute_emissivities(
+            line_indices=line_indices).astype(dtype)
+
+        for idx, wavelength in enumerate(central_wavelengths):
+            line_name = ion.properties.get_line_name(ion_name, wavelength)
+            emissivity_tables[line_name] = emissivities[idx, :].reshape(
+                table_atmosphere.table_shape)
+
+    return table_atmosphere.log_table_temperatures, table_atmosphere.log_table_electron_densities, emissivity_tables
+
+
+def test():
+    dtype = np.float32
+    log_temperature_limits = (3.0, 7.0)
+    log_electron_density_limits = (8.0, 13.0)
+
+    ion_lines = dict(si_4=[1393.755])
+    log_table_temperatures, log_table_electron_densities, emissivity_tables = compute_emissivity_tables(
+        ion_lines,
+        dtype=dtype,
+        verbose=True,
+        log_temperature_limits=log_temperature_limits,
+        log_electron_density_limits=log_electron_density_limits)
+    emissivity_table = emissivity_tables[f'si_4_{ion_lines["si_4"][0]:.3f}']
+
+    n_points = 100000000
+
+    temperatures = np.random.uniform(10**log_temperature_limits[0],
+                                     10**log_temperature_limits[1],
+                                     n_points).astype(dtype)
+    electron_densities = np.random.uniform(10**log_electron_density_limits[0],
+                                           10**log_electron_density_limits[1],
+                                           n_points).astype(dtype)
+
+    evaluation_coordinates = np.stack(
+        (np.ravel(temperatures), np.ravel(electron_densities)), axis=1)
+    emissivities = np.empty((1, evaluation_coordinates.shape[0]), dtype=dtype)
+
+    array_utils.do_concurrent_interp2(emissivities,
+                                      0,
+                                      1,
+                                      log_table_temperatures,
+                                      log_table_electron_densities,
+                                      emissivity_table[np.newaxis, :, :],
+                                      evaluation_coordinates,
+                                      method='linear',
+                                      bounds_error=False,
+                                      fill_value=None,
+                                      verbose=True)
+
+
+if __name__ == '__main__':
+    test()

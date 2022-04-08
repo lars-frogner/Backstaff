@@ -1,4 +1,4 @@
-//! Functions for computing various derived physical quantities.
+//! Computation of various derived physical quantities.
 
 use crate::{
     field::{self, ResampledCoordLocation, ResamplingMethod, ScalarField3},

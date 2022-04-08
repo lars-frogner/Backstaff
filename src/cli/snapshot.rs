@@ -51,6 +51,9 @@ use self::corks::{create_corks_subcommand, CorksState};
 #[cfg(feature = "ebeam")]
 use super::ebeam::create_ebeam_subcommand;
 
+#[cfg(feature = "synthesis")]
+use self::synthesize::create_synthesize_subcommand;
+
 #[cfg(feature = "netcdf")]
 use crate::io::snapshot::netcdf::{
     self, NetCDFSnapshotParameters, NetCDFSnapshotReader3, NetCDFSnapshotReaderConfig,
@@ -63,7 +66,7 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
 
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
-    let mut command = Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Specify input snapshot to perform further actions on")
         .arg(
             Arg::new("input-file")
@@ -110,7 +113,11 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
                 .help("Print status messages related to reading"),
         );
 
-    command = add_subcommand_combinations!(command, command_name, true; derive, (inspect, slice, extract, resample, write));
+    #[cfg(feature = "synthesis")]
+    let command = add_subcommand_combinations!(command, command_name, false; derive, synthesize);
+    // let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (inspect, slice, extract, resample, write));
+    #[cfg(not(feature = "synthesis"))]
+    let command = add_subcommand_combinations!(command, command_name, true; derive, (inspect, slice, extract, resample, write));
 
     #[cfg(feature = "corks")]
     let command = command.subcommand(create_corks_subcommand(command_name));
@@ -250,44 +257,12 @@ macro_rules! create_netcdf_reader_and_run {
 pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     macro_rules! run_subcommands_for_reader {
         ($reader:expr, $snap_num_in_range:expr) => {
-            if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
-                let provider = derive::create_derive_provider(derive_arguments, $reader);
-                if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-                    let provider =
-                        synthesize::create_synthesize_provider(synthesize_arguments, provider);
-                    run_snapshot_subcommand_for_provider(
-                        synthesize_arguments,
-                        provider,
-                        $snap_num_in_range,
-                        protected_file_types,
-                    );
-                } else {
-                    run_snapshot_subcommand_for_provider(
-                        derive_arguments,
-                        provider,
-                        $snap_num_in_range,
-                        protected_file_types,
-                    );
-                }
-            } else {
-                if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-                    let provider =
-                        synthesize::create_synthesize_provider(synthesize_arguments, $reader);
-                    run_snapshot_subcommand_for_provider(
-                        synthesize_arguments,
-                        provider,
-                        $snap_num_in_range,
-                        protected_file_types,
-                    );
-                } else {
-                    run_snapshot_subcommand_for_provider(
-                        arguments,
-                        $reader,
-                        $snap_num_in_range,
-                        protected_file_types,
-                    );
-                }
-            }
+            run_snapshot_subcommand_with_derive(
+                arguments,
+                $reader,
+                $snap_num_in_range,
+                protected_file_types,
+            )
         };
     }
 
@@ -379,6 +354,62 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
             }
         }
     }
+}
+
+fn run_snapshot_subcommand_with_derive<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
+        let provider = derive::create_derive_provider(derive_arguments, provider);
+        run_snapshot_subcommand_with_synthesis(
+            derive_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+    } else {
+        run_snapshot_subcommand_with_synthesis(
+            arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+    }
+}
+
+fn run_snapshot_subcommand_with_synthesis<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    #[cfg(feature = "synthesis")]
+    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+        let provider = synthesize::create_synthesize_provider(synthesize_arguments, provider);
+        // run_snapshot_subcommand_for_provider(
+        //     synthesize_arguments,
+        //     provider,
+        //     snap_num_in_range,
+        //     protected_file_types,
+        // );
+        // return;
+    }
+
+    // run_snapshot_subcommand_for_provider(
+    //     arguments,
+    //     provider,
+    //     snap_num_in_range,
+    //     protected_file_types,
+    // );
 }
 
 fn run_snapshot_subcommand_for_provider<G, P>(

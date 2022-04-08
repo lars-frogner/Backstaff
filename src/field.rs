@@ -2,6 +2,9 @@
 
 pub mod quantities;
 
+#[cfg(feature = "synthesis")]
+pub mod synthesis;
+
 use crate::{
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Dim2,

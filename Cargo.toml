@@ -10,6 +10,7 @@ default-run = "backstaff"
 default = ["cli"]
 cli = ["chrono", "clap", "clap_complete", "pad", "paste", "petgraph", "float-pretty-print"]
 serialization = ["serde", "ndarray/serde"]
+python = ["pyo3", "numpy"]
 json = ["serialization", "serde_json"]
 pickle = ["serialization", "serde-pickle"]
 netcdf = ["netcdf-rs"]
@@ -18,6 +19,7 @@ seeding = []
 corks = ["seeding"]
 tracing = ["seeding"]
 ebeam = ["tracing", "special"]
+synthesis = ["python"]
 
 [dependencies]
 # Dependencies for core
@@ -45,6 +47,10 @@ petgraph = { version = "*", features = [], optional = true }
 
 # Dependencies for serialization
 serde = { version = "*", features = ["derive"], optional = true }
+
+# Dependencies for python
+pyo3 = { version = "*", features = ["auto-initialize"], optional = true }
+numpy = { version = "*", optional = true }
 
 # Dependencies for json
 serde_json = { version = "*", optional = true }
