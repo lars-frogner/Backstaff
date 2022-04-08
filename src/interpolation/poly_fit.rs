@@ -256,16 +256,21 @@ fn create_value_subarray_for_interior_3d<
                 subarray[idx].write(value);
                 idx += 1;
 
-                sum = sum + value;
-                sum_of_squares = sum_of_squares + value * value;
+                if N_POINTS > 2 {
+                    sum = sum + value;
+                    sum_of_squares = sum_of_squares + value * value;
+                }
             }
         }
     }
 
     debug_assert_eq!(idx, N_POINTS_CUBED);
 
-    let variation =
-        F::one() - (sum * sum) / (sum_of_squares * F::from_usize(N_POINTS_CUBED).unwrap());
+    let variation = if N_POINTS > 2 {
+        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_CUBED).unwrap())
+    } else {
+        F::zero()
+    };
 
     (
         unsafe { (&subarray as *const _ as *const [F; N_POINTS_CUBED]).read() },
@@ -295,15 +300,20 @@ fn create_value_subarray_for_interior_2d<
             subarray[idx].write(value);
             idx += 1;
 
-            sum = sum + value;
-            sum_of_squares = sum_of_squares + value * value;
+            if N_POINTS > 2 {
+                sum = sum + value;
+                sum_of_squares = sum_of_squares + value * value;
+            }
         }
     }
 
     debug_assert_eq!(idx, N_POINTS_SQUARED);
 
-    let variation =
-        F::one() - (sum * sum) / (sum_of_squares * F::from_usize(N_POINTS_SQUARED).unwrap());
+    let variation = if N_POINTS > 2 {
+        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_SQUARED).unwrap())
+    } else {
+        F::zero()
+    };
 
     (
         unsafe { (&subarray as *const _ as *const [F; N_POINTS_SQUARED]).read() },
@@ -327,11 +337,17 @@ fn create_value_subarray_for_interior_1d<F: BFloat, const N_POINTS: usize>(
         subarray[idx].write(value);
         idx += 1;
 
-        sum = sum + value;
-        sum_of_squares = sum_of_squares + value * value;
+        if N_POINTS > 2 {
+            sum = sum + value;
+            sum_of_squares = sum_of_squares + value * value;
+        }
     }
 
-    let variation = F::one() - (sum * sum) / (sum_of_squares * F::from_usize(N_POINTS).unwrap());
+    let variation = if N_POINTS > 2 {
+        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS).unwrap())
+    } else {
+        F::zero()
+    };
 
     (
         unsafe { (&subarray as *const _ as *const [F; N_POINTS]).read() },
@@ -371,15 +387,21 @@ fn create_value_subarray_for_periodic_3d<
                 subarray[idx].write(value);
                 idx += 1;
 
-                sum = sum + value;
-                sum_of_squares = sum_of_squares + value * value;
+                if N_POINTS > 2 {
+                    sum = sum + value;
+                    sum_of_squares = sum_of_squares + value * value;
+                }
             }
         }
     }
 
     debug_assert_eq!(idx, N_POINTS_CUBED);
 
-    let variation = F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_CUBED).unwrap());
+    let variation = if N_POINTS > 2 {
+        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_CUBED).unwrap())
+    } else {
+        F::zero()
+    };
 
     (
         unsafe { (&subarray as *const _ as *const [F; N_POINTS_CUBED]).read() },
@@ -416,14 +438,20 @@ fn create_value_subarray_for_periodic_2d<
             subarray[idx].write(value);
             idx += 1;
 
-            sum = sum + value;
-            sum_of_squares = sum_of_squares + value * value;
+            if N_POINTS > 2 {
+                sum = sum + value;
+                sum_of_squares = sum_of_squares + value * value;
+            }
         }
     }
 
     debug_assert_eq!(idx, N_POINTS_SQUARED);
 
-    let variation = F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_SQUARED).unwrap());
+    let variation = if N_POINTS > 2 {
+        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_SQUARED).unwrap())
+    } else {
+        F::zero()
+    };
 
     (
         unsafe { (&subarray as *const _ as *const [F; N_POINTS_SQUARED]).read() },
@@ -448,11 +476,17 @@ fn create_value_subarray_for_periodic_1d<F: BFloat, const N_POINTS: usize>(
         subarray[idx].write(value);
         idx += 1;
 
-        sum = sum + value;
-        sum_of_squares = sum_of_squares + value * value;
+        if N_POINTS > 2 {
+            sum = sum + value;
+            sum_of_squares = sum_of_squares + value * value;
+        }
     }
 
-    let variation = F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS).unwrap());
+    let variation = if N_POINTS > 2 {
+        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS).unwrap())
+    } else {
+        F::zero()
+    };
 
     (
         unsafe { (&subarray as *const _ as *const [F; N_POINTS]).read() },
