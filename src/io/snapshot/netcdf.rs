@@ -52,6 +52,7 @@ pub struct NetCDFSnapshotReader3<G> {
     endianness: Endianness,
     primary_variable_names: Vec<String>,
     auxiliary_variable_names: Vec<String>,
+    all_variable_names: Vec<String>,
 }
 
 impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
@@ -90,6 +91,8 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
         let root_group = file.root().unwrap();
         let (primary_variable_names, auxiliary_variable_names) =
             Self::read_variable_names(&root_group);
+        let mut all_variable_names = primary_variable_names.clone();
+        all_variable_names.append(&mut auxiliary_variable_names.clone());
 
         Self {
             config,
@@ -99,6 +102,7 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
             endianness,
             primary_variable_names,
             auxiliary_variable_names,
+            all_variable_names,
         }
     }
 
@@ -130,7 +134,11 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
         Ok(())
     }
 
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn read_scalar_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
         if self.config.verbose.is_yes() {
             println!(
                 "Reading {} from {}",
@@ -170,7 +178,10 @@ impl<G: Grid3<fdt>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
         Arc::clone(&self.grid)
     }
 
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
         self.read_scalar_field(variable_name)
     }
 }
@@ -186,18 +197,16 @@ impl<G: Grid3<fdt>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
         self.endianness
     }
 
-    fn primary_variable_names(&self) -> Vec<&str> {
-        self.primary_variable_names
-            .iter()
-            .map(|s| s.as_str())
-            .collect()
+    fn primary_variable_names(&self) -> &[String] {
+        &self.primary_variable_names
     }
 
-    fn auxiliary_variable_names(&self) -> Vec<&str> {
-        self.auxiliary_variable_names
-            .iter()
-            .map(|s| s.as_str())
-            .collect()
+    fn auxiliary_variable_names(&self) -> &[String] {
+        &self.auxiliary_variable_names
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        &self.all_variable_names
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -225,7 +234,7 @@ impl NetCDFSnapshotReaderConfig {
 
 /// Writes all data associated with the given snapshot to a NetCDF file at the given path.
 pub fn write_identical_snapshot<Pa, G, P>(
-    provider: &P,
+    provider: &mut P,
     output_file_path: Pa,
     strip_metadata: bool,
     overwrite_mode: OverwriteMode,
@@ -237,8 +246,8 @@ where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    let mut quantity_names = provider.primary_variable_names();
-    quantity_names.append(&mut provider.auxiliary_variable_names());
+    let mut quantity_names = provider.primary_variable_names().to_vec();
+    quantity_names.append(&mut provider.auxiliary_variable_names().to_vec());
     write_modified_snapshot(
         provider,
         &quantity_names,
@@ -253,8 +262,8 @@ where
 
 /// Writes modified data associated with the given snapshot to a NetCDF file at the given path.
 pub fn write_modified_snapshot<Pa, G, P>(
-    provider: &P,
-    quantity_names: &[&str],
+    provider: &mut P,
+    quantity_names: &[String],
     mut modified_parameters: HashMap<&str, ParameterValue>,
     output_file_path: Pa,
     strip_metadata: bool,
@@ -332,7 +341,7 @@ where
     }
     mesh::write_grid(&mut root_group, grid, strip_metadata)?;
 
-    for &name in quantity_names {
+    for name in quantity_names {
         let field = provider.provide_scalar_field(name)?;
         if verbose.is_yes() {
             println!("Writing {} to {}", name, output_file_name);
@@ -493,12 +502,15 @@ pub fn create_file<P: AsRef<Path>>(path: P) -> io::Result<MutableFile> {
 }
 
 /// Writes all the primary variables of the given snapshot to the given NetCDF group.
-pub fn write_snapshot_primary_variables<G, P>(group: &mut GroupMut, provider: &P) -> io::Result<()>
+pub fn write_snapshot_primary_variables<G, P>(
+    group: &mut GroupMut,
+    provider: &mut P,
+) -> io::Result<()>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    for name in provider.primary_variable_names() {
+    for name in &provider.primary_variable_names().to_vec() {
         let field = provider.provide_scalar_field(name)?;
         write_3d_scalar_field(group, &field)?;
     }
@@ -508,13 +520,13 @@ where
 /// Writes all the auxiliary variables of the given snapshot to the given NetCDF group.
 pub fn write_snapshot_auxiliary_variables<G, P>(
     group: &mut GroupMut,
-    provider: &P,
+    provider: &mut P,
 ) -> io::Result<()>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    for name in provider.auxiliary_variable_names() {
+    for name in &provider.auxiliary_variable_names().to_vec() {
         let field = provider.provide_scalar_field(name)?;
         write_3d_scalar_field(group, &field)?;
     }
@@ -563,7 +575,7 @@ mod tests {
     };
     #[test]
     fn snapshot_writing_works() {
-        let reader =
+        let mut reader =
             NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
                 "data/cb24ni_ebeam_offline/cb24ni_ebeam_offline_462.idl",
                 Endianness::Little,
@@ -571,7 +583,7 @@ mod tests {
             ))
             .unwrap();
         write_identical_snapshot(
-            &reader,
+            &mut reader,
             "test.nc",
             false,
             OverwriteMode::Always,

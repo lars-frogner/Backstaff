@@ -4,11 +4,9 @@ pub mod manual;
 pub mod simple;
 
 use crate::{
+    field::{ScalarFieldCacher3, ScalarFieldProvider3},
     grid::Grid3,
-    io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
-        Verbose,
-    },
+    io::{snapshot::fdt, Verbose},
     seeding::IndexSeeder3,
 };
 
@@ -19,10 +17,10 @@ pub trait ReconnectionSiteDetector {
     /// a seeder with the corresponding 3D indices.
     fn detect_reconnection_sites<G, P>(
         &self,
-        snapshot: &mut SnapshotCacher3<G, P>,
+        snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
         verbose: Verbose,
     ) -> Self::Seeder
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>;
+        P: ScalarFieldProvider3<fdt, G>;
 }

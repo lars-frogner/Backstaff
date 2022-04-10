@@ -166,16 +166,18 @@ where
             dependencies
                 .iter()
                 .cloned()
-                .filter(|dep| !all_variable_names.contains(dep))
+                .filter(|dep| !all_variable_names.contains(&dep.to_string()))
                 .collect()
         })
 }
+
 /// Computer of derived quantities from Bifrost 3D simulation snapshots.
 #[derive(Clone, Debug)]
 pub struct DerivedSnapshotProvider3<G, P> {
     provider: P,
     derived_quantity_names: Vec<String>,
     auxiliary_variable_names: Vec<String>,
+    all_variable_names: Vec<String>,
     verbose: Verbose,
     phantom: PhantomData<G>,
 }
@@ -183,16 +185,16 @@ pub struct DerivedSnapshotProvider3<G, P> {
 impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
     /// Creates a computer of derived 3D quantities.
     pub fn new(provider: P, verbose: Verbose) -> Self {
-        let auxiliary_variable_names: Vec<_> = provider
-            .auxiliary_variable_names()
-            .into_iter()
-            .map(String::from)
-            .collect();
+        let auxiliary_variable_names: Vec<_> = provider.auxiliary_variable_names().to_vec();
+
+        let mut all_variable_names = provider.primary_variable_names().to_vec();
+        all_variable_names.append(&mut auxiliary_variable_names.clone());
 
         Self {
             provider,
             derived_quantity_names: Vec::new(),
             auxiliary_variable_names,
+            all_variable_names,
             verbose,
             phantom: PhantomData,
         }
@@ -211,44 +213,42 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
             .filter(|name| self.verify_variable_availability(name, handle_unavailable))
             .collect();
 
-        let mut auxiliary_variable_names: Vec<_> = self
-            .provider
-            .auxiliary_variable_names()
-            .into_iter()
-            .map(String::from)
-            .collect();
-        auxiliary_variable_names.extend(derived_quantity_names.clone().into_iter());
+        let mut auxiliary_variable_names: Vec<_> =
+            self.provider.auxiliary_variable_names().to_vec();
+        auxiliary_variable_names.append(&mut derived_quantity_names.clone());
+
+        let mut all_variable_names = self.provider.primary_variable_names().to_vec();
+        all_variable_names.append(&mut auxiliary_variable_names.clone());
 
         Self {
             provider: self.provider,
             derived_quantity_names,
             auxiliary_variable_names,
+            all_variable_names,
             verbose: self.verbose,
             phantom: self.phantom,
         }
     }
 
     /// Returns the names of the derived quantities that this computer will provide as auxiliary variables.
-    pub fn derived_quantity_names(&self) -> Vec<&str> {
-        self.derived_quantity_names
-            .iter()
-            .map(|name| name.as_str())
-            .collect()
+    pub fn derived_quantity_names(&self) -> &[String] {
+        &self.derived_quantity_names
     }
 
-    fn variable_is_present_or_directly_derivable(
+    fn variable_is_present_or_directly_derivable<S: AsRef<str>>(
         &self,
-        variable_name: &str,
+        variable_name: S,
     ) -> (bool, Option<Vec<&str>>) {
+        let variable_name = variable_name.as_ref();
         let all_variable_names = self.all_variable_names();
-        if all_variable_names.contains(&variable_name) {
+        if all_variable_names.contains(&variable_name.to_string()) {
             (true, None)
         } else {
             if let Some((_, dependencies)) = DIRECTLY_DERIVABLE_QUANTITIES.get(variable_name) {
                 let missing_dependencies: Vec<_> = dependencies
                     .into_iter()
                     .filter_map(|name| {
-                        if !all_variable_names.contains(name) {
+                        if !all_variable_names.contains(&name.to_string()) {
                             Some(*name)
                         } else {
                             None
@@ -276,11 +276,11 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
                 mod_vec_component_names(base_name)
             {
                 let (directly_derivable_x, missing_dependencies_x) =
-                    self.variable_is_present_or_directly_derivable(x_comp_name.as_str());
+                    self.variable_is_present_or_directly_derivable(&x_comp_name);
                 let (directly_derivable_y, missing_dependencies_y) =
-                    self.variable_is_present_or_directly_derivable(y_comp_name.as_str());
+                    self.variable_is_present_or_directly_derivable(&y_comp_name);
                 let (directly_derivable_z, missing_dependencies_z) =
-                    self.variable_is_present_or_directly_derivable(z_comp_name.as_str());
+                    self.variable_is_present_or_directly_derivable(&z_comp_name);
                 if directly_derivable_x && directly_derivable_y && directly_derivable_z {
                     true
                 } else {
@@ -318,11 +318,11 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
             mod_vec_component_names(variable_name)
         {
             let (directly_derivable_x, missing_dependencies_x) =
-                self.variable_is_present_or_directly_derivable(x_comp_name.as_str());
+                self.variable_is_present_or_directly_derivable(&x_comp_name);
             let (directly_derivable_y, missing_dependencies_y) =
-                self.variable_is_present_or_directly_derivable(y_comp_name.as_str());
+                self.variable_is_present_or_directly_derivable(&y_comp_name);
             let (directly_derivable_z, missing_dependencies_z) =
-                self.variable_is_present_or_directly_derivable(z_comp_name.as_str());
+                self.variable_is_present_or_directly_derivable(&z_comp_name);
             if directly_derivable_x && directly_derivable_y && directly_derivable_z {
                 true
             } else {
@@ -364,9 +364,13 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> ScalarFieldProvider3<fdt, G>
         self.provider.arc_with_grid()
     }
 
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
         if self.provider.has_variable(variable_name) {
-            self.provider.provide_scalar_field(variable_name)
+            self.provider.produce_scalar_field(variable_name)
         } else {
             compute_quantity(self, variable_name, self.verbose)
         }
@@ -386,19 +390,20 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotProvider3<G>
         self.provider.endianness()
     }
 
-    fn primary_variable_names(&self) -> Vec<&str> {
+    fn primary_variable_names(&self) -> &[String] {
         self.provider.primary_variable_names()
     }
 
-    fn auxiliary_variable_names(&self) -> Vec<&str> {
-        self.auxiliary_variable_names
-            .iter()
-            .map(|s| s.as_str())
-            .collect()
+    fn auxiliary_variable_names(&self) -> &[String] {
+        &self.auxiliary_variable_names
     }
 
-    fn has_variable(&self, variable_name: &str) -> bool {
-        self.verify_variable_availability(variable_name, |_, _| {})
+    fn all_variable_names(&self) -> &[String] {
+        &self.all_variable_names
+    }
+
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.verify_variable_availability(variable_name.as_ref(), |_, _| {})
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -446,7 +451,7 @@ macro_rules! compute_quantity {
 
 /// Computes the derived quantity field with the given name.
 fn compute_quantity<G, P>(
-    provider: &P,
+    provider: &mut P,
     quantity_name: &str,
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
@@ -458,13 +463,15 @@ where
         println!("Computing {}", quantity_name);
     }
 
+    let grid = provider.arc_with_grid();
+
     if DIRECTLY_DERIVABLE_QUANTITIES.contains_key(quantity_name) {
         match quantity_name {
             "ux" => compute_quantity!(ux, |px, r| px / r, provider),
             "uy" => compute_quantity!(uy, |py, r| py / r, provider),
             "uz" => compute_quantity!(uz, |pz, r| pz / r, provider),
             "ubeam" => compute_quantity!(ubeam,
-                with indices |indices, qbeam| qbeam * provider.grid().grid_cell_volume(indices),
+                with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices),
                 provider
             ),
             _ => unreachable!(),
@@ -495,7 +502,7 @@ where
                 if let Some(&scale) = QUANTITY_CGS_SCALES.get(base_name) {
                     if scale == 1.0 {
                         provider
-                            .provide_scalar_field(base_name)
+                            .produce_scalar_field(base_name)
                             .map(|field| field.with_name(quantity_name.to_string()))
                     } else {
                         compute_quantity_unary(quantity_name, provider, base_name, |val| {
@@ -533,7 +540,7 @@ where
 
 fn compute_quantity_unary<G, P, C>(
     quantity_name: &str,
-    provider: &P,
+    provider: &mut P,
     dep_name: &str,
     compute: C,
 ) -> io::Result<ScalarField3<fdt, G>>
@@ -542,7 +549,7 @@ where
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(fdt) -> fdt + Sync,
 {
-    let field = provider.provide_scalar_field(dep_name)?;
+    let field = provider.produce_scalar_field(dep_name)?;
     let locations = field.locations().clone();
     let mut values = field.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
@@ -561,7 +568,7 @@ where
 
 fn compute_quantity_unary_with_indices<G, P, C>(
     quantity_name: &str,
-    provider: &P,
+    provider: &mut P,
     dep_name: &str,
     compute: C,
 ) -> io::Result<ScalarField3<fdt, G>>
@@ -570,10 +577,11 @@ where
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(&Idx3<usize>, fdt) -> fdt + Sync,
 {
+    let field = provider.produce_scalar_field(dep_name)?;
+
     let grid = provider.grid();
     let grid_shape = grid.shape();
 
-    let field = provider.provide_scalar_field(dep_name)?;
     let locations = field.locations().clone();
     let mut values = field.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
@@ -596,7 +604,7 @@ where
 
 fn compute_quantity_binary<G, P, C>(
     quantity_name: &str,
-    provider: &P,
+    provider: &mut P,
     dep_name_1: &str,
     dep_name_2: &str,
     compute: C,
@@ -606,8 +614,8 @@ where
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(fdt, fdt) -> fdt + Sync,
 {
-    let mut field_1 = provider.provide_scalar_field(dep_name_1)?;
-    let mut field_2 = provider.provide_scalar_field(dep_name_2)?;
+    let mut field_1 = provider.produce_scalar_field(dep_name_1)?;
+    let field_2 = provider.provide_scalar_field(dep_name_2)?;
 
     let center_locations = In3D::same(CoordLocation::Center);
     let mut locations = field_1.locations().clone();
@@ -624,6 +632,7 @@ where
                 );
             };
         };
+        let mut field_2 = field_2.as_ref().clone();
         resample_to_center(&mut field_1);
         resample_to_center(&mut field_2);
         locations = center_locations;
@@ -632,7 +641,7 @@ where
     let mut values_1 = field_1.into_values();
     let values_1_buffer = values_1.as_slice_memory_order_mut().unwrap();
 
-    let values_2 = field_2.into_values();
+    let values_2 = field_2.values();
     let values_2_buffer = values_2.as_slice_memory_order().unwrap();
 
     values_1_buffer
@@ -650,7 +659,7 @@ where
 
 fn compute_quantity_tertiary<G, P, C>(
     quantity_name: &str,
-    provider: &P,
+    provider: &mut P,
     dep_name_1: &str,
     dep_name_2: &str,
     dep_name_3: &str,
@@ -661,9 +670,9 @@ where
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(fdt, fdt, fdt) -> fdt + Sync,
 {
-    let mut field_1 = provider.provide_scalar_field(dep_name_1)?;
-    let mut field_2 = provider.provide_scalar_field(dep_name_2)?;
-    let mut field_3 = provider.provide_scalar_field(dep_name_3)?;
+    let mut field_1 = provider.produce_scalar_field(dep_name_1)?;
+    let field_2 = provider.provide_scalar_field(dep_name_2)?;
+    let field_3 = provider.provide_scalar_field(dep_name_3)?;
 
     let center_locations = In3D::same(CoordLocation::Center);
     let mut locations = field_1.locations().clone();
@@ -680,6 +689,8 @@ where
                 );
             };
         };
+        let mut field_2 = field_2.as_ref().clone();
+        let mut field_3 = field_3.as_ref().clone();
         resample_to_center(&mut field_1);
         resample_to_center(&mut field_2);
         resample_to_center(&mut field_3);
@@ -689,10 +700,10 @@ where
     let mut values_1 = field_1.into_values();
     let values_1_buffer = values_1.as_slice_memory_order_mut().unwrap();
 
-    let values_2 = field_2.into_values();
+    let values_2 = field_2.values();
     let values_2_buffer = values_2.as_slice_memory_order().unwrap();
 
-    let values_3 = field_3.into_values();
+    let values_3 = field_3.values();
     let values_3_buffer = values_3.as_slice_memory_order().unwrap();
 
     values_1_buffer

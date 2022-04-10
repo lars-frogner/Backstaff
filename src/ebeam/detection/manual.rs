@@ -2,13 +2,10 @@
 
 use super::ReconnectionSiteDetector;
 use crate::{
-    field::ScalarFieldProvider3,
+    field::{ScalarFieldCacher3, ScalarFieldProvider3},
     geometry::Idx3,
     grid::Grid3,
-    io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
-        Verbose,
-    },
+    io::{snapshot::fdt, Verbose},
     seeding::{manual::ManualSeeder3, Seeder3},
 };
 use std::io;
@@ -36,12 +33,12 @@ impl ReconnectionSiteDetector for ManualReconnectionSiteDetector {
 
     fn detect_reconnection_sites<G, P>(
         &self,
-        snapshot: &mut SnapshotCacher3<G, P>,
+        snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
         _verbose: Verbose,
     ) -> Self::Seeder
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         self.seeder.to_index_seeder(snapshot.grid())
     }

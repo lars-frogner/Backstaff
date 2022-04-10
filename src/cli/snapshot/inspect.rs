@@ -78,11 +78,6 @@ where
     }
 
     if let Some(statistics_arguments) = arguments.subcommand_matches("statistics") {
-        run_statistics_subcommand(
-            statistics_arguments,
-            &provider,
-            |name| provider.provide_scalar_field(name),
-            quantity_names,
-        );
+        run_statistics_subcommand(statistics_arguments, provider, quantity_names);
     }
 }

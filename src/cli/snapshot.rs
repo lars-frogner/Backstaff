@@ -20,6 +20,7 @@ use crate::{
     add_subcommand_combinations,
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
+    field::ScalarFieldCacher3,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     io::{
         snapshot::{
@@ -107,6 +108,17 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
                 .default_value("little"),
         )
         .arg(
+            Arg::new("max-memory-usage")
+                .short('m')
+                .long("max-memory-usage")
+                .require_equals(true)
+                .allow_hyphen_values(false)
+                .value_name("PERCENTAGE")
+                .help("Avoid exceeding this percentage of total memory when caching")
+                .takes_value(true)
+                .default_value("80"),
+        )
+        .arg(
             Arg::new("verbose")
                 .short('v')
                 .long("verbose")
@@ -114,8 +126,7 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
         );
 
     #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, false; derive, synthesize);
-    // let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (inspect, slice, extract, resample, write));
+    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (inspect, slice, extract, resample, write));
     #[cfg(not(feature = "synthesis"))]
     let command = add_subcommand_combinations!(command, command_name, true; derive, (inspect, slice, extract, resample, write));
 
@@ -132,7 +143,7 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
 }
 
 macro_rules! create_native_reader_and_run {
-    ($config:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
+    ($config:expr, $max_memory_usage:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
         let parameters = exit_on_error!(
             NativeSnapshotParameters::new($config.param_file_path(), $config.verbose()),
             "Error: Could not read parameter file: {}"
@@ -170,7 +181,7 @@ macro_rules! create_native_reader_and_run {
                     ),
                     "Error: Could not create snapshot reader: {}"
                 );
-                $run_macro!(reader, $snap_num_in_range)
+                $run_macro!(reader, $max_memory_usage, $snap_num_in_range)
             }
             GridType::HorRegular => {
                 let grid = HorRegularGrid3::from_coords(
@@ -186,7 +197,7 @@ macro_rules! create_native_reader_and_run {
                     ),
                     "Error: Could not create snapshot reader: {}"
                 );
-                $run_macro!(reader, $snap_num_in_range)
+                $run_macro!(reader, $max_memory_usage, $snap_num_in_range)
             }
         }
     }};
@@ -194,7 +205,7 @@ macro_rules! create_native_reader_and_run {
 
 #[cfg(feature = "netcdf")]
 macro_rules! create_netcdf_reader_and_run {
-    ($config:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
+    ($config:expr, $max_memory_usage:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
         let file = exit_on_error!(
             netcdf::open_file($config.file_path()),
             "Error: Could not open NetCDF file: {}"
@@ -231,6 +242,7 @@ macro_rules! create_netcdf_reader_and_run {
                     NetCDFSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
                         $config, file, parameters, grid, endianness,
                     ),
+                    $max_memory_usage,
                     $snap_num_in_range
                 )
             }
@@ -246,6 +258,7 @@ macro_rules! create_netcdf_reader_and_run {
                     NetCDFSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
                         $config, file, parameters, grid, endianness,
                     ),
+                    $max_memory_usage,
                     $snap_num_in_range
                 )
             }
@@ -256,14 +269,20 @@ macro_rules! create_netcdf_reader_and_run {
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
     macro_rules! run_subcommands_for_reader {
-        ($reader:expr, $snap_num_in_range:expr) => {
+        ($reader:expr, $max_memory_usage:expr, $snap_num_in_range:expr) => {{
+            let provider = ScalarFieldCacher3::new(
+                $reader,
+                $max_memory_usage,
+                arguments.is_present("verbose").into(),
+            );
             run_snapshot_subcommand_with_derive(
                 arguments,
-                $reader,
+                provider,
+                $max_memory_usage,
                 $snap_num_in_range,
                 protected_file_types,
             )
-        };
+        }};
     }
 
     let input_file_path = exit_on_error!(
@@ -329,6 +348,19 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
         invalid => exit_with_error!("Error: Invalid endianness {}", invalid),
     };
 
+    let max_memory_usage = match arguments
+        .value_of("max-memory-usage")
+        .expect("No value for argument with default")
+    {
+        value_str => exit_on_error!(
+            value_str.parse::<f32>(),
+            "Error: Could not parse value of max-memory-usage: {}"
+        ),
+    };
+    if max_memory_usage < 0.0 {
+        exit_with_error!("Error: max-memory-usage can not be negative");
+    }
+
     let verbose = arguments.is_present("verbose").into();
 
     match input_type {
@@ -337,6 +369,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                 let reader_config = NativeSnapshotReaderConfig::new(file_path, endianness, verbose);
                 create_native_reader_and_run!(
                     reader_config,
+                    max_memory_usage,
                     &snap_num_in_range,
                     run_subcommands_for_reader
                 );
@@ -348,6 +381,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
                 let reader_config = NetCDFSnapshotReaderConfig::new(file_path, verbose);
                 create_netcdf_reader_and_run!(
                     reader_config,
+                    max_memory_usage,
                     &snap_num_in_range,
                     run_subcommands_for_reader
                 );
@@ -359,6 +393,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
 fn run_snapshot_subcommand_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
+    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -370,6 +405,7 @@ fn run_snapshot_subcommand_with_derive<G, P>(
         run_snapshot_subcommand_with_synthesis(
             derive_arguments,
             provider,
+            max_memory_usage,
             snap_num_in_range,
             protected_file_types,
         );
@@ -377,6 +413,7 @@ fn run_snapshot_subcommand_with_derive<G, P>(
         run_snapshot_subcommand_with_synthesis(
             arguments,
             provider,
+            max_memory_usage,
             snap_num_in_range,
             protected_file_types,
         );
@@ -386,6 +423,7 @@ fn run_snapshot_subcommand_with_derive<G, P>(
 fn run_snapshot_subcommand_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
+    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -395,31 +433,34 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
         let provider = synthesize::create_synthesize_provider(synthesize_arguments, provider);
-        // run_snapshot_subcommand_for_provider(
-        //     synthesize_arguments,
-        //     provider,
-        //     snap_num_in_range,
-        //     protected_file_types,
-        // );
-        // return;
+        run_snapshot_subcommand_for_provider(
+            synthesize_arguments,
+            provider,
+            max_memory_usage,
+            snap_num_in_range,
+            protected_file_types,
+        );
+        return;
     }
 
-    // run_snapshot_subcommand_for_provider(
-    //     arguments,
-    //     provider,
-    //     snap_num_in_range,
-    //     protected_file_types,
-    // );
+    run_snapshot_subcommand_for_provider(
+        arguments,
+        provider,
+        max_memory_usage,
+        snap_num_in_range,
+        protected_file_types,
+    );
 }
 
 fn run_snapshot_subcommand_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
+    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3<G>,
 {
     if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
         inspect::run_inspect_subcommand(inspect_arguments, provider);
@@ -475,6 +516,7 @@ fn run_snapshot_subcommand_for_provider<G, P>(
                 corks::run_corks_subcommand(
                     _corks_arguments,
                     provider,
+                    max_memory_usage,
                     snap_num_in_range,
                     protected_file_types,
                     &mut corks_state,
@@ -485,6 +527,7 @@ fn run_snapshot_subcommand_for_provider<G, P>(
             crate::cli::tracing::run_trace_subcommand(
                 _trace_arguments,
                 provider,
+                max_memory_usage,
                 snap_num_in_range,
                 protected_file_types,
             );
@@ -493,6 +536,7 @@ fn run_snapshot_subcommand_for_provider<G, P>(
             crate::cli::ebeam::run_ebeam_subcommand(
                 _ebeam_arguments,
                 provider,
+                max_memory_usage,
                 snap_num_in_range,
                 protected_file_types,
             );
@@ -621,43 +665,45 @@ impl fmt::Display for InputType {
     }
 }
 
-fn parse_included_quantity_list<'a, G, P>(
-    arguments: &'a ArgMatches,
-    provider: &'a P,
+fn parse_included_quantity_list<G, P>(
+    arguments: &ArgMatches,
+    provider: &P,
     continue_on_warnings: bool,
-) -> Vec<&'a str>
+) -> Vec<String>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
     if arguments.is_present("all-quantities") {
-        provider.all_variable_names()
+        provider.all_variable_names().to_vec()
     } else if let Some(included_quantities) = arguments
         .values_of("included-quantities")
         .map(|values| values.collect::<Vec<_>>())
     {
         included_quantities
             .into_iter()
-            .filter(|name| {
+            .filter_map(|name| {
                 if name.is_empty() {
-                    false
+                    None
                 } else {
                     let has_variable = provider.has_variable(name);
-                    if !has_variable {
+                    if has_variable {
+                        Some(name.to_string())
+                    } else {
                         eprintln!("Warning: Quantity {} not present in snapshot", name);
                         if !continue_on_warnings
                             && !io_utils::user_says_yes("Still continue?", true)
                         {
                             process::exit(1);
                         }
+                        None
                     }
-                    has_variable
                 }
             })
             .collect()
     } else if let Some(excluded_quantities) = arguments
         .values_of("excluded-quantities")
-        .map(|values| values.collect::<Vec<_>>())
+        .map(|values| values.into_iter().map(String::from).collect::<Vec<_>>())
     {
         let excluded_quantities: Vec<_> = excluded_quantities
             .into_iter()

@@ -5,13 +5,14 @@ use super::{
     FieldLinePath3, FieldLineSetProperties3, FieldLineTracer3,
 };
 use crate::{
+    field::{ScalarFieldCacher3, ScalarFieldProvider3},
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
+    io::snapshot::fdt,
     tracing::{self, ftr, TracerResult},
 };
 use rayon::prelude::*;
@@ -68,14 +69,14 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
     fn trace<G, P, I, S>(
         &self,
         field_name: &str,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         interpolator: &I,
         stepper: S,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         S: Stepper3,
     {
@@ -341,10 +342,7 @@ mod tests {
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
-    use crate::io::snapshot::{
-        native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
-        SnapshotCacher3,
-    };
+    use crate::io::snapshot::native::{NativeSnapshotReader3, NativeSnapshotReaderConfig};
     use crate::io::{Endianness, Verbose};
     use crate::seeding::slice::SliceSeeder3;
     use crate::tracing::field_line::FieldLineSet3;
@@ -360,7 +358,7 @@ mod tests {
                 Verbose::No,
             ))
             .unwrap();
-        let mut snapshot = SnapshotCacher3::new(reader);
+        let mut snapshot = ScalarFieldCacher3::new(reader, 100.0, Verbose::No);
 
         let field_name = "b";
         snapshot.cache_vector_field(field_name).unwrap();

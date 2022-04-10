@@ -2321,7 +2321,7 @@ mod tests {
 
     #[test]
     fn interpolation_at_original_data_points_works() {
-        let provider =
+        let mut provider =
             NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
                 "data/cb24ni_ebeam_offline/cb24ni_ebeam_offline_462.idl",
                 Endianness::Little,

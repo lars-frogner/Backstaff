@@ -94,7 +94,7 @@ pub fn construct_basic_field_line_tracer_config_from_options(
     );
     let max_length = match arguments
         .value_of("max-length")
-        .expect("No value for argument with defaultt")
+        .expect("No value for argument with default")
     {
         "inf" => None,
         length_str => Some(exit_on_error!(

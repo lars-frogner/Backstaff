@@ -34,6 +34,7 @@ num = "*"
 rayon = "*"
 rand = "*"
 regex = "*"
+sysinfo = "*"
 tempfile = "*"
 
 # Dependencies for cli

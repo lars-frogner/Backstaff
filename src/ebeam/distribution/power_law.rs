@@ -8,14 +8,14 @@ use super::{
 };
 use crate::{
     constants::{KEV_TO_ERG, M_H, PI, Q_ELECTRON},
-    field::ScalarFieldProvider3,
+    field::{ScalarFieldCacher3, ScalarFieldProvider3},
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, Point3, Vec3,
     },
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotProvider3},
+    io::snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
     math,
     plasma::ionization,
     tracing::{ftr, stepping::SteppingSense},
@@ -424,7 +424,7 @@ impl Distribution for PowerLawDistribution {
 
     fn propagate<G, P, I>(
         &mut self,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         acceleration_map: &Array3<bool>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
@@ -432,7 +432,7 @@ impl Distribution for PowerLawDistribution {
     ) -> PropagationResult
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
     {
         let mut deposition_position = new_position - displacement * 0.5;

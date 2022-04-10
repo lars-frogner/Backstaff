@@ -14,11 +14,10 @@ use self::{
 use crate::{
     cli::utils,
     exit_on_false, exit_with_error,
-    field::ScalarFieldProvider3,
     geometry::{Dim2, Dim3, Point2},
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
+    io::snapshot::{fdt, SnapshotProvider3},
     seeding::{fsd, slice::SliceSeeder3},
 };
 use clap::{Arg, ArgMatches, Command};
@@ -97,7 +96,7 @@ pub fn create_slice_seeder_subcommand(parent_command_name: &'static str) -> Comm
 /// Creates a slice seeder based on the provided arguments.
 pub fn create_slice_seeder_from_arguments<G, P, I>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: &mut P,
     interpolator: &I,
 ) -> SliceSeeder3
 where
@@ -145,28 +144,28 @@ where
         create_regular_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            snapshot.grid(),
+            provider.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("random") {
         create_random_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            snapshot.grid(),
+            provider.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("stratified") {
         create_stratified_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            snapshot.grid(),
+            provider.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("value_pdf") {
         create_slice_pdf_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            snapshot,
+            provider,
             interpolator,
             &satisifes_constraints,
         )

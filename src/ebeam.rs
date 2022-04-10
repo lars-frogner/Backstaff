@@ -10,17 +10,14 @@ use self::{
     distribution::{DepletionStatus, Distribution, PropagationResult},
 };
 use crate::{
-    field::{ScalarField3, ScalarFieldProvider3, VectorField3},
+    field::{ScalarField3, ScalarFieldCacher3, ScalarFieldProvider3, VectorField3},
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
     grid::Grid3,
     interpolation::Interpolator3,
-    io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
-        utils, Verbose,
-    },
+    io::{snapshot::fdt, utils, Verbose},
     num::BFloat,
     tracing::{
         self,
@@ -329,12 +326,13 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Type parameters
     ///
     /// - `G`: Type of grid.
+    /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<G, P, D, I, StF>(snapshot: &mut SnapshotCacher3<G, P>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_unpropagated<G, P, D, I, StF>(snapshot: &mut ScalarFieldCacher3<fdt, G, P>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
-          P: SnapshotProvider3<G> + Sync,
+          P: ScalarFieldProvider3<fdt, G>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
@@ -382,12 +380,13 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Type parameters
     ///
     /// - `G`: Type of grid.
+    /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<G, P, D, I, StF>(snapshot: &mut SnapshotCacher3<G, P>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_propagated<G, P, D, I, StF>(snapshot: &mut ScalarFieldCacher3<fdt, G, P>, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
     where G: Grid3<fdt>,
-          P: SnapshotProvider3<G> + Sync,
+          P: ScalarFieldProvider3<fdt, G>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
@@ -738,14 +737,14 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
 impl<D: Distribution> PropagatedElectronBeam<D> {
     fn generate<G, P, I, S>(
         mut distribution: D,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         acceleration_map: &Array3<bool>,
         interpolator: &I,
         stepper: S,
     ) -> Option<Self>
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         S: Stepper3,
     {
