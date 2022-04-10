@@ -180,29 +180,35 @@ where
     }
 
     /// Whether the scalar field representing the given variable is cached.
-    pub fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
-        self.scalar_fields.contains_key(variable_name)
+    pub fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.scalar_fields.contains_key(variable_name.as_ref())
     }
 
     /// Whether the vector field representing the given variable is cached.
-    pub fn vector_field_is_cached(&self, variable_name: &str) -> bool {
-        self.vector_fields.contains_key(variable_name)
+    pub fn vector_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.vector_fields.contains_key(variable_name.as_ref())
     }
 
     /// Removes the scalar field representing the given variable from the cache.
-    pub fn drop_scalar_field(&mut self, variable_name: &str) {
-        if self.verbose.is_yes() {
-            println!("Dropping {} from cache", variable_name);
+    pub fn drop_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) {
+        let variable_name = variable_name.as_ref();
+        if self.scalar_fields.contains_key(variable_name) {
+            if self.verbose.is_yes() {
+                println!("Dropping {} from cache", variable_name);
+            }
+            self.scalar_fields.remove(variable_name);
         }
-        self.scalar_fields.remove(variable_name);
     }
 
     /// Removes the vector field representing the given variable from the cache.
-    pub fn drop_vector_field(&mut self, variable_name: &str) {
-        if self.verbose.is_yes() {
-            println!("Dropping {} from cache", variable_name);
+    pub fn drop_vector_field<S: AsRef<str>>(&mut self, variable_name: S) {
+        let variable_name = variable_name.as_ref();
+        if self.vector_fields.contains_key(variable_name) {
+            if self.verbose.is_yes() {
+                println!("Dropping {} from cache", variable_name);
+            }
+            self.vector_fields.remove(variable_name);
         }
-        self.vector_fields.remove(variable_name);
     }
 
     /// Removes all cached scalar and vector fields.
