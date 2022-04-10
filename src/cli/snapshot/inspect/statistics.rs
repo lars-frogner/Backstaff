@@ -30,7 +30,7 @@ use ndarray_stats::{interpolate::Linear, QuantileExt};
 use noisy_float::types::n64;
 use pad::{Alignment, PadStr};
 use rayon::prelude::*;
-use std::{fmt::Display, io};
+use std::fmt::Display;
 
 const TABLE_WIDTH: usize = 80;
 const NAME_WIDTH: usize = 20;
@@ -139,15 +139,13 @@ pub fn create_statistics_subcommand(parent_command_name: &'static str) -> Comman
 }
 
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
-pub fn run_statistics_subcommand<'a, G, P, FP>(
-    arguments: &'a ArgMatches,
-    provider: &P,
-    field_producer: FP,
-    quantity_names: Vec<&'a str>,
+pub fn run_statistics_subcommand<G, P>(
+    arguments: &ArgMatches,
+    mut provider: P,
+    quantity_names: Vec<String>,
 ) where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
-    FP: Fn(&str) -> io::Result<ScalarField3<fdt, G>>,
 {
     let value_range = utils::parse_limits(arguments, "value-range");
     let x_range = utils::parse_limits(arguments, "x-range");
@@ -181,15 +179,15 @@ pub fn run_statistics_subcommand<'a, G, P, FP>(
     };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
-    for name in quantity_names {
+    for name in &quantity_names {
+        let field = exit_on_error!(
+            provider.produce_scalar_field(name),
+            "Error: Could not obtain quantity {0}: {1}",
+            name
+        );
         print_statistics_report(
-            provider,
-            name,
-            exit_on_error!(
-                field_producer(name),
-                "Error: Could not obtain quantity {0}: {1}",
-                name
-            ),
+            field,
+            provider.obtain_snap_name_and_num(),
             value_range,
             x_range,
             y_range,
@@ -262,10 +260,9 @@ where
     }
 }
 
-fn print_statistics_report<G, P, I>(
-    provider: &P,
-    quantity_name: &str,
+fn print_statistics_report<G, I>(
     field: ScalarField3<fdt, G>,
+    snap_name_and_num: (String, Option<u32>),
     value_range: (fdt, fdt),
     x_range: (fdt, fdt),
     y_range: (fdt, fdt),
@@ -276,18 +273,19 @@ fn print_statistics_report<G, P, I>(
     interpolator: &I,
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
+    let quantity_name = field.name().to_string();
     let locations = field.locations().clone();
+    let grid = field.arc_with_grid();
     let mut values = field.into_values();
 
     print_whole_line('=');
     print_padded_headline(
         &format!(
             "Statistics for {} from {}",
-            quantity_name,
-            match provider.obtain_snap_name_and_num() {
+            &quantity_name,
+            match snap_name_and_num {
                 (snap_name, Some(snap_num)) => format!("snapshot {} of {}", snap_num, snap_name),
                 (snap_name, None) => snap_name,
             }
@@ -298,7 +296,7 @@ fn print_statistics_report<G, P, I>(
     print_padded_headline(
         &format!(
             "For {}, {}, {}, {}",
-            format_range(quantity_name, &value_range, VALUE_WIDTH, |v| {
+            format_range(&quantity_name, &value_range, VALUE_WIDTH, |v| {
                 PrettyPrintFloat(v as f64)
             }),
             format_range("x", &x_range, COORD_PRECISION, |c| c),
@@ -314,7 +312,6 @@ fn print_statistics_report<G, P, I>(
         eprintln!("Warning: NaN values detected (will be ignored in statistics)");
     }
 
-    let grid = provider.arc_with_grid();
     // Create local scope to ensure borrowed variables are dropped before move
     {
         let grid_shape = grid.shape();
@@ -347,7 +344,7 @@ fn print_statistics_report<G, P, I>(
             });
     }
 
-    let filtered_field = ScalarField3::new(quantity_name.to_string(), grid, locations, values);
+    let filtered_field = ScalarField3::new(quantity_name, grid, locations, values);
     let coords = filtered_field.coords();
 
     if !no_global {

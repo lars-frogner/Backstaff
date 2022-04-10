@@ -8,21 +8,15 @@ pub mod netcdf;
 use super::{Endianness, Verbose};
 use crate::{
     field::{
-        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldProvider3, VectorField3,
+        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldCacher3,
+        ScalarFieldProvider3,
     },
     geometry::{Idx3, In3D},
     grid::Grid3,
     interpolation::Interpolator3,
 };
 use regex::Regex;
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    io,
-    marker::PhantomData,
-    path::Path,
-    str,
-    sync::Arc,
-};
+use std::{collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
 
 /// Floating-point precision assumed for Bifrost data.
 #[allow(non_camel_case_types)]
@@ -86,21 +80,17 @@ pub trait SnapshotProvider3<G: Grid3<fdt>>: ScalarFieldProvider3<fdt, G> {
     fn endianness(&self) -> Endianness;
 
     /// Returns the names of the primary variables of the snapshot.
-    fn primary_variable_names(&self) -> Vec<&str>;
+    fn primary_variable_names(&self) -> &[String];
 
     /// Returns the names of the auxiliary variables of the snapshot.
-    fn auxiliary_variable_names(&self) -> Vec<&str>;
+    fn auxiliary_variable_names(&self) -> &[String];
 
     /// Returns the names of all the variables that can be provided.
-    fn all_variable_names(&self) -> Vec<&str> {
-        let mut all_variable_names = self.primary_variable_names();
-        all_variable_names.append(&mut self.auxiliary_variable_names());
-        all_variable_names
-    }
+    fn all_variable_names(&self) -> &[String];
 
     /// Returns the names of all the variables that can be provided, except the ones
     /// in the given list.
-    fn all_variable_names_except(&self, excluded_variable_names: &[&str]) -> Vec<&str> {
+    fn all_variable_names_except(&self, excluded_variable_names: &[String]) -> Vec<String> {
         self.all_variable_names()
             .iter()
             .cloned()
@@ -110,22 +100,19 @@ pub trait SnapshotProvider3<G: Grid3<fdt>>: ScalarFieldProvider3<fdt, G> {
 
     /// Given a list of variable names, returns a list of the ones that are primary
     /// and a list of the ones that are auxiliary.
-    fn classify_variable_names<'a>(
-        &'a self,
-        variable_names: &[&'a str],
-    ) -> (Vec<&'a str>, Vec<&'a str>) {
+    fn classify_variable_names(&self, variable_names: &[String]) -> (Vec<String>, Vec<String>) {
         let all_primary_variable_names = self.primary_variable_names();
 
         let included_primary_variable_names = all_primary_variable_names
             .iter()
             .cloned()
-            .filter(|name| variable_names.contains(name))
+            .filter(|name| variable_names.contains(&name))
             .collect::<Vec<_>>();
 
         let included_auxiliary_variable_names = variable_names
             .iter()
             .cloned()
-            .filter(|name| !included_primary_variable_names.contains(name))
+            .filter(|name| !included_primary_variable_names.contains(&name))
             .collect::<Vec<_>>();
 
         (
@@ -135,25 +122,13 @@ pub trait SnapshotProvider3<G: Grid3<fdt>>: ScalarFieldProvider3<fdt, G> {
     }
 
     /// Returns whether the given variable can be provided.
-    fn has_variable(&self, variable_name: &str) -> bool {
-        self.all_variable_names().contains(&variable_name)
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.all_variable_names()
+            .contains(&variable_name.as_ref().to_string())
     }
 
     /// Returns the name and (if available) number of the snapshot.
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
-
-    /// Provides the specified 3D vector variable.
-    fn provide_vector_field(&self, variable_name: &str) -> io::Result<VectorField3<fdt, G>> {
-        Ok(VectorField3::new(
-            variable_name.to_string(),
-            self.arc_with_grid(),
-            In3D::new(
-                self.provide_scalar_field(&format!("{}x", variable_name))?,
-                self.provide_scalar_field(&format!("{}y", variable_name))?,
-                self.provide_scalar_field(&format!("{}z", variable_name))?,
-            ),
-        ))
-    }
 }
 
 /// Parameters associated with a snapshot.
@@ -314,7 +289,11 @@ where
         Arc::clone(&self.new_grid)
     }
 
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
         if self.verbose.is_yes() {
             println!("Resampling {}", variable_name);
         }
@@ -345,12 +324,16 @@ where
         self.provider.endianness()
     }
 
-    fn primary_variable_names(&self) -> Vec<&str> {
+    fn primary_variable_names(&self) -> &[String] {
         self.provider.primary_variable_names()
     }
 
-    fn auxiliary_variable_names(&self) -> Vec<&str> {
+    fn auxiliary_variable_names(&self) -> &[String] {
         self.provider.auxiliary_variable_names()
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        self.provider.all_variable_names()
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -401,7 +384,11 @@ where
         Arc::clone(&self.new_grid)
     }
 
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
         if self.verbose.is_yes() {
             println!("Extracting {}", variable_name);
         }
@@ -425,12 +412,16 @@ where
         self.provider.endianness()
     }
 
-    fn primary_variable_names(&self) -> Vec<&str> {
+    fn primary_variable_names(&self) -> &[String] {
         self.provider.primary_variable_names()
     }
 
-    fn auxiliary_variable_names(&self) -> Vec<&str> {
+    fn auxiliary_variable_names(&self) -> &[String] {
         self.provider.auxiliary_variable_names()
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        self.provider.all_variable_names()
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -438,142 +429,7 @@ where
     }
 }
 
-/// Wrapper for `SnapshotProvider3` that reads or computes snapshot variables only on first request and
-/// then caches the results.
-#[derive(Clone, Debug)]
-pub struct SnapshotCacher3<G: Grid3<fdt>, P> {
-    provider: P,
-    scalar_fields: HashMap<String, ScalarField3<fdt, G>>,
-    vector_fields: HashMap<String, VectorField3<fdt, G>>,
-}
-
-impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotCacher3<G, P> {
-    /// Creates a new snapshot cacher from the given provider.
-    pub fn new(provider: P) -> Self {
-        SnapshotCacher3 {
-            provider,
-            scalar_fields: HashMap::new(),
-            vector_fields: HashMap::new(),
-        }
-    }
-
-    /// Returns a reference to the provider.
-    pub fn provider(&self) -> &P {
-        &self.provider
-    }
-
-    /// Returns a mutable reference to the provider.
-    pub fn provider_mut(&mut self) -> &mut P {
-        &mut self.provider
-    }
-
-    /// Consumes the `SnapshotCacher3` and returns the owned provider.
-    pub fn into_provider(self) -> P {
-        self.provider
-    }
-
-    /// Returns a `Result` with a reference to the scalar field representing the given variable,
-    /// reading it from file or computing it and caching it if has not already been cached.
-    pub fn obtain_scalar_field(
-        &mut self,
-        variable_name: &str,
-    ) -> io::Result<&ScalarField3<fdt, G>> {
-        Ok(match self.scalar_fields.entry(variable_name.to_string()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
-                entry.insert(self.provider.provide_scalar_field(variable_name)?)
-            }
-        })
-    }
-
-    /// Returns a `Result` with a reference to the vector field representing the given variable,
-    /// reading it from file or computing it and caching it if has not already been cached.
-    pub fn obtain_vector_field(
-        &mut self,
-        variable_name: &str,
-    ) -> io::Result<&VectorField3<fdt, G>> {
-        Ok(match self.vector_fields.entry(variable_name.to_string()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => {
-                entry.insert(self.provider.provide_vector_field(variable_name)?)
-            }
-        })
-    }
-
-    /// Makes sure the scalar field representing the given variable is cached.
-    pub fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
-        self.obtain_scalar_field(variable_name).map(|_| ())
-    }
-
-    /// Makes sure the scalar field representing the given variable is cached.
-    pub fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
-        self.obtain_vector_field(variable_name).map(|_| ())
-    }
-
-    /// Returns a reference to the scalar field representing the given variable.
-    ///
-    /// Panics if the field is not cached.
-    pub fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<fdt, G> {
-        self.scalar_fields
-            .get(variable_name)
-            .expect("Scalar field is not cached")
-    }
-
-    /// Returns a reference to the vector field representing the given variable.
-    ///
-    /// Panics if the field is not cached.
-    pub fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<fdt, G> {
-        self.vector_fields
-            .get(variable_name)
-            .expect("Vector field is not cached")
-    }
-
-    /// Whether the scalar field representing the given variable is cached.
-    pub fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
-        self.scalar_fields.contains_key(variable_name)
-    }
-
-    /// Whether the vector field representing the given variable is cached.
-    pub fn vector_field_is_cached(&self, variable_name: &str) -> bool {
-        self.vector_fields.contains_key(variable_name)
-    }
-
-    /// Removes the scalar field representing the given variable from the cache.
-    pub fn drop_scalar_field(&mut self, variable_name: &str) {
-        self.scalar_fields.remove(variable_name);
-    }
-
-    /// Removes the vector field representing the given variable from the cache.
-    pub fn drop_vector_field(&mut self, variable_name: &str) {
-        self.vector_fields.remove(variable_name);
-    }
-
-    /// Removes all cached scalar and vector fields.
-    pub fn drop_all_fields(&mut self) {
-        self.scalar_fields.clear();
-        self.vector_fields.clear();
-    }
-}
-
-impl<G, P> ScalarFieldProvider3<fdt, G> for SnapshotCacher3<G, P>
-where
-    G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
-{
-    fn grid(&self) -> &G {
-        self.provider.grid()
-    }
-
-    fn arc_with_grid(&self) -> Arc<G> {
-        self.provider.arc_with_grid()
-    }
-
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
-        self.provider.provide_scalar_field(variable_name)
-    }
-}
-
-impl<G, P> SnapshotProvider3<G> for SnapshotCacher3<G, P>
+impl<G, P> SnapshotProvider3<G> for ScalarFieldCacher3<fdt, G, P>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
@@ -581,23 +437,27 @@ where
     type Parameters = P::Parameters;
 
     fn parameters(&self) -> &Self::Parameters {
-        self.provider.parameters()
+        self.provider().parameters()
     }
 
     fn endianness(&self) -> Endianness {
-        self.provider.endianness()
+        self.provider().endianness()
     }
 
-    fn primary_variable_names(&self) -> Vec<&str> {
-        self.provider.primary_variable_names()
+    fn primary_variable_names(&self) -> &[String] {
+        self.provider().primary_variable_names()
     }
 
-    fn auxiliary_variable_names(&self) -> Vec<&str> {
-        self.provider.auxiliary_variable_names()
+    fn auxiliary_variable_names(&self) -> &[String] {
+        self.provider().auxiliary_variable_names()
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        self.provider().all_variable_names()
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
-        self.provider.obtain_snap_name_and_num()
+        self.provider().obtain_snap_name_and_num()
     }
 }
 

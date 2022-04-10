@@ -51,13 +51,14 @@ use crate::{
         BeamPropertiesCollection, ElectronBeamSwarm,
     },
     exit_on_error, exit_with_error,
+    field::ScalarFieldCacher3,
     grid::Grid3,
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotCacher3, SnapshotProvider3},
+        snapshot::{self, fdt, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     tracing::stepping::rkf::{
@@ -214,13 +215,15 @@ pub fn create_simulate_subcommand(parent_command_name: &'static str) -> Command<
 pub fn run_simulate_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
+    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3<G>,
 {
-    let snapshot = SnapshotCacher3::new(provider);
+    let verbose = arguments.is_present("verbose").into();
+    let snapshot = ScalarFieldCacher3::new(provider, max_memory_usage, verbose);
     run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
@@ -328,12 +331,12 @@ impl fmt::Display for OutputType {
 
 fn run_with_selected_detector<G, P>(
     arguments: &ArgMatches,
-    snapshot: SnapshotCacher3<G, P>,
+    snapshot: ScalarFieldCacher3<fdt, G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3<G>,
 {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
         let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
@@ -382,13 +385,13 @@ fn run_with_selected_detector<G, P>(
 fn run_with_selected_accelerator<G, P, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: SnapshotCacher3<G, P>,
+    snapshot: ScalarFieldCacher3<fdt, G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3<G>,
     D: ReconnectionSiteDetector,
 {
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
@@ -455,13 +458,13 @@ fn run_with_selected_accelerator<G, P, D>(
 fn run_with_selected_interpolator<G, P, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: SnapshotCacher3<G, P>,
+    snapshot: ScalarFieldCacher3<fdt, G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     protected_file_types: &[&str])
 where G: Grid3<fdt>,
-      P: SnapshotProvider3<G> + Sync,
+      P: SnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -499,14 +502,14 @@ where G: Grid3<fdt>,
 fn run_with_selected_stepper_factory<G, P, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    mut snapshot: SnapshotCacher3<G, P>,
+    mut snapshot: ScalarFieldCacher3<fdt, G, P>,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     interpolator: I,
     protected_file_types: &[&str])
 where G: Grid3<fdt>,
-      P: SnapshotProvider3<G> + Sync,
+      P: SnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,
@@ -638,7 +641,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
     output_type: OutputType,
     atomic_output_path: AtomicOutputPath,
     extra_atomic_output_path: Option<AtomicOutputPath>,
-    provider: P,
+    mut provider: P,
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
 ) where
@@ -654,7 +657,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
         for name in extra_fixed_scalars {
             beams.extract_fixed_scalars(
                 exit_on_error!(
-                    &provider.provide_scalar_field(name),
+                    provider.provide_scalar_field(name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     name
                 ),
@@ -669,7 +672,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
         for name in extra_fixed_vectors {
             beams.extract_fixed_vectors(
                 exit_on_error!(
-                    &provider.provide_vector_field(name),
+                    provider.provide_vector_field(name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     name
                 ),
@@ -684,7 +687,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
         for name in extra_varying_scalars {
             beams.extract_varying_scalars(
                 exit_on_error!(
-                    &provider.provide_scalar_field(name),
+                    provider.provide_scalar_field(name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     name
                 ),
@@ -699,7 +702,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
         for name in extra_varying_vectors {
             beams.extract_varying_vectors(
                 exit_on_error!(
-                    &provider.provide_vector_field(name),
+                    provider.provide_vector_field(name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     name
                 ),

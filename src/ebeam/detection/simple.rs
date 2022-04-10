@@ -3,10 +3,11 @@
 use super::ReconnectionSiteDetector;
 use crate::{
     exit_on_error,
+    field::{ScalarFieldCacher3, ScalarFieldProvider3},
     geometry::Dim3,
     grid::Grid3,
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotProvider3},
+        snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
         Verbose,
     },
     seeding::{criterion::CriterionSeeder3, IndexSeeder3},
@@ -43,27 +44,25 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
 
     fn detect_reconnection_sites<G, P>(
         &self,
-        snapshot: &mut SnapshotCacher3<G, P>,
+        provider: &mut ScalarFieldCacher3<fdt, G, P>,
         verbose: Verbose,
     ) -> Self::Seeder
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         let reconnection_factor_field = exit_on_error!(
-            snapshot.obtain_scalar_field("krec"),
+            provider.provide_scalar_field("krec"),
             "Error: Could not read reconnection factor field from snapshot: {}"
         );
         let seeder = CriterionSeeder3::on_scalar_field_values(
-            reconnection_factor_field,
+            reconnection_factor_field.as_ref(),
             &|reconnection_factor| reconnection_factor >= self.config.reconnection_factor_threshold,
             &|point| {
                 point[Dim3::Z] >= self.config.min_detection_depth
                     && point[Dim3::Z] <= self.config.max_detection_depth
             },
         );
-
-        snapshot.drop_scalar_field("krec");
 
         if verbose.is_yes() {
             println!("Found {} acceleration sites", seeder.number_of_indices());

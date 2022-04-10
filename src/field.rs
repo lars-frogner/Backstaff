@@ -10,12 +10,19 @@ use crate::{
     },
     grid::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3},
     interpolation::Interpolator3,
+    io::Verbose,
     num::{BFloat, OrderableIndexValuePair},
 };
 use itertools::Itertools;
 use ndarray::prelude::*;
 use rayon::prelude::*;
-use std::{io, iter, path::Path, sync::Arc};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    io, iter,
+    path::Path,
+    sync::Arc,
+};
+use sysinfo::{System, SystemExt};
 
 #[cfg(feature = "serialization")]
 use serde::Serialize;
@@ -31,8 +38,275 @@ pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<F>>: Sync {
     /// Returns a new atomic reference counted pointer to the grid.
     fn arc_with_grid(&self) -> Arc<G>;
 
-    /// Provides the specified 3D scalar variable.
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<F, G>>;
+    /// Produces the field of the specified 3D scalar variable and returns it by value.
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<F, G>>;
+
+    /// Provides a reference to the field of the specified 3D scalar variable.
+    fn provide_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<Arc<ScalarField3<F, G>>> {
+        Ok(Arc::new(self.produce_scalar_field(variable_name)?))
+    }
+
+    /// Produces the field of the specified 3D vector variable and returns it by value.
+    fn produce_vector_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<VectorField3<F, G>> {
+        let variable_name = variable_name.as_ref();
+        Ok(VectorField3::new(
+            variable_name.to_string(),
+            self.arc_with_grid(),
+            In3D::new(
+                self.produce_scalar_field(&format!("{}x", variable_name))?,
+                self.produce_scalar_field(&format!("{}y", variable_name))?,
+                self.produce_scalar_field(&format!("{}z", variable_name))?,
+            ),
+        ))
+    }
+
+    /// Provides a reference to the field of the specified 3D vector variable.
+    fn provide_vector_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<Arc<VectorField3<F, G>>> {
+        Ok(Arc::new(self.produce_vector_field(variable_name)?))
+    }
+}
+
+/// Wrapper for `ScalarFieldProvider3` that reads or computes variables only on first request and
+/// then caches the results.
+#[derive(Debug)]
+pub struct ScalarFieldCacher3<F: BFloat, G: Grid3<F>, P> {
+    provider: P,
+    max_memory_usage_fraction: f32,
+    verbose: Verbose,
+    system: System,
+    scalar_fields: HashMap<String, Arc<ScalarField3<F, G>>>,
+    vector_fields: HashMap<String, Arc<VectorField3<F, G>>>,
+}
+
+impl<F, G, P> ScalarFieldCacher3<F, G, P>
+where
+    F: BFloat,
+    G: Grid3<F>,
+    P: ScalarFieldProvider3<F, G>,
+{
+    /// Creates a new snapshot cacher from the given provider.
+    pub fn new(provider: P, max_memory_usage: f32, verbose: Verbose) -> Self {
+        Self {
+            provider,
+            max_memory_usage_fraction: max_memory_usage * 1e-2,
+            verbose,
+            system: System::new_all(),
+            scalar_fields: HashMap::new(),
+            vector_fields: HashMap::new(),
+        }
+    }
+
+    /// Returns a reference to the provider.
+    pub fn provider(&self) -> &P {
+        &self.provider
+    }
+
+    /// Returns a mutable reference to the provider.
+    pub fn provider_mut(&mut self) -> &mut P {
+        &mut self.provider
+    }
+
+    /// Consumes the `SnapshotCacher3` and returns the owned provider.
+    pub fn into_provider(self) -> P {
+        self.provider
+    }
+
+    /// Makes sure the scalar field representing the given variable is cached.
+    pub fn cache_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
+        let variable_name = variable_name.as_ref();
+        if !self.scalar_fields.contains_key(variable_name) {
+            let field = self.provider.provide_scalar_field(variable_name)?;
+            if self.verbose.is_yes() {
+                println!("Caching {}", variable_name);
+            }
+            self.scalar_fields.insert(variable_name.to_string(), field);
+        }
+        Ok(())
+    }
+
+    /// Makes sure the vector field representing the given variable is cached.
+    pub fn cache_vector_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
+        let variable_name = variable_name.as_ref();
+        if !self.vector_fields.contains_key(variable_name) {
+            let field = self.provider.provide_vector_field(variable_name)?;
+            if self.verbose.is_yes() {
+                println!("Caching {}", variable_name);
+            }
+            self.vector_fields.insert(variable_name.to_string(), field);
+        }
+        Ok(())
+    }
+
+    /// Returns a reference to the scalar field representing the given variable.
+    ///
+    /// Panics if the field is not cached.
+    pub fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<F, G> {
+        let field = self
+            .scalar_fields
+            .get(variable_name)
+            .expect("Scalar field is not cached")
+            .as_ref();
+        if self.verbose.is_yes() {
+            println!("Using cached {}", variable_name);
+        }
+        field
+    }
+
+    /// Returns a reference to the vector field representing the given variable.
+    ///
+    /// Panics if the field is not cached.
+    pub fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<F, G> {
+        let field = self
+            .vector_fields
+            .get(variable_name)
+            .expect("Vector field is not cached")
+            .as_ref();
+        if self.verbose.is_yes() {
+            println!("Using cached {}", variable_name);
+        }
+        field
+    }
+
+    /// Whether the scalar field representing the given variable is cached.
+    pub fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
+        self.scalar_fields.contains_key(variable_name)
+    }
+
+    /// Whether the vector field representing the given variable is cached.
+    pub fn vector_field_is_cached(&self, variable_name: &str) -> bool {
+        self.vector_fields.contains_key(variable_name)
+    }
+
+    /// Removes the scalar field representing the given variable from the cache.
+    pub fn drop_scalar_field(&mut self, variable_name: &str) {
+        if self.verbose.is_yes() {
+            println!("Dropping {} from cache", variable_name);
+        }
+        self.scalar_fields.remove(variable_name);
+    }
+
+    /// Removes the vector field representing the given variable from the cache.
+    pub fn drop_vector_field(&mut self, variable_name: &str) {
+        if self.verbose.is_yes() {
+            println!("Dropping {} from cache", variable_name);
+        }
+        self.vector_fields.remove(variable_name);
+    }
+
+    /// Removes all cached scalar and vector fields.
+    pub fn drop_all_fields(&mut self) {
+        if self.verbose.is_yes() {
+            println!("Dropping cache");
+        }
+        self.scalar_fields.clear();
+        self.vector_fields.clear();
+    }
+
+    fn max_memory_exceeded(&mut self) -> bool {
+        self.system.refresh_memory();
+        let available_memory = self.system.available_memory();
+        let total_memory = self.system.total_memory();
+        (available_memory as f32 / total_memory as f32) > self.max_memory_usage_fraction
+    }
+}
+
+impl<F, G, P> ScalarFieldProvider3<F, G> for ScalarFieldCacher3<F, G, P>
+where
+    F: BFloat,
+    G: Grid3<F>,
+    P: ScalarFieldProvider3<F, G>,
+{
+    fn grid(&self) -> &G {
+        self.provider.grid()
+    }
+
+    fn arc_with_grid(&self) -> Arc<G> {
+        self.provider.arc_with_grid()
+    }
+
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<F, G>> {
+        Ok(self.provide_scalar_field(variable_name)?.as_ref().clone())
+    }
+
+    fn provide_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<Arc<ScalarField3<F, G>>> {
+        let variable_name = variable_name.as_ref();
+
+        let max_memory_exceeded = self.max_memory_exceeded();
+
+        Ok(match self.scalar_fields.entry(variable_name.to_string()) {
+            Entry::Occupied(entry) => {
+                if self.verbose.is_yes() {
+                    println!("Using cached {}", variable_name);
+                }
+                Arc::clone(entry.into_mut())
+            }
+            Entry::Vacant(entry) => {
+                let field = self.provider.provide_scalar_field(variable_name)?;
+                if max_memory_exceeded {
+                    field
+                } else {
+                    if self.verbose.is_yes() {
+                        println!("Caching {}", variable_name);
+                    }
+                    Arc::clone(entry.insert(field))
+                }
+            }
+        })
+    }
+
+    fn produce_vector_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<VectorField3<F, G>> {
+        Ok(self.provide_vector_field(variable_name)?.as_ref().clone())
+    }
+
+    fn provide_vector_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<Arc<VectorField3<F, G>>> {
+        let variable_name = variable_name.as_ref();
+
+        let max_memory_exceeded = self.max_memory_exceeded();
+
+        Ok(match self.vector_fields.entry(variable_name.to_string()) {
+            Entry::Occupied(entry) => {
+                if self.verbose.is_yes() {
+                    println!("Using cached {}", variable_name);
+                }
+                Arc::clone(entry.into_mut())
+            }
+            Entry::Vacant(entry) => {
+                let field = self.provider.provide_vector_field(variable_name)?;
+                if max_memory_exceeded {
+                    field
+                } else {
+                    if self.verbose.is_yes() {
+                        println!("Caching {}", variable_name);
+                    }
+                    Arc::clone(entry.insert(field))
+                }
+            }
+        })
+    }
 }
 
 /// Location in the grid cell for resampled field values.

@@ -4,14 +4,13 @@
 use crate::{
     cli::utils,
     exit_on_error,
-    field::ScalarFieldProvider3,
     geometry::{
         Dim3::{X, Y, Z},
         In3D, Point3, Vec3,
     },
     grid::{regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
+    io::snapshot::{fdt, SnapshotProvider3},
     seeding::volume::VolumeSeeder3,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -71,7 +70,7 @@ pub fn create_volume_pdf_seeder_from_arguments<G, P, I, S>(
     arguments: &ArgMatches,
     lower_bounds: Vec3<fdt>,
     upper_bounds: Vec3<fdt>,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: &mut P,
     interpolator: &I,
     satisfies_constraints: &S,
 ) -> VolumeSeeder3
@@ -87,7 +86,7 @@ where
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
     let power = utils::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
-    let grid_cell_extents = snapshot.grid().average_grid_cell_extents();
+    let grid_cell_extents = provider.grid().average_grid_cell_extents();
     let new_shape = In3D::new(
         ((upper_bounds[X] - lower_bounds[X]) / grid_cell_extents[X]).round() as usize,
         ((upper_bounds[Y] - lower_bounds[Y]) / grid_cell_extents[Y]).round() as usize,
@@ -97,35 +96,33 @@ where
 
     if arguments.is_present("is-vector-quantity") {
         let field = exit_on_error!(
-            snapshot.obtain_vector_field(quantity),
+            provider.provide_vector_field(quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             quantity
         );
         let seeder = VolumeSeeder3::vector_field_pdf(
             &grid,
-            field,
+            field.as_ref(),
             interpolator,
             &|vector| vector.length().powf(power),
             n_seeds,
             satisfies_constraints,
         );
-        snapshot.drop_vector_field(quantity);
         seeder
     } else {
         let field = exit_on_error!(
-            snapshot.obtain_scalar_field(quantity),
+            provider.provide_scalar_field(quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             quantity
         );
         let seeder = VolumeSeeder3::scalar_field_pdf(
             &grid,
-            field,
+            field.as_ref(),
             interpolator,
             &|value| value.powf(power),
             n_seeds,
             satisfies_constraints,
         );
-        snapshot.drop_scalar_field(quantity);
         seeder
     }
 }

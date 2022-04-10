@@ -4,10 +4,11 @@ pub mod power_law;
 
 use super::{feb, BeamPropertiesCollection};
 use crate::{
+    field::{ScalarFieldCacher3, ScalarFieldProvider3},
     geometry::{Idx3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
+    io::snapshot::fdt,
     tracing::{ftr, stepping::SteppingSense},
 };
 use ndarray::prelude::*;
@@ -57,7 +58,7 @@ pub trait Distribution {
     /// and returns the power density deposited during the propagation.
     fn propagate<G, P, I>(
         &mut self,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         acceleration_map: &Array3<bool>,
         interpolator: &I,
         displacement: &Vec3<ftr>,
@@ -65,6 +66,6 @@ pub trait Distribution {
     ) -> PropagationResult
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
         I: Interpolator3;
 }

@@ -8,7 +8,7 @@ use crate::{
     geometry::Point2,
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
+    io::snapshot::{fdt, SnapshotProvider3},
     seeding::slice::SliceSeeder3,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -67,7 +67,7 @@ pub fn create_value_pdf_subcommand(parent_command_name: &'static str) -> Command
 pub fn create_slice_pdf_seeder_from_arguments<G, P, I, S>(
     arguments: &ArgMatches,
     parameters: &CommonSliceSeederParameters,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: &mut P,
     interpolator: &I,
     satisfies_constraints: &S,
 ) -> SliceSeeder3
@@ -85,12 +85,12 @@ where
 
     if arguments.is_present("is-vector-quantity") {
         let field = exit_on_error!(
-            snapshot.obtain_vector_field(quantity),
+            provider.provide_vector_field(quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             quantity
         );
         let seeder = SliceSeeder3::vector_field_pdf(
-            field,
+            field.as_ref(),
             interpolator,
             parameters.axis,
             parameters.coord,
@@ -98,16 +98,15 @@ where
             n_seeds,
             satisfies_constraints,
         );
-        snapshot.drop_vector_field(quantity);
         seeder
     } else {
         let field = exit_on_error!(
-            snapshot.obtain_scalar_field(quantity),
+            provider.provide_scalar_field(quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             quantity
         );
         let seeder = SliceSeeder3::scalar_field_pdf(
-            field,
+            field.as_ref(),
             interpolator,
             parameters.axis,
             parameters.coord,
@@ -115,7 +114,6 @@ where
             n_seeds,
             satisfies_constraints,
         );
-        snapshot.drop_scalar_field(quantity);
         seeder
     }
 }

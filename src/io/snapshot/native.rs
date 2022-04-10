@@ -54,8 +54,9 @@ pub struct NativeSnapshotReader3<G> {
     snap_path: PathBuf,
     aux_path: PathBuf,
     grid: Arc<G>,
-    primary_variable_names: Vec<&'static str>,
+    primary_variable_names: Vec<String>,
     auxiliary_variable_names: Vec<String>,
+    all_variable_names: Vec<String>,
     variable_descriptors: HashMap<String, VariableDescriptor>,
 }
 
@@ -90,12 +91,17 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
     ) -> io::Result<Self> {
         let is_mhd = parameters.determine_if_mhd()?;
 
-        let primary_variable_names = if is_mhd {
+        let primary_variable_names: Vec<_> = if is_mhd {
             PRIMARY_VARIABLE_NAMES_MHD.to_vec()
         } else {
             PRIMARY_VARIABLE_NAMES_HD.to_vec()
-        };
+        }
+        .into_iter()
+        .map(String::from)
+        .collect();
         let auxiliary_variable_names = parameters.determine_aux_names()?;
+        let mut all_variable_names = primary_variable_names.clone();
+        all_variable_names.append(&mut auxiliary_variable_names.clone());
 
         let mut variable_descriptors = HashMap::new();
         Self::insert_primary_variable_descriptors(is_mhd, &mut variable_descriptors);
@@ -114,6 +120,7 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
             grid: Arc::new(grid),
             primary_variable_names,
             auxiliary_variable_names,
+            all_variable_names,
             variable_descriptors,
         })
     }
@@ -280,7 +287,11 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
         Ok(())
     }
 
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn read_scalar_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
         let variable_descriptor = self.get_variable_descriptor(variable_name)?;
         let file_path = if variable_descriptor.is_primary {
             &self.snap_path
@@ -322,7 +333,10 @@ impl<G: Grid3<fdt>> ScalarFieldProvider3<fdt, G> for NativeSnapshotReader3<G> {
         Arc::clone(&self.grid)
     }
 
-    fn provide_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
         self.read_scalar_field(variable_name)
     }
 }
@@ -338,15 +352,16 @@ impl<G: Grid3<fdt>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
         self.config.endianness
     }
 
-    fn primary_variable_names(&self) -> Vec<&str> {
-        self.primary_variable_names.clone()
+    fn primary_variable_names(&self) -> &[String] {
+        &self.primary_variable_names
     }
 
-    fn auxiliary_variable_names(&self) -> Vec<&str> {
-        self.auxiliary_variable_names
-            .iter()
-            .map(|s| s.as_str())
-            .collect()
+    fn auxiliary_variable_names(&self) -> &[String] {
+        &self.auxiliary_variable_names
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        &self.all_variable_names
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -379,8 +394,8 @@ impl NativeSnapshotReaderConfig {
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
 pub fn write_modified_snapshot<Pa, G, P>(
-    provider: &P,
-    quantity_names: &[&str],
+    provider: &mut P,
+    quantity_names: &[String],
     mut modified_parameters: HashMap<&str, ParameterValue>,
     output_param_path: Pa,
     is_scratch: bool,
@@ -506,6 +521,9 @@ where
         }
         mesh::write_mesh_file_from_grid(grid, atomic_mesh_path.temporary_path())?;
     }
+
+    let endianness = provider.endianness();
+
     if write_snap_file {
         let output_snap_file_name = atomic_snap_path
             .target_path()
@@ -516,17 +534,18 @@ where
         write_3d_snapfile(
             atomic_snap_path.temporary_path(),
             &included_primary_variable_names,
-            &|name| {
-                provider.provide_scalar_field(name).map(|field| {
+            &mut |name| {
+                provider.produce_scalar_field(name).map(|field| {
                     if verbose.is_yes() {
                         println!("Writing {} to {}", name, output_snap_file_name);
                     }
                     field.into_values()
                 })
             },
-            provider.endianness(),
+            endianness,
         )?;
     }
+
     if write_aux_file {
         let output_aux_file_name = atomic_aux_path
             .target_path()
@@ -537,15 +556,15 @@ where
         write_3d_snapfile(
             atomic_aux_path.temporary_path(),
             &included_auxiliary_variable_names,
-            &|name| {
-                provider.provide_scalar_field(name).map(|field| {
+            &mut |name| {
+                provider.produce_scalar_field(name).map(|field| {
                     if verbose.is_yes() {
                         println!("Writing {} to {}", name, output_aux_file_name);
                     }
                     field.into_values()
                 })
             },
-            provider.endianness(),
+            endianness,
         )?;
     }
 
@@ -589,13 +608,13 @@ where
 fn write_3d_snapfile<P, N, V>(
     output_file_path: P,
     variable_names: &[N],
-    variable_value_producer: &V,
+    variable_value_producer: &mut V,
     endianness: Endianness,
 ) -> io::Result<()>
 where
     P: AsRef<Path>,
     N: AsRef<str>,
-    V: Fn(&str) -> io::Result<Array3<fdt>>,
+    V: FnMut(&str) -> io::Result<Array3<fdt>>,
 {
     let output_file_path = output_file_path.as_ref();
 

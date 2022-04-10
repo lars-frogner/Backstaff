@@ -117,7 +117,7 @@ pub fn create_write_subcommand(parent_command_name: &'static str) -> Command<'st
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
 pub fn run_write_subcommand<G, P>(
     arguments: &ArgMatches,
-    provider: P,
+    mut provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     modified_parameters: HashMap<&str, ParameterValue>,
     protected_file_types: &[&str],
@@ -168,7 +168,7 @@ pub fn run_write_subcommand<G, P>(
     exit_on_error!(
         match output_type {
             OutputType::Native(native_type) => native::write_modified_snapshot(
-                &provider,
+                &mut provider,
                 &quantity_names,
                 modified_parameters,
                 &output_file_path,
@@ -182,7 +182,7 @@ pub fn run_write_subcommand<G, P>(
             OutputType::NetCDF => {
                 let strip_metadata = arguments.is_present("strip");
                 netcdf::write_modified_snapshot(
-                    &provider,
+                    &mut provider,
                     &quantity_names,
                     modified_parameters,
                     &output_file_path,

@@ -6,12 +6,12 @@ use super::super::{
 };
 use crate::{
     constants::{INFINITY, KBOLTZMANN, KEV_TO_ERG, PI},
-    field::ScalarFieldProvider3,
+    field::{ScalarFieldCacher3, ScalarFieldProvider3},
     geometry::{Dim3, Idx3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotParameters, SnapshotProvider3},
+        snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
         Verbose,
     },
     plasma::ionization,
@@ -78,12 +78,12 @@ impl SimplePowerLawAccelerator {
 
     fn determine_total_power_density<G, P>(
         &self,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         indices: &Idx3<usize>,
     ) -> feb
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         let joule_heating_field = snapshot.cached_scalar_field("qjoule");
         let joule_heating = feb::from(joule_heating_field.value(indices));
@@ -94,34 +94,34 @@ impl SimplePowerLawAccelerator {
 
     fn determine_acceleration_volume<G, P>(
         &self,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         indices: &Idx3<usize>,
     ) -> feb
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         feb::from(snapshot.grid().grid_cell_volume(indices)) * U_L3 // [cm^3]
     }
 
     fn determine_acceleration_position<G, P>(
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         indices: &Idx3<usize>,
     ) -> Point3<fdt>
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         snapshot.grid().centers().point(indices)
     }
 
     fn determine_electric_field_direction<G, P>(
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         indices: &Idx3<usize>,
     ) -> Option<Vec3<fdt>>
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         let electric_field = snapshot.cached_vector_field("e");
         let grid = electric_field.grid();
@@ -166,13 +166,13 @@ impl SimplePowerLawAccelerator {
     }
 
     fn determine_magnetic_field_direction<G, P, I>(
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         interpolator: &I,
         acceleration_position: &Point3<fdt>,
     ) -> Vec3<fdt>
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
     {
         let magnetic_field = snapshot.cached_vector_field("b");
@@ -218,29 +218,35 @@ impl SimplePowerLawAccelerator {
         )
     }
 
-    fn determine_temperature<G, P>(snapshot: &SnapshotCacher3<G, P>, indices: &Idx3<usize>) -> feb
+    fn determine_temperature<G, P>(
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
+        indices: &Idx3<usize>,
+    ) -> feb
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         feb::from(snapshot.cached_scalar_field("tg").value(indices))
     }
 
     fn determine_electron_density<G, P>(
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         indices: &Idx3<usize>,
     ) -> feb
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         feb::from(snapshot.cached_scalar_field("nel").value(indices)) // [1/cm^3]
     }
 
-    fn determine_mass_density<G, P>(snapshot: &SnapshotCacher3<G, P>, indices: &Idx3<usize>) -> feb
+    fn determine_mass_density<G, P>(
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
+        indices: &Idx3<usize>,
+    ) -> feb
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
     {
         feb::from(snapshot.cached_scalar_field("r").value(indices)) * U_R // [g/cm^3]
     }
@@ -371,7 +377,7 @@ impl Accelerator for SimplePowerLawAccelerator {
 
     fn generate_distributions<G, P, D, I, StF>(
         &self,
-        snapshot: &mut SnapshotCacher3<G, P>,
+        snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
         detector: D,
         interpolator: &I,
         _stepper_factory: &StF,
@@ -382,7 +388,7 @@ impl Accelerator for SimplePowerLawAccelerator {
     )>
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G> + Sync,
+        P: ScalarFieldProvider3<fdt, G>,
         D: ReconnectionSiteDetector,
         I: Interpolator3,
         StF: StepperFactory3 + Sync,

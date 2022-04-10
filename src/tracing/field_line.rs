@@ -7,14 +7,11 @@ use super::{
     stepping::{Stepper3, StepperFactory3},
 };
 use crate::{
-    field::{ScalarField3, ScalarFieldProvider3, VectorField3},
+    field::{ScalarField3, ScalarFieldCacher3, ScalarFieldProvider3, VectorField3},
     geometry::{Dim3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,
-    io::{
-        snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
-        utils, Endianness, Verbose,
-    },
+    io::{snapshot::fdt, utils, Endianness, Verbose},
     num::BFloat,
     seeding::Seeder3,
 };
@@ -62,19 +59,20 @@ pub trait FieldLineTracer3 {
     /// # Type parameters
     ///
     /// - `G`: Type of grid.
+    /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
     /// - `St`: Type of stepper.
     fn trace<G, P, I, St>(
         &self,
         field_name: &str,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         interpolator: &I,
         stepper: St,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G>,
+        P: ScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         St: Stepper3;
 }
@@ -140,11 +138,12 @@ impl FieldLineSet3 {
     /// - `Sd`: Type of seeder.
     /// - `Tr`: Type of field line tracer.
     /// - `G`: Type of grid.
+    /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
     pub fn trace<Sd, Tr, G, P, I, StF>(
         field_name: &str,
-        snapshot: &SnapshotCacher3<G, P>,
+        snapshot: &ScalarFieldCacher3<fdt, G, P>,
         seeder: Sd,
         tracer: &Tr,
         interpolator: &I,
@@ -157,7 +156,7 @@ impl FieldLineSet3 {
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
         G: Grid3<fdt>,
-        P: SnapshotProvider3<G> + Sync,
+        P: ScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
     {

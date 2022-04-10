@@ -15,7 +15,7 @@ use crate::{
     grid::{CoordLocation, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
     io::{
-        snapshot::{self, fdt, SnapshotCacher3, SnapshotProvider3},
+        snapshot::{self, fdt, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
 };
@@ -136,15 +136,13 @@ where
 #[cfg(feature = "pickle")]
 pub fn run_slice_subcommand<G, P>(
     arguments: &ArgMatches,
-    provider: P,
+    mut provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    let mut snapshot = SnapshotCacher3::new(provider);
-
     let quantity = arguments
         .value_of("quantity")
         .expect("No value for required argument");
@@ -200,7 +198,7 @@ pub fn run_slice_subcommand<G, P>(
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
     let field = exit_on_error!(
-        snapshot.obtain_scalar_field(quantity),
+        provider.provide_scalar_field(quantity),
         "Error: Could not read quantity {0} in snapshot: {1}",
         quantity
     );

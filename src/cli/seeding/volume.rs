@@ -14,14 +14,13 @@ use self::{
 use crate::{
     cli::utils as cli_utils,
     exit_on_false, exit_with_error,
-    field::ScalarFieldProvider3,
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
     grid::Grid3,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotCacher3, SnapshotProvider3},
+    io::snapshot::{fdt, SnapshotProvider3},
     seeding::volume::VolumeSeeder3,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -86,7 +85,7 @@ pub fn create_volume_seeder_subcommand(parent_command_name: &'static str) -> Com
 /// Creates a volume seeder based on the provided arguments.
 pub fn create_volume_seeder_from_arguments<G, P, I>(
     arguments: &ArgMatches,
-    snapshot: &mut SnapshotCacher3<G, P>,
+    provider: &mut P,
     interpolator: &I,
 ) -> VolumeSeeder3
 where
@@ -94,7 +93,7 @@ where
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
-    let original_grid = snapshot.grid();
+    let original_grid = provider.grid();
 
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
@@ -157,7 +156,7 @@ where
             seeder_arguments,
             lower_bounds,
             upper_bounds,
-            snapshot,
+            provider,
             interpolator,
             &satisifes_constraints,
         )
