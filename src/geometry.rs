@@ -201,7 +201,7 @@ impl<'a, T> IntoIterator for &'a In2D<T> {
 /// A 3D vector.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-pub struct Vec3<F: BFloat>(In3D<F>);
+pub struct Vec3<F>(In3D<F>);
 
 impl<F: BFloat> Vec3<F> {
     /// Creates a new 3D vector given the three components.
@@ -420,7 +420,7 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec3<F> {
 /// A 2D vector.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-pub struct Vec2<F: BFloat>(In2D<F>);
+pub struct Vec2<F>(In2D<F>);
 
 impl<F: BFloat> Vec2<F> {
     /// Creates a new 2D vector given the three components.
@@ -634,7 +634,7 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec2<F> {
 /// A 3D spatial coordinate.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-pub struct Point3<F: BFloat>(In3D<F>);
+pub struct Point3<F>(In3D<F>);
 
 impl<F: BFloat> Point3<F> {
     /// Creates a new 3D point given the three components.
@@ -796,7 +796,7 @@ impl<F: BFloat + fmt::Display> fmt::Display for Point3<F> {
 /// A 2D spatial coordinate.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-pub struct Point2<F: BFloat>(In2D<F>);
+pub struct Point2<F>(In2D<F>);
 
 impl<F: BFloat> Point2<F> {
     /// Creates a new 2D point given the three components.
@@ -957,7 +957,7 @@ impl<F: BFloat + fmt::Display> fmt::Display for Point2<F> {
 
 /// A 3D index.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Idx3<I: num::Integer>(In3D<I>);
+pub struct Idx3<I>(In3D<I>);
 
 impl<I: num::Integer> Idx3<I> {
     /// Creates a new 3D index given the three components.
@@ -1038,7 +1038,7 @@ impl<I: num::Integer + fmt::Display> fmt::Display for Idx3<I> {
 
 /// A 2D index.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Idx2<I: num::Integer>(In2D<I>);
+pub struct Idx2<I>(In2D<I>);
 
 impl<I: num::Integer> Idx2<I> {
     /// Creates a new 2D index given the three components.
@@ -1117,7 +1117,7 @@ impl<I: num::Integer + fmt::Display> fmt::Display for Idx2<I> {
 /// 3D spatial coordinate arrays.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-pub struct Coords3<F: BFloat>(In3D<Vec<F>>);
+pub struct Coords3<F>(In3D<Vec<F>>);
 
 impl<F: BFloat> Coords3<F> {
     /// Creates a new 3D set of coordinates given the component 1D coordinates.
@@ -1161,7 +1161,7 @@ impl<F: BFloat> IndexMut<Dim3> for Coords3<F> {
 /// 2D spatial coordinate arrays.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-pub struct Coords2<F: BFloat>(In2D<Vec<F>>);
+pub struct Coords2<F>(In2D<Vec<F>>);
 
 impl<F: BFloat> Coords2<F> {
     /// Creates a new 2D set of coordinates given the component 1D coordinates.

@@ -81,7 +81,7 @@ pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<F>>: Sync {
 /// Wrapper for `ScalarFieldProvider3` that reads or computes variables only on first request and
 /// then caches the results.
 #[derive(Debug)]
-pub struct ScalarFieldCacher3<F: BFloat, G: Grid3<F>, P> {
+pub struct ScalarFieldCacher3<F, G, P> {
     provider: P,
     max_memory_usage_fraction: f32,
     verbose: Verbose,
@@ -382,11 +382,7 @@ pub enum ResamplingMethod {
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct ScalarField3<F, G>
-where
-    F: BFloat,
-    G: Grid3<F>,
-{
+pub struct ScalarField3<F, G> {
     name: String,
     grid: Arc<G>,
     locations: In3D<CoordLocation>,
@@ -1246,11 +1242,7 @@ where
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct VectorField3<F, G>
-where
-    F: BFloat,
-    G: Grid3<F>,
-{
+pub struct VectorField3<F, G> {
     name: String,
     grid: Arc<G>,
     components: In3D<ScalarField3<F, G>>,
@@ -1603,11 +1595,7 @@ where
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct ScalarField2<F, G>
-where
-    F: BFloat,
-    G: Grid2<F>,
-{
+pub struct ScalarField2<F, G> {
     name: String,
     grid: Arc<G>,
     locations: In2D<CoordLocation>,
@@ -1615,7 +1603,7 @@ where
 }
 
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-struct ScalarFieldSerializeData2<F: BFloat> {
+struct ScalarFieldSerializeData2<F> {
     coords: Coords2<F>,
     values: Array2<F>,
 }
@@ -1786,11 +1774,7 @@ where
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct VectorField2<F, G>
-where
-    F: BFloat,
-    G: Grid2<F>,
-{
+pub struct VectorField2<F, G> {
     name: String,
     grid: Arc<G>,
     components: In2D<ScalarField2<F, G>>,
@@ -1888,11 +1872,7 @@ where
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct PlaneVectorField3<F, G>
-where
-    F: BFloat,
-    G: Grid2<F>,
-{
+pub struct PlaneVectorField3<F, G> {
     name: String,
     grid: Arc<G>,
     components: In3D<ScalarField2<F, G>>,
@@ -1992,11 +1972,7 @@ where
 /// Holds the grid and values of a 1D scalar field, as well as the
 /// specific coordinates where the values are defined.
 #[derive(Clone, Debug)]
-pub struct ScalarField1<F, G>
-where
-    F: BFloat,
-    G: Grid1<F>,
-{
+pub struct ScalarField1<F, G> {
     name: String,
     grid: Arc<G>,
     location: CoordLocation,
@@ -2004,7 +1980,7 @@ where
 }
 
 #[cfg_attr(feature = "serialization", derive(Serialize))]
-struct ScalarFieldSerializeData1<F: BFloat> {
+struct ScalarFieldSerializeData1<F> {
     coords: Vec<F>,
     values: Array1<F>,
 }

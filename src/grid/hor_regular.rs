@@ -12,7 +12,7 @@ use crate::{
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Clone, Debug)]
-pub struct HorRegularGrid3<F: BFloat> {
+pub struct HorRegularGrid3<F> {
     coords: [Coords3<F>; 2],
     grid_cell_extents_z: Vec<F>,
     regular_z_coords: [Vec<F>; 2],
@@ -188,7 +188,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
 
 /// A 2D grid which is regular in x but non-uniform in y.
 #[derive(Clone, Debug)]
-pub struct HorRegularGrid2<F: BFloat> {
+pub struct HorRegularGrid2<F> {
     coords: [Coords2<F>; 2],
     regular_y_coords: [Vec<F>; 2],
     is_periodic: In2D<bool>,
@@ -265,7 +265,7 @@ impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
 
 /// A 1D non-uniform grid.
 #[derive(Clone, Debug)]
-pub struct NonUniformGrid1<F: BFloat> {
+pub struct NonUniformGrid1<F> {
     coords: [Vec<F>; 2],
     regular_coords: [Vec<F>; 2],
     size: usize,

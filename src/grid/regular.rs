@@ -13,7 +13,7 @@ use std::iter;
 
 /// A regular 3D grid.
 #[derive(Clone, Debug)]
-pub struct RegularGrid3<F: BFloat> {
+pub struct RegularGrid3<F> {
     coords: [Coords3<F>; 2],
     is_periodic: In3D<bool>,
     shape: In3D<usize>,
@@ -257,7 +257,7 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
 
 /// A regular 2D grid.
 #[derive(Clone, Debug)]
-pub struct RegularGrid2<F: BFloat> {
+pub struct RegularGrid2<F> {
     coords: [Coords2<F>; 2],
     is_periodic: In2D<bool>,
     shape: In2D<usize>,
@@ -407,7 +407,7 @@ impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
 
 /// A regular 1D grid.
 #[derive(Clone, Debug)]
-pub struct RegularGrid1<F: BFloat> {
+pub struct RegularGrid1<F> {
     coords: [Vec<F>; 2],
     is_periodic: bool,
     size: usize,
