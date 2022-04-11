@@ -11,7 +11,7 @@ use crate::{
     grid::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3},
     interpolation::Interpolator3,
     io::Verbose,
-    num::{BFloat, OrderableIndexValuePair},
+    num::{BFloat, KeyValueOrderableByValue},
 };
 use itertools::Itertools;
 use ndarray::prelude::*;
@@ -88,6 +88,7 @@ pub struct ScalarFieldCacher3<F: BFloat, G: Grid3<F>, P> {
     system: System,
     scalar_fields: HashMap<String, Arc<ScalarField3<F, G>>>,
     vector_fields: HashMap<String, Arc<VectorField3<F, G>>>,
+    request_counts: HashMap<String, u64>,
 }
 
 impl<F, G, P> ScalarFieldCacher3<F, G, P>
@@ -105,6 +106,7 @@ where
             system: System::new_all(),
             scalar_fields: HashMap::new(),
             vector_fields: HashMap::new(),
+            request_counts: HashMap::new(),
         }
     }
 
@@ -220,11 +222,32 @@ where
         self.vector_fields.clear();
     }
 
-    fn max_memory_exceeded(&mut self) -> bool {
-        self.system.refresh_memory();
-        let available_memory = self.system.available_memory();
-        let total_memory = self.system.total_memory();
-        (available_memory as f32 / total_memory as f32) > self.max_memory_usage_fraction
+    fn increment_request_count(&mut self, variable_name: &str) -> u64 {
+        match self.request_counts.entry(variable_name.to_string()) {
+            Entry::Occupied(mut entry) => {
+                let entry = entry.get_mut();
+                *entry += 1;
+                *entry
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(1);
+                1
+            }
+        }
+    }
+
+    fn least_requested_cached_variable(&self) -> Option<(String, u64)> {
+        self.request_counts
+            .iter()
+            .filter_map(|(name, &count)| {
+                if self.scalar_fields.contains_key(name) {
+                    Some(KeyValueOrderableByValue(name, count))
+                } else {
+                    None
+                }
+            })
+            .min()
+            .map(|KeyValueOrderableByValue(name, count)| (name.clone(), count))
     }
 }
 
@@ -255,63 +278,53 @@ where
     ) -> io::Result<Arc<ScalarField3<F, G>>> {
         let variable_name = variable_name.as_ref();
 
-        let max_memory_exceeded = self.max_memory_exceeded();
+        let request_count = self.increment_request_count(variable_name);
 
-        Ok(match self.scalar_fields.entry(variable_name.to_string()) {
+        let (field, variable_to_replace) = match self.scalar_fields.entry(variable_name.to_string())
+        {
             Entry::Occupied(entry) => {
                 if self.verbose.is_yes() {
                     println!("Using cached {}", variable_name);
                 }
-                Arc::clone(entry.into_mut())
+                (Arc::clone(entry.into_mut()), None)
             }
             Entry::Vacant(entry) => {
                 let field = self.provider.provide_scalar_field(variable_name)?;
+
+                self.system.refresh_memory();
+                let max_memory_exceeded = (self.system.available_memory() as f32
+                    / self.system.total_memory() as f32)
+                    > self.max_memory_usage_fraction;
+
                 if max_memory_exceeded {
-                    field
+                    match self.least_requested_cached_variable() {
+                        Some((least_requested_variable, least_requested_count)) => {
+                            if request_count <= least_requested_count {
+                                (field, None)
+                            } else {
+                                (field, Some(least_requested_variable))
+                            }
+                        }
+                        None => (field, None),
+                    }
                 } else {
                     if self.verbose.is_yes() {
                         println!("Caching {}", variable_name);
                     }
-                    Arc::clone(entry.insert(field))
+                    (Arc::clone(entry.insert(field)), None)
                 }
             }
-        })
-    }
+        };
+        if let Some(variable_to_replace) = variable_to_replace {
+            self.drop_scalar_field(&variable_to_replace);
 
-    fn produce_vector_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<VectorField3<F, G>> {
-        Ok(self.provide_vector_field(variable_name)?.as_ref().clone())
-    }
-
-    fn provide_vector_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<Arc<VectorField3<F, G>>> {
-        let variable_name = variable_name.as_ref();
-
-        let max_memory_exceeded = self.max_memory_exceeded();
-
-        Ok(match self.vector_fields.entry(variable_name.to_string()) {
-            Entry::Occupied(entry) => {
-                if self.verbose.is_yes() {
-                    println!("Using cached {}", variable_name);
-                }
-                Arc::clone(entry.into_mut())
+            if self.verbose.is_yes() {
+                println!("Caching {}", variable_name);
             }
-            Entry::Vacant(entry) => {
-                let field = self.provider.provide_vector_field(variable_name)?;
-                if max_memory_exceeded {
-                    field
-                } else {
-                    if self.verbose.is_yes() {
-                        println!("Caching {}", variable_name);
-                    }
-                    Arc::clone(entry.insert(field))
-                }
-            }
-        })
+            self.scalar_fields
+                .insert(variable_name.to_string(), field.clone());
+        }
+        Ok(field)
     }
 }
 
@@ -504,11 +517,11 @@ where
                 if value.is_nan() {
                     None
                 } else {
-                    Some(OrderableIndexValuePair(idx, value))
+                    Some(KeyValueOrderableByValue(idx, value))
                 }
             })
             .min()
-            .map(|OrderableIndexValuePair(idx_of_min_value, min_value)| {
+            .map(|KeyValueOrderableByValue(idx_of_min_value, min_value)| {
                 (
                     compute_3d_array_indices_from_flat_idx(self.shape(), idx_of_min_value),
                     min_value,
@@ -529,11 +542,11 @@ where
                 if value.is_nan() {
                     None
                 } else {
-                    Some(OrderableIndexValuePair(idx, value))
+                    Some(KeyValueOrderableByValue(idx, value))
                 }
             })
             .max()
-            .map(|OrderableIndexValuePair(idx_of_max_value, max_value)| {
+            .map(|KeyValueOrderableByValue(idx_of_max_value, max_value)| {
                 (
                     compute_3d_array_indices_from_flat_idx(self.shape(), idx_of_max_value),
                     max_value,
@@ -1706,11 +1719,11 @@ where
                 if value.is_nan() {
                     None
                 } else {
-                    Some(OrderableIndexValuePair(idx, value))
+                    Some(KeyValueOrderableByValue(idx, value))
                 }
             })
             .min()
-            .map(|OrderableIndexValuePair(idx_of_min_value, min_value)| {
+            .map(|KeyValueOrderableByValue(idx_of_min_value, min_value)| {
                 (
                     compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_min_value),
                     min_value,
@@ -1731,11 +1744,11 @@ where
                 if value.is_nan() {
                     None
                 } else {
-                    Some(OrderableIndexValuePair(idx, value))
+                    Some(KeyValueOrderableByValue(idx, value))
                 }
             })
             .max()
-            .map(|OrderableIndexValuePair(idx_of_max_value, max_value)| {
+            .map(|KeyValueOrderableByValue(idx_of_max_value, max_value)| {
                 (
                     compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_max_value),
                     max_value,
@@ -2087,11 +2100,11 @@ where
                 if value.is_nan() {
                     None
                 } else {
-                    Some(OrderableIndexValuePair(idx, value))
+                    Some(KeyValueOrderableByValue(idx, value))
                 }
             })
             .min()
-            .map(|OrderableIndexValuePair(idx_of_min_value, min_value)| {
+            .map(|KeyValueOrderableByValue(idx_of_min_value, min_value)| {
                 (idx_of_min_value, min_value)
             })
     }
@@ -2109,11 +2122,11 @@ where
                 if value.is_nan() {
                     None
                 } else {
-                    Some(OrderableIndexValuePair(idx, value))
+                    Some(KeyValueOrderableByValue(idx, value))
                 }
             })
             .max()
-            .map(|OrderableIndexValuePair(idx_of_max_value, max_value)| {
+            .map(|KeyValueOrderableByValue(idx_of_max_value, max_value)| {
                 (idx_of_max_value, max_value)
             })
     }
