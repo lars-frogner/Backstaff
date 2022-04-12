@@ -22,6 +22,7 @@ except ModuleNotFoundError:
 
 with contextlib.redirect_stdout(None):
     import ChiantiPy.tools.util as ch_util
+    import ChiantiPy.tools.constants as ch_const
     import ChiantiPy.tools.io as ch_io
     import ChiantiPy.tools.data as ch_data
 
@@ -2202,73 +2203,33 @@ def join_tags(*tags, as_str=False):
         return combined
 
 
-def compute_emissivity_tables(ion_lines,
+def compute_emissivity_tables(ion_line_name_map,
+                              ion_line_wavelength_map,
                               dtype=np.float32,
                               verbose=False,
                               **kwargs):
     table_atmosphere = LookupIonAtmosphere(compute_proton_densities=True,
                                            compute_hydrogen_densities=True,
-                                           verbose=verbose,
+                                           verbose=False,
                                            dtype=dtype,
                                            **kwargs)
 
     emissivity_tables = {}
 
-    for ion_name, central_wavelengths in ion_lines.items():
-        ion = Ion(ion_name, table_atmosphere, verbose=verbose)
+    for ion_name, central_wavelengths in ion_line_wavelength_map.items():
+        if verbose:
+            print(f'Computing emissivity tables for {ion_name}')
+
+        ion = Ion(ion_name, table_atmosphere, verbose=False)
 
         line_indices = ion.find_line_indices(central_wavelengths)
 
         emissivities = ion.compute_emissivities(
             line_indices=line_indices).astype(dtype)
 
-        for idx, wavelength in enumerate(central_wavelengths):
-            line_name = ion.properties.get_line_name(ion_name, wavelength)
+        for idx in range(len(central_wavelengths)):
+            line_name = ion_line_name_map[ion_name][idx]
             emissivity_tables[line_name] = emissivities[idx, :].reshape(
                 table_atmosphere.table_shape)
 
     return table_atmosphere.log_table_temperatures, table_atmosphere.log_table_electron_densities, emissivity_tables
-
-
-def test():
-    dtype = np.float32
-    log_temperature_limits = (3.0, 7.0)
-    log_electron_density_limits = (8.0, 13.0)
-
-    ion_lines = dict(si_4=[1393.755])
-    log_table_temperatures, log_table_electron_densities, emissivity_tables = compute_emissivity_tables(
-        ion_lines,
-        dtype=dtype,
-        verbose=True,
-        log_temperature_limits=log_temperature_limits,
-        log_electron_density_limits=log_electron_density_limits)
-    emissivity_table = emissivity_tables[f'si_4_{ion_lines["si_4"][0]:.3f}']
-
-    n_points = 100000000
-
-    temperatures = np.random.uniform(10**log_temperature_limits[0],
-                                     10**log_temperature_limits[1],
-                                     n_points).astype(dtype)
-    electron_densities = np.random.uniform(10**log_electron_density_limits[0],
-                                           10**log_electron_density_limits[1],
-                                           n_points).astype(dtype)
-
-    evaluation_coordinates = np.stack(
-        (np.ravel(temperatures), np.ravel(electron_densities)), axis=1)
-    emissivities = np.empty((1, evaluation_coordinates.shape[0]), dtype=dtype)
-
-    array_utils.do_concurrent_interp2(emissivities,
-                                      0,
-                                      1,
-                                      log_table_temperatures,
-                                      log_table_electron_densities,
-                                      emissivity_table[np.newaxis, :, :],
-                                      evaluation_coordinates,
-                                      method='linear',
-                                      bounds_error=False,
-                                      fill_value=None,
-                                      verbose=True)
-
-
-if __name__ == '__main__':
-    test()
