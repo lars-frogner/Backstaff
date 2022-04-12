@@ -336,14 +336,18 @@ where
     })
 }
 
-pub fn parse_limits(arguments: &ArgMatches, argument_name: &str) -> (fdt, fdt) {
+pub fn parse_limits(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    allow_infinity: bool,
+) -> (fdt, fdt) {
     let limits: Vec<_> = arguments
         .values_of(argument_name)
         .expect("No value for argument with default")
         .into_iter()
         .map(|string| match string {
-            "-inf" => std::f32::NEG_INFINITY,
-            "inf" => std::f32::INFINITY,
+            "-inf" if allow_infinity => std::f32::NEG_INFINITY,
+            "inf" if allow_infinity => std::f32::INFINITY,
             values_str => exit_on_error!(
                 values_str.parse::<fdt>(),
                 "Error: Could not parse value in {0}: {1}",

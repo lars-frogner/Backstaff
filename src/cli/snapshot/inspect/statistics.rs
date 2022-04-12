@@ -147,10 +147,10 @@ pub fn run_statistics_subcommand<G, P>(
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    let value_range = utils::parse_limits(arguments, "value-range");
-    let x_range = utils::parse_limits(arguments, "x-range");
-    let y_range = utils::parse_limits(arguments, "y-range");
-    let z_range = utils::parse_limits(arguments, "z-range");
+    let value_range = utils::parse_limits(arguments, "value-range", true);
+    let x_range = utils::parse_limits(arguments, "x-range", true);
+    let y_range = utils::parse_limits(arguments, "y-range", true);
+    let z_range = utils::parse_limits(arguments, "z-range", true);
 
     let slice_depths = utils::get_values_from_parseable_argument::<fdt>(arguments, "slice-depths");
 

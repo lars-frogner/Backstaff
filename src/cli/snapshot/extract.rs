@@ -138,9 +138,9 @@ pub fn run_extract_subcommand<G, P>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let x_bounds = utils::parse_limits(arguments, "x-bounds");
-    let y_bounds = utils::parse_limits(arguments, "y-bounds");
-    let z_bounds = utils::parse_limits(arguments, "z-bounds");
+    let x_bounds = utils::parse_limits(arguments, "x-bounds", true);
+    let y_bounds = utils::parse_limits(arguments, "y-bounds", true);
+    let z_bounds = utils::parse_limits(arguments, "z-bounds", true);
 
     let i_range = utils::parse_int_limits(arguments, "i-range", 0, original_shape[X] - 1);
     let j_range = utils::parse_int_limits(arguments, "j-range", 0, original_shape[Y] - 1);
