@@ -184,49 +184,33 @@ pub struct DerivedSnapshotProvider3<G, P> {
 
 impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
     /// Creates a computer of derived 3D quantities.
-    pub fn new(provider: P, verbose: Verbose) -> Self {
-        let auxiliary_variable_names: Vec<_> = provider.auxiliary_variable_names().to_vec();
-
-        let mut all_variable_names = provider.primary_variable_names().to_vec();
-        all_variable_names.append(&mut auxiliary_variable_names.clone());
-
-        Self {
-            provider,
-            derived_quantity_names: Vec::new(),
-            auxiliary_variable_names,
-            all_variable_names,
-            verbose,
-            phantom: PhantomData,
-        }
-    }
-
-    pub fn with_derived_quantities<H>(
-        self: Self,
+    pub fn new<H>(
+        provider: P,
         derived_quantity_names: Vec<String>,
         handle_unavailable: H,
+        verbose: Verbose,
     ) -> Self
     where
         H: Fn(&str, Option<Vec<&str>>) + Copy,
     {
         let derived_quantity_names: Vec<_> = derived_quantity_names
             .into_iter()
-            .filter(|name| self.verify_variable_availability(name, handle_unavailable))
+            .filter(|name| Self::verify_variable_availability(&provider, name, handle_unavailable))
             .collect();
 
-        let mut auxiliary_variable_names: Vec<_> =
-            self.provider.auxiliary_variable_names().to_vec();
+        let mut auxiliary_variable_names: Vec<_> = provider.auxiliary_variable_names().to_vec();
         auxiliary_variable_names.append(&mut derived_quantity_names.clone());
 
-        let mut all_variable_names = self.provider.primary_variable_names().to_vec();
+        let mut all_variable_names = provider.primary_variable_names().to_vec();
         all_variable_names.append(&mut auxiliary_variable_names.clone());
 
         Self {
-            provider: self.provider,
+            provider: provider,
             derived_quantity_names,
             auxiliary_variable_names,
             all_variable_names,
-            verbose: self.verbose,
-            phantom: self.phantom,
+            verbose: verbose,
+            phantom: PhantomData,
         }
     }
 
@@ -236,11 +220,11 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
     }
 
     fn variable_is_present_or_directly_derivable<S: AsRef<str>>(
-        &self,
+        provider: &P,
         variable_name: S,
     ) -> (bool, Option<Vec<&str>>) {
         let variable_name = variable_name.as_ref();
-        let all_variable_names = self.all_variable_names();
+        let all_variable_names = provider.all_variable_names();
         if all_variable_names.contains(&variable_name.to_string()) {
             (true, None)
         } else {
@@ -263,12 +247,16 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
         }
     }
 
-    fn verify_variable_availability<H>(&self, variable_name: &str, handle_unavailable: H) -> bool
+    fn verify_variable_availability<H>(
+        provider: &P,
+        variable_name: &str,
+        handle_unavailable: H,
+    ) -> bool
     where
         H: Fn(&str, Option<Vec<&str>>),
     {
         let (directly_derivable, missing_dependencies) =
-            self.variable_is_present_or_directly_derivable(variable_name);
+            Self::variable_is_present_or_directly_derivable(provider, variable_name);
         if directly_derivable {
             true
         } else if let Some(base_name) = cgs_base_name(variable_name) {
@@ -276,11 +264,11 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
                 mod_vec_component_names(base_name)
             {
                 let (directly_derivable_x, missing_dependencies_x) =
-                    self.variable_is_present_or_directly_derivable(&x_comp_name);
+                    Self::variable_is_present_or_directly_derivable(provider, &x_comp_name);
                 let (directly_derivable_y, missing_dependencies_y) =
-                    self.variable_is_present_or_directly_derivable(&y_comp_name);
+                    Self::variable_is_present_or_directly_derivable(provider, &y_comp_name);
                 let (directly_derivable_z, missing_dependencies_z) =
-                    self.variable_is_present_or_directly_derivable(&z_comp_name);
+                    Self::variable_is_present_or_directly_derivable(provider, &z_comp_name);
                 if directly_derivable_x && directly_derivable_y && directly_derivable_z {
                     true
                 } else {
@@ -306,7 +294,7 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
                 }
             } else {
                 let (directly_derivable, missing_dependencies) =
-                    self.variable_is_present_or_directly_derivable(base_name);
+                    Self::variable_is_present_or_directly_derivable(provider, base_name);
                 if directly_derivable {
                     true
                 } else {
@@ -318,11 +306,11 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
             mod_vec_component_names(variable_name)
         {
             let (directly_derivable_x, missing_dependencies_x) =
-                self.variable_is_present_or_directly_derivable(&x_comp_name);
+                Self::variable_is_present_or_directly_derivable(provider, &x_comp_name);
             let (directly_derivable_y, missing_dependencies_y) =
-                self.variable_is_present_or_directly_derivable(&y_comp_name);
+                Self::variable_is_present_or_directly_derivable(provider, &y_comp_name);
             let (directly_derivable_z, missing_dependencies_z) =
-                self.variable_is_present_or_directly_derivable(&z_comp_name);
+                Self::variable_is_present_or_directly_derivable(provider, &z_comp_name);
             if directly_derivable_x && directly_derivable_y && directly_derivable_z {
                 true
             } else {
@@ -403,7 +391,7 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotProvider3<G>
     }
 
     fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        self.verify_variable_availability(variable_name.as_ref(), |_, _| {})
+        Self::verify_variable_availability(&self.provider, variable_name.as_ref(), |_, _| {})
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {

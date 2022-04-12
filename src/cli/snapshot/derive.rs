@@ -22,7 +22,7 @@ pub fn create_derive_subcommand(parent_command_name: &'static str) -> Command<'s
         .about("Compute derived quantities for the snapshot")
         .arg(
             Arg::new("quantities")
-                .short('q')
+                .short('Q')
                 .long("quantities")
                 .require_equals(true)
                 .use_value_delimiter(true)
@@ -75,7 +75,8 @@ where
         })
         .collect();
 
-    DerivedSnapshotProvider3::new(provider, verbose).with_derived_quantities(
+    DerivedSnapshotProvider3::new(
+        provider,
         derived_quantity_names,
         |quantity_name, missing_dependencies| {
             if let Some(missing_dependencies) = missing_dependencies {
@@ -94,5 +95,6 @@ where
                 }
             }
         },
+        verbose,
     )
 }
