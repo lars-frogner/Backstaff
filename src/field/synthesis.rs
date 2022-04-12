@@ -30,36 +30,29 @@ use std::{
     sync::Arc,
 };
 
-fn run_python_with_result<C, R>(command: C) -> R
-where
-    C: FnOnce(Python) -> PyResult<R>,
-{
-    Python::with_gil(|py| match command(py) {
-        Ok(result) => result,
-        Err(err) => {
-            err.print(py);
-            process::exit(1)
-        }
-    })
-}
+/// List of names used in CHIANTI for the first atomic elements.
+pub const CHIANTI_ELEMENTS: [&str; 36] = [
+    "h", "he", "li", "be", "b", "c", "n", "o", "f", "ne", "na", "mg", "al", "si", "p", "s", "cl",
+    "ar", "k", "ca", "sc", "ti", "v", "cr", "mn", "fe", "co", "ni", "cu", "zn", "ga", "ge", "as",
+    "se", "br", "kr",
+];
 
-macro_rules! with_py_error {
-    ($expr:expr, $err_type:ty) => {
-        $expr.map_err(|err| PyErr::new::<$err_type, _>(format!("{}", err)))
-    };
+/// Moment of a spectral line profile.
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
+pub enum LineProfileMoment {
+    Zeroth = 0,
+    First = 1,
+    Second = 2,
 }
-
-type EmissivityTableMap<F> = HashMap<String, ScalarField2<F, RegularGrid2<F>>>;
 
 /// Computer of emissivities from Bifrost 3D simulation snapshots.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct EmissivitySnapshotProvider3<G, P, I> {
     provider: P,
     interpolator: I,
-    emissivity_quantity_names: Vec<String>,
     auxiliary_variable_names: Vec<String>,
     all_variable_names: Vec<String>,
-    emissivity_tables: EmissivityTables<fdt>,
+    emissivity_tables: Arc<EmissivityTables<fdt>>,
     verbose: Verbose,
     phantom: PhantomData<G>,
 }
@@ -74,26 +67,66 @@ where
     pub fn new(
         provider: P,
         interpolator: I,
-        line_names: Vec<String>,
+        line_names: &[String],
+        highest_moment: LineProfileMoment,
         n_temperature_points: usize,
         n_electron_density_points: usize,
         log_temperature_limits: (fdt, fdt),
         log_electron_density_limits: (fdt, fdt),
         verbose: Verbose,
     ) -> Self {
-        let emissivity_tables = EmissivityTables::new(
-            &line_names,
+        let emissivity_tables = Arc::new(EmissivityTables::new(
+            line_names,
             n_temperature_points,
             n_electron_density_points,
             log_temperature_limits,
             log_electron_density_limits,
             verbose,
-        );
+        ));
 
-        let emissivity_quantity_names = line_names;
+        match highest_moment {
+            LineProfileMoment::Zeroth => Self::new_for_moment(
+                provider,
+                interpolator,
+                line_names,
+                LineProfileMoment::Zeroth,
+                emissivity_tables,
+                verbose,
+            ),
+            LineProfileMoment::First => {
+                todo!()
+            }
+            LineProfileMoment::Second => {
+                todo!()
+            }
+        }
+    }
+
+    fn new_for_moment(
+        provider: P,
+        interpolator: I,
+        line_names: &[String],
+        moment: LineProfileMoment,
+        emissivity_tables: Arc<EmissivityTables<fdt>>,
+        verbose: Verbose,
+    ) -> Self {
+        let mut emissivity_quantity_names: Vec<_> = line_names
+            .iter()
+            .map(|line_name| {
+                format!(
+                    "{}_{}",
+                    match moment {
+                        LineProfileMoment::Zeroth => "emis",
+                        LineProfileMoment::First => "shift",
+                        LineProfileMoment::Second => "var",
+                    },
+                    line_name
+                )
+            })
+            .collect();
 
         let mut auxiliary_variable_names: Vec<_> = provider.auxiliary_variable_names().to_vec();
-        auxiliary_variable_names.append(&mut emissivity_quantity_names.clone());
+        auxiliary_variable_names.append(&mut emissivity_quantity_names);
 
         let mut all_variable_names = provider.primary_variable_names().to_vec();
         all_variable_names.append(&mut auxiliary_variable_names.clone());
@@ -101,7 +134,6 @@ where
         Self {
             provider,
             interpolator,
-            emissivity_quantity_names,
             auxiliary_variable_names,
             all_variable_names,
             emissivity_tables,
@@ -202,6 +234,27 @@ where
         self.provider.obtain_snap_name_and_num()
     }
 }
+
+fn run_python_with_result<C, R>(command: C) -> R
+where
+    C: FnOnce(Python) -> PyResult<R>,
+{
+    Python::with_gil(|py| match command(py) {
+        Ok(result) => result,
+        Err(err) => {
+            err.print(py);
+            process::exit(1)
+        }
+    })
+}
+
+macro_rules! with_py_error {
+    ($expr:expr, $err_type:ty) => {
+        $expr.map_err(|err| PyErr::new::<$err_type, _>(format!("{}", err)))
+    };
+}
+
+type EmissivityTableMap<F> = HashMap<String, ScalarField2<F, RegularGrid2<F>>>;
 
 lazy_static! {
     static ref ION_LINE_REGEX: Regex =
@@ -346,12 +399,8 @@ where
 
         let syn = py.import("backstaff.chianti_synthesis")?;
 
-        let valid_elements: Vec<String> = syn.getattr("get_valid_elements")?.call0()?.extract()?;
-
-        let (ion_line_name_map, ion_line_wavelength_map) = with_py_error!(
-            Self::line_names_to_ion_maps(line_names, &valid_elements),
-            PyValueError
-        )?;
+        let (ion_line_name_map, ion_line_wavelength_map) =
+            with_py_error!(Self::line_names_to_ion_maps(line_names), PyValueError)?;
 
         let result = syn.getattr("compute_emissivity_tables")?.call(
             (
@@ -387,106 +436,122 @@ where
 
     fn line_names_to_ion_maps(
         line_names: &[String],
-        valid_elements: &[String],
     ) -> io::Result<(HashMap<String, Vec<String>>, HashMap<String, Vec<F>>)> {
         let mut ion_line_name_map: HashMap<String, Vec<String>> = HashMap::new();
         let mut ion_line_wavelength_map: HashMap<String, Vec<F>> = HashMap::new();
 
         for line_name in line_names {
+            let (ion_name, _, _, wavelength) = parse_spectral_line_name(line_name)?;
             let line_name = line_name.to_string();
-            if let Some(groups) = ION_LINE_REGEX.captures(line_name.as_str()) {
-                let element_name = groups
-                    .get(1)
-                    .expect("Missing capture group")
-                    .as_str()
-                    .to_lowercase();
 
-                let z =
-                    if let Some(pos) = valid_elements
-                        .iter()
-                        .position(|valid_element_name| valid_element_name == &element_name)
-                    {
-                        pos + 1
-                    } else {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            format!(
-                            "Invalid element {} for spectral line {}, supported elements are [{}]",
-                            &element_name, line_name, valid_elements.join(", ")
-                        ),
-                        ));
-                    };
-
-                let ionization_stage: usize = match groups
-                    .get(2)
-                    .expect("Missing capture group")
-                    .as_str()
-                    .parse()
-                {
-                    Ok(ionization_stage) => ionization_stage,
-                    Err(err) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            format!(
-                                "Invalid ionization stage for spectral line {}: {}",
-                                line_name, err
-                            ),
-                        ))
-                    }
-                };
-
-                if ionization_stage > z {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!(
-                            "Ionization stage {} for element {} exceeds maximum of {}",
-                            ionization_stage, &element_name, z
-                        ),
-                    ));
+            match ion_line_name_map.entry(ion_name.clone()) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(line_name);
                 }
-
-                let ion_name = format!("{}_{}", element_name, ionization_stage);
-
-                let wavelength: F = match groups
-                    .get(3)
-                    .expect("Missing capture group")
-                    .as_str()
-                    .parse()
-                {
-                    Ok(wavelength) => wavelength,
-                    Err(err) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            format!(
-                                "Invalid wavelength for spectral line {}: {}",
-                                line_name, err
-                            ),
-                        ))
-                    }
-                };
-                match ion_line_name_map.entry(ion_name.clone()) {
-                    Entry::Occupied(mut entry) => {
-                        entry.get_mut().push(line_name);
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(vec![line_name]);
-                    }
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![line_name]);
                 }
-                match ion_line_wavelength_map.entry(ion_name) {
-                    Entry::Occupied(mut entry) => {
-                        entry.get_mut().push(wavelength);
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(vec![wavelength]);
-                    }
+            }
+            match ion_line_wavelength_map.entry(ion_name) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().push(wavelength);
                 }
-            } else {
-                return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("Invalid format for spectral line {}, must be <element>_<ionization stage>_<wavelength>, e.g. si_4_1393.755", line_name),
-                    ));
+                Entry::Vacant(entry) => {
+                    entry.insert(vec![wavelength]);
+                }
             }
         }
         Ok((ion_line_name_map, ion_line_wavelength_map))
+    }
+}
+
+/// Parses a spectral line name in the format \<element>\_\<ionization stage>\_\<wavelength>
+/// and returns a tuple of the ion name (\<element>\_\<ionization stage>), nuclear charge,
+/// ionization stage and wavelength.
+pub fn parse_spectral_line_name<F, S>(line_name: S) -> io::Result<(String, u32, u32, F)>
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+    S: AsRef<str>,
+{
+    let line_name = line_name.as_ref();
+
+    if let Some(groups) = ION_LINE_REGEX.captures(line_name) {
+        let element_name = groups
+            .get(1)
+            .expect("Missing capture group")
+            .as_str()
+            .to_lowercase();
+
+        let nuclear_charge = if let Some(pos) = CHIANTI_ELEMENTS
+            .iter()
+            .position(|&valid_element_name| valid_element_name == element_name.as_str())
+        {
+            (pos + 1) as u32
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Invalid element {} for spectral line {}, supported elements are [{}]",
+                    &element_name,
+                    line_name,
+                    CHIANTI_ELEMENTS.join(", ")
+                ),
+            ));
+        };
+
+        let ionization_stage: u32 = match groups
+            .get(2)
+            .expect("Missing capture group")
+            .as_str()
+            .parse()
+        {
+            Ok(ionization_stage) => ionization_stage,
+            Err(err) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "Invalid ionization stage for spectral line {}: {}",
+                        line_name, err
+                    ),
+                ))
+            }
+        };
+
+        if ionization_stage > nuclear_charge {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Ionization stage {} for element {} exceeds maximum of {}",
+                    ionization_stage, &element_name, nuclear_charge
+                ),
+            ));
+        }
+
+        let ion_name = format!("{}_{}", element_name, ionization_stage);
+
+        let wavelength: F = match groups
+            .get(3)
+            .expect("Missing capture group")
+            .as_str()
+            .parse()
+        {
+            Ok(wavelength) => wavelength,
+            Err(err) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "Invalid wavelength for spectral line {}: {}",
+                        line_name, err
+                    ),
+                ))
+            }
+        };
+        Ok((ion_name, nuclear_charge, ionization_stage, wavelength))
+    } else {
+        return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Invalid format for spectral line {}, must be <element>_<ionization stage>_<wavelength>, e.g. si_4_1393.755", line_name),
+            ));
     }
 }

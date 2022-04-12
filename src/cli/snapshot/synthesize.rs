@@ -8,7 +8,10 @@ use crate::{
         },
         utils,
     },
-    field::synthesis::EmissivitySnapshotProvider3,
+    field::{
+        synthesis::{EmissivitySnapshotProvider3, LineProfileMoment},
+        ScalarFieldCacher3,
+    },
     grid::Grid3,
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
     io::snapshot::{fdt, SnapshotProvider3},
@@ -38,6 +41,22 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
                 )
                 .takes_value(true)
                 .multiple_values(true),
+        )
+        .arg(
+            Arg::new("highest-moment")
+                .short('M')
+                .long("highest-moment")
+                .require_equals(true)
+                .value_name("MOMENT")
+                .help(
+                    "Highest moment of the spectral line profile to compute contributions to:\n\
+                     0 => Compute emis_<line> (emissivity [erg/s/sr/cm³]) from tg and nel\n\
+                     1 => Compute 0 and shift_<line> (mean of local doppler shift (in z) [cm] times emissivity) from tg, nel and uz\n\
+                     2 => Compute 0, 1 and var_<line> (variance of local doppler shift (in z) [cm2] times emissivity) from tg, nel and uz",
+                )
+                .takes_value(true)
+                .possible_values(["0", "1", "2"])
+                .default_value("0"),
         )
         .arg(
             Arg::new("n-table-temperatures")
@@ -116,15 +135,15 @@ where
         .map(|values| values.map(String::from).collect::<Vec<_>>())
         .unwrap_or(Vec::new());
 
-    if !line_names.is_empty() {
-        for variable_name in ["tg", "nel"] {
-            exit_on_false!(
-                provider.has_variable(variable_name),
-                "Error: Missing variable {} required for computing emissivities",
-                variable_name
-            );
-        }
-    }
+    let highest_moment = match arguments
+        .value_of("highest-moment")
+        .expect("No value for argument with default")
+    {
+        "0" => LineProfileMoment::Zeroth,
+        "1" => LineProfileMoment::First,
+        "2" => LineProfileMoment::Second,
+        invalid => exit_with_error!("Error: Invalid highest moment {}", invalid),
+    };
 
     let n_temperature_points =
         utils::get_value_from_required_parseable_argument(arguments, "n-table-temperatures");
@@ -147,10 +166,25 @@ where
     };
     let interpolator = PolyFitInterpolator2::new(interpolator_config);
 
+    if !line_names.is_empty() {
+        for variable_name in ["tg", "nel"] {
+            exit_on_false!(
+                provider.has_variable(variable_name),
+                "Error: Missing variable {} required for synthesizing emissivities",
+                variable_name
+            );
+        }
+        exit_on_false!(
+            highest_moment == LineProfileMoment::Zeroth || provider.has_variable("uz"),
+            "Error: Missing variable uz required for computing doppler shifts"
+        );
+    }
+
     EmissivitySnapshotProvider3::new(
         provider,
         interpolator,
-        line_names,
+        &line_names,
+        highest_moment,
         n_temperature_points,
         n_electron_density_points,
         log_temperature_limits,
