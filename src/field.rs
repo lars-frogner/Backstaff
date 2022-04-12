@@ -84,7 +84,7 @@ pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<F>>: Sync {
 /// Wrapper for `ScalarFieldProvider3` that reads or computes variables only on first request and
 /// then caches the results.
 #[derive(Debug)]
-pub struct ScalarFieldCacher3<F: BFloat, G: Grid3<F>, P> {
+pub struct ScalarFieldCacher3<F, G, P> {
     provider: P,
     max_memory_usage_fraction: f32,
     verbose: Verbose,
@@ -372,11 +372,7 @@ pub enum ResamplingMethod {
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct ScalarField3<F, G>
-where
-    F: BFloat,
-    G: Grid3<F>,
-{
+pub struct ScalarField3<F, G> {
     name: String,
     grid: Arc<G>,
     locations: In3D<CoordLocation>,
@@ -1236,11 +1232,7 @@ where
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct VectorField3<F, G>
-where
-    F: BFloat,
-    G: Grid3<F>,
-{
+pub struct VectorField3<F, G> {
     name: String,
     grid: Arc<G>,
     components: In3D<ScalarField3<F, G>>,
