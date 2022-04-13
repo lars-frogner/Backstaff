@@ -88,90 +88,56 @@ where
     F: BFloat,
     G: Grid3<F>,
 {
-    /// Provides a reference to the field of the specified 3D scalar variable
-    /// from the wrapped provider.
-    fn provide_scalar_field_from_wrapped_provider<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<Arc<ScalarField3<F, G>>>;
-
-    /// Provides a reference to the field of the specified 3D vector variable
-    /// from the wrapped provider.
-    fn provide_vector_field_from_wrapped_provider<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<Arc<VectorField3<F, G>>>;
-
     /// Whether the scalar field representing the given variable is cached.
     fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool;
 
     /// Whether the vector field representing the given variable is cached.
     fn vector_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool;
 
-    fn add_scalar_field_to_cache<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-        field: Arc<ScalarField3<F, G>>,
-    );
+    /// Makes sure the scalar field representing the given variable is cached.
+    fn cache_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()>;
 
-    fn add_vector_field_to_cache<S: AsRef<str>>(
-        &mut self,
+    /// Makes sure the vector field representing the given variable is cached.
+    fn cache_vector_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()>;
+
+    /// Returns a reference to an `Arc` with the scalar field representing the given variable.
+    ///
+    /// Panics if the field is not cached.
+    fn arc_with_cached_scalar_field<S: AsRef<str>>(
+        &self,
         variable_name: S,
-        field: Arc<VectorField3<F, G>>,
-    );
+    ) -> &Arc<ScalarField3<F, G>>;
 
     /// Returns a reference to the scalar field representing the given variable.
     ///
     /// Panics if the field is not cached.
-    fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<F, G>;
+    fn cached_scalar_field<S: AsRef<str>>(&self, variable_name: S) -> &ScalarField3<F, G> {
+        self.arc_with_cached_scalar_field(variable_name).as_ref()
+    }
+
+    /// Returns a reference to an `Arc` with the vector field representing the given variable.
+    ///
+    /// Panics if the field is not cached.
+    fn arc_with_cached_vector_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> &Arc<VectorField3<F, G>>;
 
     /// Returns a reference to the vector field representing the given variable.
     ///
     /// Panics if the field is not cached.
-    fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<F, G>;
-
-    fn remove_scalar_field_from_cache<S: AsRef<str>>(&mut self, variable_name: S);
-
-    fn remove_vector_field_from_cache<S: AsRef<str>>(&mut self, variable_name: S);
-
-    /// Removes all cached scalar and vector fields.
-    fn drop_all_fields(&mut self);
-
-    /// Makes sure the scalar field representing the given variable is cached.
-    fn cache_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
-        let variable_name = variable_name.as_ref();
-        if !self.scalar_field_is_cached(variable_name) {
-            let field = self.provide_scalar_field_from_wrapped_provider(variable_name)?;
-            self.add_scalar_field_to_cache(variable_name, field);
-        }
-        Ok(())
-    }
-
-    /// Makes sure the vector field representing the given variable is cached.
-    fn cache_vector_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
-        let variable_name = variable_name.as_ref();
-        if !self.vector_field_is_cached(variable_name) {
-            let field = self.provide_vector_field_from_wrapped_provider(variable_name)?;
-            self.add_vector_field_to_cache(variable_name, field);
-        }
-        Ok(())
+    fn cached_vector_field<S: AsRef<str>>(&self, variable_name: S) -> &VectorField3<F, G> {
+        self.arc_with_cached_vector_field(variable_name).as_ref()
     }
 
     /// Removes the scalar field representing the given variable from the cache.
-    fn drop_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) {
-        let variable_name = variable_name.as_ref();
-        if self.scalar_field_is_cached(variable_name) {
-            self.remove_scalar_field_from_cache(variable_name);
-        }
-    }
+    fn drop_scalar_field<S: AsRef<str>>(&mut self, variable_name: S);
 
     /// Removes the vector field representing the given variable from the cache.
-    fn drop_vector_field<S: AsRef<str>>(&mut self, variable_name: S) {
-        let variable_name = variable_name.as_ref();
-        if self.vector_field_is_cached(variable_name) {
-            self.remove_vector_field_from_cache(variable_name);
-        }
-    }
+    fn drop_vector_field<S: AsRef<str>>(&mut self, variable_name: S);
+
+    /// Removes all cached scalar and vector fields.
+    fn drop_all_fields(&mut self);
 }
 
 #[derive(Debug)]
@@ -367,20 +333,6 @@ where
     G: Grid3<F>,
     P: ScalarFieldProvider3<F, G>,
 {
-    fn provide_scalar_field_from_wrapped_provider<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<Arc<ScalarField3<F, G>>> {
-        self.provider.provide_scalar_field(variable_name)
-    }
-
-    fn provide_vector_field_from_wrapped_provider<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<Arc<VectorField3<F, G>>> {
-        self.provider.provide_vector_field(variable_name)
-    }
-
     fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
         self.scalar_fields.contains_key(variable_name.as_ref())
     }
@@ -389,70 +341,82 @@ where
         self.vector_fields.contains_key(variable_name.as_ref())
     }
 
-    fn add_scalar_field_to_cache<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-        field: Arc<ScalarField3<F, G>>,
-    ) {
+    fn cache_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
         let variable_name = variable_name.as_ref();
-        if self.verbose.is_yes() {
-            println!("Caching {}", variable_name);
+        if !self.scalar_field_is_cached(variable_name) {
+            let field = self.provider.provide_scalar_field(variable_name)?;
+            if self.verbose.is_yes() {
+                println!("Caching {}", variable_name);
+            }
+            self.scalar_fields.insert(
+                variable_name.to_string(),
+                CachedField::ManuallyCached(field),
+            );
         }
-        self.scalar_fields.insert(
-            variable_name.to_string(),
-            CachedField::ManuallyCached(field),
-        );
+        Ok(())
     }
 
-    fn add_vector_field_to_cache<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-        field: Arc<VectorField3<F, G>>,
-    ) {
+    fn cache_vector_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
         let variable_name = variable_name.as_ref();
-        if self.verbose.is_yes() {
-            println!("Caching {}", variable_name);
+        if !self.vector_field_is_cached(variable_name) {
+            let field = self.provider.provide_vector_field(variable_name)?;
+            if self.verbose.is_yes() {
+                println!("Caching {}", variable_name);
+            }
+            self.vector_fields.insert(variable_name.to_string(), field);
         }
-        self.vector_fields.insert(variable_name.to_string(), field);
+        Ok(())
     }
 
-    fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<F, G> {
+    fn arc_with_cached_scalar_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> &Arc<ScalarField3<F, G>> {
+        let variable_name = variable_name.as_ref();
         let field = self
             .scalar_fields
             .get(variable_name)
             .expect("Scalar field is not cached")
-            .field()
-            .as_ref();
+            .field();
         if self.verbose.is_yes() {
             println!("Using cached {}", variable_name);
         }
         field
     }
 
-    fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<F, G> {
+    fn arc_with_cached_vector_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> &Arc<VectorField3<F, G>> {
+        let variable_name = variable_name.as_ref();
         let field = self
             .vector_fields
             .get(variable_name)
-            .expect("Vector field is not cached")
-            .as_ref();
+            .expect("Vector field is not cached");
         if self.verbose.is_yes() {
             println!("Using cached {}", variable_name);
         }
         field
     }
 
-    fn remove_scalar_field_from_cache<S: AsRef<str>>(&mut self, variable_name: S) {
-        if self.verbose.is_yes() {
-            println!("Dropping {} from cache", variable_name.as_ref());
+    fn drop_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) {
+        let variable_name = variable_name.as_ref();
+        if self.scalar_field_is_cached(variable_name) {
+            if self.verbose.is_yes() {
+                println!("Dropping {} from cache", variable_name);
+            }
+            self.scalar_fields.remove(variable_name);
         }
-        self.scalar_fields.remove(variable_name.as_ref());
     }
 
-    fn remove_vector_field_from_cache<S: AsRef<str>>(&mut self, variable_name: S) {
-        if self.verbose.is_yes() {
-            println!("Dropping {} from cache", variable_name.as_ref());
+    fn drop_vector_field<S: AsRef<str>>(&mut self, variable_name: S) {
+        let variable_name = variable_name.as_ref();
+        if self.vector_field_is_cached(variable_name) {
+            if self.verbose.is_yes() {
+                println!("Dropping {} from cache", variable_name);
+            }
+            self.vector_fields.remove(variable_name);
         }
-        self.vector_fields.remove(variable_name.as_ref());
     }
 
     fn drop_all_fields(&mut self) {
