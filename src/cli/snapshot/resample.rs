@@ -621,27 +621,87 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
         verbose,
     );
 
+    run_snapshot_resampling_with_derive(
+        arguments,
+        provider,
+        snap_num_in_range,
+        protected_file_types,
+    );
+}
+
+fn run_snapshot_resampling_with_derive<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = create_derive_provider(derive_arguments, provider);
-
-        let write_arguments = derive_arguments.subcommand_matches("write").unwrap();
-
-        run_write_subcommand(
-            write_arguments,
+        run_snapshot_resampling_with_synthesis(
+            derive_arguments,
             provider,
             snap_num_in_range,
-            HashMap::new(),
             protected_file_types,
         );
     } else {
-        let write_arguments = arguments.subcommand_matches("write").unwrap();
-
-        run_write_subcommand(
-            write_arguments,
+        run_snapshot_resampling_with_synthesis(
+            arguments,
             provider,
             snap_num_in_range,
-            HashMap::new(),
             protected_file_types,
         );
     }
+}
+
+fn run_snapshot_resampling_with_synthesis<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    #[cfg(feature = "synthesis")]
+    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+        let provider =
+            super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
+        run_snapshot_resampling_for_provider(
+            synthesize_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+        return;
+    }
+
+    run_snapshot_resampling_for_provider(
+        arguments,
+        provider,
+        snap_num_in_range,
+        protected_file_types,
+    );
+}
+
+fn run_snapshot_resampling_for_provider<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    let write_arguments = arguments.subcommand_matches("write").unwrap();
+
+    run_write_subcommand(
+        write_arguments,
+        provider,
+        snap_num_in_range,
+        HashMap::new(),
+        protected_file_types,
+    );
 }

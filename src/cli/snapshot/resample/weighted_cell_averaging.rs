@@ -6,6 +6,9 @@ use crate::{
 };
 use clap::Command;
 
+#[cfg(feature = "synthesis")]
+use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
+
 /// Builds a representation of the `snapshot-resample-weighted_cell_averaging` command line subcommand.
 pub fn create_weighted_cell_averaging_subcommand(
     parent_command_name: &'static str,
@@ -24,5 +27,11 @@ pub fn create_weighted_cell_averaging_subcommand(
              averaging, but slightly less accurate.",
         );
 
-    add_subcommand_combinations!(command, command_name, true; derive, write)
+    #[cfg(feature = "synthesis")]
+    let command =
+        add_subcommand_combinations!(command, command_name, true; derive, synthesize, write);
+    #[cfg(not(feature = "synthesis"))]
+    let command = add_subcommand_combinations!(command, command_name, true; derive, write);
+
+    command
 }

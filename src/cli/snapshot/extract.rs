@@ -1,12 +1,12 @@
 //! Command line interface for extracting a subdomain of a snapshot.
 
-use super::SnapNumInRange;
 use crate::{
     add_subcommand_combinations,
     cli::{
         snapshot::{
             derive::{create_derive_provider, create_derive_subcommand},
             write::{create_write_subcommand, run_write_subcommand},
+            SnapNumInRange,
         },
         utils,
     },
@@ -23,6 +23,9 @@ use crate::{
 };
 use clap::{Arg, ArgMatches, Command};
 use std::collections::HashMap;
+
+#[cfg(feature = "synthesis")]
+use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
 
 /// Builds a representation of the `snapshot-extract` command line subcommand.
 pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'static> {
@@ -120,7 +123,13 @@ pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'
                 .help("Print status messages related to extraction"),
         );
 
-    add_subcommand_combinations!(command, command_name, true; derive, write)
+    #[cfg(feature = "synthesis")]
+    let command =
+        add_subcommand_combinations!(command, command_name, true; derive, synthesize, write);
+    #[cfg(not(feature = "synthesis"))]
+    let command = add_subcommand_combinations!(command, command_name, true; derive, write);
+
+    command
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
@@ -215,27 +224,87 @@ pub fn run_extract_subcommand<G, P>(
 
     let provider = ExtractedSnapshotProvider3::new(provider, lower_indices, upper_indices, verbose);
 
+    run_extract_subcommand_with_derive(
+        arguments,
+        provider,
+        snap_num_in_range,
+        protected_file_types,
+    );
+}
+
+fn run_extract_subcommand_with_derive<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = create_derive_provider(derive_arguments, provider);
-
-        let write_arguments = derive_arguments.subcommand_matches("write").unwrap();
-
-        run_write_subcommand(
-            write_arguments,
+        run_extract_subcommand_with_synthesis(
+            derive_arguments,
             provider,
             snap_num_in_range,
-            HashMap::new(),
             protected_file_types,
         );
     } else {
-        let write_arguments = arguments.subcommand_matches("write").unwrap();
-
-        run_write_subcommand(
-            write_arguments,
+        run_extract_subcommand_with_synthesis(
+            arguments,
             provider,
             snap_num_in_range,
-            HashMap::new(),
             protected_file_types,
         );
     }
+}
+
+fn run_extract_subcommand_with_synthesis<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    #[cfg(feature = "synthesis")]
+    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+        let provider =
+            super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
+        run_extract_subcommand_for_provider(
+            synthesize_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+        return;
+    }
+
+    run_extract_subcommand_for_provider(
+        arguments,
+        provider,
+        snap_num_in_range,
+        protected_file_types,
+    );
+}
+
+fn run_extract_subcommand_for_provider<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    let write_arguments = arguments.subcommand_matches("write").unwrap();
+
+    run_write_subcommand(
+        write_arguments,
+        provider,
+        snap_num_in_range,
+        HashMap::new(),
+        protected_file_types,
+    );
 }

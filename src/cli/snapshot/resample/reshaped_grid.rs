@@ -26,6 +26,9 @@ use crate::{
 };
 use clap::{Arg, ArgMatches, Command};
 
+#[cfg(feature = "synthesis")]
+use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
+
 /// Builds a representation of the `snapshot-resample-reshaped_grid` command line subcommand.
 pub fn create_reshaped_grid_subcommand(parent_command_name: &'static str) -> Command<'static> {
     let command_name = "reshaped_grid";
@@ -55,7 +58,13 @@ pub fn create_reshaped_grid_subcommand(parent_command_name: &'static str) -> Com
         .subcommand(create_weighted_cell_averaging_subcommand(command_name))
         .subcommand(create_direct_sampling_subcommand(command_name));
 
-    add_subcommand_combinations!(command, command_name, true; derive, write)
+    #[cfg(feature = "synthesis")]
+    let command =
+        add_subcommand_combinations!(command, command_name, true; derive, synthesize, write);
+    #[cfg(not(feature = "synthesis"))]
+    let command = add_subcommand_combinations!(command, command_name, true; derive, write);
+
+    command
 }
 
 pub fn run_resampling_for_reshaped_grid<G, P, I>(

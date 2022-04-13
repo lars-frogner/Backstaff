@@ -8,10 +8,7 @@ use crate::{
         },
         utils,
     },
-    field::{
-        synthesis::{EmissivitySnapshotProvider3, LineProfileMoment},
-        ScalarFieldCacher3,
-    },
+    field::synthesis::{EmissivitySnapshotProvider3, LineProfileMoment},
     grid::Grid3,
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
     io::snapshot::{fdt, SnapshotProvider3},
@@ -121,6 +118,7 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
         .subcommand(create_poly_fit_interpolator_subcommand(command_name))
 }
 
+/// Creates an `EmissivitySnapshotProvider3` for the given arguments and snapshot provider.
 #[cfg(feature = "synthesis")]
 pub fn create_synthesize_provider<G, P>(
     arguments: &ArgMatches,
@@ -176,7 +174,8 @@ where
         }
         exit_on_false!(
             highest_moment == LineProfileMoment::Zeroth || provider.has_variable("uz"),
-            "Error: Missing variable uz required for computing doppler shifts"
+            "Error: Missing variable uz required for computing doppler shifts\n\
+             (consider deriving it by adding the `derive` subcommand in front of `synthesize`)"
         );
     }
 

@@ -63,7 +63,7 @@ pub fn create_derive_subcommand(parent_command_name: &'static str) -> Command<'s
         .after_help(&**AVAILABLE_QUANTITY_TABLE_STRING)
 }
 
-/// Creates a `DerivedQuantityComputer3` for the given arguments and snapshot provider.
+/// Creates a `DerivedSnapshotProvider3` for the given arguments and snapshot provider.
 pub fn create_derive_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
