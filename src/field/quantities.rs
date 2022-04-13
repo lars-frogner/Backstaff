@@ -1,12 +1,15 @@
 //! Computation of various derived physical quantities.
 
 use crate::{
-    field::{self, ResampledCoordLocation, ResamplingMethod, ScalarField3},
+    field::{
+        self, CachingScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod, ScalarField3,
+        ScalarFieldProvider3, VectorField3,
+    },
     geometry::{Idx3, In3D},
     grid::{CoordLocation, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
     io::{
-        snapshot::{fdt, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
         Endianness, Verbose,
     },
     units::solar::{U_B, U_E, U_P, U_R, U_T, U_U},
@@ -15,8 +18,6 @@ use lazy_static::lazy_static;
 use rayon::prelude::*;
 use regex::Regex;
 use std::{collections::HashMap, io, marker::PhantomData, sync::Arc};
-
-use super::ScalarFieldProvider3;
 
 lazy_static! {
     static ref DIRECTLY_DERIVABLE_QUANTITIES: HashMap<&'static str, (&'static str, Vec<&'static str>)> =
@@ -178,11 +179,16 @@ pub struct DerivedSnapshotProvider3<G, P> {
     derived_quantity_names: Vec<String>,
     auxiliary_variable_names: Vec<String>,
     all_variable_names: Vec<String>,
+    cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt, G>>>,
     verbose: Verbose,
     phantom: PhantomData<G>,
 }
 
-impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
+impl<G, P> DerivedSnapshotProvider3<G, P>
+where
+    G: Grid3<fdt>,
+    P: CachingSnapshotProvider3<G>,
+{
     /// Creates a computer of derived 3D quantities.
     pub fn new<H>(
         provider: P,
@@ -209,6 +215,7 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
             derived_quantity_names,
             auxiliary_variable_names,
             all_variable_names,
+            cached_scalar_fields: HashMap::new(),
             verbose: verbose,
             phantom: PhantomData,
         }
@@ -217,6 +224,18 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
     /// Returns the names of the derived quantities that this computer will provide as auxiliary variables.
     pub fn derived_quantity_names(&self) -> &[String] {
         &self.derived_quantity_names
+    }
+
+    fn produce_uncached_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
+        if self.provider.has_variable(variable_name) {
+            self.provider.produce_scalar_field(variable_name)
+        } else {
+            compute_quantity(self, variable_name, self.verbose)
+        }
     }
 
     fn variable_is_present_or_directly_derivable<S: AsRef<str>>(
@@ -341,8 +360,10 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> DerivedSnapshotProvider3<G, P> {
     }
 }
 
-impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> ScalarFieldProvider3<fdt, G>
-    for DerivedSnapshotProvider3<G, P>
+impl<G, P> ScalarFieldProvider3<fdt, G> for DerivedSnapshotProvider3<G, P>
+where
+    G: Grid3<fdt>,
+    P: CachingSnapshotProvider3<G>,
 {
     fn grid(&self) -> &G {
         self.provider.grid()
@@ -357,16 +378,110 @@ impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> ScalarFieldProvider3<fdt, G>
         variable_name: S,
     ) -> io::Result<ScalarField3<fdt, G>> {
         let variable_name = variable_name.as_ref();
-        if self.provider.has_variable(variable_name) {
-            self.provider.produce_scalar_field(variable_name)
+        if self.scalar_field_is_cached(variable_name) {
+            Ok(self.cached_scalar_field(variable_name).clone())
         } else {
-            compute_quantity(self, variable_name, self.verbose)
+            self.produce_uncached_scalar_field(variable_name)
+        }
+    }
+
+    fn provide_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<Arc<ScalarField3<fdt, G>>> {
+        let variable_name = variable_name.as_ref();
+        if self.scalar_field_is_cached(variable_name) {
+            Ok(self.arc_with_cached_scalar_field(variable_name).clone())
+        } else {
+            Ok(Arc::new(self.produce_uncached_scalar_field(variable_name)?))
         }
     }
 }
 
-impl<G: Grid3<fdt>, P: SnapshotProvider3<G>> SnapshotProvider3<G>
-    for DerivedSnapshotProvider3<G, P>
+impl<G, P> CachingScalarFieldProvider3<fdt, G> for DerivedSnapshotProvider3<G, P>
+where
+    G: Grid3<fdt>,
+    P: CachingSnapshotProvider3<G>,
+{
+    fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        let variable_name = variable_name.as_ref();
+        self.cached_scalar_fields.contains_key(variable_name)
+            || self.provider.scalar_field_is_cached(variable_name)
+    }
+
+    fn vector_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.provider.vector_field_is_cached(variable_name)
+    }
+
+    fn cache_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
+        let variable_name = variable_name.as_ref();
+        if self.provider.has_variable(variable_name) {
+            self.provider.cache_scalar_field(variable_name)
+        } else {
+            if !self.cached_scalar_fields.contains_key(variable_name) {
+                let field = self.provide_scalar_field(variable_name)?;
+                if self.verbose.is_yes() {
+                    println!("Caching {}", variable_name);
+                }
+                self.cached_scalar_fields
+                    .insert(variable_name.to_string(), field);
+            }
+            Ok(())
+        }
+    }
+
+    fn cache_vector_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
+        self.provider.cache_vector_field(variable_name)
+    }
+
+    fn arc_with_cached_scalar_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> &Arc<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
+        if let Some(field) = self.cached_scalar_fields.get(variable_name) {
+            if self.verbose.is_yes() {
+                println!("Using cached {}", variable_name);
+            }
+            field
+        } else {
+            self.provider.arc_with_cached_scalar_field(variable_name)
+        }
+    }
+
+    fn arc_with_cached_vector_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> &Arc<VectorField3<fdt, G>> {
+        self.provider.arc_with_cached_vector_field(variable_name)
+    }
+
+    fn drop_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) {
+        let variable_name = variable_name.as_ref();
+        if self.cached_scalar_fields.contains_key(variable_name) {
+            if self.verbose.is_yes() {
+                println!("Dropping {} from cache", variable_name);
+            }
+            self.cached_scalar_fields.remove(variable_name);
+        } else {
+            self.provider.drop_scalar_field(variable_name)
+        }
+    }
+
+    fn drop_vector_field<S: AsRef<str>>(&mut self, variable_name: S) {
+        self.provider.drop_vector_field(variable_name)
+    }
+
+    fn drop_all_fields(&mut self) {
+        self.cached_scalar_fields.clear();
+        self.provider.drop_all_fields()
+    }
+}
+
+impl<G, P> SnapshotProvider3<G> for DerivedSnapshotProvider3<G, P>
+where
+    G: Grid3<fdt>,
+    P: CachingSnapshotProvider3<G>,
 {
     type Parameters = P::Parameters;
 
