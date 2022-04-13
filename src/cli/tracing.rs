@@ -33,7 +33,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotProvider3},
+        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -275,12 +275,12 @@ impl fmt::Display for OutputType {
 
 fn run_with_selected_tracer<G, P>(
     arguments: &ArgMatches,
-    snapshot: ScalarFieldCacher3<fdt, G, P>,
+    snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
 {
     let (tracer_config, tracer_arguments) =
         if let Some(tracer_arguments) = arguments.subcommand_matches("basic_tracer") {
@@ -311,13 +311,13 @@ fn run_with_selected_tracer<G, P>(
 fn run_with_selected_stepper_factory<G, P, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: ScalarFieldCacher3<fdt, G, P>,
+    snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -364,14 +364,14 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
 fn run_with_selected_interpolator<G, P, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: ScalarFieldCacher3<fdt, G, P>,
+    snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -409,7 +409,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
 fn run_with_selected_seeder<G, P, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    mut snapshot: ScalarFieldCacher3<fdt, G, P>,
+    mut snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
@@ -417,7 +417,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -469,7 +469,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
 
 fn run_tracing<G, P, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
-    mut snapshot: ScalarFieldCacher3<fdt, G, P>,
+    mut snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
@@ -478,7 +478,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,

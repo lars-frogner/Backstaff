@@ -2,7 +2,7 @@
 
 use super::ReconnectionSiteDetector;
 use crate::{
-    field::{ScalarFieldCacher3, ScalarFieldProvider3},
+    field::CachingScalarFieldProvider3,
     geometry::Idx3,
     grid::Grid3,
     io::{snapshot::fdt, Verbose},
@@ -31,14 +31,10 @@ impl ManualReconnectionSiteDetector {
 impl ReconnectionSiteDetector for ManualReconnectionSiteDetector {
     type Seeder = Vec<Idx3<usize>>;
 
-    fn detect_reconnection_sites<G, P>(
-        &self,
-        snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
-        _verbose: Verbose,
-    ) -> Self::Seeder
+    fn detect_reconnection_sites<G, P>(&self, snapshot: &mut P, _verbose: Verbose) -> Self::Seeder
     where
         G: Grid3<fdt>,
-        P: ScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt, G>,
     {
         self.seeder.to_index_seeder(snapshot.grid())
     }

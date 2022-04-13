@@ -7,7 +7,7 @@ use super::{
     stepping::{Stepper3, StepperFactory3},
 };
 use crate::{
-    field::{ScalarField3, ScalarFieldCacher3, ScalarFieldProvider3, VectorField3},
+    field::{CachingScalarFieldProvider3, ScalarField3, VectorField3},
     geometry::{Dim3, Point3, Vec3},
     grid::Grid3,
     interpolation::Interpolator3,
@@ -65,14 +65,14 @@ pub trait FieldLineTracer3 {
     fn trace<G, P, I, St>(
         &self,
         field_name: &str,
-        snapshot: &ScalarFieldCacher3<fdt, G, P>,
+        snapshot: &P,
         interpolator: &I,
         stepper: St,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
-        P: ScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         St: Stepper3;
 }
@@ -143,7 +143,7 @@ impl FieldLineSet3 {
     /// - `StF`: Type of stepper factory.
     pub fn trace<Sd, Tr, G, P, I, StF>(
         field_name: &str,
-        snapshot: &ScalarFieldCacher3<fdt, G, P>,
+        snapshot: &P,
         seeder: Sd,
         tracer: &Tr,
         interpolator: &I,
@@ -156,7 +156,7 @@ impl FieldLineSet3 {
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
         G: Grid3<fdt>,
-        P: ScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
     {

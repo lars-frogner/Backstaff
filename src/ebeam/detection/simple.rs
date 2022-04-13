@@ -3,7 +3,7 @@
 use super::ReconnectionSiteDetector;
 use crate::{
     exit_on_error,
-    field::{ScalarFieldCacher3, ScalarFieldProvider3},
+    field::CachingScalarFieldProvider3,
     geometry::Dim3,
     grid::Grid3,
     io::{
@@ -42,14 +42,10 @@ impl SimpleReconnectionSiteDetector {
 impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
     type Seeder = CriterionSeeder3;
 
-    fn detect_reconnection_sites<G, P>(
-        &self,
-        provider: &mut ScalarFieldCacher3<fdt, G, P>,
-        verbose: Verbose,
-    ) -> Self::Seeder
+    fn detect_reconnection_sites<G, P>(&self, provider: &mut P, verbose: Verbose) -> Self::Seeder
     where
         G: Grid3<fdt>,
-        P: ScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt, G>,
     {
         let reconnection_factor_field = exit_on_error!(
             provider.provide_scalar_field("krec"),

@@ -23,7 +23,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -156,13 +156,13 @@ pub fn run_corks_subcommand<G, P>(
 
 fn run_with_selected_interpolator<G, P>(
     root_arguments: &ArgMatches,
-    snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
+    snapshot: &mut P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
 {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         root_arguments.subcommand_matches("poly_fit_interpolator")
@@ -191,14 +191,14 @@ fn run_with_selected_interpolator<G, P>(
 fn run_tracing<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
+    snapshot: &mut P,
     snap_num_in_range: &Option<SnapNumInRange>,
     interpolator: I,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
 {
     if is_first_iteration(corks_state) {
@@ -228,12 +228,12 @@ fn is_first_iteration(corks_state: &Option<CorksState>) -> bool {
 fn initialize_with_selected_seeder<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
+    snapshot: &mut P,
     interpolator: I,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
@@ -277,13 +277,13 @@ fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, V
 
 fn initialize_corks<G, P, I, Sd>(
     root_arguments: &ArgMatches,
-    snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
+    snapshot: &mut P,
     interpolator: I,
     seeder: Sd,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
     Sd: Seeder3,
 {
@@ -304,13 +304,10 @@ fn initialize_corks<G, P, I, Sd>(
     snapshot.drop_all_fields();
 }
 
-fn advect_with_selected_advector<G, P, I>(
-    snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
-    interpolator: I,
-    corks: &mut CorkSet,
-) where
+fn advect_with_selected_advector<G, P, I>(snapshot: &mut P, interpolator: I, corks: &mut CorkSet)
+where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
 {
     let advector = ConstantCorkAdvector;
@@ -319,13 +316,13 @@ fn advect_with_selected_advector<G, P, I>(
 }
 
 fn advect_with_selected_stepper<G, P, I, A>(
-    snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
+    snapshot: &mut P,
     interpolator: I,
     advector: A,
     corks: &mut CorkSet,
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
     A: CorkAdvector,
 {
@@ -335,14 +332,14 @@ fn advect_with_selected_stepper<G, P, I, A>(
 }
 
 fn advect_corks<G, P, I, A, St>(
-    snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
+    snapshot: &mut P,
     interpolator: I,
     advector: A,
     stepper: St,
     corks: &mut CorkSet,
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
     A: CorkAdvector,
     St: CorkStepper,

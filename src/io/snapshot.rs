@@ -8,8 +8,8 @@ pub mod netcdf;
 use super::{Endianness, Verbose};
 use crate::{
     field::{
-        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldCacher3,
-        ScalarFieldProvider3,
+        CachingScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod, ScalarField3,
+        ScalarFieldCacher3, ScalarFieldProvider3,
     },
     geometry::{Idx3, In3D},
     grid::Grid3,
@@ -427,6 +427,19 @@ where
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
         self.provider.obtain_snap_name_and_num()
     }
+}
+
+/// A provider of 3D Bifrost snapshot variables that also supports caching.
+pub trait CachingSnapshotProvider3<G: Grid3<fdt>>:
+    CachingScalarFieldProvider3<fdt, G> + SnapshotProvider3<G>
+{
+}
+
+impl<G, C> CachingSnapshotProvider3<G> for C
+where
+    G: Grid3<fdt>,
+    C: CachingScalarFieldProvider3<fdt, G> + SnapshotProvider3<G>,
+{
 }
 
 impl<G, P> SnapshotProvider3<G> for ScalarFieldCacher3<fdt, G, P>
