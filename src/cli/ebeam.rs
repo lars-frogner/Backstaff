@@ -29,7 +29,6 @@ pub fn create_ebeam_subcommand(parent_command_name: &'static str) -> Command<'st
 pub fn run_ebeam_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -40,7 +39,6 @@ pub fn run_ebeam_subcommand<G, P>(
         run_simulate_subcommand(
             simulate_arguments,
             provider,
-            max_memory_usage,
             snap_num_in_range,
             protected_file_types,
         );

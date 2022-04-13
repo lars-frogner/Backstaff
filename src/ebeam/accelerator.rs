@@ -4,7 +4,7 @@ use super::{
     detection::ReconnectionSiteDetector, distribution::Distribution, AccelerationDataCollection,
 };
 use crate::{
-    field::{ScalarFieldCacher3, ScalarFieldProvider3},
+    field::CachingScalarFieldProvider3,
     grid::Grid3,
     interpolation::Interpolator3,
     io::{snapshot::fdt, Verbose},
@@ -21,7 +21,7 @@ pub trait Accelerator {
     /// at the 3D indices produced by the given seeder.
     fn generate_distributions<G, P, D, I, StF>(
         &self,
-        snapshot: &mut ScalarFieldCacher3<fdt, G, P>,
+        snapshot: &mut P,
         detector: D,
         interpolator: &I,
         stepper_factory: &StF,
@@ -32,7 +32,7 @@ pub trait Accelerator {
     )>
     where
         G: Grid3<fdt>,
-        P: ScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt, G>,
         D: ReconnectionSiteDetector,
         I: Interpolator3,
         StF: StepperFactory3 + Sync;

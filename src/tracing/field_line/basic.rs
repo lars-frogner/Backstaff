@@ -5,7 +5,7 @@ use super::{
     FieldLinePath3, FieldLineSetProperties3, FieldLineTracer3,
 };
 use crate::{
-    field::{ScalarFieldCacher3, ScalarFieldProvider3},
+    field::CachingScalarFieldProvider3,
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
@@ -69,14 +69,14 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
     fn trace<G, P, I, S>(
         &self,
         field_name: &str,
-        snapshot: &ScalarFieldCacher3<fdt, G, P>,
+        snapshot: &P,
         interpolator: &I,
         stepper: S,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         G: Grid3<fdt>,
-        P: ScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         S: Stepper3,
     {
@@ -338,7 +338,7 @@ impl Default for BasicFieldLineTracerConfig {
 mod tests {
 
     use super::*;
-    use crate::field::ScalarFieldProvider3;
+    use crate::field::{ScalarFieldCacher3, ScalarFieldProvider3};
     use crate::geometry::{Dim3, In2D};
     use crate::grid::hor_regular::HorRegularGrid3;
     use crate::interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig};
@@ -358,7 +358,7 @@ mod tests {
                 Verbose::No,
             ))
             .unwrap();
-        let mut snapshot = ScalarFieldCacher3::new(reader, 100.0, Verbose::No);
+        let mut snapshot = ScalarFieldCacher3::new_manual_cacher(reader, Verbose::No);
 
         let field_name = "b";
         snapshot.cache_vector_field(field_name).unwrap();

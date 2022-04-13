@@ -58,7 +58,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotProvider3},
+        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     tracing::stepping::rkf::{
@@ -215,7 +215,6 @@ pub fn create_simulate_subcommand(parent_command_name: &'static str) -> Command<
 pub fn run_simulate_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -223,7 +222,7 @@ pub fn run_simulate_subcommand<G, P>(
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();
-    let snapshot = ScalarFieldCacher3::new(provider, max_memory_usage, verbose);
+    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
     run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
@@ -331,12 +330,12 @@ impl fmt::Display for OutputType {
 
 fn run_with_selected_detector<G, P>(
     arguments: &ArgMatches,
-    snapshot: ScalarFieldCacher3<fdt, G, P>,
+    snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
 {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
         let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
@@ -385,13 +384,13 @@ fn run_with_selected_detector<G, P>(
 fn run_with_selected_accelerator<G, P, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: ScalarFieldCacher3<fdt, G, P>,
+    snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
     D: ReconnectionSiteDetector,
 {
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
@@ -458,13 +457,13 @@ fn run_with_selected_accelerator<G, P, D>(
 fn run_with_selected_interpolator<G, P, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: ScalarFieldCacher3<fdt, G, P>,
+    snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     protected_file_types: &[&str])
 where G: Grid3<fdt>,
-      P: SnapshotProvider3<G>,
+      P: CachingSnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -502,14 +501,14 @@ where G: Grid3<fdt>,
 fn run_with_selected_stepper_factory<G, P, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    mut snapshot: ScalarFieldCacher3<fdt, G, P>,
+    mut snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     interpolator: I,
     protected_file_types: &[&str])
 where G: Grid3<fdt>,
-      P: SnapshotProvider3<G>,
+      P: CachingSnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,

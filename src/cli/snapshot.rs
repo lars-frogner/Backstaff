@@ -20,7 +20,6 @@ use crate::{
     add_subcommand_combinations,
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    field::ScalarFieldCacher3,
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     io::{
         snapshot::{
@@ -108,17 +107,6 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
                 .default_value("little"),
         )
         .arg(
-            Arg::new("max-memory-usage")
-                .short('m')
-                .long("max-memory-usage")
-                .require_equals(true)
-                .allow_hyphen_values(false)
-                .value_name("PERCENTAGE")
-                .help("Avoid exceeding this percentage of total memory when caching")
-                .takes_value(true)
-                .default_value("80"),
-        )
-        .arg(
             Arg::new("verbose")
                 .short('v')
                 .long("verbose")
@@ -142,149 +130,8 @@ pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<
     command
 }
 
-macro_rules! create_native_reader_and_run {
-    ($config:expr, $max_memory_usage:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
-        let parameters = exit_on_error!(
-            NativeSnapshotParameters::new($config.param_file_path(), $config.verbose()),
-            "Error: Could not read parameter file: {}"
-        );
-        let mesh_path = exit_on_error!(
-            parameters.determine_mesh_path(),
-            "Error: Could not obtain path to mesh file: {}"
-        );
-        let (
-            detected_grid_type,
-            center_coords,
-            lower_edge_coords,
-            up_derivatives,
-            down_derivatives,
-        ) = exit_on_error!(
-            native::parse_mesh_file(mesh_path, $config.verbose()),
-            "Error: Could not parse mesh file: {}"
-        );
-        let is_periodic = exit_on_error!(
-            parameters.determine_grid_periodicity(),
-            "Error: Could not determine grid periodicity: {}"
-        );
-        match detected_grid_type {
-            GridType::Regular => {
-                let grid = RegularGrid3::from_coords(
-                    center_coords,
-                    lower_edge_coords,
-                    is_periodic,
-                    Some(up_derivatives),
-                    Some(down_derivatives),
-                );
-                let reader = exit_on_error!(
-                    NativeSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
-                        $config, parameters, grid,
-                    ),
-                    "Error: Could not create snapshot reader: {}"
-                );
-                $run_macro!(reader, $max_memory_usage, $snap_num_in_range)
-            }
-            GridType::HorRegular => {
-                let grid = HorRegularGrid3::from_coords(
-                    center_coords,
-                    lower_edge_coords,
-                    is_periodic,
-                    Some(up_derivatives),
-                    Some(down_derivatives),
-                );
-                let reader = exit_on_error!(
-                    NativeSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
-                        $config, parameters, grid,
-                    ),
-                    "Error: Could not create snapshot reader: {}"
-                );
-                $run_macro!(reader, $max_memory_usage, $snap_num_in_range)
-            }
-        }
-    }};
-}
-
-#[cfg(feature = "netcdf")]
-macro_rules! create_netcdf_reader_and_run {
-    ($config:expr, $max_memory_usage:expr, $snap_num_in_range:expr, $run_macro:tt) => {{
-        let file = exit_on_error!(
-            netcdf::open_file($config.file_path()),
-            "Error: Could not open NetCDF file: {}"
-        );
-        let parameters = exit_on_error!(
-            NetCDFSnapshotParameters::new(&file, $config.verbose()),
-            "Error: Could not read snapshot parameters from NetCDF file: {}"
-        );
-        let (
-            detected_grid_type,
-            center_coords,
-            lower_edge_coords,
-            up_derivatives,
-            down_derivatives,
-            endianness,
-        ) = exit_on_error!(
-            netcdf::read_grid_data(&file, $config.verbose()),
-            "Error: Could not read grid data from NetCDF file: {}"
-        );
-        let is_periodic = exit_on_error!(
-            parameters.determine_grid_periodicity(),
-            "Error: Could not determine grid periodicity: {}"
-        );
-        match detected_grid_type {
-            GridType::Regular => {
-                let grid = RegularGrid3::from_coords(
-                    center_coords,
-                    lower_edge_coords,
-                    is_periodic,
-                    up_derivatives,
-                    down_derivatives,
-                );
-                $run_macro!(
-                    NetCDFSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
-                        $config, file, parameters, grid, endianness,
-                    ),
-                    $max_memory_usage,
-                    $snap_num_in_range
-                )
-            }
-            GridType::HorRegular => {
-                let grid = HorRegularGrid3::from_coords(
-                    center_coords,
-                    lower_edge_coords,
-                    is_periodic,
-                    up_derivatives,
-                    down_derivatives,
-                );
-                $run_macro!(
-                    NetCDFSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
-                        $config, file, parameters, grid, endianness,
-                    ),
-                    $max_memory_usage,
-                    $snap_num_in_range
-                )
-            }
-        }
-    }};
-}
-
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
 pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
-    macro_rules! run_subcommands_for_reader {
-        ($reader:expr, $max_memory_usage:expr, $snap_num_in_range:expr) => {{
-            let provider = ScalarFieldCacher3::new(
-                $reader,
-                $max_memory_usage,
-                arguments.is_present("verbose").into(),
-            );
-            run_snapshot_subcommand_with_derive(
-                arguments,
-                provider,
-                $max_memory_usage,
-                $snap_num_in_range,
-                protected_file_types,
-            )
-        }};
-    }
-
     let input_file_path = exit_on_error!(
         PathBuf::from_str(
             arguments
@@ -348,30 +195,17 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
         invalid => exit_with_error!("Error: Invalid endianness {}", invalid),
     };
 
-    let max_memory_usage = match arguments
-        .value_of("max-memory-usage")
-        .expect("No value for argument with default")
-    {
-        value_str => exit_on_error!(
-            value_str.parse::<f32>(),
-            "Error: Could not parse value of max-memory-usage: {}"
-        ),
-    };
-    if max_memory_usage < 0.0 {
-        exit_with_error!("Error: max-memory-usage can not be negative");
-    }
-
     let verbose = arguments.is_present("verbose").into();
 
     match input_type {
         InputType::Native(_) => {
             for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
                 let reader_config = NativeSnapshotReaderConfig::new(file_path, endianness, verbose);
-                create_native_reader_and_run!(
+                create_native_reader_and_run(
+                    arguments,
                     reader_config,
-                    max_memory_usage,
                     &snap_num_in_range,
-                    run_subcommands_for_reader
+                    protected_file_types,
                 );
             }
         }
@@ -379,13 +213,149 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
         InputType::NetCDF => {
             for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
                 let reader_config = NetCDFSnapshotReaderConfig::new(file_path, verbose);
-                create_netcdf_reader_and_run!(
+                create_netcdf_reader_and_run(
+                    arguments,
                     reader_config,
-                    max_memory_usage,
                     &snap_num_in_range,
-                    run_subcommands_for_reader
+                    protected_file_types,
                 );
             }
+        }
+    }
+}
+
+fn create_native_reader_and_run(
+    arguments: &ArgMatches,
+    config: NativeSnapshotReaderConfig,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) {
+    let parameters = exit_on_error!(
+        NativeSnapshotParameters::new(config.param_file_path(), config.verbose()),
+        "Error: Could not read parameter file: {}"
+    );
+    let mesh_path = exit_on_error!(
+        parameters.determine_mesh_path(),
+        "Error: Could not obtain path to mesh file: {}"
+    );
+    let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(
+        native::parse_mesh_file(mesh_path, config.verbose()),
+        "Error: Could not parse mesh file: {}"
+    );
+    let is_periodic = exit_on_error!(
+        parameters.determine_grid_periodicity(),
+        "Error: Could not determine grid periodicity: {}"
+    );
+    match detected_grid_type {
+        GridType::Regular => {
+            let grid = RegularGrid3::from_coords(
+                center_coords,
+                lower_edge_coords,
+                is_periodic,
+                Some(up_derivatives),
+                Some(down_derivatives),
+            );
+            let reader = exit_on_error!(
+                NativeSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
+                    config, parameters, grid,
+                ),
+                "Error: Could not create snapshot reader: {}"
+            );
+            run_snapshot_subcommand_with_derive(
+                arguments,
+                reader,
+                snap_num_in_range,
+                protected_file_types,
+            );
+        }
+        GridType::HorRegular => {
+            let grid = HorRegularGrid3::from_coords(
+                center_coords,
+                lower_edge_coords,
+                is_periodic,
+                Some(up_derivatives),
+                Some(down_derivatives),
+            );
+            let reader = exit_on_error!(
+                NativeSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
+                    config, parameters, grid,
+                ),
+                "Error: Could not create snapshot reader: {}"
+            );
+            run_snapshot_subcommand_with_derive(
+                arguments,
+                reader,
+                snap_num_in_range,
+                protected_file_types,
+            );
+        }
+    }
+}
+
+#[cfg(feature = "netcdf")]
+fn create_netcdf_reader_and_run(
+    arguments: &ArgMatches,
+    config: NetCDFSnapshotReaderConfig,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) {
+    let file = exit_on_error!(
+        netcdf::open_file(config.file_path()),
+        "Error: Could not open NetCDF file: {}"
+    );
+    let parameters = exit_on_error!(
+        NetCDFSnapshotParameters::new(&file, config.verbose()),
+        "Error: Could not read snapshot parameters from NetCDF file: {}"
+    );
+    let (
+        detected_grid_type,
+        center_coords,
+        lower_edge_coords,
+        up_derivatives,
+        down_derivatives,
+        endianness,
+    ) = exit_on_error!(
+        netcdf::read_grid_data(&file, config.verbose()),
+        "Error: Could not read grid data from NetCDF file: {}"
+    );
+    let is_periodic = exit_on_error!(
+        parameters.determine_grid_periodicity(),
+        "Error: Could not determine grid periodicity: {}"
+    );
+    match detected_grid_type {
+        GridType::Regular => {
+            let grid = RegularGrid3::from_coords(
+                center_coords,
+                lower_edge_coords,
+                is_periodic,
+                up_derivatives,
+                down_derivatives,
+            );
+            run_snapshot_subcommand_with_derive(
+                arguments,
+                NetCDFSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
+                    config, file, parameters, grid, endianness,
+                ),
+                snap_num_in_range,
+                protected_file_types,
+            )
+        }
+        GridType::HorRegular => {
+            let grid = HorRegularGrid3::from_coords(
+                center_coords,
+                lower_edge_coords,
+                is_periodic,
+                up_derivatives,
+                down_derivatives,
+            );
+            run_snapshot_subcommand_with_derive(
+                arguments,
+                NetCDFSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
+                    config, file, parameters, grid, endianness,
+                ),
+                snap_num_in_range,
+                protected_file_types,
+            )
         }
     }
 }
@@ -393,7 +363,6 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
 fn run_snapshot_subcommand_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -405,7 +374,6 @@ fn run_snapshot_subcommand_with_derive<G, P>(
         run_snapshot_subcommand_with_synthesis(
             derive_arguments,
             provider,
-            max_memory_usage,
             snap_num_in_range,
             protected_file_types,
         );
@@ -413,7 +381,6 @@ fn run_snapshot_subcommand_with_derive<G, P>(
         run_snapshot_subcommand_with_synthesis(
             arguments,
             provider,
-            max_memory_usage,
             snap_num_in_range,
             protected_file_types,
         );
@@ -423,7 +390,6 @@ fn run_snapshot_subcommand_with_derive<G, P>(
 fn run_snapshot_subcommand_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -436,7 +402,6 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
         run_snapshot_subcommand_for_provider(
             synthesize_arguments,
             provider,
-            max_memory_usage,
             snap_num_in_range,
             protected_file_types,
         );
@@ -446,7 +411,6 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
     run_snapshot_subcommand_for_provider(
         arguments,
         provider,
-        max_memory_usage,
         snap_num_in_range,
         protected_file_types,
     );
@@ -455,7 +419,6 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
 fn run_snapshot_subcommand_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -516,7 +479,6 @@ fn run_snapshot_subcommand_for_provider<G, P>(
                 corks::run_corks_subcommand(
                     _corks_arguments,
                     provider,
-                    max_memory_usage,
                     snap_num_in_range,
                     protected_file_types,
                     &mut corks_state,
@@ -527,7 +489,6 @@ fn run_snapshot_subcommand_for_provider<G, P>(
             crate::cli::tracing::run_trace_subcommand(
                 _trace_arguments,
                 provider,
-                max_memory_usage,
                 snap_num_in_range,
                 protected_file_types,
             );
@@ -536,7 +497,6 @@ fn run_snapshot_subcommand_for_provider<G, P>(
             crate::cli::ebeam::run_ebeam_subcommand(
                 _ebeam_arguments,
                 provider,
-                max_memory_usage,
                 snap_num_in_range,
                 protected_file_types,
             );

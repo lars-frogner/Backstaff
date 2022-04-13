@@ -3,7 +3,10 @@
 use std::process;
 
 use crate::{
-    field::quantities::{DerivedSnapshotProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
+    field::{
+        quantities::{DerivedSnapshotProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
+        ScalarFieldCacher3,
+    },
     grid::Grid3,
     io::{
         snapshot::{fdt, SnapshotProvider3},
@@ -36,6 +39,17 @@ pub fn create_derive_subcommand(parent_command_name: &'static str) -> Command<'s
                 .multiple_values(true),
         )
         .arg(
+            Arg::new("max-memory-usage")
+                .short('m')
+                .long("max-memory-usage")
+                .require_equals(true)
+                .allow_hyphen_values(false)
+                .value_name("PERCENTAGE")
+                .help("Avoid exceeding this percentage of total memory when caching")
+                .takes_value(true)
+                .default_value("80"),
+        )
+        .arg(
             Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
@@ -53,14 +67,11 @@ pub fn create_derive_subcommand(parent_command_name: &'static str) -> Command<'s
 pub fn create_derive_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-) -> DerivedSnapshotProvider3<G, P>
+) -> DerivedSnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let verbose = arguments.is_present("verbose").into();
-
     let derived_quantity_names = arguments
         .values_of("quantities")
         .map(|values| values.collect::<Vec<_>>())
@@ -75,8 +86,27 @@ where
         })
         .collect();
 
+    let max_memory_usage = match arguments
+        .value_of("max-memory-usage")
+        .expect("No value for argument with default")
+    {
+        value_str => exit_on_error!(
+            value_str.parse::<f32>(),
+            "Error: Could not parse value of max-memory-usage: {}"
+        ),
+    };
+    if max_memory_usage < 0.0 {
+        exit_with_error!("Error: max-memory-usage can not be negative");
+    }
+
+    let continue_on_warnings = arguments.is_present("ignore-warnings");
+    let verbose = arguments.is_present("verbose").into();
+
+    let cached_provider =
+        ScalarFieldCacher3::new_automatic_cacher(provider, max_memory_usage, verbose);
+
     DerivedSnapshotProvider3::new(
-        provider,
+        cached_provider,
         derived_quantity_names,
         |quantity_name, missing_dependencies| {
             if let Some(missing_dependencies) = missing_dependencies {
