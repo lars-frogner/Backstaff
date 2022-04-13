@@ -358,7 +358,7 @@ mod tests {
                 Verbose::No,
             ))
             .unwrap();
-        let mut snapshot = ScalarFieldCacher3::new(reader, 100.0, Verbose::No);
+        let mut snapshot = ScalarFieldCacher3::new_manual_cacher(reader, Verbose::No);
 
         let field_name = "b";
         snapshot.cache_vector_field(field_name).unwrap();

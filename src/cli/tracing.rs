@@ -159,7 +159,6 @@ pub fn create_trace_subcommand(parent_command_name: &'static str) -> Command<'st
 pub fn run_trace_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -167,7 +166,7 @@ pub fn run_trace_subcommand<G, P>(
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();
-    let snapshot = ScalarFieldCacher3::new(provider, max_memory_usage, verbose);
+    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
     run_with_selected_tracer(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 

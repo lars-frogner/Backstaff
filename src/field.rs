@@ -212,7 +212,12 @@ where
     P: ScalarFieldProvider3<F, G>,
 {
     /// Creates a new snapshot cacher from the given provider.
-    pub fn new(provider: P, max_memory_usage: f32, verbose: Verbose) -> Self {
+    pub fn new_manual_cacher(provider: P, verbose: Verbose) -> Self {
+        Self::new_automatic_cacher(provider, 0.0, verbose)
+    }
+
+    /// Creates a new snapshot cacher from the given provider.
+    pub fn new_automatic_cacher(provider: P, max_memory_usage: f32, verbose: Verbose) -> Self {
         Self {
             provider,
             max_memory_usage_fraction: max_memory_usage * 1e-2,

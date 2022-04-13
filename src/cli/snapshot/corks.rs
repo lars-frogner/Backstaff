@@ -116,7 +116,6 @@ pub fn create_corks_subcommand(parent_command_name: &'static str) -> Command<'st
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
@@ -135,7 +134,6 @@ pub fn run_corks_subcommand<G, P>(
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
@@ -144,7 +142,7 @@ pub fn run_corks_subcommand<G, P>(
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();
-    let mut snapshot = ScalarFieldCacher3::new(provider, max_memory_usage, verbose);
+    let mut snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
     run_with_selected_interpolator(
         arguments,
         &mut snapshot,

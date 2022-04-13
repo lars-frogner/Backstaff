@@ -215,7 +215,6 @@ pub fn create_simulate_subcommand(parent_command_name: &'static str) -> Command<
 pub fn run_simulate_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    max_memory_usage: f32,
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
@@ -223,7 +222,7 @@ pub fn run_simulate_subcommand<G, P>(
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();
-    let snapshot = ScalarFieldCacher3::new(provider, max_memory_usage, verbose);
+    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
     run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
