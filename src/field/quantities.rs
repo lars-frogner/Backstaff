@@ -20,7 +20,7 @@ use regex::Regex;
 use std::{collections::HashMap, io, marker::PhantomData, sync::Arc};
 
 lazy_static! {
-    static ref DIRECTLY_DERIVABLE_QUANTITIES: HashMap<&'static str, (&'static str, Vec<&'static str>)> =
+    static ref DERIVABLE_QUANTITIES: HashMap<&'static str, (&'static str, Vec<&'static str>)> =
         vec![
             (
                 "ux",
@@ -120,7 +120,7 @@ fn mod_vec_component_names(quantity_name: &str) -> Option<(String, String, Strin
 
 /// Creates a string with an overview of available quantities and their dependencies.
 fn create_available_quantity_table_string() -> String {
-    let mut lines: Vec<_> = DIRECTLY_DERIVABLE_QUANTITIES
+    let mut lines: Vec<_> = DERIVABLE_QUANTITIES
         .iter()
         .map(|(name, (description, dependencies))| {
             format!(
@@ -147,29 +147,6 @@ fn create_available_quantity_table_string() -> String {
             "\n--------------------------------------------------------------------------------\n"
         )
     )
-}
-
-/// Returns a list of the dependencies for the given derived quantity that
-/// are not present in the given snapshot, or `None` if the derived quantity
-/// is not known.
-pub fn find_missing_quantity_dependencies<G, P>(
-    provider: &P,
-    name: &str,
-) -> Option<Vec<&'static str>>
-where
-    G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
-{
-    let all_variable_names = provider.all_variable_names();
-    DIRECTLY_DERIVABLE_QUANTITIES
-        .get(name)
-        .map(|(_, dependencies)| {
-            dependencies
-                .iter()
-                .cloned()
-                .filter(|dep| !all_variable_names.contains(&dep.to_string()))
-                .collect()
-        })
 }
 
 /// Computer of derived quantities from Bifrost 3D simulation snapshots.
@@ -238,7 +215,7 @@ where
         }
     }
 
-    fn variable_is_present_or_directly_derivable<S: AsRef<str>>(
+    fn variable_is_available<S: AsRef<str>>(
         provider: &P,
         variable_name: S,
     ) -> (bool, Option<Vec<&str>>) {
@@ -247,14 +224,16 @@ where
         if all_variable_names.contains(&variable_name.to_string()) {
             (true, None)
         } else {
-            if let Some((_, dependencies)) = DIRECTLY_DERIVABLE_QUANTITIES.get(variable_name) {
+            if let Some((_, dependencies)) = DERIVABLE_QUANTITIES.get(variable_name) {
                 let missing_dependencies: Vec<_> = dependencies
                     .into_iter()
                     .filter_map(|name| {
-                        if !all_variable_names.contains(&name.to_string()) {
-                            Some(*name)
-                        } else {
+                        if all_variable_names.contains(&name.to_string())
+                            || DERIVABLE_QUANTITIES.contains_key(name)
+                        {
                             None
+                        } else {
+                            Some(*name)
                         }
                     })
                     .collect();
@@ -274,21 +253,21 @@ where
     where
         H: Fn(&str, Option<Vec<&str>>),
     {
-        let (directly_derivable, missing_dependencies) =
-            Self::variable_is_present_or_directly_derivable(provider, variable_name);
-        if directly_derivable {
+        let (available, missing_dependencies) =
+            Self::variable_is_available(provider, variable_name);
+        if available {
             true
         } else if let Some(base_name) = cgs_base_name(variable_name) {
             if let Some((x_comp_name, y_comp_name, z_comp_name)) =
                 mod_vec_component_names(base_name)
             {
-                let (directly_derivable_x, missing_dependencies_x) =
-                    Self::variable_is_present_or_directly_derivable(provider, &x_comp_name);
-                let (directly_derivable_y, missing_dependencies_y) =
-                    Self::variable_is_present_or_directly_derivable(provider, &y_comp_name);
-                let (directly_derivable_z, missing_dependencies_z) =
-                    Self::variable_is_present_or_directly_derivable(provider, &z_comp_name);
-                if directly_derivable_x && directly_derivable_y && directly_derivable_z {
+                let (available_x, missing_dependencies_x) =
+                    Self::variable_is_available(provider, &x_comp_name);
+                let (available_y, missing_dependencies_y) =
+                    Self::variable_is_available(provider, &y_comp_name);
+                let (available_z, missing_dependencies_z) =
+                    Self::variable_is_available(provider, &z_comp_name);
+                if available_x && available_y && available_z {
                     true
                 } else {
                     let mut missing_dependencies = Vec::new();
@@ -312,9 +291,9 @@ where
                     false
                 }
             } else {
-                let (directly_derivable, missing_dependencies) =
-                    Self::variable_is_present_or_directly_derivable(provider, base_name);
-                if directly_derivable {
+                let (available, missing_dependencies) =
+                    Self::variable_is_available(provider, base_name);
+                if available {
                     true
                 } else {
                     handle_unavailable(variable_name, missing_dependencies);
@@ -324,13 +303,13 @@ where
         } else if let Some((x_comp_name, y_comp_name, z_comp_name)) =
             mod_vec_component_names(variable_name)
         {
-            let (directly_derivable_x, missing_dependencies_x) =
-                Self::variable_is_present_or_directly_derivable(provider, &x_comp_name);
-            let (directly_derivable_y, missing_dependencies_y) =
-                Self::variable_is_present_or_directly_derivable(provider, &y_comp_name);
-            let (directly_derivable_z, missing_dependencies_z) =
-                Self::variable_is_present_or_directly_derivable(provider, &z_comp_name);
-            if directly_derivable_x && directly_derivable_y && directly_derivable_z {
+            let (available_x, missing_dependencies_x) =
+                Self::variable_is_available(provider, &x_comp_name);
+            let (available_y, missing_dependencies_y) =
+                Self::variable_is_available(provider, &y_comp_name);
+            let (available_z, missing_dependencies_z) =
+                Self::variable_is_available(provider, &z_comp_name);
+            if available_x && available_y && available_z {
                 true
             } else {
                 let mut missing_dependencies = Vec::new();
@@ -514,9 +493,11 @@ where
     }
 }
 
-macro_rules! compute_quantity {
+/// Computes a derived quantity field using a compute closure on fields from the given provider .
+#[macro_export]
+macro_rules! compute_derived_quantity {
     ($name:ident, |$dep_name:ident| $computer:expr, $provider:expr) => {
-        compute_quantity_unary(
+        crate::field::quantities::compute_quantity_unary(
             stringify!($name),
             $provider,
             stringify!($dep_name),
@@ -524,7 +505,7 @@ macro_rules! compute_quantity {
         )
     };
     ($name:ident, with indices |$indices:ident, $dep_name:ident| $computer:expr, $provider:expr) => {
-        compute_quantity_unary_with_indices(
+        crate::field::quantities::compute_quantity_unary_with_indices(
             stringify!($name),
             $provider,
             stringify!($dep_name),
@@ -532,7 +513,7 @@ macro_rules! compute_quantity {
         )
     };
     ($name:ident, |$dep_name_1:ident, $dep_name_2:ident| $computer:expr, $provider:expr) => {
-        compute_quantity_binary(
+        crate::field::quantities::compute_quantity_binary(
             stringify!($name),
             $provider,
             stringify!($dep_name_1),
@@ -540,8 +521,8 @@ macro_rules! compute_quantity {
             |$dep_name_1, $dep_name_2| $computer,
         )
     };
-    ($name:ident, |$dep_name_1:ident, $dep_name_2:ident, $dep_name_3:ident| $computer:expr, $provider:expr, $modifier:expr) => {
-        compute_quantity_tertiary(
+    ($name:ident, |$dep_name_1:ident, $dep_name_2:ident, $dep_name_3:ident| $computer:expr, $provider:expr) => {
+        crate::field::quantities::compute_quantity_tertiary(
             stringify!($name),
             $provider,
             stringify!($dep_name_1),
@@ -568,12 +549,12 @@ where
 
     let grid = provider.arc_with_grid();
 
-    if DIRECTLY_DERIVABLE_QUANTITIES.contains_key(quantity_name) {
+    if DERIVABLE_QUANTITIES.contains_key(quantity_name) {
         match quantity_name {
-            "ux" => compute_quantity!(ux, |px, r| px / r, provider),
-            "uy" => compute_quantity!(uy, |py, r| py / r, provider),
-            "uz" => compute_quantity!(uz, |pz, r| pz / r, provider),
-            "ubeam" => compute_quantity!(ubeam,
+            "ux" => compute_derived_quantity!(ux, |px, r| px / r, provider),
+            "uy" => compute_derived_quantity!(uy, |py, r| py / r, provider),
+            "uz" => compute_derived_quantity!(uz, |pz, r| pz / r, provider),
+            "ubeam" => compute_derived_quantity!(ubeam,
                 with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices),
                 provider
             ),
@@ -641,7 +622,7 @@ where
     }
 }
 
-fn compute_quantity_unary<G, P, C>(
+pub fn compute_quantity_unary<G, P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
@@ -669,7 +650,7 @@ where
     ))
 }
 
-fn compute_quantity_unary_with_indices<G, P, C>(
+pub fn compute_quantity_unary_with_indices<G, P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
@@ -705,7 +686,7 @@ where
     ))
 }
 
-fn compute_quantity_binary<G, P, C>(
+pub fn compute_quantity_binary<G, P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name_1: &str,
@@ -760,7 +741,7 @@ where
     ))
 }
 
-fn compute_quantity_tertiary<G, P, C>(
+pub fn compute_quantity_tertiary<G, P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name_1: &str,
