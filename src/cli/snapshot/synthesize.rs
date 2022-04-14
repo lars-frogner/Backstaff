@@ -6,14 +6,21 @@ use crate::{
             construct_poly_fit_interpolator_config_from_options,
             create_poly_fit_interpolator_subcommand,
         },
-        utils,
+        utils as cli_utils,
     },
-    field::synthesis::{EmissivitySnapshotProvider3, LineProfileMoment},
+    field::{
+        synthesis::{EmissivitySnapshotProvider3, SYNTHESIZABLE_QUANTITY_TABLE_STRING},
+        ScalarFieldCacher3,
+    },
     grid::Grid3,
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::{
+        snapshot::{fdt, SnapshotProvider3},
+        utils as io_utils,
+    },
 };
 use clap::{Arg, ArgMatches, Command};
+use std::process;
 
 /// Builds a representation of the `snapshot-synthesize` command line subcommand.
 pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Command<'static> {
@@ -22,8 +29,8 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
     crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
 
     Command::new(command_name)
-        .about("Computes synthetic quantities for the snapshot")
-        .long_about("Computes synthetic quantities for the snapshot.")
+        .about("Compute synthetic quantities for the snapshot")
+        .long_about("Compute synthetic quantities for the snapshot.")
         .arg(
             Arg::new("spectral-lines")
                 .short('L')
@@ -40,20 +47,20 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
                 .multiple_values(true),
         )
         .arg(
-            Arg::new("highest-moment")
-                .short('M')
-                .long("highest-moment")
+            Arg::new("quantities")
+                .short('Q')
+                .long("quantities")
                 .require_equals(true)
-                .value_name("MOMENT")
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
+                .value_name("NAMES")
                 .help(
-                    "Highest moment of the spectral line profile to compute contributions to:\n\
-                     0 => Compute emis_<line> (emissivity [erg/s/sr/cm³]) from tg and nel\n\
-                     1 => Compute 0 and shift_<line> (mean of local doppler shift (in z) [cm] times emissivity) from tg, nel and uz\n\
-                     2 => Compute 0, 1 and var_<line> (variance of local doppler shift (in z) [cm2] times emissivity) from tg, nel and uz",
+                    "List of derived quantities to explicitly compute\n\
+                     (comma-separated)",
                 )
                 .takes_value(true)
-                .possible_values(["0", "1", "2"])
-                .default_value("0"),
+                .multiple_values(true)
+                .default_values(&["emis"]),
         )
         .arg(
             Arg::new("n-table-temperatures")
@@ -110,12 +117,17 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
                 .default_value("8,13"),
         )
         .arg(
+            Arg::new("ignore-warnings")
+                .long("ignore-warnings")
+                .help("Automatically continue on warnings"),
+        )
+        .arg(
             Arg::new("verbose")
                 .short('v')
                 .long("verbose")
                 .help("Print status messages related to computation of synthetic quantities"),
         )
-        .subcommand(create_poly_fit_interpolator_subcommand(command_name))
+        .after_help(&**SYNTHESIZABLE_QUANTITY_TABLE_STRING)
 }
 
 /// Creates an `EmissivitySnapshotProvider3` for the given arguments and snapshot provider.
@@ -123,7 +135,7 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
 pub fn create_synthesize_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-) -> EmissivitySnapshotProvider3<G, P, PolyFitInterpolator2>
+) -> EmissivitySnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>, PolyFitInterpolator2>
 where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
@@ -133,61 +145,72 @@ where
         .map(|values| values.map(|name| name.to_lowercase()).collect::<Vec<_>>())
         .unwrap_or(Vec::new());
 
-    let highest_moment = match arguments
-        .value_of("highest-moment")
-        .expect("No value for argument with default")
-    {
-        "0" => LineProfileMoment::Zeroth,
-        "1" => LineProfileMoment::First,
-        "2" => LineProfileMoment::Second,
-        invalid => exit_with_error!("Error: Invalid highest moment {}", invalid),
-    };
+    let quantity_names: Vec<_> = arguments
+        .values_of("quantities")
+        .map(|values| values.collect::<Vec<_>>())
+        .unwrap_or(Vec::new())
+        .into_iter()
+        .filter_map(|name| {
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.to_lowercase())
+            }
+        })
+        .collect();
 
     let n_temperature_points =
-        utils::get_value_from_required_parseable_argument(arguments, "n-table-temperatures");
+        cli_utils::get_value_from_required_parseable_argument(arguments, "n-table-temperatures");
 
-    let n_electron_density_points =
-        utils::get_value_from_required_parseable_argument(arguments, "n-table-electron-densities");
+    let n_electron_density_points = cli_utils::get_value_from_required_parseable_argument(
+        arguments,
+        "n-table-electron-densities",
+    );
 
-    let log_temperature_limits = utils::parse_limits(arguments, "table-temperature-limits", false);
+    let log_temperature_limits =
+        cli_utils::parse_limits(arguments, "table-temperature-limits", false);
     let log_electron_density_limits =
-        utils::parse_limits(arguments, "table-electron-density-limits", false);
+        cli_utils::parse_limits(arguments, "table-electron-density-limits", false);
 
+    let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();
 
-    let interpolator_config = if let Some(interpolator_arguments) =
-        arguments.subcommand_matches("poly_fit_interpolator")
-    {
-        construct_poly_fit_interpolator_config_from_options(interpolator_arguments)
-    } else {
-        PolyFitInterpolatorConfig::default()
-    };
-    let interpolator = PolyFitInterpolator2::new(interpolator_config);
+    let interpolator = PolyFitInterpolator2::new(PolyFitInterpolatorConfig {
+        order: 1,
+        ..PolyFitInterpolatorConfig::default()
+    });
 
-    if !line_names.is_empty() {
-        for variable_name in ["tg", "nel"] {
-            exit_on_false!(
-                provider.has_variable(variable_name),
-                "Error: Missing variable {} required for synthesizing emissivities",
-                variable_name
-            );
-        }
-        exit_on_false!(
-            highest_moment == LineProfileMoment::Zeroth || provider.has_variable("uz"),
-            "Error: Missing variable uz required for computing doppler shifts\n\
-             (consider deriving it by adding the `derive` subcommand in front of `synthesize`)"
-        );
-    }
+    let cached_provider = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
 
     EmissivitySnapshotProvider3::new(
-        provider,
+        cached_provider,
         interpolator,
         &line_names,
-        highest_moment,
+        &quantity_names,
         n_temperature_points,
         n_electron_density_points,
         log_temperature_limits,
         log_electron_density_limits,
+        |quantity_name, missing_dependencies| {
+            if let Some(missing_dependencies) = missing_dependencies {
+                eprintln!(
+                    "Warning: Missing following dependencies for synthesized quantity {}: {}",
+                    quantity_name,
+                    missing_dependencies.join(", ")
+                );
+                if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
+                    process::exit(1);
+                }
+            } else {
+                eprintln!(
+                    "Warning: Synthesized quantity {} not supported",
+                    quantity_name
+                );
+                if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
+                    process::exit(1);
+                }
+            }
+        },
         verbose,
     )
 }
