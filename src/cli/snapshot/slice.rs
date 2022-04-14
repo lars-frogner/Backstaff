@@ -145,7 +145,8 @@ pub fn run_slice_subcommand<G, P>(
 {
     let quantity = arguments
         .value_of("quantity")
-        .expect("No value for required argument");
+        .expect("No value for required argument")
+        .to_lowercase();
 
     let axis = arguments
         .value_of("axis")
@@ -198,9 +199,9 @@ pub fn run_slice_subcommand<G, P>(
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
     let field = exit_on_error!(
-        provider.provide_scalar_field(quantity),
+        provider.provide_scalar_field(&quantity),
         "Error: Could not read quantity {0} in snapshot: {1}",
-        quantity
+        &quantity
     );
 
     if arguments.is_present("allow-non-uniform") {

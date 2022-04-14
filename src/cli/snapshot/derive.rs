@@ -81,7 +81,7 @@ where
             if name.is_empty() {
                 None
             } else {
-                Some(String::from(name))
+                Some(name.to_lowercase())
             }
         })
         .collect();

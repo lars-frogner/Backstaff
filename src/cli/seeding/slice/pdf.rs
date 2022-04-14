@@ -79,15 +79,17 @@ where
 {
     let quantity = arguments
         .value_of("quantity")
-        .expect("No value for required argument");
+        .expect("No value for required argument")
+        .to_lowercase();
+
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
     let power = utils::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
     if arguments.is_present("is-vector-quantity") {
         let field = exit_on_error!(
-            provider.provide_vector_field(quantity),
+            provider.provide_vector_field(&quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
-            quantity
+            &quantity
         );
         let seeder = SliceSeeder3::vector_field_pdf(
             field.as_ref(),
@@ -101,9 +103,9 @@ where
         seeder
     } else {
         let field = exit_on_error!(
-            provider.provide_scalar_field(quantity),
+            provider.provide_scalar_field(&quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
-            quantity
+            &quantity
         );
         let seeder = SliceSeeder3::scalar_field_pdf(
             field.as_ref(),

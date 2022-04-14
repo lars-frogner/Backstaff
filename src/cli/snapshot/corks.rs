@@ -254,7 +254,7 @@ fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, V
     {
         sampled_scalar_values
             .into_iter()
-            .map(|name| name.to_string())
+            .map(|name| name.to_lowercase())
             .collect()
     } else {
         Vec::new()
@@ -265,7 +265,7 @@ fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, V
     {
         sampled_vector_values
             .into_iter()
-            .map(|name| name.to_string())
+            .map(|name| name.to_lowercase())
             .collect()
     } else {
         Vec::new()

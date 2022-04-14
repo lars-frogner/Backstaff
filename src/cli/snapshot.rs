@@ -646,11 +646,12 @@ where
                 if name.is_empty() {
                     None
                 } else {
-                    let has_variable = provider.has_variable(name);
+                    let name = name.to_lowercase();
+                    let has_variable = provider.has_variable(&name);
                     if has_variable {
-                        Some(name.to_string())
+                        Some(name)
                     } else {
-                        eprintln!("Warning: Quantity {} not present in snapshot", name);
+                        eprintln!("Warning: Quantity {} not present in snapshot", &name);
                         if !continue_on_warnings
                             && !io_utils::user_says_yes("Still continue?", true)
                         {
@@ -661,9 +662,13 @@ where
                 }
             })
             .collect()
-    } else if let Some(excluded_quantities) = arguments
-        .values_of("excluded-quantities")
-        .map(|values| values.into_iter().map(String::from).collect::<Vec<_>>())
+    } else if let Some(excluded_quantities) =
+        arguments.values_of("excluded-quantities").map(|values| {
+            values
+                .into_iter()
+                .map(|name| name.to_lowercase())
+                .collect::<Vec<_>>()
+        })
     {
         let excluded_quantities: Vec<_> = excluded_quantities
             .into_iter()

@@ -130,7 +130,7 @@ where
 {
     let line_names = arguments
         .values_of("spectral-lines")
-        .map(|values| values.map(String::from).collect::<Vec<_>>())
+        .map(|values| values.map(|name| name.to_lowercase()).collect::<Vec<_>>())
         .unwrap_or(Vec::new());
 
     let highest_moment = match arguments

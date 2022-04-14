@@ -654,11 +654,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_fixed_scalars {
+            let name = name.to_lowercase();
             beams.extract_fixed_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(name).as_ref(),
+                    provider.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
-                    name
+                    &name
                 ),
                 &interpolator,
             );
@@ -669,11 +670,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_fixed_vectors {
+            let name = name.to_lowercase();
             beams.extract_fixed_vectors(
                 exit_on_error!(
-                    provider.provide_vector_field(name).as_ref(),
+                    provider.provide_vector_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
-                    name
+                    &name
                 ),
                 &interpolator,
             );
@@ -684,11 +686,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
+            let name = name.to_lowercase();
             beams.extract_varying_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(name).as_ref(),
+                    provider.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
-                    name
+                    &name
                 ),
                 &interpolator,
             );
@@ -699,11 +702,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_vectors {
+            let name = name.to_lowercase();
             beams.extract_varying_vectors(
                 exit_on_error!(
-                    provider.provide_vector_field(name).as_ref(),
+                    provider.provide_vector_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
-                    name
+                    &name
                 ),
                 &interpolator,
             );

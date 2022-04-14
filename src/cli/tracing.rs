@@ -584,11 +584,12 @@ fn perform_post_tracing_actions<G, P, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_fixed_scalars {
+            let name = name.to_lowercase();
             field_lines.extract_fixed_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(name).as_ref(),
+                    provider.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} in snapshot: {1}",
-                    name
+                    &name
                 ),
                 &interpolator,
             );
@@ -599,11 +600,12 @@ fn perform_post_tracing_actions<G, P, I>(
         .map(|values| values.collect::<Vec<_>>())
     {
         for name in extra_varying_scalars {
+            let name = name.to_lowercase();
             field_lines.extract_varying_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(name).as_ref(),
+                    provider.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
-                    name
+                    &name
                 ),
                 &interpolator,
             );
