@@ -1,10 +1,9 @@
 import os
 import time
-import tempfile
-import scipy.interpolate
+
 import numpy as np
+import scipy.interpolate
 from numba import njit
-from joblib import Parallel, delayed
 
 
 class CompactArrayMask:
@@ -178,6 +177,7 @@ class tempmap(np.memmap):
                 offset=0,
                 shape=None,
                 order='C'):
+        import tempfile
         filename = tempfile.mkstemp()[1]
         self = np.memmap.__new__(subtype,
                                  filename,
@@ -198,6 +198,7 @@ def create_tmp_memmap(shape, dtype, mode='w+'):
 
 
 def concurrent_interp2(xp, yp, fp, coords, verbose=False, n_jobs=1, **kwargs):
+    from joblib import Parallel, delayed
     n = fp.shape[0]
     f = create_tmp_memmap(shape=(n, coords.shape[0]), dtype=fp.dtype)
     chunk_sizes = np.full(n_jobs, n // n_jobs, dtype=int)
