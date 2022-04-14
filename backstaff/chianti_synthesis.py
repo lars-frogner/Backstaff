@@ -2214,22 +2214,30 @@ def compute_emissivity_tables(ion_line_name_map,
                                            dtype=dtype,
                                            **kwargs)
 
-    emissivity_tables = {}
+    line_names = []
+    wavelengths = []
+    emissivity_tables = []
 
-    for ion_name, central_wavelengths in ion_line_wavelength_map.items():
+    for ion_name, requested_central_wavelengths in ion_line_wavelength_map.items():
         if verbose:
             print(f'Computing emissivity tables for {ion_name}')
 
         ion = Ion(ion_name, table_atmosphere, verbose=False)
 
-        line_indices = ion.find_line_indices(central_wavelengths)
+        line_indices = ion.find_line_indices(requested_central_wavelengths)
 
         emissivities = ion.compute_emissivities(
             line_indices=line_indices).astype(dtype)
 
-        for idx in range(len(central_wavelengths)):
+        for idx, line_idx in enumerate(line_indices):
             line_name = ion_line_name_map[ion_name][idx]
-            emissivity_tables[line_name] = emissivities[idx, :].reshape(
-                table_atmosphere.table_shape)
+            central_wavelength = ion.central_wavelengths[line_idx]
 
-    return table_atmosphere.log_table_temperatures, table_atmosphere.log_table_electron_densities, emissivity_tables
+            line_names.append(line_name)
+            wavelengths.append(central_wavelength)
+            emissivity_tables.append(emissivities[idx, :].reshape(
+                table_atmosphere.table_shape))
+
+    wavelengths = np.array(wavelengths, dtype=dtype)
+
+    return table_atmosphere.log_table_temperatures, table_atmosphere.log_table_electron_densities, line_names, wavelengths, emissivity_tables
