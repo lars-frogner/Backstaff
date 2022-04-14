@@ -1,13 +1,7 @@
 //! Command line interface for computing synthesized quantities for a snapshot.
 
 use crate::{
-    cli::{
-        interpolation::poly_fit::{
-            construct_poly_fit_interpolator_config_from_options,
-            create_poly_fit_interpolator_subcommand,
-        },
-        utils as cli_utils,
-    },
+    cli::utils as cli_utils,
     field::{
         synthesis::{EmissivitySnapshotProvider3, SYNTHESIZABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,
