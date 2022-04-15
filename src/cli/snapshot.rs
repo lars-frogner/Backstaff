@@ -5,11 +5,13 @@ mod extract;
 mod inspect;
 mod resample;
 mod slice;
-mod synthesize;
 mod write;
 
 #[cfg(feature = "corks")]
 mod corks;
+
+#[cfg(feature = "synthesis")]
+mod synthesize;
 
 use self::{
     derive::create_derive_subcommand, extract::create_extract_subcommand,
