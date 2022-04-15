@@ -23,6 +23,7 @@ Currently the available features are:
 * `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
 * `corks`: A module for tracing corks. Including it will add the `snapshot-corks` subcommand to the CLI.
 * `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI.
+* `synthesis`: A module for synthesising optically thin spectral lines. Including it will add the `snapshot-synthesize` subcommand to the CLI.
 
 ## API documentation
 
@@ -35,6 +36,8 @@ You need to have the Rust toolchain installed in order to build the binaries. In
 If you want to work with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found [here](https://docs.unidata.ucar.edu/nug/current/getting_and_building_netcdf.html).
 
 Similarly, support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format requires the `HDF5` library, which can be obtained [here](https://www.hdfgroup.org/downloads/hdf5/).
+
+Spectral line synthesis through the `snapshot-synthesize` subcommand requires that the [CHIANTI database](https://www.chiantidatabase.org/) is available on the system, and that its location is specified in the `XUVTOP` environment variable. An additional requirement is a Python installation with the packages `numpy`, `scipy`, `numba` and [`ChiantiPy`](https://github.com/chianti-atomic/ChiantiPy) available.
 
 ## Installing the command line program
 
