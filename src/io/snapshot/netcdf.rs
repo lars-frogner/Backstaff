@@ -107,9 +107,23 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
     }
 
     fn read_variable_names(group: &Group) -> (Vec<String>, Vec<String>) {
-        read_all_non_coord_variable_names(group)
-            .into_iter()
-            .partition(|name| PRIMARY_VARIABLE_NAMES_MHD.contains(&name.as_str()))
+        let variable_names = read_all_non_coord_variable_names(group);
+        let primary_variable_names: Vec<_> = PRIMARY_VARIABLE_NAMES_MHD
+            .iter()
+            .map(|&name| name.to_string())
+            .collect();
+        if primary_variable_names
+            .iter()
+            .all(|primary_variable_name| variable_names.contains(primary_variable_name))
+        {
+            let secondary_variable_names = variable_names
+                .into_iter()
+                .filter(|name| !primary_variable_names.contains(name))
+                .collect();
+            (primary_variable_names, secondary_variable_names)
+        } else {
+            (Vec::new(), variable_names)
+        }
     }
 
     #[allow(dead_code)]

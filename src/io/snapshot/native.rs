@@ -91,14 +91,20 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
     ) -> io::Result<Self> {
         let is_mhd = parameters.determine_if_mhd()?;
 
-        let primary_variable_names: Vec<_> = if is_mhd {
-            PRIMARY_VARIABLE_NAMES_MHD.to_vec()
+        let (snap_path, aux_path) = parameters.determine_snap_path()?;
+
+        let primary_variable_names: Vec<_> = if snap_path.exists() {
+            if is_mhd {
+                PRIMARY_VARIABLE_NAMES_MHD.iter()
+            } else {
+                PRIMARY_VARIABLE_NAMES_HD.iter()
+            }
+            .map(|&name| name.to_string())
+            .collect()
         } else {
-            PRIMARY_VARIABLE_NAMES_HD.to_vec()
-        }
-        .into_iter()
-        .map(String::from)
-        .collect();
+            Vec::new()
+        };
+
         let auxiliary_variable_names = parameters.determine_aux_names()?;
         let mut all_variable_names = primary_variable_names.clone();
         all_variable_names.append(&mut auxiliary_variable_names.clone());
@@ -109,8 +115,6 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
             &auxiliary_variable_names,
             &mut variable_descriptors,
         )?;
-
-        let (snap_path, aux_path) = parameters.determine_snap_path()?;
 
         Ok(Self {
             config,
