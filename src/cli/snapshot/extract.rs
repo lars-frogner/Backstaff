@@ -17,7 +17,7 @@ use crate::{
     },
     grid::Grid3,
     io::{
-        snapshot::{fdt, ExtractedSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
         Verbose,
     },
 };
@@ -250,7 +250,7 @@ fn run_extract_subcommand_with_derive<G, P>(
             protected_file_types,
         );
     } else {
-        run_extract_subcommand_with_synthesis(
+        run_extract_subcommand_with_synthesis_added_caching(
             arguments,
             provider,
             snap_num_in_range,
@@ -266,12 +266,44 @@ fn run_extract_subcommand_with_synthesis<G, P>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G> + Sync,
+    P: CachingSnapshotProvider3<G> + Sync,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
         let provider =
             super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
+        run_extract_subcommand_for_provider(
+            synthesize_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+        return;
+    }
+
+    run_extract_subcommand_for_provider(
+        arguments,
+        provider,
+        snap_num_in_range,
+        protected_file_types,
+    );
+}
+
+fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G> + Sync,
+{
+    #[cfg(feature = "synthesis")]
+    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+        let provider = super::synthesize::create_synthesize_provider_added_caching(
+            synthesize_arguments,
+            provider,
+        );
         run_extract_subcommand_for_provider(
             synthesize_arguments,
             provider,

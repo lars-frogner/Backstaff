@@ -33,7 +33,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, ResampledSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
         utils, Verbose,
     },
 };
@@ -636,7 +636,7 @@ fn run_snapshot_resampling_with_derive<G, P>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3<G>,
 {
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = create_derive_provider(derive_arguments, provider);
@@ -647,7 +647,7 @@ fn run_snapshot_resampling_with_derive<G, P>(
             protected_file_types,
         );
     } else {
-        run_snapshot_resampling_with_synthesis(
+        run_snapshot_resampling_with_synthesis_added_caching(
             arguments,
             provider,
             snap_num_in_range,
@@ -663,12 +663,44 @@ fn run_snapshot_resampling_with_synthesis<G, P>(
     protected_file_types: &[&str],
 ) where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G> + Sync,
+    P: CachingSnapshotProvider3<G>,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
         let provider =
             super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
+        run_snapshot_resampling_for_provider(
+            synthesize_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+        return;
+    }
+
+    run_snapshot_resampling_for_provider(
+        arguments,
+        provider,
+        snap_num_in_range,
+        protected_file_types,
+    );
+}
+
+fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    #[cfg(feature = "synthesis")]
+    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+        let provider = super::synthesize::create_synthesize_provider_added_caching(
+            synthesize_arguments,
+            provider,
+        );
         run_snapshot_resampling_for_provider(
             synthesize_arguments,
             provider,

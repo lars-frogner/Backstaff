@@ -9,7 +9,7 @@ use crate::{
     grid::Grid3,
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
     io::{
-        snapshot::{fdt, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils as io_utils,
     },
 };
@@ -125,14 +125,13 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
 }
 
 /// Creates an `EmissivitySnapshotProvider3` for the given arguments and snapshot provider.
-#[cfg(feature = "synthesis")]
 pub fn create_synthesize_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-) -> EmissivitySnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>, PolyFitInterpolator2>
+) -> EmissivitySnapshotProvider3<G, P, PolyFitInterpolator2>
 where
     G: Grid3<fdt>,
-    P: SnapshotProvider3<G>,
+    P: CachingSnapshotProvider3<G>,
 {
     let line_names = arguments
         .values_of("spectral-lines")
@@ -174,10 +173,8 @@ where
         ..PolyFitInterpolatorConfig::default()
     });
 
-    let cached_provider = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
-
     EmissivitySnapshotProvider3::new(
-        cached_provider,
+        provider,
         interpolator,
         &line_names,
         &quantity_names,
@@ -207,4 +204,17 @@ where
         },
         verbose,
     )
+}
+
+pub fn create_synthesize_provider_added_caching<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+) -> EmissivitySnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>, PolyFitInterpolator2>
+where
+    G: Grid3<fdt>,
+    P: SnapshotProvider3<G>,
+{
+    let verbose = arguments.is_present("verbose").into();
+    let cached_provider = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
+    create_synthesize_provider(arguments, cached_provider)
 }
