@@ -12,7 +12,7 @@ Rust is highly suited for this project, for a number of reasons. It is a low-lev
 
 ## Features
 
-The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` option to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be use to include all features.
+The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` option to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be used to include all features.
 
 Currently the available features are:
 * `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
@@ -29,7 +29,7 @@ Currently the available features are:
 
 The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` option in order for them to be included in the documentation.
 
-## Prerequesites
+## Prerequisites
 
 You need to have the Rust toolchain installed in order to build the binaries. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
 
