@@ -336,6 +336,10 @@ where
         self.provider.all_variable_names()
     }
 
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.provider.has_variable(variable_name)
+    }
+
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
         self.provider.obtain_snap_name_and_num()
     }
@@ -424,6 +428,10 @@ where
         self.provider.all_variable_names()
     }
 
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.provider.has_variable(variable_name)
+    }
+
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
         self.provider.obtain_snap_name_and_num()
     }
@@ -467,6 +475,10 @@ where
 
     fn all_variable_names(&self) -> &[String] {
         self.provider().all_variable_names()
+    }
+
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.provider().has_variable(variable_name)
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
