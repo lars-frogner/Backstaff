@@ -448,7 +448,7 @@ where
         line_name: &str,
     ) -> io::Result<ScalarField3<fdt, G>> {
         if self.verbose.is_yes() {
-            println!("Computing emissivities for {}", line_name);
+            println!("Looking up emissivities for {}", line_name);
         }
 
         let temperatures = self.provider.provide_scalar_field("tg")?;
