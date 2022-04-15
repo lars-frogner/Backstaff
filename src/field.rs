@@ -282,8 +282,8 @@ where
                 let field = self.provider.provide_scalar_field(variable_name)?;
 
                 self.system.refresh_memory();
-                let max_memory_exceeded = (self.system.available_memory() as f32
-                    / self.system.total_memory() as f32)
+                let max_memory_exceeded = 1.0
+                    - (self.system.available_memory() as f32 / self.system.total_memory() as f32)
                     > self.max_memory_usage_fraction;
 
                 if max_memory_exceeded {
