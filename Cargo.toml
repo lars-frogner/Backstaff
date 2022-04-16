@@ -17,10 +17,10 @@ json = ["serialization", "serde_json"]
 pickle = ["serialization", "serde-pickle"]
 netcdf = ["netcdf-rs"]
 hdf5 = ["hdf5-rs"]
-seeding = []
+seeding = ["rand"]
 corks = ["seeding"]
 tracing = ["seeding"]
-ebeam = ["tracing", "special"]
+ebeam = ["tracing", "rand", "special"]
 synthesis = ["python"]
 
 [dependencies]
@@ -32,7 +32,6 @@ lazy_static = "*"
 ndarray = { version = "*", features = ["rayon"] }
 num = "*"
 rayon = "*"
-rand = "*"
 regex = "*"
 sysinfo = "*"
 tempfile = "*"
@@ -73,3 +72,6 @@ hdf5-rs = { package = "hdf5", version = "*", optional = true}
 
 # Dependencies for ebeam
 special = { version = "*", optional = true }
+
+# Dependency for seeding and ebeam
+rand = { version = "*", optional = true }

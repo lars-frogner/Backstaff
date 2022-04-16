@@ -45,8 +45,10 @@ pub mod grid;
 pub mod interpolation;
 pub mod io;
 pub mod num;
-pub mod random;
 pub mod units;
+
+#[cfg(feature = "seeding")]
+pub mod random;
 
 #[cfg(feature = "cli")]
 pub mod cli;
