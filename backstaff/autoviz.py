@@ -7,17 +7,17 @@ import logging
 import shutil
 import csv
 import warnings
+import numpy as np
 from tqdm import tqdm
 from ruamel.yaml import YAML
 from joblib import Parallel, delayed
-import numpy as np
 from matplotlib.offsetbox import AnchoredText
 
 try:
     import backstaff.units as units
     import backstaff.running as running
     import backstaff.fields as fields
-    import helita_utils as helita_utils
+    import backstaff.helita_utils as helita_utils
 except ModuleNotFoundError:
     import units
     import running
@@ -39,7 +39,35 @@ def abort(logger, *args, **kwargs):
     sys.exit(1)
 
 
+def bifrost_data_has_variable(bifrost_data, variable_name, try_fetch=False):
+    if hasattr(bifrost_data,
+               variable_name) or variable_name in bifrost_data.compvars:
+        return True
+    if try_fetch:
+        try:
+            bifrost_data.get_var(variable_name)
+            return True
+        except:
+            return False
+    else:
+        return False
+
+
+def bifrost_data_has_variables(bifrost_data, *variable_names, **kwargs):
+    result = True
+    for variable_name in variable_names:
+        if not bifrost_data_has_variable(bifrost_data, variable_name, **
+                                         kwargs):
+            result = False
+    return result
+
+
 class Quantity:
+
+    @staticmethod
+    def for_reduction(name, unit_scale=1):
+        return Quantity(name, unit_scale, None, None)
+
     def __init__(self, name, unit_scale, description, cmap_name):
         self.name = name
         self.unit_scale = float(unit_scale)
@@ -53,17 +81,23 @@ class Quantity:
     def tag(self):
         return self.name
 
+    @property
+    def dependency_name(self):
+        return self.name
+
+    @property
+    def dependency_type(self):
+        return 'derived'
+
+    def set_name(self, name):
+        self.name = name
+
     def is_available(self, bifrost_data):
-        if hasattr(bifrost_data, self.name):
-            return True
-        try:
-            bifrost_data.get_var(self.name)
-            return True
-        except:
-            return False
+        bifrost_data_has_variable(bifrost_data, self.name, try_fetch=True)
 
     @classmethod
     def parse_file(cls, file_path, logger=logging):
+
         def decomment(csvfile):
             for row in csvfile:
                 raw = row.split('#')[0].strip()
@@ -127,6 +161,163 @@ class Quantity:
         return quantities
 
 
+class SynthesizedQuantity(Quantity):
+
+    @staticmethod
+    def from_quantity(quantity, line_name, axis_name, logger=logging):
+        try:
+            SynthesizedQuantity.get_central_wavelength(line_name)
+        except:
+            abort(
+                logger,
+                f'Invalid format for spectral line name {line_name} , must be <element>_<ionization stage>_<central wavelength in Å> (e.g. si_4_1393.755)'
+            )
+
+        subtypes = [
+            LineIntensityQuantity, LineShiftQuantity, LineVarianceQuantity
+        ]
+
+        constructor = None
+        for subtype in subtypes:
+            if quantity.name in subtype.supported_quantity_names:
+                constructor = subtype
+                break
+
+        if constructor is None:
+            all_names = sum(
+                [subtype.supported_quantity_names for subtype in subtypes])
+            abort(
+                logger,
+                f'Invalid name {quantity.name} for spectral line quantity (valid quantities are {",".join(all_names)})'
+            )
+
+        return constructor(quantity.name, line_name, axis_name,
+                           quantity.unit_scale, quantity.description,
+                           quantity.cmap_name)
+
+    @staticmethod
+    def get_central_wavelength(line_name):
+        return float(line_name.split('_')[-1]) * 1e-8  # [cm]
+
+    @staticmethod
+    def get_command_args(quantities):
+        if len(quantities) == 0:
+            return []
+        line_names = list(set((quantity.line_name for quantity in quantities)))
+        quantity_names = list(
+            set((quantity.quantity_name for quantity in quantities)))
+        return [
+            'synthesize', f'--spectral-lines={",".join(line_names)}',
+            f'--quantities={",".join(quantity_names)}', '-v',
+            '--ignore-warnings'
+        ]
+
+    def __init__(self, quantity_name, line_name, axis_name, *args, **kwargs):
+        super().__init__(f'{quantity_name}_{line_name}', *args, **kwargs)
+        self.quantity_name = quantity_name
+        self.line_name = line_name
+        self.axis_name = axis_name
+
+        self.central_wavelength = self.get_central_wavelength(line_name)
+
+        self.emis_name = f'emis_{self.line_name}'
+        self.shift_name = f'shift{self.axis_name}_{self.line_name}'
+        self.emis_shift_name = f'emis_{self.shift_name}'
+        self.vartg_name = f'vartg_{self.line_name}'
+        self.vartgshift2_name = f'vartgshift2{self.axis_name}_{self.shift_name}'
+        self.emis_vartgshift2_name = f'emis_{self.vartgshift2_name}'
+
+    @property
+    def dependency_name(self):
+        raise NotImplementedError()
+
+    @property
+    def dependency_type(self):
+        return 'synthesized'
+
+    def is_available(self, bifrost_data):
+        raise NotImplementedError()
+
+    def process_base_quantity(self, field):
+        return field if self.unit_scale == 1 else field * self.unit_scale
+
+
+class LineIntensityQuantity(SynthesizedQuantity):
+    base_quantity_name = 'intens'
+    supported_quantity_names = [base_quantity_name]
+
+    @property
+    def dependency_name(self):
+        return self.emis_name
+
+    def is_available(self, bifrost_data):
+        return bifrost_data_has_variable(bifrost_data, self.emis_name)
+
+    def process_base_quantity(self, field):
+        return super().process_base_quantity(field)
+
+
+class LineShiftQuantity(SynthesizedQuantity):
+    base_quantity_name = 'profshift'
+    supported_quantity_names = [base_quantity_name, 'dopvel']
+
+    @property
+    def dependency_name(self):
+        return self.emis_shift_name
+
+    def corresponding_intensity_quantity(self):
+        return LineIntensityQuantity(LineIntensityQuantity.base_quantity_name,
+                                     self.line_name, self.axis_name, 1, None,
+                                     None)
+
+    def is_available(self, bifrost_data):
+        return bifrost_data_has_variable(
+            bifrost_data, self.emis_shift_name) or bifrost_data_has_variables(
+                bifrost_data, self.emis_name, self.shift_name)
+
+    def process_base_quantity(self, field):
+        if self.quantity_name == 'dopvel':
+            field = field.with_values(units.CLIGHT * field.get_values() /
+                                      self.central_wavelength)  # [cm/s]
+        return super().process_base_quantity(field)
+
+
+class LineVarianceQuantity(SynthesizedQuantity):
+    base_quantity_name = 'profvar'
+    supported_quantity_names = [base_quantity_name, 'profwidth', 'widthvel']
+
+    @property
+    def dependency_name(self):
+        return self.emis_vartgshift2_name
+
+    def corresponding_intensity_quantity(self):
+        return LineIntensityQuantity(LineIntensityQuantity.base_quantity_name,
+                                     self.line_name, self.axis_name, 1, None,
+                                     None)
+
+    def corresponding_shift_quantity(self):
+        return LineShiftQuantity(LineShiftQuantity.base_quantity_name,
+                                 self.line_name, self.axis_name, 1, None, None)
+
+    def is_available(self, bifrost_data):
+        return bifrost_data_has_variable(
+            bifrost_data,
+            self.emis_vartgshift2_name) or bifrost_data_has_variables(
+                bifrost_data, self.emis_name,
+                self.vartgshift2_name) or bifrost_data_has_variables(
+                    bifrost_data, self.emis_name, self.vartg_name,
+                    self.shift_name)
+
+    def process_base_quantity(self, field):
+        if self.quantity_name in ('profwidth', 'widthvel'):
+            field = field.with_values((2 * np.sqrt(2 * np.log(2))) *
+                                      np.sqrt(field.get_values()))  # [cm]
+            if self.quantity_name == 'widthvel':
+                field = field.with_values(units.CLIGHT * field.get_values() /
+                                          self.central_wavelength)  # [cm/s]
+        return super().process_base_quantity(field)
+
+
 class Reduction:
     AXIS_NAMES = ['x', 'y', 'z']
 
@@ -149,9 +340,14 @@ class Reduction:
         if not isinstance(reduction_config, dict):
             abort(
                 logger,
-                f'reduction entry must be dict, is {type(reduction_config)}')
+                f'Reduction entry must be dict, is {type(reduction_config)}')
 
-        classes = dict(scan=Scan, sum=Sum, mean=Mean, slice=Slice)
+        classes = dict(scan=Scan,
+                       sum=Sum,
+                       mean=Mean,
+                       slice=Slice,
+                       integral=Integral,
+                       synthesis=Synthesis)
         reductions = None
         for name, cls in classes.items():
             if name in reduction_config:
@@ -178,7 +374,7 @@ class Reduction:
     def _get_axis_size(self, bifrost_data):
         return getattr(bifrost_data, self.axis_name).size
 
-    def _parse_coord_or_idx_to_idx(self, bifrost_data, coord_or_idx):
+    def _parse_slice_coord_or_idx_to_idx(self, bifrost_data, coord_or_idx):
         return max(
             0,
             min(
@@ -195,6 +391,32 @@ class Reduction:
             self.__class__._parse_float_or_int_input_to_int(
                 distance_or_stride, lambda distance: int(distance / getattr(
                     bifrost_data, f'd{self.axis_name}'))))
+
+    def _parse_coord_or_idx_range_to_slice(self, bifrost_data,
+                                           coord_or_idx_range):
+        assert isinstance(coord_or_idx_range,
+                          (tuple, list)) and len(coord_or_idx_range) == 2
+
+        coord_or_idx_range_copy = list(coord_or_idx_range)
+        for i in range(2):
+            if isinstance(coord_or_idx_range[i], int):
+                coord_or_idx_range_copy[i] = None
+
+        if self.axis == 2:
+            coords = helita_utils.inverted_zdn(bifrost_data)
+        else:
+            coords = [bifrost_data.xdn, bifrost_data.ydn][self.axis]
+
+        coord_slice = helita_utils.inclusive_coord_slice(
+            coords, coord_or_idx_range_copy)
+        coord_slice = [coord_slice.start, coord_slice.stop]
+
+        if isinstance(coord_or_idx_range[0], int):
+            coord_slice[0] = coord_or_idx_range[0]
+        if isinstance(coord_or_idx_range[1], int):
+            coord_slice[1] = coord_or_idx_range[1] + 1
+
+        return slice(*coord_slice)
 
     @staticmethod
     def _parse_float_or_int_input_to_int(float_or_int, converter):
@@ -225,6 +447,7 @@ class Reduction:
 
 
 class Scan(Reduction):
+
     def __init__(self, axis=0, start=None, end=None, step='i1'):
         super().__init__(axis)
         self.start = start
@@ -240,11 +463,12 @@ class Scan(Reduction):
         return True
 
     def __call__(self, bifrost_data, quantity):
-        start_idx = 0 if self.start is None else self._parse_coord_or_idx_to_idx(
+        start_idx = 0 if self.start is None else self._parse_slice_coord_or_idx_to_idx(
             bifrost_data, self.start)
-        end_idx = (self._get_axis_size(bifrost_data) -
-                   1) if self.end is None else self._parse_coord_or_idx_to_idx(
-                       bifrost_data, self.end)
+        end_idx = (
+            self._get_axis_size(bifrost_data) -
+            1) if self.end is None else self._parse_slice_coord_or_idx_to_idx(
+                bifrost_data, self.end)
         stride = self._parse_distance_or_stride_to_stride(
             bifrost_data, self.step)
 
@@ -259,6 +483,7 @@ class Scan(Reduction):
 
 
 class ScanSlices:
+
     def __init__(self, scan, bifrost_data, quantity, start_idx, end_idx,
                  stride):
         self._scan = scan
@@ -283,6 +508,7 @@ class ScanSlices:
 
 
 class ScanSlice:
+
     def __init__(self, field, label):
         self._field = field
         self._label = label
@@ -297,6 +523,7 @@ class ScanSlice:
 
 
 class Sum(Reduction):
+
     @property
     def tag(self):
         return f'sum_{self.axis_name}'
@@ -311,6 +538,7 @@ class Sum(Reduction):
 
 
 class Mean(Reduction):
+
     def __init__(self, axis=0, ignore_val=None):
         super().__init__(axis)
         self.ignore_val = ignore_val
@@ -320,6 +548,7 @@ class Mean(Reduction):
         return f'mean_{self.axis_name}'
 
     def __call__(self, bifrost_data, quantity):
+
         def value_processor(field):
             if self.ignore_val is None:
                 return field
@@ -348,7 +577,194 @@ class Mean(Reduction):
             scale=quantity.unit_scale)
 
 
+class Integral(Reduction):
+
+    def __init__(self, axis=0, start=None, end=None):
+        super().__init__(axis)
+        self.start = start
+        self.end = end
+
+    @property
+    def tag(self):
+        return f'integral_{self.axis_name}{"" if self.start is None else self.start}:{"" if self.end is None else self.end}'
+
+    def __call__(self,
+                 bifrost_data,
+                 quantity,
+                 *extra_quantity_names,
+                 combine_fields=lambda x: x):
+        coord_slice = self._parse_coord_or_idx_range_to_slice(
+            bifrost_data, (self.start, self.end))
+
+        if self.axis == 0:
+
+            def value_processor(*fields):
+                return combine_fields(
+                    *[field[coord_slice, :, :] for field in fields])
+
+            dx = bifrost_data.dx * units.U_L
+            accum_operator = lambda field, axis=None: np.sum(field, axis=axis
+                                                             ) * dx
+        elif self.axis == 1:
+
+            def value_processor(*fields):
+                return combine_fields(
+                    *[field[:, coord_slice, :] for field in fields])
+
+            dy = bifrost_data.dy * units.U_L
+            accum_operator = lambda field, axis=None: np.sum(field, axis=axis
+                                                             ) * dy
+        elif self.axis == 2:
+            dz = fields.dz_in_bifrost_data(
+                bifrost_data, scale=units.U_L).get_values()[np.newaxis,
+                                                            np.newaxis,
+                                                            coord_slice]
+
+            def value_processor(*fields):
+                return combine_fields(
+                    *[field[:, :, coord_slice] for field in fields]) * dz
+
+            accum_operator = np.sum
+
+        return fields.ScalarField2.accumulated_from_bifrost_data(
+            bifrost_data, [quantity.name, *extra_quantity_names],
+            accum_axis=self.axis,
+            value_processor=value_processor,
+            accum_operator=accum_operator,
+            scale=quantity.unit_scale)
+
+
+class Synthesis(Integral):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.cache = {}
+
+    @property
+    def tag(self):
+        return f'syn_{self.axis_name}{"" if self.start is None else self.start}:{"" if self.end is None else self.end}'
+
+    def __call__(self, bifrost_data, quantity):
+        if isinstance(quantity, LineIntensityQuantity):
+            return self._compute_intensity(bifrost_data, quantity)
+        elif isinstance(quantity, LineShiftQuantity):
+            return self._compute_shift(bifrost_data, quantity)
+        elif isinstance(quantity, LineVarianceQuantity):
+            return self._compute_variance(bifrost_data, quantity)
+        else:
+            raise ValueError(f'Invalid quantity {quantity.name} for synthesis')
+
+    @staticmethod
+    def _create_cache_entry(bifrost_data, quantity):
+        return (bifrost_data.root_name, bifrost_data.snap,
+                quantity.base_quantity_name, quantity.line_name)
+
+    def _compute_intensity(self, bifrost_data, quantity, processed=True):
+        cache_entry = self.__class__._create_cache_entry(
+            bifrost_data, quantity)
+        if cache_entry in self.cache:
+            return quantity.process_base_quantity(
+                self.cache[cache_entry]
+            ) if processed else self.cache[cache_entry]
+
+        if not bifrost_data_has_variable(bifrost_data, quantity.emis_name):
+            raise IOError(
+                f'Missing quantity {quantity.emis_name} for computing spectral line intensity'
+            )
+
+        intensity = super(Integral)(bifrost_data,
+                                    Quantity.for_reduction(quantity.emis_name))
+
+        self.cache[cache_entry] = intensity
+        return quantity.process_base_quantity(
+            intensity) if processed else intensity
+
+    def _compute_shift(self, bifrost_data, quantity, processed=True):
+        cache_entry = self.__class__._create_cache_entry(
+            bifrost_data, quantity)
+        if cache_entry in self.cache:
+            return quantity.process_base_quantity(
+                self.cache[cache_entry]
+            ) if processed else self.cache[cache_entry]
+
+        intensity = self._compute_intensity(
+            bifrost_data,
+            quantity.corresponding_intensity_quantity(),
+            processed=False)
+
+        if bifrost_data_has_variable(bifrost_data, quantity.emis_shift_name):
+            weighted_shift = super(Integral)(bifrost_data,
+                                             Quantity.for_reduction(
+                                                 quantity.emis_shift_name))
+        elif bifrost_data_has_variables(bifrost_data, quantity.emis_name,
+                                        quantity.shift_name):
+            weighted_shift = super(Integral)(
+                bifrost_data,
+                Quantity.for_reduction(quantity.shift_name),
+                quantity.emis_name,
+                combine_fields=lambda shift, emis: emis * shift)
+        else:
+            raise IOError(
+                f'Missing quantities {quantity.emis_shift_name} or {quantity.emis_name} and {quantity.shift_name} for computing spectral line shift'
+            )
+
+        shift = weighted_shift / intensity
+
+        self.cache[cache_entry] = shift
+        return quantity.process_base_quantity(shift) if processed else shift
+
+    def _compute_variance(self, bifrost_data, quantity, processed=True):
+        cache_entry = self.__class__._create_cache_entry(
+            bifrost_data, quantity)
+        if cache_entry in self.cache:
+            return quantity.process_base_quantity(
+                self.cache[cache_entry]
+            ) if processed else self.cache[cache_entry]
+
+        intensity = self._compute_intensity(
+            bifrost_data,
+            quantity.corresponding_intensity_quantity(),
+            processed=False)
+        shift = self._compute_shift(bifrost_data,
+                                    quantity.corresponding_shift_quantity(),
+                                    processed=False)
+
+        if bifrost_data_has_variable(bifrost_data,
+                                     quantity.emis_vartgshift2_name):
+            weighted_variance = super(Integral)(
+                bifrost_data,
+                Quantity.for_reduction(quantity.emis_vartgshift2_name))
+        elif bifrost_data_has_variables(bifrost_data, quantity.emis_name,
+                                        quantity.vartgshift2_name):
+            weighted_variance = super(Integral)(
+                bifrost_data,
+                Quantity.for_reduction(quantity.vartgshift2_name),
+                quantity.emis_name,
+                combine_fields=lambda vartgshift2, emis: emis * vartgshift2)
+        elif bifrost_data_has_variables(bifrost_data, quantity.vartg_name,
+                                        quantity.emis_name,
+                                        quantity.shift_name):
+            weighted_variance = super(Integral)(
+                bifrost_data,
+                Quantity.for_reduction(quantity.vartg_name),
+                quantity.emis_name,
+                quantity.shift_name,
+                combine_fields=lambda vartg, emis, shift: emis *
+                (vartg + shift**2))
+        else:
+            raise IOError(
+                f'Missing quantities {quantity.emis_vartgshift2_name} or {quantity.emis_name} and {quantity.vartgshift2_name} or {quantity.emis_name}, {quantity.vartg_name} and {quantity.shift_name} for computing spectral line variance'
+            )
+
+        variance = weighted_variance / intensity - shift * shift
+
+        self.cache[cache_entry] = variance
+        return quantity.process_base_quantity(
+            variance) if processed else variance
+
+
 class Slice(Reduction):
+
     def __init__(self, axis=0, pos='i0'):
         super().__init__(axis)
         self.pos = pos
@@ -358,7 +774,8 @@ class Slice(Reduction):
         return f'slice_{self.AXIS_NAMES[self.axis]}_{self.pos}'
 
     def __call__(self, bifrost_data, quantity):
-        slice_idx = self._parse_coord_or_idx_to_idx(bifrost_data, self.pos)
+        slice_idx = self._parse_slice_coord_or_idx_to_idx(
+            bifrost_data, self.pos)
         return fields.ScalarField2.slice_from_bifrost_data(
             bifrost_data,
             quantity.name,
@@ -368,6 +785,7 @@ class Slice(Reduction):
 
 
 class Scaling:
+
     def __init__(self, vmin=None, vmax=None) -> None:
         self.vmin = vmin
         self.vmax = vmax
@@ -398,6 +816,7 @@ class Scaling:
 
 
 class SymlogScaling(Scaling):
+
     def __init__(self,
                  linthresh=None,
                  vmax=None,
@@ -424,6 +843,7 @@ class SymlogScaling(Scaling):
 
 
 class LinearScaling(Scaling):
+
     @property
     def tag(self):
         return 'linear'
@@ -433,6 +853,7 @@ class LinearScaling(Scaling):
 
 
 class LogScaling(LinearScaling):
+
     @property
     def tag(self):
         return 'log'
@@ -444,7 +865,13 @@ class LogScaling(LinearScaling):
 
 
 class PlotDescription:
-    def __init__(self, quantity, reduction, scaling, name=None, **extra_plot_kwargs):
+
+    def __init__(self,
+                 quantity,
+                 reduction,
+                 scaling,
+                 name=None,
+                 **extra_plot_kwargs):
         self.quantity = quantity
         self.reduction = reduction
         self.scaling = scaling
@@ -452,7 +879,11 @@ class PlotDescription:
         self.extra_plot_kwargs = extra_plot_kwargs
 
     @classmethod
-    def parse(cls, quantities, plot_config, allow_reference=True, logger=logging):
+    def parse(cls,
+              quantities,
+              plot_config,
+              allow_reference=True,
+              logger=logging):
         try:
             plot_config = dict(plot_config)
         except ValueError:
@@ -460,8 +891,10 @@ class PlotDescription:
                 name = plot_config
                 return [name]
             else:
-                abort(logger,
-                  f'plots list entry must be dict{", or str referring to plot" if allow_reference else ""}, is {type(plot_config)}')
+                abort(
+                    logger,
+                    f'plots list entry must be dict{", or str referring to plot" if allow_reference else ""}, is {type(plot_config)}'
+                )
 
         return cls._parse_dict(quantities, plot_config, logger=logger)
 
@@ -489,6 +922,17 @@ class PlotDescription:
 
         reductions = Reduction.parse(plot_config.pop('reduction'),
                                      logger=logger)
+
+        spectral_line_name = plot_config.pop('spectral_line', None)
+        if spectral_line_name is not None:
+            if isinstance(reductions[0], Synthesis):
+                quantity = SynthesizedQuantity.from_quantity(
+                    quantity,
+                    spectral_line_name,
+                    reductions[0].axis_name,
+                    logger=logger)
+            else:
+                quantity.set_name(f'{quantity.name}_{spectral_line_name}')
 
         if 'scaling' not in plot_config:
             abort(logger, f'Missing scaling entry')
@@ -520,6 +964,7 @@ class PlotDescription:
 
 
 class VideoDescription:
+
     def __init__(self, fps=15):
         self.fps = fps
 
@@ -538,6 +983,7 @@ class VideoDescription:
 
 
 class SimulationRun:
+
     def __init__(self,
                  name,
                  data_dir,
@@ -724,9 +1170,9 @@ class SimulationRun:
         if len(available_plots_prepared) > 0:
             plot_data_locations[prepared_data_dir] = available_plots_prepared
 
-        for quantity_name in unavailable_quantities_prepared:
+        for quantity in unavailable_quantities_prepared:
             self.logger.error(
-                f'Could not obtain quantity {quantity_name} for simulation {self.name}, skipping'
+                f'Could not obtain quantity {quantity.name} for simulation {self.name}, skipping'
             )
 
         return plot_data_locations
@@ -767,24 +1213,24 @@ class SimulationRun:
         unavailable_plots = []
 
         for plot_description in plot_descriptions:
-            quantity_name = plot_description.quantity.name
+            quantity = plot_description.quantity
 
-            if quantity_name in available_quantities:
+            if quantity in available_quantities:
                 available_plots.append(plot_description)
-            elif quantity_name in unavailable_quantities:
+            elif quantity in unavailable_quantities:
                 unavailable_plots.append(plot_description)
             else:
                 if plot_description.quantity.is_available(bifrost_data):
                     self.logger.debug(
-                        f'Quantity {quantity_name} available for {bifrost_data.file_root}'
+                        f'Quantity {quantity.name} available for {bifrost_data.file_root}'
                     )
-                    available_quantities.append(quantity_name)
+                    available_quantities.append(quantity)
                     available_plots.append(plot_description)
                 else:
                     self.logger.debug(
-                        f'Quantity {quantity_name} not available for {bifrost_data.file_root}'
+                        f'Quantity {quantity.name} not available for {bifrost_data.file_root}'
                     )
-                    unavailable_quantities.append(quantity_name)
+                    unavailable_quantities.append(quantity)
                     unavailable_plots.append(plot_description)
 
         return available_quantities, unavailable_quantities, available_plots, unavailable_plots
@@ -807,11 +1253,29 @@ class SimulationRun:
             f'--snap-range={snap_nums[0]},{snap_nums[-1]}'
         ] if len(snap_nums) > 1 else []
 
+        derived_dependency_names = []
+        synthesized_quantities = []
+        for quantity in quantities:
+            if quantity.dependency_type == 'derived':
+                derived_dependency_names.append(quantity.dependency_name)
+            elif quantity.dependency_type == 'synthesized':
+                synthesized_quantities.append(quantity)
+            else:
+                raise ValueError(
+                    f'Invalid dependency type {quantity.dependency_type}')
+
+        synthesize_command_args = SynthesizedQuantity.get_command_args(
+            synthesized_quantities)
+        all_dependency_names = derived_dependency_names + [
+            quantity.dependency_name for quantity in synthesized_quantities
+        ]
+
         return_code = running.run_command([
             'backstaff', '--protected-file-types=', 'snapshot', '-v',
-            *snap_range_specification, param_file_name, 'write', '-v',
+            *snap_range_specification, param_file_name, 'derive', '-v',
+            '--ignore-warnings', *synthesize_command_args, 'write', '-v',
             '--ignore-warnings', '--overwrite',
-            f'--derived-quantities={",".join(quantities)}',
+            f'--included-quantities={",".join(all_dependency_names)}',
             str((prepared_data_dir / param_file_name).resolve())
         ],
                                           cwd=self.data_dir,
@@ -834,6 +1298,7 @@ class SimulationRun:
 
 
 class Visualizer:
+
     def __init__(self, simulation_run, output_dir_name='autoviz'):
         self._simulation_run = simulation_run
         self._logger = simulation_run.logger
@@ -1061,6 +1526,7 @@ class Visualizer:
 
 
 class Visualization:
+
     def __init__(self, visualizer, *plot_descriptions):
         self._visualizer = visualizer
         self._plot_descriptions = plot_descriptions
@@ -1142,18 +1608,24 @@ def parse_config_file(file_path, logger=logging):
             local_plots = [local_plots]
 
         global_plot_descriptions = [
-            plot_description for plot_config in global_plots for plot_description in
-            PlotDescription.parse(quantities, plot_config, allow_reference=False, logger=logger)
+            plot_description for plot_config in global_plots
+            for plot_description in PlotDescription.parse(
+                quantities, plot_config, allow_reference=False, logger=logger)
         ]
 
         references, plot_descriptions = [], []
         for plot_config in local_plots:
-            for p in PlotDescription.parse(quantities, plot_config, allow_reference=True, logger=logger):
-                (references, plot_descriptions)[isinstance(p, PlotDescription)].append(p)
+            for p in PlotDescription.parse(quantities,
+                                           plot_config,
+                                           allow_reference=True,
+                                           logger=logger):
+                (references,
+                 plot_descriptions)[isinstance(p, PlotDescription)].append(p)
 
         global_plot_descriptions_with_name = []
         for plot_description in global_plot_descriptions:
-            (global_plot_descriptions_with_name, plot_descriptions)[plot_description.name is None].append(plot_description)
+            (global_plot_descriptions_with_name, plot_descriptions
+             )[plot_description.name is None].append(plot_description)
 
         for name in references:
             found_plot = False
@@ -1171,6 +1643,7 @@ def parse_config_file(file_path, logger=logging):
 
 
 class LoggerBuilder:
+
     def __init__(self, name='autoviz', level=logging.INFO, log_file=None):
         self.name = name
         self.level = level
@@ -1259,8 +1732,7 @@ if __name__ == '__main__':
         log_file=args.log_file)
     logger = logger_builder()
 
-    all_visualizations = parse_config_file(args.config_file,
-                                           logger=logger)
+    all_visualizations = parse_config_file(args.config_file, logger=logger)
 
     if args.simulations is None:
         visualizations = all_visualizations
