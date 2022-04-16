@@ -17,10 +17,11 @@ except ModuleNotFoundError:
     import units
     import array_utils as array_utils
     import fields
-    import backstaff.chianti_synthesis as core
+    import chianti_synthesis as core
 
 
 class LookupIon(core.Ion):
+
     @property
     def table_populations(self):
         pop = self.populations
@@ -97,6 +98,7 @@ class LookupIon(core.Ion):
 
 
 class IonEmissivities:
+
     @staticmethod
     def from_lookup(lookup_ion,
                     bifrost_data,
@@ -159,12 +161,13 @@ class IonEmissivities:
                 f'Compact atmosphere representation size is {1e2*tg.size/(bifrost_data.x.size*bifrost_data.y.size*bifrost_data.z.size):.1f}%'
             )
 
-        atmos = core.IonAtmosphere3D(*coords,
-                                tg,
-                                nel,
-                                species_ratios=lookup_ion.atmos.species_ratios,
-                                compute_proton_densities=False,
-                                verbose=lookup_ion.atmos.verbose)
+        atmos = core.IonAtmosphere3D(
+            *coords,
+            tg,
+            nel,
+            species_ratios=lookup_ion.atmos.species_ratios,
+            compute_proton_densities=False,
+            verbose=lookup_ion.atmos.verbose)
 
         included_levels = lookup_ion.find_levels_for_lines(
             lookup_ion.find_line_indices(included_line_wavelengths))
@@ -326,7 +329,7 @@ class IonEmissivities:
         data = np.load(file_path)
         return IonEmissivities(
             core.IonProperties(data['ion_name'].item(),
-                          data['abundance'].item()), bifrost_data,
+                               data['abundance'].item()), bifrost_data,
             tuple(data['height_range']), data['x_coords'], data['y_coords'],
             data['z_coords'], data['central_wavelengths'],
             None if data['mask'].shape == () else array_utils.CompactArrayMask(
@@ -500,6 +503,7 @@ class IonEmissivities:
 
 
 class SpectralLine:
+
     def __init__(self,
                  ion_properties,
                  central_wavelength,
@@ -543,7 +547,7 @@ class SpectralLine:
     @property
     def name(self):
         return core.IonProperties.get_line_name(self.ion_name,
-                                           self.central_wavelength)
+                                                self.central_wavelength)
 
     @property
     def description(self):
@@ -735,6 +739,7 @@ class SpectralLine:
 
 
 class SpectralLineArray(np.ndarray):
+
     def __new__(cls, a):
         obj = np.asarray(a).view(cls)
         return obj
@@ -771,6 +776,7 @@ class SpectralLineArray(np.ndarray):
 
 
 class Spectrum:
+
     def __init__(self,
                  line_names,
                  atmosphere_names,
