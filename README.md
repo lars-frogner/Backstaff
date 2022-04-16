@@ -97,6 +97,7 @@ OPTIONS:
 
 SUBCOMMANDS:
     derive        Compute derived quantities for the snapshot
+    synthesize    Compute synthetic quantities for the snapshot
     inspect       Inspect properties of the snapshot
     slice         Extract a 2D slice of a quantity field in the snapshot
     extract       Extract a subdomain of the snapshot
