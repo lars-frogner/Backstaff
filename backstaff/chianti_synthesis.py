@@ -22,6 +22,7 @@ except ModuleNotFoundError:
 
 
 class SpeciesRatiosCacher:
+
     def __init__(self):
         self.__ratios = {}
 
@@ -36,6 +37,7 @@ SPECIES_RATIOS = SpeciesRatiosCacher()
 
 
 class SpeciesRatios:
+
     @staticmethod
     def default(verbose=False):
         return SPECIES_RATIOS('sun_coronal_2012_schmelz_ext', verbose=verbose)
@@ -104,6 +106,7 @@ class SpeciesRatios:
 
 
 class IonAtmosphere:
+
     def __init__(self,
                  temperatures,
                  electron_densities,
@@ -201,6 +204,7 @@ class IonAtmosphere:
 
 
 class IonAtmosphere1D(IonAtmosphere):
+
     def __init__(self, z_coords, *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert isinstance(z_coords, np.ndarray) and z_coords.ndim == 1
@@ -212,6 +216,7 @@ class IonAtmosphere1D(IonAtmosphere):
 
 
 class IonAtmosphere3D(IonAtmosphere):
+
     def __init__(self, x_coords, y_coords, z_coords, *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert isinstance(x_coords, np.ndarray) and x_coords.ndim == 1
@@ -242,6 +247,7 @@ class IonAtmosphere3D(IonAtmosphere):
 
 
 class IonProperties:
+
     def __init__(self, ion_name, abundance):
         self.__set_ion_name(ion_name)
         self.__find_ionization_potential()
@@ -329,6 +335,7 @@ class IonProperties:
 
 
 class Ion:
+
     def __init__(self,
                  ion_name,
                  atmosphere,
@@ -1067,6 +1074,7 @@ def compute_transition_rate_statistics(matrix):
 
 
 class LookupIonAtmosphere(IonAtmosphere):
+
     def __init__(self,
                  log_temperature_limits=(3.0, 7.0),
                  log_electron_density_limits=(8.0, 13.0),
@@ -1174,7 +1182,8 @@ def compute_emissivity_tables(ion_line_name_map,
     wavelengths = []
     emissivity_tables = []
 
-    for ion_name, requested_central_wavelengths in ion_line_wavelength_map.items():
+    for ion_name, requested_central_wavelengths in ion_line_wavelength_map.items(
+    ):
         if verbose:
             print(f'Computing emissivity tables for {ion_name}')
 
