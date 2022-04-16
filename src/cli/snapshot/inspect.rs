@@ -1,8 +1,8 @@
 //! Command line interface for actions related to inspection of snapshots.
 
+#[cfg(feature = "statistics")]
 mod statistics;
 
-use self::statistics::{create_statistics_subcommand, run_statistics_subcommand};
 use crate::{
     grid::Grid3,
     io::snapshot::{fdt, SnapshotProvider3},
@@ -10,20 +10,22 @@ use crate::{
 };
 use clap::{Arg, ArgMatches, Command};
 
+#[cfg(feature = "statistics")]
+use self::statistics::{create_statistics_subcommand, run_statistics_subcommand};
+
 /// Builds a representation of the `snapshot-inspect` command line subcommand.
 pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "inspect";
 
     update_command_graph!(_parent_command_name, command_name);
 
-    Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Inspect properties of the snapshot")
-        .subcommand_required(true)
         .arg(
             Arg::new("all-quantities")
                 .long("all-quantities")
                 .short('A')
-                .help("Include all original quantities in the output snapshot")
+                .help("Inspect all original quantities")
                 .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
         )
         .arg(
@@ -59,8 +61,14 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
             Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
-        )
-        .subcommand(create_statistics_subcommand(command_name))
+        );
+
+    #[cfg(feature = "statistics")]
+    let command = command
+        .subcommand_required(true)
+        .subcommand(create_statistics_subcommand(command_name));
+
+    command
 }
 
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
@@ -78,7 +86,13 @@ where
         exit_with_error!("Aborted: No quantities to inspect");
     }
 
+    #[cfg(feature = "statistics")]
     if let Some(statistics_arguments) = arguments.subcommand_matches("statistics") {
         run_statistics_subcommand(statistics_arguments, provider, quantity_names);
     }
+    #[cfg(not(feature = "statistics"))]
+    exit_with_error!(
+        "Error: Compile with statistics feature in order to inspect snapshot statistics\n\
+         Tip: Use cargo flag --features=statistics"
+    );
 }

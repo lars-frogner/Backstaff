@@ -2317,7 +2317,6 @@ mod tests {
         native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
     };
     use crate::io::{Endianness, Verbose};
-    use ndarray_stats::QuantileExt;
 
     #[test]
     fn interpolation_at_original_data_points_works() {
@@ -2343,6 +2342,14 @@ mod tests {
 
         let rel_diffs =
             (slice_values_idx.to_owned() - slice_values_coord).mapv(fdt::abs) / slice_values_idx;
-        assert!(*rel_diffs.max().unwrap() < 1e-6);
+        assert!(
+            rel_diffs
+                .as_slice_memory_order()
+                .unwrap()
+                .iter()
+                .cloned()
+                .fold(f32::NEG_INFINITY, f32::max)
+                < 1e-6
+        );
     }
 }

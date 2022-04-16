@@ -7,9 +7,10 @@ edition = "2021"
 default-run = "backstaff"
 
 [features]
-default = ["cli"]
-cli = ["chrono", "clap", "clap_complete", "pad", "paste", "float-pretty-print"]
+default = ["cli", "statistics"]
+cli = ["chrono", "clap", "clap_complete", "paste"]
 command-graph = ["cli", "petgraph"]
+statistics = ["cli", "float-pretty-print", "ndarray-stats", "noisy_float", "pad"]
 serialization = ["serde", "ndarray/serde"]
 python = ["pyo3", "numpy"]
 json = ["serialization", "serde_json"]
@@ -29,8 +30,6 @@ ieee754 = "*"
 itertools = "*"
 lazy_static = "*"
 ndarray = { version = "*", features = ["rayon"] }
-ndarray-stats = "*"
-noisy_float = "*"
 num = "*"
 rayon = "*"
 rand = "*"
@@ -42,12 +41,16 @@ tempfile = "*"
 chrono = { version = "*", optional = true }
 clap = { version = ">=3.0.0", features = ["default", "cargo"], optional = true }
 clap_complete = { version = "*", optional = true }
-float-pretty-print = { version = "*", optional = true }
-pad = { version = "*", optional = true }
 paste = { version = "*", optional = true }
 
 # Dependencies for command-graph
 petgraph = { version = "*", features = [], optional = true }
+
+# Dependencies for statistics
+float-pretty-print = { version = "*", optional = true }
+ndarray-stats = { version = "*", optional = true }
+noisy_float = { version = "*", optional = true }
+pad = { version = "*", optional = true }
 
 # Dependencies for serialization
 serde = { version = "*", features = ["derive"], optional = true }
