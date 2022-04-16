@@ -13,6 +13,7 @@ except ModuleNotFoundError:
 
 
 class Coords3:
+
     def __init__(self, x_coords, y_coords, z_coords):
         self.x = np.asfarray(x_coords)
         self.y = np.asfarray(y_coords)
@@ -27,6 +28,7 @@ class Coords3:
 
 
 class Coords2:
+
     @staticmethod
     def indices(shape):
         return Coords2(np.arange(shape[0]), np.arange(shape[1]))
@@ -52,6 +54,7 @@ class Coords2:
 
 
 class Coords1:
+
     def __init__(self, coords):
         self.coords = np.asfarray(coords)
 
@@ -60,6 +63,7 @@ class Coords1:
 
 
 class ScalarField3:
+
     @staticmethod
     def from_bifrost_data(
         bifrost_data,
@@ -259,6 +263,7 @@ class ScalarField3:
 
 
 class ScalarField1:
+
     @staticmethod
     def horizontal_average_from_bifrost_data(
         bifrost_data,
@@ -423,6 +428,7 @@ class ScalarField1:
 
 
 class ScalarField2:
+
     @staticmethod
     def from_pickle_file(file_path):
         import backstaff.reading as reading
@@ -487,31 +493,25 @@ class ScalarField2:
         if not isinstance(quantities, (list, tuple)):
             quantities = [quantities]
 
-        all_values = value_processor(*(bifrost_data.get_var(quantity)
-                                       for quantity in quantities))
+        all_values = value_processor(
+            *(bifrost_data.get_var(quantity)[:, :, ::-1]
+              for quantity in quantities))
 
         values = accum_operator(all_values, axis=accum_axis)
         coords = Coords2.from_bifrost_data(bifrost_data, accum_axis)
 
         if isinstance(values, dict):
-            if accum_axis != 2:
-                for name, v in values.items():
-                    values[name] = v[:, ::-1]
-
             if scale is not None:
                 for name in values:
-                    values[name] *= scale
+                    values[name] = values[name] * scale
 
             return ScalarFieldSet(
                 **
                 {name: ScalarField2(coords, v)
                  for name, v in values.items()})
         else:
-            if accum_axis != 2:
-                values = values[:, ::-1]  # Flip z
-
             if scale is not None:
-                values *= scale
+                values = values * scale
 
             return ScalarField2(coords, values)
 
@@ -531,6 +531,9 @@ class ScalarField2:
         self.coords = coords
         self.values = np.asfarray(values)
         assert self.values.shape == self.coords.get_shape()
+
+    def with_values(self, values):
+        return ScalarField2(self.coords, values)
 
     def __add__(self, term):
         if isinstance(term, self.__class__):
@@ -622,6 +625,7 @@ class ScalarField2:
 
 
 class ScalarFieldSet:
+
     @staticmethod
     def field_from_file(field_class, base_file_path, field_name):
         glob_file_path = ScalarFieldSet._get_field_path(base_file_path,
