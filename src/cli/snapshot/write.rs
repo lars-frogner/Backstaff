@@ -6,6 +6,7 @@ use crate::{
     exit_on_error, exit_with_error,
     grid::Grid3,
     io::snapshot::{self, fdt, native, ParameterValue, SnapshotProvider3},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{
@@ -20,10 +21,10 @@ use std::{
 use crate::io::snapshot::netcdf;
 
 /// Builds a representation of the `snapshot-write` command line subcommand.
-pub fn create_write_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "write";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Write snapshot data to file")

@@ -22,6 +22,7 @@ use crate::{
         snapshot::{fdt, native, SnapshotProvider3},
         Verbose,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
@@ -30,10 +31,10 @@ use std::{path::PathBuf, str::FromStr};
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
 
 /// Builds a representation of the `snapshot-resample-mesh_file` command line subcommand.
-pub fn create_mesh_file_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "mesh_file";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Resample to a grid specified by a mesh file")

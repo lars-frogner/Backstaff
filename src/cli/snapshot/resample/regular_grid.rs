@@ -24,6 +24,7 @@ use crate::{
         snapshot::{fdt, SnapshotProvider3},
         Verbose,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
@@ -31,10 +32,10 @@ use clap::{Arg, ArgMatches, Command};
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
 
 /// Builds a representation of the `snapshot-resample-regular_grid` command line subcommand.
-pub fn create_regular_grid_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "regular_grid";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Resample to a regular grid")

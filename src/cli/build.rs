@@ -1,8 +1,8 @@
 //! Function for building the command line hierarchy.
 
 use super::{
-    command_graph::create_command_graph_subcommand, completions::create_completions_subcommand,
-    mesh::create_create_mesh_subcommand, snapshot::create_snapshot_subcommand,
+    completions::create_completions_subcommand, mesh::create_create_mesh_subcommand,
+    snapshot::create_snapshot_subcommand,
 };
 use clap::{self, AppSettings, Arg, Command};
 
@@ -10,7 +10,7 @@ use clap::{self, AppSettings, Arg, Command};
 pub fn build() -> Command<'static> {
     let command_name = "backstaff";
 
-    Command::new(clap::crate_name!())
+    let command = Command::new(clap::crate_name!())
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
         .about(clap::crate_description!())
@@ -43,6 +43,10 @@ pub fn build() -> Command<'static> {
         )
         .subcommand(create_snapshot_subcommand(command_name))
         .subcommand(create_create_mesh_subcommand(command_name))
-        .subcommand(create_command_graph_subcommand())
-        .subcommand(create_completions_subcommand())
+        .subcommand(create_completions_subcommand());
+
+    #[cfg(feature = "command-graph")]
+    let command = command.subcommand(super::command_graph::create_command_graph_subcommand());
+
+    command
 }

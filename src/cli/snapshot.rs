@@ -33,6 +33,7 @@ use crate::{
         },
         utils as io_utils, Endianness,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{
@@ -63,10 +64,10 @@ use crate::io::snapshot::netcdf::{
 
 /// Builds a representation of the `snapshot` command line subcommand.
 #[allow(clippy::let_and_return)]
-pub fn create_snapshot_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "snapshot";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Specify input snapshot to perform further actions on")

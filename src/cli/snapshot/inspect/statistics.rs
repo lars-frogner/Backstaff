@@ -22,6 +22,7 @@ use crate::{
         Interpolator3,
     },
     io::snapshot::{fdt, SnapshotProvider3},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use float_pretty_print::PrettyPrintFloat;
@@ -40,10 +41,10 @@ const COORD_WIDTH: usize = 7;
 const IDX_WIDTH: usize = 3;
 
 /// Builds a representation of the `snapshot-inspect-statistics` command line subcommand.
-pub fn create_statistics_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "statistics";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Print statistics for quantities in the snapshot")

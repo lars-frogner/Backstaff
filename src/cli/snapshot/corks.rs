@@ -27,6 +27,7 @@ use crate::{
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{
@@ -38,10 +39,10 @@ use std::{
 pub type CorksState = CorkSet;
 
 /// Builds a representation of the `snapshot-corks` command line subcommand.
-pub fn create_corks_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_corks_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "corks";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Trace corks in the velocity field of a set of snapshots")

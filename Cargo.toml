@@ -8,7 +8,8 @@ default-run = "backstaff"
 
 [features]
 default = ["cli"]
-cli = ["chrono", "clap", "clap_complete", "pad", "paste", "petgraph", "float-pretty-print"]
+cli = ["chrono", "clap", "clap_complete", "pad", "paste", "float-pretty-print"]
+command-graph = ["cli", "petgraph"]
 serialization = ["serde", "ndarray/serde"]
 python = ["pyo3", "numpy"]
 json = ["serialization", "serde_json"]
@@ -44,6 +45,8 @@ clap_complete = { version = "*", optional = true }
 float-pretty-print = { version = "*", optional = true }
 pad = { version = "*", optional = true }
 paste = { version = "*", optional = true }
+
+# Dependencies for command-graph
 petgraph = { version = "*", features = [], optional = true }
 
 # Dependencies for serialization

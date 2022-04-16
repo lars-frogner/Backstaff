@@ -17,15 +17,16 @@ use crate::{
         snapshot::{fdt, native},
         utils::AtomicOutputPath,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for generating a Bifrost mesh file.
-pub fn create_create_mesh_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_create_mesh_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "create_mesh";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Create a Bifrost mesh file")

@@ -1,17 +1,19 @@
 //! Command line interface for reconnection site detector reading positions from an input file.
 
 use super::super::distribution::power_law::create_power_law_distribution_subcommand;
-use crate::{ebeam::detection::manual::ManualReconnectionSiteDetector, exit_on_error};
+use crate::{
+    ebeam::detection::manual::ManualReconnectionSiteDetector, exit_on_error, update_command_graph,
+};
 use clap::{Arg, ArgMatches, Command};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for using the manual reconnection site detector.
 pub fn create_manual_reconnection_site_detector_subcommand(
-    parent_command_name: &'static str,
+    _parent_command_name: &'static str,
 ) -> Command<'static> {
     let command_name = "manual_detector";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Read reconnection site positions from input file")

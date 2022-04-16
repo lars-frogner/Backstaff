@@ -1,15 +1,15 @@
 //! Command line interface for interpolation by polynomial fitting.
 
-use crate::{cli::utils, interpolation::poly_fit::PolyFitInterpolatorConfig};
+use crate::{cli::utils, interpolation::poly_fit::PolyFitInterpolatorConfig, update_command_graph};
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the polynomial fitting interpolator.
 pub fn create_poly_fit_interpolator_subcommand(
-    parent_command_name: &'static str,
+    _parent_command_name: &'static str,
 ) -> Command<'static> {
     let command_name = "poly_fit_interpolator";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Use the polynomial fitting interpolator")

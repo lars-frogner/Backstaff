@@ -36,15 +36,16 @@ use crate::{
         snapshot::{fdt, CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
         utils, Verbose,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{collections::HashMap, process, sync::Arc};
 
 /// Builds a representation of the `snapshot-resample` command line subcommand.
-pub fn create_resample_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "resample";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Create a resampled version of the snapshot")

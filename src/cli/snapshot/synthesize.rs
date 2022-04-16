@@ -12,15 +12,16 @@ use crate::{
         snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils as io_utils,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::process;
 
 /// Builds a representation of the `snapshot-synthesize` command line subcommand.
-pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "synthesize";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Compute synthetic quantities for the snapshot")
@@ -65,7 +66,7 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
                 .allow_hyphen_values(false)
                 .help("Number of temperatures to use in emissivity tables")
                 .takes_value(true)
-                .default_value("100"),
+                .default_value("200"),
         )
         .arg(
             Arg::new("n-table-electron-densities")
@@ -76,7 +77,7 @@ pub fn create_synthesize_subcommand(parent_command_name: &'static str) -> Comman
                 .allow_hyphen_values(false)
                 .help("Number of electron densities to use in emissivity tables")
                 .takes_value(true)
-                .default_value("100"),
+                .default_value("200"),
         )
         .arg(
             Arg::new("table-temperature-limits")

@@ -11,16 +11,17 @@ use crate::{
     grid::Grid3,
     io::snapshot::{fdt, SnapshotProvider3},
     units::solar::U_T,
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the simple power-law distribution accelerator.
 pub fn create_simple_power_law_accelerator_subcommand(
-    parent_command_name: &'static str,
+    _parent_command_name: &'static str,
 ) -> Command<'static> {
     let command_name = "simple_power_law_accelerator";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Use the simple power-law distribution accelerator model")

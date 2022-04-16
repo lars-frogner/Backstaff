@@ -20,6 +20,7 @@ use crate::{
         snapshot::{fdt, CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
         Verbose,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::collections::HashMap;
@@ -28,10 +29,10 @@ use std::collections::HashMap;
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
 
 /// Builds a representation of the `snapshot-extract` command line subcommand.
-pub fn create_extract_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "extract";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Extract a subdomain of the snapshot")

@@ -5,14 +5,15 @@ use crate::{
     exit_on_false,
     geometry::{In3D, Vec3},
     grid::regular::RegularGrid3,
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `create_mesh-regular` command line subcommand.
-pub fn create_regular_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "regular";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Create a regular mesh")

@@ -6,14 +6,15 @@ use crate::{
     grid::regular::RegularGrid3,
     io::snapshot::fdt,
     seeding::{fsd, volume::VolumeSeeder3},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the stratified volume seeder.
-pub fn create_stratified_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_stratified_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "stratified";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Use the stratified volume seeder")

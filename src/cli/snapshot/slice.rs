@@ -18,6 +18,7 @@ use crate::{
         snapshot::{self, fdt, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{
@@ -27,10 +28,10 @@ use std::{
 };
 
 /// Builds a representation of the `snapshot-slice` command line subcommand.
-pub fn create_slice_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "slice";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Extract a 2D slice of a quantity field in the snapshot")

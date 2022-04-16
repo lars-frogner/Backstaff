@@ -5,14 +5,15 @@ use crate::{
     geometry::{Point3, Vec3},
     io::snapshot::fdt,
     seeding::volume::VolumeSeeder3,
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the random volume seeder.
-pub fn create_random_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_random_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "random";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Use the random volume seeder")

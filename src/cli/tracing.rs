@@ -50,6 +50,7 @@ use crate::{
             StepperFactory3,
         },
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use rayon::prelude::*;
@@ -60,10 +61,10 @@ use std::{
 };
 
 /// Builds a representation of the `trace` command line subcommand.
-pub fn create_trace_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_trace_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "trace";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Trace field lines of a vector field in the snapshot")

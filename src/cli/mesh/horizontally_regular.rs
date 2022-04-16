@@ -10,16 +10,17 @@ use crate::{
         TangentScheme,
     },
     io::snapshot::fdt,
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `create_mesh-horizontally_regular` command line subcommand.
 pub fn create_horizontally_regular_subcommand(
-    parent_command_name: &'static str,
+    _parent_command_name: &'static str,
 ) -> Command<'static> {
     let command_name = "horizontally_regular";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Create a horizontally regular mesh")

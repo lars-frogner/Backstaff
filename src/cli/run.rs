@@ -1,8 +1,8 @@
 //! Function for running the command line program.
 
 use super::{
-    build, command_graph::run_command_graph_subcommand, completions::run_completions_subcommand,
-    mesh::run_create_mesh_subcommand, snapshot::run_snapshot_subcommand,
+    build, completions::run_completions_subcommand, mesh::run_create_mesh_subcommand,
+    snapshot::run_snapshot_subcommand,
 };
 use std::time::Instant;
 
@@ -25,11 +25,16 @@ pub fn run() {
     if let Some(create_mesh_arguments) = arguments.subcommand_matches("create_mesh") {
         run_create_mesh_subcommand(create_mesh_arguments, &protected_file_types);
     }
-    if let Some(command_graph_arguments) = arguments.subcommand_matches("command_graph") {
-        run_command_graph_subcommand(command_graph_arguments, &protected_file_types);
-    }
     if let Some(completions_arguments) = arguments.subcommand_matches("completions") {
         run_completions_subcommand(completions_arguments);
+    }
+
+    #[cfg(feature = "command-graph")]
+    if let Some(command_graph_arguments) = arguments.subcommand_matches("command_graph") {
+        super::command_graph::run_command_graph_subcommand(
+            command_graph_arguments,
+            &protected_file_types,
+        );
     }
 
     if arguments.is_present("timing") {

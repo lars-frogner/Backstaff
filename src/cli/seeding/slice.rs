@@ -19,6 +19,7 @@ use crate::{
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotProvider3},
     seeding::{fsd, slice::SliceSeeder3},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
@@ -29,10 +30,10 @@ pub struct CommonSliceSeederParameters {
 }
 
 /// Creates a subcommand for using a slice seeder.
-pub fn create_slice_seeder_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_slice_seeder_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "slice_seeder";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Use a slice seeder")

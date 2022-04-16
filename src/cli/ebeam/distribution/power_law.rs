@@ -6,16 +6,17 @@ use crate::{
     ebeam::distribution::power_law::PowerLawDistributionConfig,
     grid::Grid3,
     io::snapshot::{fdt, SnapshotProvider3},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the power-law distribution.
 pub fn create_power_law_distribution_subcommand(
-    parent_command_name: &'static str,
+    _parent_command_name: &'static str,
 ) -> Command<'static> {
     let command_name = "power_law_distribution";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Use the power-law distribution")

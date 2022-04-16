@@ -15,16 +15,17 @@ use crate::{
     tracing::field_line::basic::{
         BasicFieldLineTracerConfig, FieldLinePointSpacing, FieldLineTracingSense,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using the basic field line tracer.
 pub fn create_basic_field_line_tracer_subcommand(
-    parent_command_name: &'static str,
+    _parent_command_name: &'static str,
 ) -> Command<'static> {
     let command_name = "basic_field_line_tracer";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Use the basic field line tracer")

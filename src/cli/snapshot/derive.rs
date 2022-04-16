@@ -12,14 +12,15 @@ use crate::{
         snapshot::{fdt, SnapshotProvider3},
         utils as io_utils,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-derive` command line subcommand.
-pub fn create_derive_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_derive_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "derive";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Compute derived quantities for the snapshot")

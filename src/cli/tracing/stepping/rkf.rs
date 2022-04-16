@@ -3,14 +3,15 @@
 use crate::{
     cli::utils,
     tracing::stepping::rkf::{RKFStepperConfig, RKFStepperType},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Creates a subcommand for using a Runge-Kutta-Fehlberg stepper.
-pub fn create_rkf_stepper_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_rkf_stepper_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "rkf_stepper";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Use a Runge-Kutta-Fehlberg stepper")

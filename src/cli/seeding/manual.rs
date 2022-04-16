@@ -1,14 +1,14 @@
 //! Command line interface for reading seed points from an input file.
 
-use crate::{exit_on_error, seeding::manual::ManualSeeder3};
+use crate::{exit_on_error, seeding::manual::ManualSeeder3, update_command_graph};
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for using a manual seeder.
-pub fn create_manual_seeder_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_manual_seeder_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "manual_seeder";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Read seed point from input file")

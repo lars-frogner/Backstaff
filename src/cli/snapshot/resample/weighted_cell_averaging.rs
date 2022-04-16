@@ -3,6 +3,7 @@
 use crate::{
     add_subcommand_combinations,
     cli::snapshot::{derive::create_derive_subcommand, write::create_write_subcommand},
+    update_command_graph,
 };
 use clap::Command;
 
@@ -11,11 +12,11 @@ use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
 
 /// Builds a representation of the `snapshot-resample-weighted_cell_averaging` command line subcommand.
 pub fn create_weighted_cell_averaging_subcommand(
-    parent_command_name: &'static str,
+    _parent_command_name: &'static str,
 ) -> Command<'static> {
     let command_name = "weighted_cell_averaging";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Use the weighted cell averaging method")

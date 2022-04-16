@@ -6,14 +6,15 @@ use self::statistics::{create_statistics_subcommand, run_statistics_subcommand};
 use crate::{
     grid::Grid3,
     io::snapshot::{fdt, SnapshotProvider3},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
 /// Builds a representation of the `snapshot-inspect` command line subcommand.
-pub fn create_inspect_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "inspect";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     Command::new(command_name)
         .about("Inspect properties of the snapshot")

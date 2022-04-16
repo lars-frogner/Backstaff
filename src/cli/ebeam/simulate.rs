@@ -64,6 +64,7 @@ use crate::{
     tracing::stepping::rkf::{
         rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig, RKFStepperType,
     },
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use rayon::prelude::*;
@@ -74,10 +75,10 @@ use std::{
 };
 
 /// Builds a representation of the `ebeam-simulate` command line subcommand.
-pub fn create_simulate_subcommand(parent_command_name: &'static str) -> Command<'static> {
+pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "simulate";
 
-    crate::cli::command_graph::insert_command_graph_edge(parent_command_name, command_name);
+    update_command_graph!(_parent_command_name, command_name);
 
     let command = Command::new(command_name)
         .about("Simulate electron beams in the snapshot")
