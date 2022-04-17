@@ -24,11 +24,11 @@ def exclusive_coord_slice(lower_edges, coord_range):
         start_idx = np.searchsorted(lower_edges, coord_range[0])
 
     if coord_range[1] is None or coord_range[1] >= lower_edges[-1] + (
-            lower_edges[-1] - lower_edges[-2]):
+        lower_edges[-1] - lower_edges[-2]
+    ):
         end_idx = None
     else:
-        end_idx = np.searchsorted(lower_edges, coord_range[1],
-                                  side='right') - 1
+        end_idx = np.searchsorted(lower_edges, coord_range[1], side="right") - 1
 
     return slice(start_idx, end_idx)
 
@@ -44,8 +44,7 @@ def inclusive_coord_slice(lower_edges, coord_range):
     if coord_range[0] is None or coord_range[0] <= lower_edges[0]:
         start_idx = None
     else:
-        start_idx = np.searchsorted(lower_edges, coord_range[0],
-                                    side='right') - 1
+        start_idx = np.searchsorted(lower_edges, coord_range[0], side="right") - 1
 
     if coord_range[1] is None:
         end_idx = None
@@ -75,11 +74,11 @@ class BifrostDataCache:
     def cache_field(self, snap, var, field):
         while not self.field_fits_in_memory(field):
             if self.number_of_snaps() == 0:
-                self._logger.debug(f'No more snaps to remove, using memmap')
+                self._logger.debug(f"No more snaps to remove, using memmap")
                 return field
             else:
                 removed_snap = self.snaps.pop(0)
-                self._logger.debug(f'Removed snap {removed_snap} from cache')
+                self._logger.debug(f"Removed snap {removed_snap} from cache")
                 self.fields.pop(removed_snap)
                 gc.collect()
 
@@ -87,19 +86,19 @@ class BifrostDataCache:
             self.snaps.append(snap)
             self.fields[snap] = {}
 
-        self._logger.debug(f'Cached {var} for snap {snap}')
+        self._logger.debug(f"Cached {var} for snap {snap}")
         self.fields[snap][var] = np.array(field)
         return self.get_cached_field(snap, var)
 
     def get_cached_field(self, snap, var):
-        self._logger.debug(f'Found {var} for snap {snap} in cache')
+        self._logger.debug(f"Found {var} for snap {snap} in cache")
         return self.fields[snap][var]
 
     def field_fits_in_memory(self, field, buffer_factor=2):
         memory_requirement = field.size * field.dtype.itemsize
         available_memory = psutil.virtual_memory().available
         self._logger.debug(
-            f'Required memory: {memory_requirement*1e-9:.2f} GB ({available_memory*1e-9:.2f} GB available)'
+            f"Required memory: {memory_requirement*1e-9:.2f} GB ({available_memory*1e-9:.2f} GB available)"
         )
         return buffer_factor * memory_requirement < available_memory
 
@@ -116,5 +115,5 @@ class CachingBifrostData(BifrostData):
             return self._cache.get_cached_field(active_snap, var)
         else:
             return self._cache.cache_field(
-                active_snap, var,
-                super().get_var(var, *args, snap=snap, **kwargs))
+                active_snap, var, super().get_var(var, *args, snap=snap, **kwargs)
+            )
