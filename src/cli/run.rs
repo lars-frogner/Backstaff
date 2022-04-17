@@ -12,10 +12,14 @@ pub fn run() {
 
     let arguments = command.get_matches();
 
-    let protected_file_types: Vec<_> = arguments
-        .values_of("protected-file-types")
-        .expect("No value for argument with default")
-        .collect();
+    let protected_file_types: Vec<_> = if arguments.is_present("no-protected-files") {
+        Vec::new()
+    } else {
+        arguments
+            .values_of("protected-file-types")
+            .expect("No value for argument with default")
+            .collect()
+    };
 
     let start_instant = Instant::now();
 

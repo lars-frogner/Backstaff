@@ -28,6 +28,7 @@ pub fn build() -> Command<'static> {
         )
         .arg(
             Arg::new("protected-file-types")
+                .short('P')
                 .long("protected-file-types")
                 .require_equals(true)
                 .use_value_delimiter(true)
@@ -39,7 +40,14 @@ pub fn build() -> Command<'static> {
                 )
                 .takes_value(true)
                 .multiple_values(true)
-                .default_value("idl,snap,aux"),
+                .default_value("idl,snap,aux")
+                .conflicts_with("no-protected-files"),
+        )
+        .arg(
+            Arg::new("no-protected-files")
+                .short('N')
+                .long("no-protected-files")
+                .help("Display elapsed time when done"),
         )
         .subcommand(create_snapshot_subcommand(command_name))
         .subcommand(create_create_mesh_subcommand(command_name))
