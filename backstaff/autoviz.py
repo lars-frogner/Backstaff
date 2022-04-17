@@ -90,7 +90,7 @@ class Quantity:
         self.name = name
 
     def is_available(self, bifrost_data):
-        bifrost_data_has_variable(bifrost_data, self.name, try_fetch=True)
+        return bifrost_data_has_variable(bifrost_data, self.name, try_fetch=True)
 
     @classmethod
     def parse_file(cls, file_path, logger=logging):
