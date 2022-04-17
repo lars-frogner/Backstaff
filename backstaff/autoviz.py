@@ -707,7 +707,7 @@ class Synthesis(Integral):
                 f"Missing quantity {quantity.emis_name} for computing spectral line intensity"
             )
 
-        intensity = super(Integral)(
+        intensity = super().__call__(
             bifrost_data, Quantity.for_reduction(quantity.emis_name)
         )
 
@@ -728,13 +728,13 @@ class Synthesis(Integral):
         )
 
         if bifrost_data_has_variable(bifrost_data, quantity.emis_shift_name):
-            weighted_shift = super(Integral)(
+            weighted_shift = super().__call__(
                 bifrost_data, Quantity.for_reduction(quantity.emis_shift_name)
             )
         elif bifrost_data_has_variables(
             bifrost_data, quantity.emis_name, quantity.shift_name
         ):
-            weighted_shift = super(Integral)(
+            weighted_shift = super().__call__(
                 bifrost_data,
                 Quantity.for_reduction(quantity.shift_name),
                 quantity.emis_name,
@@ -767,13 +767,13 @@ class Synthesis(Integral):
         )
 
         if bifrost_data_has_variable(bifrost_data, quantity.emis_vartgshift2_name):
-            weighted_variance = super(Integral)(
+            weighted_variance = super().__call__(
                 bifrost_data, Quantity.for_reduction(quantity.emis_vartgshift2_name)
             )
         elif bifrost_data_has_variables(
             bifrost_data, quantity.emis_name, quantity.vartgshift2_name
         ):
-            weighted_variance = super(Integral)(
+            weighted_variance = super().__call__(
                 bifrost_data,
                 Quantity.for_reduction(quantity.vartgshift2_name),
                 quantity.emis_name,
@@ -782,7 +782,7 @@ class Synthesis(Integral):
         elif bifrost_data_has_variables(
             bifrost_data, quantity.vartg_name, quantity.emis_name, quantity.shift_name
         ):
-            weighted_variance = super(Integral)(
+            weighted_variance = super().__call__(
                 bifrost_data,
                 Quantity.for_reduction(quantity.vartg_name),
                 quantity.emis_name,
