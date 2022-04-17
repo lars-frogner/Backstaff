@@ -25,7 +25,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
-use sysinfo::{System, SystemExt};
+use sysinfo::{RefreshKind, System, SystemExt};
 
 #[cfg(feature = "serialization")]
 use serde::Serialize;
@@ -191,7 +191,7 @@ where
             provider,
             max_memory_usage_fraction: max_memory_usage * 1e-2,
             verbose,
-            system: System::new_all(),
+            system: System::new_with_specifics(RefreshKind::new().with_memory()),
             scalar_fields: HashMap::new(),
             vector_fields: HashMap::new(),
             request_counts: HashMap::new(),

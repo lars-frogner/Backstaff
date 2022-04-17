@@ -33,7 +33,7 @@ ndarray = { version = "*", features = ["rayon"] }
 num = "*"
 rayon = "*"
 regex = "*"
-sysinfo = "*"
+sysinfo = { version = "*", default-features = false }
 tempfile = "*"
 
 # Dependencies for cli
