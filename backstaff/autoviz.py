@@ -177,7 +177,9 @@ class SynthesizedQuantity(Quantity):
                 break
 
         if constructor is None:
-            all_names = sum([subtype.supported_quantity_names for subtype in subtypes])
+            all_names = sum(
+                [subtype.supported_quantity_names for subtype in subtypes], []
+            )
             abort(
                 logger,
                 f'Invalid name {quantity.name} for spectral line quantity (valid quantities are {",".join(all_names)})',
@@ -191,6 +193,12 @@ class SynthesizedQuantity(Quantity):
             quantity.description,
             quantity.cmap_name,
         )
+
+    @staticmethod
+    def is_synthesized_quantity(quantity):
+        subtypes = [LineIntensityQuantity, LineShiftQuantity, LineVarianceQuantity]
+        all_names = sum([subtype.supported_quantity_names for subtype in subtypes], [])
+        return quantity.name in all_names
 
     @staticmethod
     def get_central_wavelength(line_name):
@@ -928,10 +936,31 @@ class PlotDescription:
             abort(logger, f"Missing reduction entry")
 
         reductions = Reduction.parse(plot_config.pop("reduction"), logger=logger)
+        reduction_is_synthesis = isinstance(reductions[0], Synthesis)
 
         spectral_line_name = plot_config.pop("spectral_line", None)
+
+        quantity_is_synthesized = SynthesizedQuantity.is_synthesized_quantity(quantity)
+
+        if quantity_is_synthesized:
+            if spectral_line_name is None:
+                abort(
+                    logger, f"Quantity {quantity.name} requires a spectral_line entry"
+                )
+            if not reduction_is_synthesis:
+                abort(
+                    logger,
+                    f"Quantity {quantity.name} requires reduction to be synthesis",
+                )
+        else:
+            if reduction_is_synthesis:
+                abort(
+                    logger,
+                    f"Quantity {quantity.name} not compatible with synthesis reduction",
+                )
+
         if spectral_line_name is not None:
-            if isinstance(reductions[0], Synthesis):
+            if reduction_is_synthesis:
                 quantity = SynthesizedQuantity.from_quantity(
                     quantity, spectral_line_name, reductions[0].axis_name, logger=logger
                 )
@@ -939,7 +968,7 @@ class PlotDescription:
                 quantity.set_name(f"{quantity.name}_{spectral_line_name}")
 
         if "scaling" not in plot_config:
-            abort(logger, f"Missing scaling entry")
+            abort(logger, "Missing scaling entry")
 
         scaling = Scaling.parse(plot_config.pop("scaling"), logger=logger)
 
