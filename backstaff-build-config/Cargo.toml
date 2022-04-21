@@ -1,0 +1,9 @@
+[package]
+name = "backstaff-build-config"
+version = "0.3.0"
+authors = ["Lars Frogner <lars.frogner@astro.uio.no>"]
+description = "Build configuration for Backstaff"
+edition = "2021"
+
+[features]
+python = []
