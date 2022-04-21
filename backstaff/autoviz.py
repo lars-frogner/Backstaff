@@ -644,9 +644,9 @@ class Integral(Reduction):
             dy = bifrost_data.dy * units.U_L
             accum_operator = lambda field, axis=None: np.sum(field, axis=axis) * dy
         elif self.axis == 2:
-            dz = fields.dz_in_bifrost_data(bifrost_data, scale=units.U_L).get_values()[
-                np.newaxis, np.newaxis, coord_slice
-            ]
+            dz = fields.ScalarField1.dz_in_bifrost_data(
+                bifrost_data, scale=units.U_L
+            ).get_values()[np.newaxis, np.newaxis, coord_slice]
 
             def value_processor(*fields):
                 return (
