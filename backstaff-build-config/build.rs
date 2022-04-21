@@ -1,4 +1,8 @@
-use std::{env, fs, path::PathBuf, process};
+use std::{
+    env, fs,
+    path::PathBuf,
+    process::{self, Command},
+};
 
 macro_rules! exit_with_error {
     ($($print_arg:tt)*) => {{
@@ -7,7 +11,6 @@ macro_rules! exit_with_error {
     }};
 }
 
-#[macro_export]
 macro_rules! exit_on_error {
     ($result:expr, $($fmt_arg:tt)*) => {
         match $result {
@@ -26,11 +29,6 @@ fn trim_newline(s: &mut String) {
             s.pop();
         }
     }
-}
-
-fn main() {
-    #[cfg(feature = "python")]
-    create_cargo_config_for_python();
 }
 
 fn create_cargo_config_for_python() {
@@ -58,7 +56,7 @@ fn create_cargo_config_for_python() {
         .unwrap_or_else(|| {
             String::from_utf8(
                 exit_on_error!(
-                    process::Command::new("which").arg("python").output(),
+                    Command::new("which").arg("python").output(),
                     "Error: Could not determine location of python binary: {}"
                 )
                 .stdout,
@@ -126,4 +124,9 @@ fn create_cargo_config_for_python() {
 
     fs::write(&cargo_config_path, cargo_python_config_content)
         .unwrap_or_else(|err| exit_with_error!("Error: Could not write config file: {}", err));
+}
+
+fn main() {
+    #[cfg(feature = "python")]
+    create_cargo_config_for_python();
 }
