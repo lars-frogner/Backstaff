@@ -32,6 +32,8 @@ fn trim_newline(s: &mut String) {
 }
 
 fn create_cargo_config_for_python() {
+    println!("cargo:rerun-if-env-changed=BACKSTAFF_PYTHON_PATH");
+
     let project_path = PathBuf::from(
         env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set or invalid"),
     );
@@ -48,21 +50,16 @@ fn create_cargo_config_for_python() {
         process::exit(0);
     }
 
-    let mut python_exec_path = env::var_os("BACKSTAFF_PYTHON_PATH")
-        .map(|a| {
-            a.into_string()
-                .expect("BACKSTAFF_PYTHON_PATH contains invalid Unicode data")
-        })
-        .unwrap_or_else(|| {
-            String::from_utf8(
-                exit_on_error!(
-                    Command::new("which").arg("python").output(),
-                    "Error: Could not determine location of python binary: {}"
-                )
-                .stdout,
+    let mut python_exec_path = env::var("BACKSTAFF_PYTHON_PATH").unwrap_or_else(|_| {
+        String::from_utf8(
+            exit_on_error!(
+                Command::new("which").arg("python").output(),
+                "Error: Could not determine location of python binary: {}"
             )
-            .unwrap()
-        });
+            .stdout,
+        )
+        .unwrap()
+    });
     trim_newline(&mut python_exec_path);
 
     let python_exec_path = PathBuf::from(python_exec_path);
