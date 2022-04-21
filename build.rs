@@ -1,5 +1,6 @@
 use std::{
     env,
+    path::PathBuf,
     process::{self, Command},
 };
 
@@ -22,6 +23,15 @@ macro_rules! exit_on_error {
             }
         }
     };
+}
+
+fn trim_newline(s: &mut String) {
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
 }
 
 #[cfg(not(feature = "hdf5"))]
@@ -74,7 +84,82 @@ fn setup_netcdf() {
     print!("cargo:rustc-link-search={}", netcdf_lib_path);
 }
 
+#[cfg(not(feature = "python"))]
+fn setup_python() {}
+#[cfg(feature = "python")]
+fn setup_python() {
+    println!("cargo:rerun-if-env-changed=PYO3_PYTHON");
+
+    let project_path = PathBuf::from(
+        env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set or invalid"),
+    );
+
+    let project_path = project_path
+        .canonicalize()
+        .unwrap_or_else(|err| exit_with_error!("Error: Could not resolve project path: {}", err));
+
+    let mut python_exec_path = String::from_utf8(
+        exit_on_error!(
+            Command::new("which")
+                .arg(env::var("PYO3_PYTHON").unwrap_or("python3".to_string()))
+                .output(),
+            "Error: Could not determine location of python binary: {}"
+        )
+        .stdout,
+    )
+    .unwrap();
+    trim_newline(&mut python_exec_path);
+
+    let python_exec_path = PathBuf::from(python_exec_path);
+    if !python_exec_path.exists() {
+        exit_with_error!(
+            "Error: Could not find Python executable at {}",
+            python_exec_path.to_string_lossy()
+        );
+    }
+
+    let python_exec_path = python_exec_path.canonicalize().unwrap_or_else(|err| {
+        exit_with_error!(
+            "Error: Could not resolve path to Python executable: {}",
+            err
+        )
+    });
+
+    let python_binary_name = python_exec_path.file_name().unwrap_or_else(|| {
+        exit_with_error!(
+            "Error: Could not extract final component of Python executable path {}",
+            python_exec_path.to_string_lossy()
+        )
+    });
+
+    let python_root_path = python_exec_path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap_or_else(|| {
+            exit_with_error!(
+                "Error: Could not extract root path from Python executable path {}",
+                python_exec_path.to_string_lossy()
+            )
+        });
+
+    println!(
+        "cargo:rustc-env=PYTHONHOME={}",
+        python_root_path.to_string_lossy()
+    );
+    println!(
+        "cargo:rustc-env=PYTHONPATH={}:{}",
+        python_root_path
+            .join("lib")
+            .join(python_binary_name)
+            .join("site-packages")
+            .to_string_lossy(),
+        project_path.to_string_lossy()
+    );
+}
+
 fn main() {
     setup_hdf5();
     setup_netcdf();
+    setup_python();
 }

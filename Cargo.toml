@@ -12,7 +12,7 @@ cli = ["chrono", "clap", "clap_complete", "paste"]
 command-graph = ["cli", "petgraph"]
 statistics = ["cli", "float-pretty-print", "ndarray-stats", "noisy_float", "pad"]
 serialization = ["serde", "ndarray/serde"]
-python = ["backstaff-build-config/python", "pyo3", "numpy"]
+python = ["pyo3", "numpy"]
 json = ["serialization", "serde_json"]
 pickle = ["serialization", "serde-pickle"]
 netcdf = ["netcdf-rs"]
@@ -77,7 +77,5 @@ special = { version = "*", optional = true }
 rand = { version = "*", optional = true }
 
 [build-dependencies]
-backstaff-build-config = { path = "backstaff-build-config", version = "0.3.0"}
 regex = { version = "*", optional = true }
 
-[workspace]

@@ -50,14 +50,11 @@ $ cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
 By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root=<DIR>`.
 
-If installing with the `netcdf` feature, you may have to inform the linker about the path to the external NetCDF library. This is easily done through the `RUSTFLAGS` environment variable:
+If installing with the `synthesis` feature, you will need to inform `cargo` about your Python library. This can be done with the following command, which prior to installation specifies the Python executable (in this case `python3`, but you may also give the full path to a specific executable) in the `PYO3_PYTHON` variable, and additionally adds a flag for linking with the corresponding Python library.
 ```
-$ RUSTFLAGS='-L/path/to/netcdf/lib' cargo install ...
-```
-
-For the `hdf5` feature, the `HDF5_DIR` environment variable can if necessary be used to tell the build system where the root folder (not the `lib` subdirectory) of the external HDF5 library is located:
-```
-$ HDF5_DIR=/path/to/hdf5 cargo install ...
+$ PYO3_PYTHON=python3 \
+    RUSTFLAGS="-C link-args=-Wl,-rpath,""$(dirname "$(dirname "$(which $PYO3_PYTHON)")")/lib""" \
+    cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
 
 **_NOTE:_** If the `cargo install` command complains about being unable to fetch the GitHub repository, try adding `CARGO_NET_GIT_FETCH_WITH_CLI=true` in front of the command.
