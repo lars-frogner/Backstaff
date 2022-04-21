@@ -16,7 +16,7 @@ python = ["backstaff-build-config/python", "pyo3", "numpy"]
 json = ["serialization", "serde_json"]
 pickle = ["serialization", "serde-pickle"]
 netcdf = ["netcdf-rs"]
-hdf5 = ["hdf5-rs"]
+hdf5 = ["hdf5-rs", "regex"]
 seeding = ["rand"]
 corks = ["seeding"]
 tracing = ["seeding"]
@@ -78,5 +78,6 @@ rand = { version = "*", optional = true }
 
 [build-dependencies]
 backstaff-build-config = { path = "backstaff-build-config", version = "0.3.0"}
+regex = { version = "*", optional = true }
 
 [workspace]
