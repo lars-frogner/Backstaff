@@ -50,9 +50,9 @@ $ cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
 By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root=<DIR>`.
 
-If installing with the `synthesis` feature, you will need to inform `cargo` about your Python library. This can be done with the following command, which prior to installation specifies the Python executable (in this case `python3`, but you may also give the full path to a specific executable) in the `PYO3_PYTHON` variable, and additionally adds a flag for linking with the corresponding Python library.
+If installing with the `synthesis` feature, you will need to inform `cargo` about your Python library. This can be done with the following command, which prior to installation specifies the Python executable (in this case `python3`, but you may also give the full path to a specific executable) in the `PYO3_PYTHON` variable, and additionally adds a flag for linking with the corresponding Python library:
 ```
-$ PYO3_PYTHON=python3 \
+$ export PYO3_PYTHON=python3; \
     RUSTFLAGS="-C link-args=-Wl,-rpath,""$(dirname "$(dirname "$(which $PYO3_PYTHON)")")/lib""" \
     cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
