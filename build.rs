@@ -1,4 +1,7 @@
-use std::process::{self, Command};
+use std::{
+    env,
+    process::{self, Command},
+};
 
 #[cfg(feature = "hdf5")]
 use regex::Regex;
@@ -25,6 +28,10 @@ macro_rules! exit_on_error {
 fn setup_hdf5() {}
 #[cfg(feature = "hdf5")]
 fn setup_hdf5() {
+    if env::var("HDF5_DIR").is_ok() {
+        return;
+    }
+
     let config_text = String::from_utf8(
         exit_on_error!(
             Command::new("h5cc").arg("-showconfig").output(),
@@ -50,6 +57,10 @@ fn setup_hdf5() {
 fn setup_netcdf() {}
 #[cfg(feature = "netcdf")]
 fn setup_netcdf() {
+    if env::var("NETCDF_DIR").is_ok() {
+        return;
+    }
+
     let netcdf_lib_path = String::from_utf8(
         exit_on_error!(
             Command::new("nc-config").arg("--libdir").output(),
