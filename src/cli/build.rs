@@ -47,7 +47,7 @@ pub fn build() -> Command<'static> {
             Arg::new("no-protected-files")
                 .short('N')
                 .long("no-protected-files")
-                .help("Display elapsed time when done"),
+                .help("Allow any file type to be overwritten automatically"),
         )
         .subcommand(create_snapshot_subcommand(command_name))
         .subcommand(create_create_mesh_subcommand(command_name))
