@@ -984,6 +984,16 @@ impl<F: BFloat, T> GridPointQuery3<F, T> {
         }
     }
 
+    /// Returns the query result if the grid point was already inside the grid or was moved inside,
+    /// otherwise returns the provided default value.
+    pub fn inside_or_moved_or_default(self, default: T) -> T {
+        match self {
+            Self::Inside(result) => result,
+            Self::MovedInside((result, _)) => result,
+            Self::Outside => default,
+        }
+    }
+
     /// Returns the query result, and updates the given position with the possibly moved position.
     /// Panics if the grid point was outside a non-periodic boundary and not moved inside.
     pub fn unwrap_and_update_position<P: BFloat>(self, position: &mut Point3<P>) -> T {
@@ -1020,6 +1030,16 @@ impl<F: BFloat, T> GridPointQuery2<F, T> {
         }
     }
 
+    /// Returns the query result if the grid point was already inside the grid or was moved inside,
+    /// otherwise returns the provided default value.
+    pub fn inside_or_moved_or_default(self, default: T) -> T {
+        match self {
+            Self::Inside(result) => result,
+            Self::MovedInside((result, _)) => result,
+            Self::Outside => default,
+        }
+    }
+
     /// Returns the query result, and updates the given position with the possibly moved position.
     /// Panics if the grid point was outside a non-periodic boundary and not moved inside.
     pub fn unwrap_and_update_position<P: BFloat>(self, position: &mut Point2<P>) -> T {
@@ -1053,6 +1073,16 @@ impl<F: BFloat, T> GridPointQuery1<F, T> {
             Self::Inside(result) => result,
             Self::MovedInside((result, _)) => result,
             Self::Outside => panic!("Grid point query was outside when expected to be inside."),
+        }
+    }
+
+    /// Returns the query result if the grid point was already inside the grid or was moved inside,
+    /// otherwise returns the provided default value.
+    pub fn inside_or_moved_or_default(self, default: T) -> T {
+        match self {
+            Self::Inside(result) => result,
+            Self::MovedInside((result, _)) => result,
+            Self::Outside => default,
         }
     }
 
