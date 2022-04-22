@@ -65,7 +65,7 @@ class LookupIon(core.Ion):
         use_memmap=True,
         method="linear",
         bounds_error=False,
-        fill_value=None,
+        fill_value=0.0,
     ):
         assert evaluation_coordinates.ndim == 2 and evaluation_coordinates.shape[1] == 2
         if self.table_populations is None:
