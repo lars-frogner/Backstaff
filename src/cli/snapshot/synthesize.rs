@@ -90,6 +90,7 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                 .value_names(&["LOWER", "UPPER"])
                 .help(
                     "Limits for temperature to use in emissivity tables\n\
+                     (temperatures outside the limits will give zero emissivity)\n\
                      (in log₁₀ of K)",
                 )
                 .takes_value(true)
@@ -106,6 +107,7 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                 .value_names(&["LOWER", "UPPER"])
                 .help(
                     "Limits for electron density to use in emissivity tables\n\
+                     (electron densities outside the limits will give zero emissivity)\n\
                      (in log₁₀ of cm⁻³)",
                 )
                 .takes_value(true)

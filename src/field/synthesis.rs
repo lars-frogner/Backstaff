@@ -829,8 +829,8 @@ where
                 let point = Point2::new(temperature.log10(), electron_density.log10());
                 emissivity.write(
                     interpolator
-                        .interp_extrap_scalar_field(emissivity_table, &point)
-                        .expect_inside(),
+                        .interp_scalar_field(emissivity_table, &point)
+                        .inside_or_moved_or_default(F::zero()),
                 );
             });
     }
