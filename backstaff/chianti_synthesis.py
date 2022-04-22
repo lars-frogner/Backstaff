@@ -1219,10 +1219,10 @@ def compute_transition_rate_statistics(matrix):
 class LookupIonAtmosphere(IonAtmosphere):
     def __init__(
         self,
-        log_temperature_limits=(3.0, 7.0),
-        log_electron_density_limits=(8.0, 13.0),
-        n_temperature_points=100,
-        n_electron_density_points=100,
+        log_temperature_limits=(4.0, 7.0),
+        log_electron_density_limits=(6.0, 13.0),
+        n_temperature_points=200,
+        n_electron_density_points=80,
         compute_proton_densities=True,
         compute_hydrogen_densities=False,
         dtype=np.float32,

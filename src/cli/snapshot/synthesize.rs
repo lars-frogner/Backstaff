@@ -77,7 +77,7 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                 .allow_hyphen_values(false)
                 .help("Number of electron densities to use in emissivity tables")
                 .takes_value(true)
-                .default_value("200"),
+                .default_value("80"),
         )
         .arg(
             Arg::new("table-temperature-limits")
@@ -94,7 +94,7 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                      (in log₁₀ of K)",
                 )
                 .takes_value(true)
-                .default_value("3,7"),
+                .default_value("4,7"),
         )
         .arg(
             Arg::new("table-electron-density-limits")
@@ -111,7 +111,7 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                      (in log₁₀ of cm⁻³)",
                 )
                 .takes_value(true)
-                .default_value("8,13"),
+                .default_value("6,13"),
         )
         .arg(
             Arg::new("ignore-warnings")
