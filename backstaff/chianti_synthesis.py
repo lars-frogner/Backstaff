@@ -709,17 +709,17 @@ class Ion:
         inside = np.logical_and(inside_lower, inside_upper)
 
         spline = scipy.interpolate.splrep(
-            np.log(table_temperatures[valid]),
-            np.log(table_ionization_fractions[valid]),
+            np.log10(table_temperatures[valid]),
+            np.log10(table_ionization_fractions[valid]),
             s=0,
         )
         log_ionization_fractions = scipy.interpolate.splev(
-            np.log(temperatures[inside]), spline
+            np.log10(temperatures[inside]), spline
         )
 
         # Proportion of ions of this element that are in the given ionization state (n_conditions,)
         ionization_fractions = np.zeros_like(temperatures)
-        ionization_fractions[inside] = np.exp(log_ionization_fractions)
+        ionization_fractions[inside] = 10**log_ionization_fractions
 
         if not is_flat:
             ionization_fractions = ionization_fractions.reshape(shape)
