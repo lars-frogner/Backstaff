@@ -50,6 +50,14 @@ class SpeciesRatios:
     def abundance_file(self):
         return self.__abundance_file
 
+    @property
+    def log_ioneq_temperatures(self):
+        return self.__log_ioneq_temperatures
+
+    @property
+    def ioneq_data(self):
+        return self.__ioneq_data
+
     def info(self, *args, **kwargs):
         if self.verbose:
             print(*args, **kwargs)
@@ -79,31 +87,32 @@ class SpeciesRatios:
         )
         abundances = all_abundances[all_abundances > 0]
 
-        electron_number = np.zeros(len(ch_data.IoneqAll["ioneqTemperature"]))
+        self.__log_ioneq_temperatures = np.log10(ch_data.IoneqAll["ioneqTemperature"])
+        self.__ioneq_data = ch_data.IoneqAll["ioneqAll"]
+
+        electron_number = np.zeros(len(self.__log_ioneq_temperatures))
         for i in range(abundances.size):
             for z in range(1, i + 2):
-                electron_number += (
-                    z * ch_data.IoneqAll["ioneqAll"][i, z, :] * abundances[i]
-                )
+                electron_number += z * self.__ioneq_data[i, z, :] * abundances[i]
 
         proton_to_electron_ratios = (
-            abundances[0] * ch_data.IoneqAll["ioneqAll"][0, 1, :] / electron_number
+            abundances[0] * self.__ioneq_data[0, 1, :] / electron_number
         )
         neutral_hydrogen_to_electron_ratios = (
-            abundances[0] * ch_data.IoneqAll["ioneqAll"][0, 0, :] / electron_number
+            abundances[0] * self.__ioneq_data[0, 0, :] / electron_number
         )
         hydrogen_to_electron_ratios = (
             proton_to_electron_ratios + neutral_hydrogen_to_electron_ratios
         )
 
         self.__proton_to_electron_ratio_spline = scipy.interpolate.splrep(
-            np.log10(ch_data.IoneqAll["ioneqTemperature"]),
+            self.__log_ioneq_temperatures,
             proton_to_electron_ratios,
             s=0,
         )
 
         self.__hydrogen_to_electron_ratio_spline = scipy.interpolate.splrep(
-            np.log10(ch_data.IoneqAll["ioneqTemperature"]),
+            self.__log_ioneq_temperatures,
             hydrogen_to_electron_ratios,
             s=0,
         )
@@ -171,6 +180,14 @@ class IonAtmosphere:
     @property
     def abundance_file(self):
         return self.species_ratios.abundance_file
+
+    @property
+    def log_ioneq_temperatures(self):
+        return self.species_ratios.log_ioneq_temperatures
+
+    @property
+    def ioneq_data(self):
+        return self.species_ratios.ioneq_data
 
     @property
     def radiation_temperature(self):
@@ -698,23 +715,27 @@ class Ion:
         self.info("Sampling ionization fractions")
         start_time = time.time()
 
-        table_temperatures = ch_data.IoneqAll["ioneqTemperature"]
-        table_ionization_fractions = ch_data.IoneqAll["ioneqAll"][
+        table_ionization_fractions = self.atmos.ioneq_data[
             self.nuclear_charge - 1, self.ionization_stage - 1
         ].squeeze()
-
         valid = table_ionization_fractions > 0
-        inside_lower = temperatures >= table_temperatures[valid].min()
-        inside_upper = temperatures <= table_temperatures[valid].max()
+
+        valid_log_ioneq_temperatures = self.atmos.log_ioneq_temperatures[valid]
+        valid_log_ionization_fractions = np.log10(table_ionization_fractions[valid])
+
+        log_temperatures = np.log10(temperatures)
+
+        inside_lower = log_temperatures >= valid_log_ioneq_temperatures.min()
+        inside_upper = log_temperatures <= valid_log_ioneq_temperatures.max()
         inside = np.logical_and(inside_lower, inside_upper)
 
         spline = scipy.interpolate.splrep(
-            np.log10(table_temperatures[valid]),
-            np.log10(table_ionization_fractions[valid]),
+            valid_log_ioneq_temperatures,
+            valid_log_ionization_fractions,
             s=0,
         )
         log_ionization_fractions = scipy.interpolate.splev(
-            np.log10(temperatures[inside]), spline
+            log_temperatures[inside], spline, ext=1
         )
 
         # Proportion of ions of this element that are in the given ionization state (n_conditions,)
