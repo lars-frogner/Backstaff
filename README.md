@@ -57,7 +57,7 @@ $ export PYO3_PYTHON=python3; \
     cargo install --git=https://github.com/lars-frogner/Backstaff.git --features=synthesis
 ```
 
-**_NOTE:_** If the `cargo install` command complains about being unable to fetch the GitHub repository, try adding `CARGO_NET_GIT_FETCH_WITH_CLI=true` in front of the command.
+**_NOTE:_** If the `cargo install` command complains about being unable to fetch the GitHub repository, try adding `CARGO_NET_GIT_FETCH_WITH_CLI=true` in front of `cargo install`.
 
 ### Compiling from source
 
