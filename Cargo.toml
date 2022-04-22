@@ -79,3 +79,6 @@ rand = { version = "*", optional = true }
 [build-dependencies]
 regex = { version = "*", optional = true }
 
+[profile.release-lto]
+inherits = "release"
+lto = "thin"
