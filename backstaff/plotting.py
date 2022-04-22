@@ -348,6 +348,7 @@ def plot_1d_field(
     lw=1.0,
     ls="-",
     marker=None,
+    markersize=None,
     minorticks_on=True,
     x_lims=None,
     y_lims=None,
@@ -377,6 +378,8 @@ def plot_1d_field(
         lw=lw,
         ls=ls,
         marker=marker,
+        markersize=markersize,
+        markeredgewidth=0,
         label=label,
         zorder=zorder,
     )
