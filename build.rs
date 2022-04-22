@@ -63,27 +63,6 @@ fn setup_hdf5() {
     println!("cargo:rustc-env=HDF5_DIR={}", hdf5_root_path);
 }
 
-#[cfg(not(feature = "netcdf"))]
-fn setup_netcdf() {}
-#[cfg(feature = "netcdf")]
-fn setup_netcdf() {
-    if env::var("NETCDF_DIR").is_ok() {
-        return;
-    }
-
-    let netcdf_lib_path = String::from_utf8(
-        exit_on_error!(
-            Command::new("nc-config").arg("--libdir").output(),
-            "Error: Could run nc-config: {}\n\
-             Make sure NetCDF is installed and that nc-config is in $PATH"
-        )
-        .stdout,
-    )
-    .unwrap();
-
-    print!("cargo:rustc-link-search={}", netcdf_lib_path);
-}
-
 #[cfg(not(feature = "python"))]
 fn setup_python() {}
 #[cfg(feature = "python")]
@@ -160,6 +139,5 @@ fn setup_python() {
 
 fn main() {
     setup_hdf5();
-    setup_netcdf();
     setup_python();
 }
