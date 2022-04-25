@@ -93,6 +93,11 @@ abort_if_user_says_no_default_yes() {
     fi
 }
 
+reset_features_and_configured_env_vars() {
+    FEATURES=cli
+    CONFIGURED_ENV_VARS=''
+}
+
 ask_feature() {
     local feature_name="$1"
     user_says_yes "Include $feature_name feature?"
@@ -301,65 +306,80 @@ print_configured_env_vars() {
     fi
 }
 
+install_backstaff() {
+    echo
+    echo 'Please select which features to include'
+    echo 'Feature descriptions are found here:'
+    echo 'https://github.com/lars-frogner/Backstaff/blob/main/README.md#features'
+    echo
+
+    reset_features_and_configured_env_vars
+
+    ask_and_add_feature_default_yes statistics
+    ask_and_add_feature tracing
+    ask_and_add_feature corks
+    if [[ $(ask_feature synthesis) = 1 ]]; then
+        add_feature synthesis
+        setup_python
+        verify_chianti
+    fi
+    ask_and_add_feature ebeam
+
+    ask_and_add_feature json
+    ask_and_add_feature pickle
+    if [[ $(ask_feature hdf5) = 1 ]]; then
+        add_feature hdf5
+        setup_hdf5
+    fi
+    if [[ $(ask_feature netcdf) = 1 ]]; then
+        add_feature netcdf
+        setup_netcdf
+    fi
+
+    echo
+    echo 'Enabling link time optimization may improve performance at the expense of compile time'
+    if [[ $(user_says_yes 'Enable link time optimization?') = 1 ]]; then
+        PROFILE_ARGS='--profile release-lto'
+    else
+        PROFILE_ARGS=''
+    fi
+    echo
+
+    echo "Default installation directory is $HOME/.cargo/bin"
+    if [[ $(user_says_yes 'Use a different directory?') = 1 ]]; then
+        target_dir="$(get_user_input 'Enter new installation directory:')"
+        mkdir -p "$target_dir"
+        ROOT_ARGS="--root $target_dir"
+    else
+        ROOT_ARGS=''
+    fi
+
+    configure_cargo
+
+    print_configured_env_vars
+
+    install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) --git=https://github.com/lars-frogner/Backstaff.git"
+    echo 'Will now install Backstaff using the following command:'
+    echo "$install_command"
+    echo
+    abort_if_user_says_no_default_yes 'Continue?'
+    eval "$install_command"
+}
+
 echo 'This script will install the Backstaff program'
 
 setup_rust
 
 echo
-echo 'Please select which features to include'
-echo 'Feature descriptions are found here:'
-echo 'https://github.com/lars-frogner/Backstaff/blob/main/README.md#features'
-echo
-
-ask_and_add_feature_default_yes statistics
-ask_and_add_feature tracing
-ask_and_add_feature corks
-if [[ $(ask_feature synthesis) = 1 ]]; then
-    add_feature synthesis
-    setup_python
-    verify_chianti
-fi
-ask_and_add_feature ebeam
-
-ask_and_add_feature json
-ask_and_add_feature pickle
-if [[ $(ask_feature hdf5) = 1 ]]; then
-    add_feature hdf5
-    setup_hdf5
-fi
-if [[ $(ask_feature netcdf) = 1 ]]; then
-    add_feature netcdf
-    setup_netcdf
-fi
-
-echo
-echo 'Enabling link time optimization may improve performance at the expense of compile time'
-if [[ $(user_says_yes 'Enable link time optimization?') = 1 ]]; then
-    PROFILE_ARGS='--profile release-lto'
+if [[ $(command_exists backstaff) = 1 ]]; then
+    backstaff_path="$(resolve_symlink "$(which backstaff)")"
+    echo "Backstaff already installed at $backstaff_path"
+    if [[ $(user_says_yes 'Reinstall?') = 1 ]]; then
+        install_backstaff
+    fi
 else
-    PROFILE_ARGS=''
+    install_backstaff
 fi
-echo
-
-echo "Default installation directory is $HOME/.cargo/bin"
-if [[ $(user_says_yes 'Use a different directory?') = 1 ]]; then
-    target_dir="$(get_user_input 'Enter new installation directory:')"
-    mkdir -p "$target_dir"
-    ROOT_ARGS="--root $target_dir"
-else
-    ROOT_ARGS=''
-fi
-
-configure_cargo
-
-print_configured_env_vars
-
-install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) --git=https://github.com/lars-frogner/Backstaff.git"
-echo 'Will now install Backstaff using the following command:'
-echo "$install_command"
-echo
-abort_if_user_says_no_default_yes 'Continue?'
-eval "$install_command"
 
 echo
 if [[ $(user_says_yes 'Setup tab-completion (available for bash, zsh and fish)?') = 1 ]]; then
