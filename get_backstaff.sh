@@ -254,6 +254,10 @@ setup_tab_completion() {
     done
 }
 
+configure_cargo() {
+    set_env_var CARGO_NET_GIT_FETCH_WITH_CLI true
+}
+
 print_configured_env_vars() {
     if [[ ! -z "$CONFIGURED_ENV_VARS" ]]; then
         echo 'Configured environment variables:'
@@ -303,6 +307,8 @@ else
     PROFILE_ARGS=''
 fi
 echo
+
+configure_cargo
 
 print_configured_env_vars
 
