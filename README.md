@@ -42,7 +42,7 @@ Spectral line synthesis, enabled by the `synthesis` feature, requires that the [
 
 Run the following command to install Backstaff using the interactive installation script `get_backstaff.sh`:
 ```
-$ bash <(curl -s https://raw.githubusercontent.com/lars-frogner/Backstaff/main/get_backstaff.sh)
+bash <(curl -s https://raw.githubusercontent.com/lars-frogner/Backstaff/main/get_backstaff.sh)
 ```
 The script lets you select the desired features, verifies any dependencies and builds and installs the `backstaff` binary.
 
@@ -50,7 +50,7 @@ The script lets you select the desired features, verifies any dependencies and b
 
 The Rust package manager `cargo` can be used to download, build and install the `backstaff` binary:
 ```
-$ cargo install --git=https://github.com/lars-frogner/Backstaff.git
+cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
 By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root <DIR>`.
 
@@ -58,9 +58,9 @@ The above command will only include the default features. You can specify additi
 
 If installing with the `synthesis` feature, you will need to inform `cargo` about your Python library. This can be done with the following command, which prior to installation specifies the Python executable (in this case `python3`, but you may also give the full path to a specific executable) in the `PYO3_PYTHON` variable, and additionally adds a flag for linking with the corresponding Python library:
 ```
-$ export PYO3_PYTHON="$(realpath "$(which python3)")"; \
-    RUSTFLAGS="-C link-args=-Wl,-rpath,""$(dirname "$(dirname "$PYO3_PYTHON")")/lib""" \
-    cargo install --git=https://github.com/lars-frogner/Backstaff.git --features=synthesis
+PYO3_PYTHON="$(realpath "$(which python3)")"
+RUSTFLAGS="-C link-args=-Wl,-rpath,""$(dirname "$(dirname "$PYO3_PYTHON")")/lib"""
+cargo install --git=https://github.com/lars-frogner/Backstaff.git --features=synthesis
 ```
 
 **_NOTE:_** If the `cargo install` command complains about being unable to fetch the GitHub repository, try adding `CARGO_NET_GIT_FETCH_WITH_CLI=true` in front of `cargo install`.
@@ -75,7 +75,7 @@ If you have installed the binary, simply run the `backstaff` command. If you ins
 
 Actions are specified and configured through a hierachy of subcommands, which can be inspected by looking at their help texts. For example, the help text for the `snapshot` subcommand can be viewed as follows:
 ```
-$ backstaff snapshot -h
+backstaff snapshot -h
 ```
 ```
 backstaff-snapshot
@@ -122,8 +122,9 @@ This graph was created with the hidden `backstaff-command_graph` command, which 
 
 Printing some statistics for density and temperature in a snapshot could look like this:
 ```
-$ backstaff snapshot photo_tr_001.idl inspect --included-quantities=r,tg statistics --slice-depths=-1
+backstaff snapshot photo_tr_001.idl inspect --included-quantities=r,tg statistics --slice-depths=-1
 ```
+Output:
 ```
 ================================================================================
                   Statistics for r from snapshot 1 of photo_tr
@@ -184,13 +185,14 @@ Average value:       5080.4008789
 
 Here is an example of how an existing simulation snapshot can be resampled to a 1024<sup>3</sup> version of the original grid:
 ```
-$ backstaff \
+backstaff \
     snapshot -v photo_tr_001.idl \
     resample -v --sample-location=original \
         reshaped_grid --shape=1024,1024,1024 \
         weighted_sample_averaging \
     write -v --included-quantities=r,px,py,pz,e,bx,by,bz photo_tr_hires_001.idl
 ```
+Output:
 ```
 Reading parameters from photo_tr_001.idl
 Reading grid from photo_tr.mesh
@@ -214,13 +216,14 @@ Here the purpose was to produce a high-resolution version of the `photo_tr_001` 
 
 The following command traces a set of magnetic field lines from 100x100 regularly spaced locations in the upper chromosphere, and extract the mass density and temperature along the field lines:
 ```
-$ backstaff --timing \
+backstaff --timing \
     snapshot photo_tr_001.idl \
     trace -v --extracted-quantities=r,tg field_lines.h5part \
         basic_tracer --max-length=100.0 \
         slice_seeder --axis=z --coord=-2.0 \
             regular --shape=100,100
 ```
+Output:
 ```
 Found 10000 start positions
 Successfully traced 10000 field lines
@@ -241,11 +244,12 @@ Here is a ParaView visualization of the density along the field lines:
 
 By enabling the `netcdf` feature, it is easy to convert snapshot data into the NetCDF format, which is supported by a wide range of visualization tools, including [ParaView](https://www.paraview.org/) and [VAPOR](https://www.vapor.ucar.edu/). In the following example, the temperature and mass density fields in a set of Bifrost snapshots are resampled to a regular 512<sup>3</sup> grid and written to a set of NetCDF files.
 ```
-$ backstaff \
+backstaff \
     snapshot -v photo_tr_001.idl --snap-range=1,3 \
     resample -v --sample-location=center regular_grid --shape=512,512,512 \
     write -v --strip --included-quantities=r,tg photo_tr.nc
 ```
+Output:
 ```
 Reading parameters from photo_tr_001.idl
 Reading grid from photo_tr.mesh
@@ -277,7 +281,7 @@ Here is a ParaView volume rendering of the resulting temperature field from one 
 
 The [clap](https://clap.rs/) argument parser powering the `backstaff` CLI can generate tab-completion files compatible with various shells. This can be done for `backstaff` using the hidden `backstaff-completions` command. To generate files for your shell, start by running
 ```
-$ backstaff completions -h
+backstaff completions -h
 ```
 and follow the instructions.
 
