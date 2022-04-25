@@ -287,7 +287,7 @@ print_configured_env_vars() {
     fi
 }
 
-echo 'This script will install the backstaff program'
+echo 'This script will install the Backstaff program'
 
 setup_rust
 
@@ -327,11 +327,20 @@ else
 fi
 echo
 
+echo "Default installation directory is $HOME/.cargo/bin"
+if [[ $(user_says_yes 'Use a different directory?') = 1 ]]; then
+    target_dir="$(get_user_input 'Enter new installation directory:')"
+    mkdir -p "$target_dir"
+    ROOT_ARGS="--root $target_dir"
+else
+    ROOT_ARGS=''
+fi
+
 configure_cargo
 
 print_configured_env_vars
 
-install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) --git=https://github.com/lars-frogner/Backstaff.git"
+install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) --git=https://github.com/lars-frogner/Backstaff.git"
 echo 'Will now install Backstaff using the following command:'
 echo "$install_command"
 echo
