@@ -171,11 +171,25 @@ setup_python() {
     set_env_var RUSTFLAGS "$RUSTFLAGS -C link-args=-Wl,-rpath,""$(dirname "$(dirname "$PYO3_PYTHON")")/lib"""
 }
 
+verify_chianti() {
+    if [[ ! -z "$XUVTOP" ]]; then
+        echo
+        echo 'Warning: The XUVTOP environment variable is currently not set' >&2
+        echo 'Make sure it is set to the root CHIANTI directory when running backstaff' >&2
+        echo 'CHIANTI can be obtained from here:' >&2
+        echo 'https://www.chiantidatabase.org/chianti_download.html' >&2
+        echo
+    fi
+}
+
 setup_hdf5() {
     if [[ $(command_exists h5cc) = 1 ]]; then
         set_env_var HDF5_DIR "$(h5cc -showconfig | sed -n 's/^[[:space:]]*Installation point:[[:space:]]*\(.*\)[[:space:]]*$/\1/p')"
     else
         echo 'No HDF5 library found' >&2
+        echo 'The HDF5 library can be obtained from here:' >&2
+        echo 'https://www.hdfgroup.org/downloads/hdf5/' >&2
+        echo
         while true; do
             local hdf5_dir="$(get_user_input 'Please enter path to HDF5 root directory:')"
             if [[ -d "$hdf5_dir" ]]; then
@@ -192,9 +206,12 @@ setup_netcdf() {
     if [[ $(command_exists nc-config) = 1 ]]; then
         set_env_var NETCDF_DIR "$(nc-config --prefix)"
     else
-        echo 'No NETCDF library found' >&2
+        echo 'No NetCDF library found' >&2
+        echo 'Installation instructions for NetCDF can be found here:' >&2
+        echo 'https://docs.unidata.ucar.edu/nug/current/getting_and_building_netcdf.html' >&2
+        echo
         while true; do
-            local netcdf_dir="$(get_user_input 'Please enter path to NETCDF root directory:')"
+            local netcdf_dir="$(get_user_input 'Please enter path to NetCDF root directory:')"
             if [[ -d "$netcdf_dir" ]]; then
                 set_env_var NETCDF_DIR "$netcdf_dir"
                 break
@@ -285,6 +302,7 @@ ask_and_add_feature corks
 if [[ $(ask_feature synthesis) = 1 ]]; then
     add_feature synthesis
     setup_python
+    verify_chianti
 fi
 ask_and_add_feature ebeam
 
