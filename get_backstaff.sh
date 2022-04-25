@@ -125,7 +125,7 @@ ask_and_add_feature_default_yes() {
 set_env_var() {
     local var_name="$1"
     local var_value="$2"
-    eval "$var_name='$var_value'"
+    eval "export $var_name='$var_value'"
     CONFIGURED_ENV_VARS="$CONFIGURED_ENV_VARS $var_name"
 }
 
