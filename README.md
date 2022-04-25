@@ -12,7 +12,7 @@ Rust is highly suited for this project, for a number of reasons. It is a low-lev
 
 ## Features
 
-The code consists of a core API as well as a set of optional features, some of which are included by default. You can specify additional features by adding the `--features` option to `cargo install` or `cargo build`, e.g. `cargo build --features=tracing,hdf5`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be used to include all features.
+The code consists of a core API as well as a set of optional features, some of which are included by default.
 
 Currently the available features are:
 * `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
@@ -26,21 +26,25 @@ Currently the available features are:
 * `hdf5`: Support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, in particular for writing field line data using the [H5Part](https://dav.lbl.gov/archive/Research/AcceleratorSAPP/) conventions.
 * `netcdf`: Support for reading and writing snapshot data in the [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) format (using the [CF conventions](http://cfconventions.org/)).
 
-## API documentation
-
-The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` option in order for them to be included in the documentation.
-
 ## Prerequisites
 
-You need to have the Rust toolchain installed in order to build the binaries. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
+The Rust toolchain, which includes the `rustc` compiler and the package manager `cargo`, must be installed in order to build the binaries. Installation instructions can be found [here](https://www.rust-lang.org/tools/install). The [Backstaff installation script](#using-the-installation-script) will install the toolchain automatically if needed.
 
-If you want to work with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found [here](https://docs.unidata.ucar.edu/nug/current/getting_and_building_netcdf.html).
+If you want to include the `netcdf` feature for working with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found [here](https://docs.unidata.ucar.edu/nug/current/getting_and_building_netcdf.html).
 
-Similarly, support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format requires the `HDF5` library, which can be obtained [here](https://www.hdfgroup.org/downloads/hdf5/).
+Similarly, the `hdf5` feature, which provides support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, requires the `HDF5` library, which can be obtained from [here](https://www.hdfgroup.org/downloads/hdf5/).
 
-Spectral line synthesis through the `snapshot-synthesize` subcommand requires that the [CHIANTI database](https://www.chiantidatabase.org/) is available on the system, and that its location is specified in the `XUVTOP` environment variable. An additional requirement is a Python installation with the packages `numpy`, `scipy`, `numba` and [`ChiantiPy`](https://github.com/chianti-atomic/ChiantiPy) available.
+Spectral line synthesis, enabled by the `synthesis` feature, requires that the [CHIANTI database](https://www.chiantidatabase.org/) is available on the system, and that its location is specified in the `XUVTOP` environment variable. An additional requirement is an installation of Python >= 3.7 with the packages `numpy`, `scipy`, `numba` and [`ChiantiPy`](https://github.com/chianti-atomic/ChiantiPy) available.
 
-## Installing the command line program
+## Installing the `backstaff` command line program
+
+### Using the installation script
+
+Run the following command to install Backstaff using the interactive installation script `get_backstaff.sh`:
+```
+$ bash <(curl -s https://raw.githubusercontent.com/lars-frogner/Backstaff/main/get_backstaff.sh)
+```
+The script lets you select the desired features, verifies any dependencies and builds and installs the `backstaff` binary.
 
 ### Using `cargo install`
 
@@ -48,12 +52,14 @@ The Rust package manager `cargo` can be used to download, build and install the 
 ```
 $ cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
-By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root=<DIR>`.
+By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root <DIR>`.
+
+The above command will only include the default features. You can specify additional features by adding the `--features` option, e.g. `cargo install --features=pickle,tracing,hdf5 ...`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be used to include all features.
 
 If installing with the `synthesis` feature, you will need to inform `cargo` about your Python library. This can be done with the following command, which prior to installation specifies the Python executable (in this case `python3`, but you may also give the full path to a specific executable) in the `PYO3_PYTHON` variable, and additionally adds a flag for linking with the corresponding Python library:
 ```
-$ export PYO3_PYTHON=python3; \
-    RUSTFLAGS="-C link-args=-Wl,-rpath,""$(dirname "$(dirname "$(which $PYO3_PYTHON)")")/lib""" \
+$ export PYO3_PYTHON="$(realpath "$(which python3)")"; \
+    RUSTFLAGS="-C link-args=-Wl,-rpath,""$(dirname "$(dirname "$PYO3_PYTHON")")/lib""" \
     cargo install --git=https://github.com/lars-frogner/Backstaff.git --features=synthesis
 ```
 
@@ -61,7 +67,7 @@ $ export PYO3_PYTHON=python3; \
 
 ### Compiling from source
 
-You can compile the code in this repository using the `cargo build` command. Make sure to add the `--release` flag so that optimizations are turned on.
+You can compile the code in this repository using the `cargo build` command. Make sure to add the `--release` flag so that optimizations are turned on. Features are specified in the same way as for `cargo install`.
 
 ## Using the command line program
 
@@ -274,3 +280,7 @@ The [clap](https://clap.rs/) argument parser powering the `backstaff` CLI can ge
 $ backstaff completions -h
 ```
 and follow the instructions.
+
+## API documentation
+
+The API documentation can be generated and viewed in your browser by running `cargo doc --open` in the project repository. If using non-default features you need to specify them with a `--features` option in order for them to be included in the documentation.
