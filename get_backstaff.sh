@@ -307,6 +307,8 @@ print_configured_env_vars() {
 }
 
 install_backstaff() {
+    setup_rust
+
     echo
     echo 'Please select which features to include'
     echo 'Feature descriptions are found here:'
@@ -367,10 +369,8 @@ install_backstaff() {
 }
 
 echo 'This script will install the Backstaff program'
-
-setup_rust
-
 echo
+
 if [[ $(command_exists backstaff) = 1 ]]; then
     backstaff_path="$(resolve_symlink "$(which backstaff)")"
     echo "Backstaff already installed at $backstaff_path"
