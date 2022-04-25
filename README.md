@@ -67,7 +67,7 @@ $ export PYO3_PYTHON="$(realpath "$(which python3)")"; \
 
 ### Compiling from source
 
-You can compile the code in this repository using the `cargo build` command. Make sure to add the `--release` flag so that optimizations are turned on. Features are specified in the same way as for `cargo install`.
+You can compile the code in this repository directly by cloning it and running the `cargo build` command from the top directory of the project. To compile with optimizations, include the `--release` flag. Features are specified in the same way as for `cargo install`.
 
 ## Using the command line program
 
