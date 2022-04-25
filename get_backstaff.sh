@@ -9,6 +9,22 @@ REQUIRED_PYTHON_PACKAGES='numpy scipy numba ChiantiPy'
 FEATURES=cli
 CONFIGURED_ENV_VARS=''
 
+resolve_symlink() {
+    local path="$1"
+    if [[ $(command_exists realpath) = 1 ]]; then
+        realpath "$path"
+    elif [[ $(command_exists grealpath) = 1 ]]; then
+        grealpath "$path"
+    elif [[ $(command_succeeded "readlink -f '$path'") = 1 ]]; then
+        readlink -f "$path"
+    elif [[ $(command_exists readlink) = 1 ]]; then
+        readlink "$path"
+    else
+        echo "Warning: Could not resolve potential symlink $path" >&2
+        echo "$path"
+    fi
+}
+
 command_succeeded() {
     local command="$1"
     eval "$command >/dev/null 2>&1"
@@ -165,9 +181,7 @@ setup_python() {
         fi
     done
 
-    if [[ $(command_exists realpath) = 1 ]]; then
-        local python="$(realpath "$python")"
-    fi
+    local python="$(resolve_symlink "$python")"
     set_env_var PYO3_PYTHON "$python"
     set_env_var RUSTFLAGS "$RUSTFLAGS -C link-args=-Wl,-rpath,""$(dirname "$(dirname "$PYO3_PYTHON")")/lib"""
 }
