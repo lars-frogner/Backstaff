@@ -45,6 +45,21 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                    weighted sample averaging with the default prameters is used.",
         )
         .arg(
+            Arg::new("scales")
+                .short('S')
+                .long("scales")
+                .require_equals(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
+                .allow_hyphen_values(false)
+                .value_names(&["SX", "SY", "SZ"])
+                .help(
+                    "Scale factors for computing shape of the regular grid based on original shape",
+                )
+                .takes_value(true)
+                .default_value("1,1,1"),
+        )
+        .arg(
             Arg::new("shape")
                 .short('s')
                 .long("shape")
@@ -52,8 +67,9 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the regular grid to resample to [default: same as original]")
-                .takes_value(true),
+                .help("Exact shape of the regular grid to resample to [default: same as original]")
+                .takes_value(true)
+                .conflicts_with("scales"),
         )
         .arg(
             Arg::new("x-bounds")
@@ -136,11 +152,19 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let shape = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
-        root_arguments,
-        "shape",
-        &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
-    );
+    let scales: Vec<fdt> =
+        cli_utils::get_values_from_required_parseable_argument(root_arguments, "scales");
+
+    let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
+        cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+            root_arguments,
+            "shape",
+            &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
+        )
+    } else {
+        super::compute_scaled_grid_shape(original_shape, &scales)
+    };
+
     exit_on_false!(
         shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
         "Error: Grid size must be larger than zero in every dimension"

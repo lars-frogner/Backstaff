@@ -16,7 +16,10 @@ use crate::{
     },
     exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
-    geometry::In3D,
+    geometry::{
+        Dim3::{X, Y, Z},
+        In3D,
+    },
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
@@ -44,6 +47,19 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
                    weighted sample averaging with the default prameters is used.",
         )
         .arg(
+            Arg::new("scales")
+                .short('S')
+                .long("scales")
+                .require_equals(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
+                .allow_hyphen_values(false)
+                .value_names(&["SX", "SY", "SZ"])
+                .help("Scale factors for computing shape of the new grid based on original shape")
+                .takes_value(true)
+                .default_value("1,1,1"),
+        )
+        .arg(
             Arg::new("shape")
                 .short('s')
                 .long("shape")
@@ -51,9 +67,9 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the grid to resample to")
+                .help("Shape of the grid to resample to [default: same as original]")
                 .takes_value(true)
-                .required(true),
+                .conflicts_with("scales"),
         )
         .subcommand(create_weighted_sample_averaging_subcommand(command_name))
         .subcommand(create_weighted_cell_averaging_subcommand(command_name))
@@ -84,8 +100,20 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
-    let shape: Vec<usize> =
-        utils::get_values_from_required_parseable_argument(root_arguments, "shape");
+    let original_shape = provider.grid().shape();
+
+    let scales: Vec<fdt> =
+        utils::get_values_from_required_parseable_argument(root_arguments, "scales");
+
+    let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
+        utils::get_values_from_parseable_argument_with_custom_defaults(
+            root_arguments,
+            "shape",
+            &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
+        )
+    } else {
+        super::compute_scaled_grid_shape(original_shape, &scales)
+    };
 
     exit_on_false!(
         shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
