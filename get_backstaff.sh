@@ -9,6 +9,8 @@ REQUIRED_PYTHON_PACKAGES='numpy scipy numba ChiantiPy'
 FEATURES=cli
 CONFIGURED_ENV_VARS=''
 
+LOCAL_PATH="$1"
+
 resolve_symlink() {
     local path="$1"
     if [[ $(command_exists realpath) = 1 ]]; then
@@ -351,7 +353,7 @@ install_backstaff() {
     if [[ $(user_says_yes 'Use a different directory?') = 1 ]]; then
         target_dir="$(get_user_input 'Enter new installation directory:')"
         mkdir -p "$target_dir"
-        ROOT_ARGS="--root $target_dir"
+        ROOT_ARGS="--root=$target_dir"
     else
         ROOT_ARGS=''
     fi
@@ -360,7 +362,13 @@ install_backstaff() {
 
     print_configured_env_vars
 
-    install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) --git=https://github.com/lars-frogner/Backstaff.git"
+    if [[ -z "$LOCAL_PATH" ]]; then
+        SOURCE_ARGS='--git=https://github.com/lars-frogner/Backstaff.git'
+    else
+        SOURCE_ARGS="--path=$LOCAL_PATH"
+    fi
+
+    install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) $(echo $SOURCE_ARGS)"
     echo 'Will now install Backstaff using the following command:'
     echo "$install_command"
     echo
