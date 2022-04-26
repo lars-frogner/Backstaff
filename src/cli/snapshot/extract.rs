@@ -5,6 +5,7 @@ use crate::{
     cli::{
         snapshot::{
             derive::{create_derive_provider, create_derive_subcommand},
+            resample::{create_resample_subcommand, run_resample_subcommand},
             write::{create_write_subcommand, run_write_subcommand},
             SnapNumInRange,
         },
@@ -125,10 +126,10 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
         );
 
     #[cfg(feature = "synthesis")]
-    let command =
-        add_subcommand_combinations!(command, command_name, true; derive, synthesize, write);
+    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (resample, write));
     #[cfg(not(feature = "synthesis"))]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, write);
+    let command =
+        add_subcommand_combinations!(command, command_name, true; derive, (resample, write));
 
     command
 }
@@ -331,13 +332,22 @@ fn run_extract_subcommand_for_provider<G, P>(
     G: Grid3<fdt>,
     P: SnapshotProvider3<G> + Sync,
 {
-    let write_arguments = arguments.subcommand_matches("write").unwrap();
+    if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
+        run_resample_subcommand(
+            resample_arguments,
+            provider,
+            snap_num_in_range,
+            protected_file_types,
+        );
+    } else {
+        let write_arguments = arguments.subcommand_matches("write").unwrap();
 
-    run_write_subcommand(
-        write_arguments,
-        provider,
-        snap_num_in_range,
-        HashMap::new(),
-        protected_file_types,
-    );
+        run_write_subcommand(
+            write_arguments,
+            provider,
+            snap_num_in_range,
+            HashMap::new(),
+            protected_file_types,
+        );
+    }
 }
