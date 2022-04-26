@@ -26,7 +26,7 @@ use rayon::prelude::*;
 use regex::Regex;
 use std::{
     collections::{hash_map::Entry, HashMap},
-    io,
+    env, io,
     marker::PhantomData,
     mem::MaybeUninit,
     process,
@@ -686,6 +686,7 @@ fn run_python_with_result<C, R>(command: C) -> R
 where
     C: FnOnce(Python) -> PyResult<R>,
 {
+    set_pythonpath();
     Python::with_gil(|py| match command(py) {
         Ok(result) => result,
         Err(err) => {
@@ -693,6 +694,17 @@ where
             process::exit(1)
         }
     })
+}
+
+fn set_pythonpath() {
+    let no_pythonpath = match env::var("PYTHONPATH") {
+        Ok(path) => path.is_empty(),
+        Err(_) => true,
+    };
+    if no_pythonpath {
+        // Set PYTHONPATH to the value that was provided at compile time
+        env::set_var("PYTHONPATH", env!("PYTHONPATH"));
+    }
 }
 
 macro_rules! with_py_error {
