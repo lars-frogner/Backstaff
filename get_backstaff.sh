@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 MIN_PYTHON_MAJOR_VERSION=3
 MIN_PYTHON_MINOR_VERSION=7
@@ -128,6 +127,17 @@ set_env_var() {
     local var_value="$2"
     eval "export $var_name='$var_value'"
     CONFIGURED_ENV_VARS="$CONFIGURED_ENV_VARS $var_name"
+}
+
+feature_in_args() {
+    local feature_name="$1"
+    eval "echo '"$ARGS"' | grep -q -E '(^|\s)--features=?(\w+,)*$feature_name(,\w+)*(\s|\$)'"
+    local return_code=$?
+    if [[ $return_code = 0 ]]; then
+        echo 1
+    else
+        echo 0
+    fi
 }
 
 setup_rust() {
@@ -353,7 +363,7 @@ install_backstaff() {
 
     print_configured_env_vars
 
-    install_command="$(strip_duplicate_spaces "cargo install --locked --git=https://github.com/lars-frogner/Backstaff.git $root_arg $profile_arg --no-default-features --features=$FEATURES")"
+    local install_command="$(strip_duplicate_spaces "cargo install --locked --git=https://github.com/lars-frogner/Backstaff.git $root_arg $profile_arg --no-default-features --features=$FEATURES")"
     echo 'Will now install Backstaff using the following command:'
     echo "$install_command"
     echo
@@ -361,22 +371,56 @@ install_backstaff() {
     eval "$install_command"
 }
 
-echo 'This script will install the Backstaff program'
-echo
+run_interactive_installation() {
 
-if [[ $(command_exists backstaff) = 1 ]]; then
-    backstaff_path="$(resolve_symlink "$(which backstaff)")"
-    echo "Backstaff already installed at $backstaff_path"
-    if [[ $(user_says_yes 'Reinstall?') = 1 ]]; then
+    echo 'This script will install the Backstaff program'
+    echo
+
+    if [[ $(command_exists backstaff) = 1 ]]; then
+        local backstaff_path="$(resolve_symlink "$(which backstaff)")"
+        echo "Backstaff already installed at $backstaff_path"
+        if [[ $(user_says_yes 'Reinstall?') = 1 ]]; then
+            install_backstaff
+        fi
+    else
         install_backstaff
     fi
+
+    echo
+    if [[ $(user_says_yes 'Setup tab-completion (available for bash, zsh and fish)?') = 1 ]]; then
+        setup_tab_completion
+    fi
+
+    echo 'Done'
+}
+
+setup_env_and_run_cargo() {
+    CONFIGURED_ENV_VARS=''
+
+    if [[ $(feature_in_args synthesis) = 1 ]]; then
+        setup_python
+        verify_chianti
+    fi
+
+    if [[ $(feature_in_args hdf5) = 1 ]]; then
+        setup_hdf5
+    fi
+
+    if [[ $(feature_in_args netcdf) = 1 ]]; then
+        setup_netcdf
+    fi
+
+    print_configured_env_vars
+
+    local command="cargo $ARGS"
+    echo "$command"
+    eval "$command"
+}
+
+ARGS="$@"
+
+if [[ -z "$ARGS" ]]; then
+    run_interactive_installation
 else
-    install_backstaff
+    setup_env_and_run_cargo
 fi
-
-echo
-if [[ $(user_says_yes 'Setup tab-completion (available for bash, zsh and fish)?') = 1 ]]; then
-    setup_tab_completion
-fi
-
-echo 'Done'
