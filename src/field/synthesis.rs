@@ -184,6 +184,8 @@ fn create_synthesizable_quantity_table_string() -> String {
     format!(
         "SYNTHESIZABLE QUANTITIES:\n\
         ================================================================================\n\
+        Note: For Doppler shifts we are looking along the positive direction of the axis\n\
+        ================================================================================\n\
          {}\n\
          ================================================================================",
         lines.join(
@@ -430,7 +432,7 @@ where
 
     fn compute_doppler_shift_factor(&self, line_name: &str) -> fdt {
         let central_wavelength = self.emissivity_tables.central_wavelength(line_name);
-        -central_wavelength * ((U_U / CLIGHT) as fdt)
+        central_wavelength * ((U_U / CLIGHT) as fdt)
     }
 
     fn compute_thermal_variance_factor(&self, line_name: &str) -> io::Result<fdt> {
