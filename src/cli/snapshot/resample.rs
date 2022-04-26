@@ -170,20 +170,30 @@ fn run_with_selected_method<G, P>(
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    let (resampling_method, method_arguments) = if let Some(method_arguments) =
-        grid_type_arguments.subcommand_matches("weighted_sample_averaging")
-    {
-        (ResamplingMethod::WeightedSampleAveraging, method_arguments)
-    } else if let Some(method_arguments) =
-        grid_type_arguments.subcommand_matches("weighted_cell_averaging")
-    {
-        (ResamplingMethod::WeightedCellAveraging, method_arguments)
-    } else if let Some(method_arguments) = grid_type_arguments.subcommand_matches("direct_sampling")
-    {
-        (ResamplingMethod::DirectSampling, method_arguments)
-    } else {
-        (default_method, grid_type_arguments)
-    };
+    let (resampling_method, method_arguments, has_interpolator_subcommand) =
+        if let Some(method_arguments) =
+            grid_type_arguments.subcommand_matches("weighted_sample_averaging")
+        {
+            (
+                ResamplingMethod::WeightedSampleAveraging,
+                method_arguments,
+                true,
+            )
+        } else if let Some(method_arguments) =
+            grid_type_arguments.subcommand_matches("weighted_cell_averaging")
+        {
+            (
+                ResamplingMethod::WeightedCellAveraging,
+                method_arguments,
+                false,
+            )
+        } else if let Some(method_arguments) =
+            grid_type_arguments.subcommand_matches("direct_sampling")
+        {
+            (ResamplingMethod::DirectSampling, method_arguments, true)
+        } else {
+            (default_method, grid_type_arguments, false)
+        };
 
     run_with_selected_interpolator(
         grid_type_arguments,
@@ -193,6 +203,7 @@ fn run_with_selected_method<G, P>(
         resample_grid_type,
         resampled_locations,
         resampling_method,
+        has_interpolator_subcommand,
         continue_on_warnings,
         verbose,
         protected_file_types,
@@ -207,6 +218,7 @@ fn run_with_selected_interpolator<G, P>(
     resample_grid_type: ResampleGridType,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
+    has_interpolator_subcommand: bool,
     continue_on_warnings: bool,
     verbose: Verbose,
     protected_file_types: &[&str],
@@ -214,13 +226,16 @@ fn run_with_selected_interpolator<G, P>(
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    let (interpolator_config, arguments) = if let Some(interpolator_arguments) =
-        arguments.subcommand_matches("poly_fit_interpolator")
-    {
-        (
-            construct_poly_fit_interpolator_config_from_options(interpolator_arguments),
-            interpolator_arguments,
-        )
+    let (interpolator_config, arguments) = if has_interpolator_subcommand {
+        if let Some(interpolator_arguments) = arguments.subcommand_matches("poly_fit_interpolator")
+        {
+            (
+                construct_poly_fit_interpolator_config_from_options(interpolator_arguments),
+                interpolator_arguments,
+            )
+        } else {
+            (PolyFitInterpolatorConfig::default(), arguments)
+        }
     } else {
         (PolyFitInterpolatorConfig::default(), arguments)
     };
