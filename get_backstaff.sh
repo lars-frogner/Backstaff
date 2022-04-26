@@ -10,6 +10,7 @@ FEATURES=cli
 CONFIGURED_ENV_VARS=''
 
 LOCAL_PATH="$1"
+EXTRA_CARGO_ARGS="${@:2}"
 
 resolve_symlink() {
     local path="$1"
@@ -368,7 +369,7 @@ install_backstaff() {
         SOURCE_ARGS="--path=$LOCAL_PATH"
     fi
 
-    install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) $(echo $SOURCE_ARGS)"
+    install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) $(echo $SOURCE_ARGS) $EXTRA_CARGO_ARGS"
     echo 'Will now install Backstaff using the following command:'
     echo "$install_command"
     echo
