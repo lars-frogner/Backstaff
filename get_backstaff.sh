@@ -6,12 +6,6 @@ MIN_PYTHON_MINOR_VERSION=7
 MIN_PYTHON_VERSION=$MIN_PYTHON_MAJOR_VERSION.$MIN_PYTHON_MINOR_VERSION
 REQUIRED_PYTHON_PACKAGES='numpy scipy numba ChiantiPy'
 
-FEATURES=cli
-CONFIGURED_ENV_VARS=''
-
-LOCAL_PATH="$1"
-EXTRA_CARGO_ARGS="${@:2}"
-
 resolve_symlink() {
     local path="$1"
     if [[ $(command_exists realpath) = 1 ]]; then
@@ -26,6 +20,10 @@ resolve_symlink() {
         echo "Warning: Could not resolve potential symlink $path" >&2
         echo "$path"
     fi
+}
+
+strip_duplicate_spaces() {
+    echo "$1" | tr -s ' '
 }
 
 command_succeeded() {
@@ -94,11 +92,6 @@ abort_if_user_says_no_default_yes() {
     if [[ $(user_says_yes_default_yes "$@") = 0 ]]; then
         abort Aborted
     fi
-}
-
-reset_features_and_configured_env_vars() {
-    FEATURES=cli
-    CONFIGURED_ENV_VARS=''
 }
 
 ask_feature() {
@@ -294,7 +287,7 @@ setup_tab_completion() {
     done
 }
 
-configure_cargo() {
+configure_cargo_env() {
     set_env_var CARGO_NET_GIT_FETCH_WITH_CLI true
 }
 
@@ -318,7 +311,8 @@ install_backstaff() {
     echo 'https://github.com/lars-frogner/Backstaff/blob/main/README.md#features'
     echo
 
-    reset_features_and_configured_env_vars
+    FEATURES=cli
+    CONFIGURED_ENV_VARS=''
 
     ask_and_add_feature_default_yes statistics
     ask_and_add_feature tracing
@@ -344,9 +338,7 @@ install_backstaff() {
     echo
     echo 'Enabling link time optimization may improve performance at the expense of compile time'
     if [[ $(user_says_yes 'Enable link time optimization?') = 1 ]]; then
-        PROFILE_ARGS='--profile release-lto'
-    else
-        PROFILE_ARGS=''
+        local profile_arg='--profile=release-lto'
     fi
     echo
 
@@ -354,22 +346,14 @@ install_backstaff() {
     if [[ $(user_says_yes 'Use a different directory?') = 1 ]]; then
         target_dir="$(get_user_input 'Enter new installation directory:')"
         mkdir -p "$target_dir"
-        ROOT_ARGS="--root=$target_dir"
-    else
-        ROOT_ARGS=''
+        local root_arg="--root=$target_dir"
     fi
 
-    configure_cargo
+    configure_cargo_env
 
     print_configured_env_vars
 
-    if [[ -z "$LOCAL_PATH" ]]; then
-        SOURCE_ARGS='--git=https://github.com/lars-frogner/Backstaff.git'
-    else
-        SOURCE_ARGS="--path=$LOCAL_PATH"
-    fi
-
-    install_command="cargo install --locked --no-default-features --features=$FEATURES $(echo $PROFILE_ARGS) $(echo $ROOT_ARGS) $(echo $SOURCE_ARGS) $EXTRA_CARGO_ARGS"
+    install_command="$(strip_duplicate_spaces "cargo install --locked --git=https://github.com/lars-frogner/Backstaff.git $root_arg $profile_arg --no-default-features --features=$FEATURES")"
     echo 'Will now install Backstaff using the following command:'
     echo "$install_command"
     echo
