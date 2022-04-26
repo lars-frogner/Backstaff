@@ -52,7 +52,7 @@ The Rust package manager `cargo` can be used to download, build and install the 
 ```
 cargo install --git=https://github.com/lars-frogner/Backstaff.git
 ```
-By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root <DIR>`.
+By default the binary will be placed in `$HOME/.cargo/bin`. A different directory can be specified with the option `--root=<DIR>`.
 
 The above command will only include the default features. You can specify additional features by adding the `--features` option, e.g. `cargo install --features=pickle,tracing,hdf5 ...`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be used to include all features.
 
