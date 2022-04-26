@@ -67,7 +67,9 @@ class Quantity:
 
     def __init__(self, name, unit_scale, description, cmap_name):
         self.name = name
-        self.unit_scale = float(unit_scale)
+        self.unit_scale = (-1 if (len(name) == 2 and name[-1] == "z") else 1) * float(
+            unit_scale
+        )  # Account for flipped z-axis
         self.description = description
         self.cmap_name = cmap_name
 
@@ -286,10 +288,13 @@ class LineShiftQuantity(SynthesizedQuantity):
             bifrost_data, self.emis_shift_name
         ) or bifrost_data_has_variables(bifrost_data, self.emis_name, self.shift_name)
 
-    def process_base_quantity(self, field):
+    def process_base_quantity(self, field, axis_name=None):
         if self.quantity_name == "dopvel":
             field = field.with_values(
-                units.CLIGHT * field.get_values() / self.central_wavelength
+                (-1 if axis_name == "z" else 1)  # Account for flipped z-axis
+                * units.CLIGHT
+                * field.get_values()
+                / self.central_wavelength
             )  # [cm/s]
         return super().process_base_quantity(field)
 
@@ -718,7 +723,9 @@ class Synthesis(Integral):
         cache_entry = self.__class__._create_cache_entry(bifrost_data, quantity)
         if cache_entry in self.cache:
             return (
-                quantity.process_base_quantity(self.cache[cache_entry])
+                quantity.process_base_quantity(
+                    self.cache[cache_entry], axis_name=self.axis_name
+                )
                 if processed
                 else self.cache[cache_entry]
             )
@@ -748,7 +755,11 @@ class Synthesis(Integral):
         shift = weighted_shift / intensity
 
         self.cache[cache_entry] = shift
-        return quantity.process_base_quantity(shift) if processed else shift
+        return (
+            quantity.process_base_quantity(shift, axis_name=self.axis_name)
+            if processed
+            else shift
+        )
 
     def _compute_variance(self, bifrost_data, quantity, processed=True):
         cache_entry = self.__class__._create_cache_entry(bifrost_data, quantity)
