@@ -116,7 +116,7 @@ where
     let horizontal_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "horizontal-limits",
-        &|| vec![std::f32::NEG_INFINITY, std::f32::INFINITY],
+        &|| vec![fdt::NEG_INFINITY, fdt::INFINITY],
     );
     exit_on_false!(
         horizontal_limits[1] >= horizontal_limits[0],
@@ -125,7 +125,7 @@ where
     let vertical_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "vertical-limits",
-        &|| vec![std::f32::NEG_INFINITY, std::f32::INFINITY],
+        &|| vec![fdt::NEG_INFINITY, fdt::INFINITY],
     );
     exit_on_false!(
         vertical_limits[1] >= vertical_limits[0],

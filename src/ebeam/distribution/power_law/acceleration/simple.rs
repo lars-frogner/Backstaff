@@ -147,7 +147,7 @@ impl SimplePowerLawAccelerator {
         }
         let squared_total_electric_vector = total_electric_vector.squared_length();
 
-        if squared_total_electric_vector > std::f32::EPSILON {
+        if squared_total_electric_vector > fdt::EPSILON {
             Some(total_electric_vector / fdt::sqrt(squared_total_electric_vector))
         } else {
             None
@@ -247,7 +247,7 @@ impl SimplePowerLawAccelerator {
         total_power_density: feb,
     ) -> Option<feb> {
         let total_energy_density = self.compute_total_energy_density(total_power_density);
-        if total_energy_density < std::f64::EPSILON {
+        if total_energy_density < feb::EPSILON {
             return None;
         }
         let beta = KEV_TO_ERG / (KBOLTZMANN * temperature); // [1/keV]

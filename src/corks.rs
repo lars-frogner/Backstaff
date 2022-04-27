@@ -198,9 +198,10 @@ impl Cork {
         if self.is_terminated() {
             return;
         }
+        let last_position = self.last_position().converted();
         let value = interpolator.interp_scalar_field_known_cell(
             field,
-            self.last_position(),
+            &last_position,
             self.last_position_indices(),
         );
         self.scalar_field_values[quantity_idx].push(value);
@@ -223,9 +224,10 @@ impl Cork {
         if self.is_terminated() {
             return;
         }
+        let last_position = self.last_position().converted();
         let value = interpolator.interp_vector_field_known_cell(
             field,
-            self.last_position(),
+            &last_position,
             self.last_position_indices(),
         );
         self.vector_field_values[quantity_idx].push(value);
@@ -298,8 +300,8 @@ impl CorkSet {
         let mass_density_field = initial_snapshot.cached_scalar_field(MASS_DENSITY_VARIABLE_NAME);
         let momentum_field = initial_snapshot.cached_vector_field(MOMENTUM_VARIABLE_NAME);
 
-        let lower_bounds = initial_snapshot.grid().lower_bounds().clone();
-        let upper_bounds = initial_snapshot.grid().upper_bounds().clone();
+        let lower_bounds = initial_snapshot.grid().lower_bounds().cast();
+        let upper_bounds = initial_snapshot.grid().upper_bounds().cast();
 
         let number_of_scalar_quantities = scalar_quantity_names.len();
         let number_of_vector_quantities = vector_quantity_names.len();
@@ -525,7 +527,7 @@ pub trait CorkStepper: Sync {
         let step_duration = snapshot
             .parameters()
             .get_value(OUTPUT_TIME_STEP_NAME)?
-            .try_as_float()?;
+            .try_as_float()? as fco;
 
         snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
         snapshot.cache_vector_field(MOMENTUM_VARIABLE_NAME)?;
@@ -668,7 +670,8 @@ where
     G: Grid3<fdt>,
     I: Interpolator3,
 {
-    let grid_point_query = mass_density_field.grid().find_grid_cell(position);
+    let interp_point = position.converted();
+    let grid_point_query = mass_density_field.grid().find_grid_cell(&interp_point);
 
     if grid_point_query == GridPointQuery3::Outside {
         None
@@ -677,13 +680,16 @@ where
 
         let mass_density = interpolator.interp_scalar_field_known_cell(
             mass_density_field,
-            position,
+            &interp_point,
             &interp_indices,
         );
-        let momentum =
-            interpolator.interp_vector_field_known_cell(momentum_field, position, &interp_indices);
+        let momentum = interpolator.interp_vector_field_known_cell(
+            momentum_field,
+            &interp_point,
+            &interp_indices,
+        );
         let velocity = momentum / mass_density;
 
-        Some((interp_indices, velocity))
+        Some((interp_indices, velocity.cast()))
     }
 }

@@ -2348,7 +2348,7 @@ mod tests {
                 .unwrap()
                 .iter()
                 .cloned()
-                .fold(f32::NEG_INFINITY, f32::max)
+                .fold(fdt::NEG_INFINITY, fdt::max)
                 < 1e-6
         );
     }

@@ -242,13 +242,13 @@ fn format_idx(idx: usize) -> String {
 fn format_range<S, M>(name: &str, range: &(fdt, fdt), precision: usize, mapper: M) -> String
 where
     S: Display,
-    M: Fn(f32) -> S,
+    M: Fn(fdt) -> S,
 {
-    if range.0 == std::f32::NEG_INFINITY && range.1 == std::f32::INFINITY {
+    if range.0 == fdt::NEG_INFINITY && range.1 == fdt::INFINITY {
         format!("all {}", name)
-    } else if range.1 == std::f32::INFINITY {
+    } else if range.1 == fdt::INFINITY {
         format!("{} \u{2265} {:.p$}", name, mapper(range.0), p = precision)
-    } else if range.0 == std::f32::NEG_INFINITY {
+    } else if range.0 == fdt::NEG_INFINITY {
         format!("{} \u{2264} {:.p$}", name, mapper(range.1), p = precision)
     } else {
         format!(

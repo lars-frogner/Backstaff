@@ -346,8 +346,8 @@ pub fn parse_limits(
         .expect("No value for argument with default")
         .into_iter()
         .map(|string| match string {
-            "-inf" if allow_infinity => std::f32::NEG_INFINITY,
-            "inf" if allow_infinity => std::f32::INFINITY,
+            "-inf" if allow_infinity => fdt::NEG_INFINITY,
+            "inf" if allow_infinity => fdt::INFINITY,
             values_str => exit_on_error!(
                 values_str.parse::<fdt>(),
                 "Error: Could not parse value in {0}: {1}",
