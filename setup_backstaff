@@ -356,19 +356,16 @@ install_backstaff() {
         setup_hdf5
     fi
 
-    echo
     echo 'Enabling link time optimization may improve performance at the expense of compile time'
     if [[ $(user_says_yes 'Enable link time optimization?') = 1 ]]; then
         local profile_arg='--profile=release-lto'
     fi
-    echo
 
     echo "Default repository branch is main"
     if [[ $(user_says_yes 'Use a different branch?') = 1 ]]; then
         local branch="$(get_user_input 'Enter branch to use:')"
         local branch_arg="--branch=$branch"
     fi
-    echo
 
     echo "Default installation directory is $HOME/.cargo/bin"
     if [[ $(user_says_yes 'Use a different directory?') = 1 ]]; then
