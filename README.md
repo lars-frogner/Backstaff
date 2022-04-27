@@ -40,9 +40,9 @@ Spectral line synthesis, enabled by the `synthesis` feature, requires that the [
 
 ### Using the installation script
 
-Run the following command to install Backstaff using the interactive installation script `get_backstaff.sh`:
+Run the following command to install Backstaff using the interactive installation script `setup_backstaff`:
 ```
-bash <(curl -s https://raw.githubusercontent.com/lars-frogner/Backstaff/main/get_backstaff.sh)
+bash <(curl -s https://raw.githubusercontent.com/lars-frogner/Backstaff/main/setup_backstaff)
 ```
 The script lets you select the desired features, verifies any dependencies and builds and installs the `backstaff` binary.
 
@@ -67,7 +67,10 @@ cargo install --git=https://github.com/lars-frogner/Backstaff.git --features=syn
 
 ### Compiling from source
 
-You can compile the code in this repository directly by cloning it and running the `cargo build` command from the top directory of the project. To compile with optimizations, include the `--release` flag. Features are specified in the same way as for `cargo install`.
+You can compile the code in this repository directly by cloning it and running the `cargo build` command from the top directory of the project. To compile with optimizations, include the `--release` flag. Features are specified in the same way as for `cargo install`. If you use features that require environment variables to be set for linking with external libraries, like `netcdf`, this can be done for you automatically by replacing `cargo` with `bash setup_backstaff` in the build command, e.g.
+```
+bash setup_backstaff build --features=netcdf,... --release
+```
 
 ## Using the command line program
 
