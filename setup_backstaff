@@ -131,12 +131,18 @@ set_env_var() {
 
 feature_in_args() {
     local feature_name="$1"
-    eval "echo '"$ARGS"' | grep -q -E '(^|\s)--features=?(\w+,)*$feature_name(,\w+)*(\s|\$)'"
+    eval "echo '"$ARGS"' | grep -q -E '(^|\s)--all-features(\s|\$)'"
     local return_code=$?
     if [[ $return_code = 0 ]]; then
         echo 1
     else
-        echo 0
+        eval "echo '"$ARGS"' | grep -q -E '(^|\s)--features(=|\s+)(\w+,)*$feature_name(,\w+)*(\s|\$)'"
+        local return_code=$?
+        if [[ $return_code = 0 ]]; then
+            echo 1
+        else
+            echo 0
+        fi
     fi
 }
 
