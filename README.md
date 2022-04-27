@@ -56,11 +56,23 @@ By default the binary will be placed in `$HOME/.cargo/bin`. A different director
 
 The above command will only include the default features. You can specify additional features by adding the `--features` option, e.g. `cargo install --features=pickle,tracing,hdf5 ...`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be used to include all features.
 
+If installing with the `netcdf` feature, you may have to inform the build system about the location of the root folder of the NetCDF installation (that is, the parent folder of the `lib` folder where the actual `libnetcdf` library is located). This can be done with the `NETCDF_DIR` environment variable:
+```
+NETCDF_DIR=/path/to/netcdf/root
+cargo install ...
+```
+
+The approach for the `hdf5` feature is completely analogous:
+```
+HDF5_DIR=/path/to/hdf5/root
+cargo install ...
+```
+
 If installing with the `synthesis` feature, you will need to inform `cargo` about your Python library. This can be done with the following command, which prior to installation specifies the Python executable (in this case `python3`, but you may also give the full path to a specific executable) in the `PYO3_PYTHON` variable, and additionally adds a flag for linking with the corresponding Python library:
 ```
 PYO3_PYTHON="$(realpath "$(which python3)")"
 RUSTFLAGS="-C link-args=-Wl,-rpath,""$(dirname "$(dirname "$PYO3_PYTHON")")/lib"""
-cargo install --git=https://github.com/lars-frogner/Backstaff.git --features=synthesis
+cargo install ...
 ```
 
 **_NOTE:_** If the `cargo install` command complains about being unable to fetch the GitHub repository, try adding `CARGO_NET_GIT_FETCH_WITH_CLI=true` in front of `cargo install`.
