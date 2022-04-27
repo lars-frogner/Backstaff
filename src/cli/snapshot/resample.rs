@@ -616,7 +616,7 @@ fn compute_scaled_grid_shape(original_shape: &In3D<usize>, scales: &[fdt]) -> Ve
     original_shape
         .into_iter()
         .zip(scales.iter())
-        .map(|(&n, &scale)| usize::min(1, fdt::round(scale * (n as fdt)) as usize))
+        .map(|(&n, &scale)| usize::max(1, fdt::round(scale * (n as fdt)) as usize))
         .collect()
 }
 
