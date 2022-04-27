@@ -363,9 +363,16 @@ install_backstaff() {
     fi
     echo
 
+    echo "Default repository branch is main"
+    if [[ $(user_says_yes 'Use a different branch?') = 1 ]]; then
+        local branch="$(get_user_input 'Enter branch to use:')"
+        local branch_arg="--branch=$branch"
+    fi
+    echo
+
     echo "Default installation directory is $HOME/.cargo/bin"
     if [[ $(user_says_yes 'Use a different directory?') = 1 ]]; then
-        target_dir="$(get_user_input 'Enter new installation directory:')"
+        local target_dir="$(get_user_input 'Enter installation directory to use:')"
         mkdir -p "$target_dir"
         local root_arg="--root=$target_dir"
     fi
@@ -374,7 +381,7 @@ install_backstaff() {
 
     print_configured_env_vars
 
-    local install_command="$(strip_duplicate_spaces "cargo install --locked --git=https://github.com/lars-frogner/Backstaff.git $root_arg $profile_arg --no-default-features --features=$FEATURES")"
+    local install_command="$(strip_duplicate_spaces "cargo install --locked --git=https://github.com/lars-frogner/Backstaff.git $branch_arg $root_arg $profile_arg --no-default-features --features=$FEATURES")"
     echo 'Will now install Backstaff using the following command:'
     echo "$install_command"
     echo
