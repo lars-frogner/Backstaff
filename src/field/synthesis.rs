@@ -688,8 +688,7 @@ fn run_python_with_result<C, R>(command: C) -> R
 where
     C: FnOnce(Python) -> PyResult<R>,
 {
-    set_pythonpath();
-    Python::with_gil(|py| match command(py) {
+    Python::with_gil(|py| match set_pythonpaths(py).and_then(|_| command(py)) {
         Ok(result) => result,
         Err(err) => {
             err.print(py);
@@ -698,15 +697,12 @@ where
     })
 }
 
-fn set_pythonpath() {
-    let no_pythonpath = match env::var("PYTHONPATH") {
-        Ok(path) => path.is_empty(),
-        Err(_) => true,
-    };
-    if no_pythonpath {
-        // Set PYTHONPATH to the value that was provided at compile time
-        env::set_var("PYTHONPATH", env!("PYTHONPATH"));
+fn set_pythonpaths(py: Python) -> PyResult<()> {
+    let pythonpaths = py.import("sys")?.getattr("path")?;
+    for pythonpath in env!("PYTHONPATH").split(':') {
+        pythonpaths.getattr("insert")?.call1((0, pythonpath))?;
     }
+    Ok(())
 }
 
 macro_rules! with_py_error {
