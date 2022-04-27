@@ -93,6 +93,15 @@ impl<T> In3D<T> {
         Self([x, y, z])
     }
 
+    /// Converts to a new 3D quantity with a different component type.
+    pub fn converted<U>(&self) -> In3D<U>
+    where
+        U: From<T>,
+        T: Copy,
+    {
+        In3D::<U>::new(self[X].into(), self[Y].into(), self[Z].into())
+    }
+
     /// Creates a new 3D quantity with the given value copied into all components.
     pub fn same(a: T) -> Self
     where
@@ -165,6 +174,15 @@ impl<T> In2D<T> {
         Self([x, y])
     }
 
+    /// Converts to a new 2D quantity with a different component type.
+    pub fn converted<U>(&self) -> In2D<U>
+    where
+        U: From<T>,
+        T: Copy,
+    {
+        In2D::<U>::new(self[Dim2::X].into(), self[Dim2::Y].into())
+    }
+
     /// Creates a new 2D quantity with the given value copied into both components.
     pub fn same(a: T) -> Self
     where
@@ -231,6 +249,27 @@ impl<F: BFloat> Vec3<F> {
     /// Creates a new 3D vector given the three components.
     pub fn new(x: F, y: F, z: F) -> Self {
         Self(In3D::new(x, y, z))
+    }
+
+    /// Converts to a new vector with a different component type.
+    pub fn converted<U>(&self) -> Vec3<U>
+    where
+        U: From<F>,
+        F: Copy,
+    {
+        Vec3(self.0.converted())
+    }
+
+    /// Creates a new vector with components cast to the specified floating point type.
+    pub fn cast<FNEW>(&self) -> Vec3<FNEW>
+    where
+        FNEW: BFloat,
+    {
+        Vec3::<FNEW>::new(
+            num::cast(self[X]).unwrap(),
+            num::cast(self[Y]).unwrap(),
+            num::cast(self[Z]).unwrap(),
+        )
     }
 
     /// Creates a new zero vector.
@@ -461,6 +500,26 @@ impl<F: BFloat> Vec2<F> {
         Self(In2D::new(x, y))
     }
 
+    /// Converts to a new vector with a different component type.
+    pub fn converted<U>(&self) -> Vec2<U>
+    where
+        U: From<F>,
+        F: Copy,
+    {
+        Vec2(self.0.converted())
+    }
+
+    /// Creates a new vector with components cast to the specified floating point type.
+    pub fn cast<FNEW>(&self) -> Vec2<FNEW>
+    where
+        FNEW: BFloat,
+    {
+        Vec2::<FNEW>::new(
+            num::cast(self[Dim2::X]).unwrap(),
+            num::cast(self[Dim2::Y]).unwrap(),
+        )
+    }
+
     /// Creates a new zero vector.
     pub fn zero() -> Self {
         Self::new(F::zero(), F::zero())
@@ -684,6 +743,27 @@ impl<F: BFloat> Point3<F> {
         Self(In3D::new(x, y, z))
     }
 
+    /// Converts to a new point with a different component type.
+    pub fn converted<U>(&self) -> Point3<U>
+    where
+        U: From<F>,
+        F: Copy,
+    {
+        Point3(self.0.converted())
+    }
+
+    /// Creates a new point with components cast to the specified floating point type.
+    pub fn cast<FNEW>(&self) -> Point3<FNEW>
+    where
+        FNEW: BFloat,
+    {
+        Point3::<FNEW>::new(
+            num::cast(self[X]).unwrap(),
+            num::cast(self[Y]).unwrap(),
+            num::cast(self[Z]).unwrap(),
+        )
+    }
+
     /// Creates a new 3D point with all components set to zero.
     pub fn origin() -> Self {
         Self::new(F::zero(), F::zero(), F::zero())
@@ -853,6 +933,26 @@ impl<F: BFloat> Point2<F> {
     /// Creates a new 2D point given the three components.
     pub fn new(x: F, y: F) -> Self {
         Self(In2D::new(x, y))
+    }
+
+    /// Converts to a new point with a different component type.
+    pub fn converted<U>(&self) -> Point2<U>
+    where
+        U: From<F>,
+        F: Copy,
+    {
+        Point2(self.0.converted())
+    }
+
+    /// Creates a new point with components cast to the specified floating point type.
+    pub fn cast<FNEW>(&self) -> Point2<FNEW>
+    where
+        FNEW: BFloat,
+    {
+        Point2::<FNEW>::new(
+            num::cast(self[Dim2::X]).unwrap(),
+            num::cast(self[Dim2::Y]).unwrap(),
+        )
     }
 
     /// Creates a new 2D point with all components set to zero.
@@ -1025,6 +1125,15 @@ impl<I: num::Integer> Idx3<I> {
         Self(In3D::new(i, j, k))
     }
 
+    /// Converts to a new 3D index with a different component type.
+    pub fn converted<U>(&self) -> Idx3<U>
+    where
+        U: From<I>,
+        I: Copy,
+    {
+        Idx3(self.0.converted())
+    }
+
     /// Creates a new 3D index with all components set to zero.
     pub fn origin() -> Self {
         Self::new(I::zero(), I::zero(), I::zero())
@@ -1113,6 +1222,15 @@ impl<I: num::Integer> Idx2<I> {
     /// Creates a new 2D index given the three components.
     pub fn new(i: I, j: I) -> Self {
         Self(In2D::new(i, j))
+    }
+
+    /// Converts to a new 2D index with a different component type.
+    pub fn converted<U>(&self) -> Idx2<U>
+    where
+        U: From<I>,
+        I: Copy,
+    {
+        Idx2(self.0.converted())
     }
 
     /// Creates a new 2D index with all components set to zero.
