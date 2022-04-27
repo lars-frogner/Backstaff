@@ -163,6 +163,12 @@ impl<T> FromIterator<T> for In3D<T> {
     }
 }
 
+impl<T: fmt::Display> fmt::Display for In3D<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}, {}, {}]", self[X], self[Y], self[Z])
+    }
+}
+
 /// Represents any quantity with two dimensional components.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
@@ -237,6 +243,12 @@ impl<T> FromIterator<T> for In2D<T> {
     {
         let mut iter = iter.into_iter();
         Self([iter.next().unwrap(), iter.next().unwrap()])
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for In2D<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}, {}]", self[Dim2::X], self[Dim2::Y])
     }
 }
 
