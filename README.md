@@ -32,7 +32,7 @@ The Rust toolchain, which includes the `rustc` compiler and the package manager 
 
 If you want to include the `netcdf` feature for working with [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) files, the `netCDF-C` library must be available to link with. Installation instructions can be found [here](https://docs.unidata.ucar.edu/nug/current/getting_and_building_netcdf.html).
 
-Similarly, the `hdf5` feature, which provides support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, requires the `HDF5` library, which can be obtained from [here](https://www.hdfgroup.org/downloads/hdf5/).
+Similarly, the `hdf5` feature, which provides support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, requires the `HDF5` library, which can be obtained from [here](https://www.hdfgroup.org/downloads/hdf5/). NetCDF also depends on this library.
 
 Spectral line synthesis, enabled by the `synthesis` feature, requires that the [CHIANTI database](https://www.chiantidatabase.org/) is available on the system, and that its location is specified in the `XUVTOP` environment variable. An additional requirement is an installation of Python >= 3.7 with the packages `numpy`, `scipy`, `numba` and [`ChiantiPy`](https://github.com/chianti-atomic/ChiantiPy) available.
 
@@ -56,15 +56,16 @@ By default the binary will be placed in `$HOME/.cargo/bin`. A different director
 
 The above command will only include the default features. You can specify additional features by adding the `--features` option, e.g. `cargo install --features=pickle,tracing,hdf5 ...`. The `--no-default-features` flag can be used to disable the default features, and the `--all-features` flag can be used to include all features.
 
-If installing with the `netcdf` feature, you may have to inform the build system about the location of the root folder of the NetCDF installation (that is, the parent folder of the `lib` folder where the actual `libnetcdf` library is located). This can be done with the `NETCDF_DIR` environment variable:
+If installing with the `hdf5` feature, you may have to inform the build system about the location of the root folder of the HDF5 installation (that is, the parent folder of the `lib` folder where the actual `libhdf5` library is located). This can be done with the `HDF5_DIR` environment variable:
 ```
-NETCDF_DIR=/path/to/netcdf/root
+HDF5_DIR=/path/to/hdf5/root
 cargo install ...
 ```
 
-The approach for the `hdf5` feature is completely analogous:
+For the `netcdf` feature, we may additionally need to inform about the NetCDF library, which can be done in a completely analogous way:
 ```
 HDF5_DIR=/path/to/hdf5/root
+NETCDF_DIR=/path/to/netcdf/root
 cargo install ...
 ```
 

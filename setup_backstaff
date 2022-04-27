@@ -342,13 +342,18 @@ install_backstaff() {
 
     ask_and_add_feature json
     ask_and_add_feature pickle
-    if [[ $(ask_feature hdf5) = 1 ]]; then
+
+    local include_hdf5=$(ask_feature hdf5)
+    if [[ $include_hdf5 = 1 ]]; then
         add_feature hdf5
-        setup_hdf5
     fi
+
     if [[ $(ask_feature netcdf) = 1 ]]; then
         add_feature netcdf
+        setup_hdf5
         setup_netcdf
+    elif [[ $include_hdf5 = 1 ]]; then
+        setup_hdf5
     fi
 
     echo
@@ -408,12 +413,11 @@ setup_env_and_run_cargo() {
         verify_chianti
     fi
 
-    if [[ $(feature_in_args hdf5) = 1 ]]; then
-        setup_hdf5
-    fi
-
     if [[ $(feature_in_args netcdf) = 1 ]]; then
+        setup_hdf5
         setup_netcdf
+    elif [[ $(feature_in_args hdf5) = 1 ]]; then
+        setup_hdf5
     fi
 
     print_configured_env_vars
