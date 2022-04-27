@@ -140,6 +140,20 @@ impl<'a, T> IntoIterator for &'a In3D<T> {
     }
 }
 
+impl<T> FromIterator<T> for In3D<T> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut iter = iter.into_iter();
+        Self([
+            iter.next().unwrap(),
+            iter.next().unwrap(),
+            iter.next().unwrap(),
+        ])
+    }
+}
+
 /// Represents any quantity with two dimensional components.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
@@ -195,6 +209,16 @@ impl<'a, T> IntoIterator for &'a In2D<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
+    }
+}
+
+impl<T> FromIterator<T> for In2D<T> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut iter = iter.into_iter();
+        Self([iter.next().unwrap(), iter.next().unwrap()])
     }
 }
 
@@ -408,6 +432,15 @@ impl<'a, F: BFloat> IntoIterator for &'a Vec3<F> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<F> FromIterator<F> for Vec3<F> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+    {
+        Self(iter.into_iter().collect())
     }
 }
 
@@ -625,6 +658,15 @@ impl<'a, F: BFloat> IntoIterator for &'a Vec2<F> {
     }
 }
 
+impl<F> FromIterator<F> for Vec2<F> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+    {
+        Self(iter.into_iter().collect())
+    }
+}
+
 impl<F: BFloat + fmt::Display> fmt::Display for Vec2<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({}, {})", self[Dim2::X], self[Dim2::Y])
@@ -784,6 +826,15 @@ impl<'a, F: BFloat> IntoIterator for &'a Point3<F> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<F> FromIterator<F> for Point3<F> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+    {
+        Self(iter.into_iter().collect())
     }
 }
 
@@ -949,6 +1000,15 @@ impl<'a, F: BFloat> IntoIterator for &'a Point2<F> {
     }
 }
 
+impl<F> FromIterator<F> for Point2<F> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+    {
+        Self(iter.into_iter().collect())
+    }
+}
+
 impl<F: BFloat + fmt::Display> fmt::Display for Point2<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({}, {})", self[Dim2::X], self[Dim2::Y])
@@ -1030,6 +1090,15 @@ impl<'a, I: num::Integer> IntoIterator for &'a Idx3<I> {
     }
 }
 
+impl<F> FromIterator<F> for Idx3<F> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+    {
+        Self(iter.into_iter().collect())
+    }
+}
+
 impl<I: num::Integer + fmt::Display> fmt::Display for Idx3<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}, {}, {}]", self[X], self[Y], self[Z])
@@ -1105,6 +1174,15 @@ impl<'a, I: num::Integer> IntoIterator for &'a Idx2<I> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<F> FromIterator<F> for Idx2<F> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+    {
+        Self(iter.into_iter().collect())
     }
 }
 
