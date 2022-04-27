@@ -13,7 +13,10 @@ use crate::{
     field::ResampledCoordLocation,
     geometry::Dim3,
     grid::{CoordLocation, Grid3},
-    interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+    interpolation::{
+        poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+        Interpolator3,
+    },
     io::{
         snapshot::{self, fdt, SnapshotProvider3},
         utils::AtomicOutputPath,
@@ -198,6 +201,11 @@ pub fn run_slice_subcommand<G, P>(
         PolyFitInterpolatorConfig::default()
     };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
+
+    exit_on_error!(
+        interpolator.verify_grid(provider.grid()),
+        "Invalid input grid for slicing: {}"
+    );
 
     let field = exit_on_error!(
         provider.provide_scalar_field(&quantity),

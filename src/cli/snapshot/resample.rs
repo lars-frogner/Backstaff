@@ -636,6 +636,11 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
     GOUT: Grid3<fdt>,
     I: Interpolator3,
 {
+    exit_on_error!(
+        interpolator.verify_grid(provider.grid()),
+        "Invalid input grid for resampling: {}"
+    );
+
     let provider = ResampledSnapshotProvider3::new(
         provider,
         Arc::clone(new_grid),

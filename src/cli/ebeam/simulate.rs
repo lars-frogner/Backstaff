@@ -487,6 +487,11 @@ where G: Grid3<fdt>,
 
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
+    exit_on_error!(
+        interpolator.verify_grid(snapshot.grid()),
+        "Invalid input grid for simulating electron beams: {}"
+    );
+
     run_with_selected_stepper_factory(
         root_arguments,
         interpolator_arguments,

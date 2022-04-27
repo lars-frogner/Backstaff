@@ -176,6 +176,11 @@ fn run_with_selected_interpolator<G, P>(
 
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
+    exit_on_error!(
+        interpolator.verify_grid(snapshot.grid()),
+        "Invalid input grid for tracing corks: {}"
+    );
+
     run_tracing(
         root_arguments,
         interpolator_arguments,
