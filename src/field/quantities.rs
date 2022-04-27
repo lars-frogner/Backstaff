@@ -7,11 +7,15 @@ use crate::{
     },
     geometry::{Idx3, In3D},
     grid::{CoordLocation, Grid3},
-    interpolation::poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+    interpolation::{
+        poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+        Interpolator3,
+    },
     io::{
         snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
         Endianness, Verbose,
     },
+    io_result,
     units::solar::{U_B, U_E, U_P, U_R, U_T, U_U},
 };
 use lazy_static::lazy_static;
@@ -706,6 +710,9 @@ where
 
     if field_1.locations() != field_2.locations() {
         let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
+
+        io_result!(interpolator.verify_grid(provider.grid()))?;
+
         let resample_to_center = |field: &mut ScalarField3<_, _>| {
             if field.locations() != &center_locations {
                 *field = field.resampled_to_grid(
@@ -763,6 +770,9 @@ where
 
     if field_1.locations() != field_2.locations() || field_1.locations() != field_3.locations() {
         let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
+
+        io_result!(interpolator.verify_grid(provider.grid()))?;
+
         let resample_to_center = |field: &mut ScalarField3<_, _>| {
             if field.locations() != &center_locations {
                 *field = field.resampled_to_grid(
