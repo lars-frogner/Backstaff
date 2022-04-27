@@ -1584,6 +1584,22 @@ impl PolyFitInterpolator3 {
 }
 
 impl Interpolator3 for PolyFitInterpolator3 {
+    fn verify_grid<F, G>(&self, grid: &G) -> Result<(), String>
+    where
+        F: BFloat,
+        G: Grid3<F>,
+    {
+        if grid.shape().into_iter().any(|&n| n <= self.config.order) {
+            Err(format!(
+                "Grid with shape {} is too small for polynomial fitting interpolator with order {}",
+                grid.shape(),
+                self.config.order
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField3<F, G>,

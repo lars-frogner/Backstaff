@@ -12,6 +12,28 @@ use crate::{
 
 /// Defines the properties of a 3D interpolator.
 pub trait Interpolator3: Clone + Sync + Send {
+    /// Verifies that a field with the given grid safely can be interpolated
+    /// with this interpolator.
+    ///
+    /// # Parameters
+    ///
+    /// - `grid`: Grid to verify.
+    ///
+    /// # Returns
+    ///
+    /// A `Result<(), String>` which is either
+    /// - `Ok`: The grid is valid.
+    /// - `Err`: Contains a message describing why the grid is invalid.
+    ///
+    /// # Type parameters
+    ///
+    /// - `F`: Floating point type of the field data.
+    /// - `G`: Type of grid.
+    fn verify_grid<F, G>(&self, grid: &G) -> Result<(), String>
+    where
+        F: BFloat,
+        G: Grid3<F>;
+
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///
