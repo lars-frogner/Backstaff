@@ -204,7 +204,7 @@ setup_python() {
 }
 
 verify_chianti() {
-    if [[ ! -z "$XUVTOP" ]]; then
+    if [[ -z "$XUVTOP" ]]; then
         echo
         echo 'Warning: The XUVTOP environment variable is currently not set' >&2
         echo 'Make sure it is set to the root CHIANTI directory when running backstaff' >&2
