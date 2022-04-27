@@ -130,7 +130,7 @@ SUBCOMMANDS:
 ```
 
 Here is a simplified overview of the command hierarchy available when all features are enabled.
-![command_graph](figures/command_graph.png "Command graph")
+![command_graph](figures/command_graph.svg "Command graph")
 
 This graph was created with the hidden `backstaff-command_graph` command, which outputs the command hierarchy graph in DOT format for rendering with [Graphviz](https://www.graphviz.org/).
 
