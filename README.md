@@ -84,6 +84,8 @@ You can compile the code in this repository directly by cloning it and running t
 bash setup_backstaff build --features=netcdf,... --release
 ```
 
+**_NOTE:_** If you get a linking error along the lines of `relocation truncated to fit: R_X86_64_32 against ...`, it means that the compiled binary becomes too large for the 32-bit address offsets used by the compiler to reference data within the binary to be sufficient. This can happen if the binary is built in debug mode with too many features. To avoid this error, reduce the number of features or compile in release mode.
+
 ## Using the command line program
 
 If you have installed the binary, simply run the `backstaff` command. If you instead are running directly from the repository, the simplest way to run the command line executable is with `cargo run` command. This will also perform any necessary compilation prior to running the program. All arguments following a double dash (`--`) will then be passed along to the `backstaff` program.
