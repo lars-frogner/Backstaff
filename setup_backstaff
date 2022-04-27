@@ -413,7 +413,6 @@ setup_env_and_run_cargo() {
     print_configured_env_vars
 
     local command="cargo $ARGS"
-    echo "$command"
     eval "$command"
 }
 
