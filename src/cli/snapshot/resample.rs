@@ -4,7 +4,6 @@ mod direct_sampling;
 mod mesh_file;
 mod regular_grid;
 mod reshaped_grid;
-mod same_grid;
 mod weighted_cell_averaging;
 mod weighted_sample_averaging;
 
@@ -12,7 +11,6 @@ use self::{
     mesh_file::{create_mesh_file_subcommand, run_resampling_for_mesh_file},
     regular_grid::{create_regular_grid_subcommand, run_resampling_for_regular_grid},
     reshaped_grid::{create_reshaped_grid_subcommand, run_resampling_for_reshaped_grid},
-    same_grid::{create_same_grid_subcommand, run_resampling_for_same_grid},
 };
 use super::SnapNumInRange;
 use crate::{
@@ -80,14 +78,12 @@ pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command
         )
         .subcommand(create_regular_grid_subcommand(command_name))
         .subcommand(create_reshaped_grid_subcommand(command_name))
-        .subcommand(create_same_grid_subcommand(command_name))
         .subcommand(create_mesh_file_subcommand(command_name))
 }
 
 enum ResampleGridType {
     Regular,
     Reshaped,
-    Same,
     MeshFile,
 }
 
@@ -126,12 +122,6 @@ pub fn run_resample_subcommand<G, P>(
                 ResampleGridType::Reshaped,
                 ResamplingMethod::WeightedSampleAveraging,
                 reshaped_grid_arguments,
-            )
-        } else if let Some(same_grid_arguments) = arguments.subcommand_matches("same_grid") {
-            (
-                ResampleGridType::Same,
-                ResamplingMethod::DirectSampling,
-                same_grid_arguments,
             )
         } else if let Some(mesh_file_arguments) = arguments.subcommand_matches("mesh_file") {
             (
@@ -278,21 +268,10 @@ fn run_with_selected_interpolator<G, P>(
             interpolator,
             protected_file_types,
         ),
-        ResampleGridType::Same => run_resampling_for_same_grid(
-            arguments,
-            provider,
-            snap_num_in_range,
-            resampled_locations,
-            resampling_method,
-            continue_on_warnings,
-            verbose,
-            interpolator,
-            protected_file_types,
-        ),
     }
 }
 
-fn resample_to_same_or_reshaped_grid<G, P, I>(
+fn resample_to_reshaped_grid<G, P, I>(
     arguments: &ArgMatches,
     new_shape: Option<In3D<usize>>,
     provider: P,

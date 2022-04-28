@@ -121,7 +121,7 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
     );
     let new_shape = Some(In3D::new(shape[0], shape[1], shape[2]));
 
-    super::resample_to_same_or_reshaped_grid(
+    super::resample_to_reshaped_grid(
         arguments,
         new_shape,
         provider,
