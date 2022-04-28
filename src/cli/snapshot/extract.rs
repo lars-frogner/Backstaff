@@ -208,7 +208,7 @@ pub fn run_extract_subcommand<G, P>(
         let new_lower_bounds = original_grid.grid_cell_lower_corner(&lower_indices);
         let new_upper_bounds = original_grid.grid_cell_upper_corner(&upper_indices);
         println!(
-            "Extracting subgrid\n\
+            "Creating subgrid\n\
              Index ranges: {} -> {}\n\
              Shape: [{}, {}, {}]\n\
              Bounds: {} -> {}\n\

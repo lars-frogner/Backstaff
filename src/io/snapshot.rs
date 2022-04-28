@@ -387,7 +387,7 @@ where
         let variable_name = variable_name.as_ref();
         let field = self.provider.provide_scalar_field(variable_name)?;
         if self.verbose.is_yes() {
-            println!("Extracting {}", variable_name);
+            println!("Extracting {} in subgrid", variable_name);
         }
         Ok(field.subfield(self.arc_with_grid(), &self.lower_indices))
     }
