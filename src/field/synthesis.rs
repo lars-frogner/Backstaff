@@ -321,16 +321,36 @@ where
                 name if name.starts_with("shift") && name.ends_with(|end| "xyz".contains(end)) => {
                     let doppler_factor = self.compute_doppler_shift_factor(&line_name);
                     match name.chars().last().unwrap() {
-                        'x' => compute_derived_quantity!(shiftx, |ux| ux * doppler_factor, self),
-                        'y' => compute_derived_quantity!(shifty, |uy| uy * doppler_factor, self),
-                        'z' => compute_derived_quantity!(shiftz, |uz| uz * doppler_factor, self),
+                        'x' => compute_derived_quantity!(
+                            shiftx,
+                            |ux| ux * doppler_factor,
+                            self,
+                            self.verbose
+                        ),
+                        'y' => compute_derived_quantity!(
+                            shifty,
+                            |uy| uy * doppler_factor,
+                            self,
+                            self.verbose
+                        ),
+                        'z' => compute_derived_quantity!(
+                            shiftz,
+                            |uz| uz * doppler_factor,
+                            self,
+                            self.verbose
+                        ),
                         _ => unreachable!(),
                     }
                 }
                 "vartg" => {
                     let thermal_variance_factor =
                         self.compute_thermal_variance_factor(&line_name)?;
-                    compute_derived_quantity!(vartg, |tg| tg * thermal_variance_factor, self)
+                    compute_derived_quantity!(
+                        vartg,
+                        |tg| tg * thermal_variance_factor,
+                        self,
+                        self.verbose
+                    )
                 }
                 name if name.starts_with("emis_shift")
                     && name.ends_with(|end| "xyz".contains(end)) =>
@@ -340,17 +360,20 @@ where
                         'x' => compute_derived_quantity!(
                             emis_shiftx,
                             |emis, ux| emis * ux * doppler_factor,
-                            self
+                            self,
+                            self.verbose
                         ),
                         'y' => compute_derived_quantity!(
                             emis_shifty,
                             |emis, uy| emis * uy * doppler_factor,
-                            self
+                            self,
+                            self.verbose
                         ),
                         'z' => compute_derived_quantity!(
                             emis_shiftz,
                             |emis, uz| emis * uz * doppler_factor,
-                            self
+                            self,
+                            self.verbose
                         ),
                         _ => unreachable!(),
                     }
@@ -367,19 +390,22 @@ where
                             vartgshift2x,
                             |tg, ux| tg * thermal_variance_factor
                                 + ux * ux * doppler_factor_squared,
-                            self
+                            self,
+                            self.verbose
                         ),
                         'y' => compute_derived_quantity!(
                             vartgshift2y,
                             |tg, uy| tg * thermal_variance_factor
                                 + uy * uy * doppler_factor_squared,
-                            self
+                            self,
+                            self.verbose
                         ),
                         'z' => compute_derived_quantity!(
                             vartgshift2z,
                             |tg, uz| tg * thermal_variance_factor
                                 + uz * uz * doppler_factor_squared,
-                            self
+                            self,
+                            self.verbose
                         ),
                         _ => unreachable!(),
                     }
@@ -396,19 +422,22 @@ where
                             emis_vartgshift2x,
                             |emis, tg, ux| emis
                                 * (tg * thermal_variance_factor + ux * ux * doppler_factor_squared),
-                            self
+                            self,
+                            self.verbose
                         ),
                         'y' => compute_derived_quantity!(
                             emis_vartgshift2y,
                             |emis, tg, uy| emis
                                 * (tg * thermal_variance_factor + uy * uy * doppler_factor_squared),
-                            self
+                            self,
+                            self.verbose
                         ),
                         'z' => compute_derived_quantity!(
                             emis_vartgshift2z,
                             |emis, tg, uz| emis
                                 * (tg * thermal_variance_factor + uz * uz * doppler_factor_squared),
-                            self
+                            self,
+                            self.verbose
                         ),
                         _ => unreachable!(),
                     }
@@ -449,12 +478,12 @@ where
         line_quantity_name: &str,
         line_name: &str,
     ) -> io::Result<ScalarField3<fdt, G>> {
+        let temperatures = self.provider.provide_scalar_field("tg")?;
+        let electron_densities = self.provider.provide_scalar_field("nel")?;
+
         if self.verbose.is_yes() {
             println!("Looking up emissivities for {}", line_name);
         }
-
-        let temperatures = self.provider.provide_scalar_field("tg")?;
-        let electron_densities = self.provider.provide_scalar_field("nel")?;
 
         let temperature_buffer = temperatures.values().as_slice_memory_order().unwrap();
         let electron_density_buffer = electron_densities.values().as_slice_memory_order().unwrap();

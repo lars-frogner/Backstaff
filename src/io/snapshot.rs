@@ -294,10 +294,10 @@ where
         variable_name: S,
     ) -> io::Result<ScalarField3<fdt, G>> {
         let variable_name = variable_name.as_ref();
+        let field = self.provider.provide_scalar_field(variable_name)?;
         if self.verbose.is_yes() {
             println!("Resampling {}", variable_name);
         }
-        let field = self.provider.provide_scalar_field(variable_name)?;
         Ok(field.resampled_to_grid(
             self.arc_with_grid(),
             self.resampled_locations.clone(),
@@ -393,10 +393,10 @@ where
         variable_name: S,
     ) -> io::Result<ScalarField3<fdt, G>> {
         let variable_name = variable_name.as_ref();
+        let field = self.provider.provide_scalar_field(variable_name)?;
         if self.verbose.is_yes() {
             println!("Extracting {}", variable_name);
         }
-        let field = self.provider.provide_scalar_field(variable_name)?;
         Ok(field.subfield(self.arc_with_grid(), &self.lower_indices))
     }
 }

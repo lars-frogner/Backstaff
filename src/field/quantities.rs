@@ -500,32 +500,35 @@ where
 /// Computes a derived quantity field using a compute closure on fields from the given provider .
 #[macro_export]
 macro_rules! compute_derived_quantity {
-    ($name:ident, |$dep_name:ident| $computer:expr, $provider:expr) => {
+    ($name:ident, |$dep_name:ident| $computer:expr, $provider:expr, $verbose:expr) => {
         crate::field::quantities::compute_quantity_unary(
             stringify!($name),
             $provider,
             stringify!($dep_name),
             |$dep_name| $computer,
+            $verbose,
         )
     };
-    ($name:ident, with indices |$indices:ident, $dep_name:ident| $computer:expr, $provider:expr) => {
+    ($name:ident, with indices |$indices:ident, $dep_name:ident| $computer:expr, $provider:expr, $verbose:expr) => {
         crate::field::quantities::compute_quantity_unary_with_indices(
             stringify!($name),
             $provider,
             stringify!($dep_name),
             |$indices, $dep_name| $computer,
+            $verbose,
         )
     };
-    ($name:ident, |$dep_name_1:ident, $dep_name_2:ident| $computer:expr, $provider:expr) => {
+    ($name:ident, |$dep_name_1:ident, $dep_name_2:ident| $computer:expr, $provider:expr, $verbose:expr) => {
         crate::field::quantities::compute_quantity_binary(
             stringify!($name),
             $provider,
             stringify!($dep_name_1),
             stringify!($dep_name_2),
             |$dep_name_1, $dep_name_2| $computer,
+            $verbose,
         )
     };
-    ($name:ident, |$dep_name_1:ident, $dep_name_2:ident, $dep_name_3:ident| $computer:expr, $provider:expr) => {
+    ($name:ident, |$dep_name_1:ident, $dep_name_2:ident, $dep_name_3:ident| $computer:expr, $provider:expr, $verbose:expr) => {
         crate::field::quantities::compute_quantity_tertiary(
             stringify!($name),
             $provider,
@@ -533,6 +536,7 @@ macro_rules! compute_derived_quantity {
             stringify!($dep_name_2),
             stringify!($dep_name_3),
             |$dep_name_1, $dep_name_2, $dep_name_3| $computer,
+            $verbose,
         )
     };
 }
@@ -547,20 +551,16 @@ where
     G: Grid3<fdt>,
     P: SnapshotProvider3<G>,
 {
-    if verbose.is_yes() {
-        println!("Computing {}", quantity_name);
-    }
-
     let grid = provider.arc_with_grid();
 
     if DERIVABLE_QUANTITIES.contains_key(quantity_name) {
         match quantity_name {
-            "ux" => compute_derived_quantity!(ux, |px, r| px / r, provider),
-            "uy" => compute_derived_quantity!(uy, |py, r| py / r, provider),
-            "uz" => compute_derived_quantity!(uz, |pz, r| pz / r, provider),
+            "ux" => compute_derived_quantity!(ux, |px, r| px / r, provider, verbose),
+            "uy" => compute_derived_quantity!(uy, |py, r| py / r, provider, verbose),
+            "uz" => compute_derived_quantity!(uz, |pz, r| pz / r, provider, verbose),
             "ubeam" => compute_derived_quantity!(ubeam,
                 with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices),
-                provider
+                provider, verbose
             ),
             _ => unreachable!(),
         }
@@ -579,6 +579,7 @@ where
                         |x_comp, y_comp, z_comp| {
                             (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt() * scale
                         },
+                        verbose,
                     )
                 } else {
                     Err(io::Error::new(
@@ -593,9 +594,13 @@ where
                             .produce_scalar_field(base_name)
                             .map(|field| field.with_name(quantity_name.to_string()))
                     } else {
-                        compute_quantity_unary(quantity_name, provider, base_name, |val| {
-                            val * scale
-                        })
+                        compute_quantity_unary(
+                            quantity_name,
+                            provider,
+                            base_name,
+                            |val| val * scale,
+                            verbose,
+                        )
                     }
                 } else {
                     Err(io::Error::new(
@@ -616,6 +621,7 @@ where
                 |x_comp, y_comp, z_comp| {
                     (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt()
                 },
+                verbose,
             )
         } else {
             Err(io::Error::new(
@@ -631,6 +637,7 @@ pub fn compute_quantity_unary<G, P, C>(
     provider: &mut P,
     dep_name: &str,
     compute: C,
+    verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fdt>,
@@ -638,6 +645,11 @@ where
     C: Fn(fdt) -> fdt + Sync,
 {
     let field = provider.produce_scalar_field(dep_name)?;
+
+    if verbose.is_yes() {
+        println!("Computing {}", quantity_name);
+    }
+
     let locations = field.locations().clone();
     let mut values = field.into_values();
     let values_buffer = values.as_slice_memory_order_mut().unwrap();
@@ -659,6 +671,7 @@ pub fn compute_quantity_unary_with_indices<G, P, C>(
     provider: &mut P,
     dep_name: &str,
     compute: C,
+    verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fdt>,
@@ -666,6 +679,10 @@ where
     C: Fn(&Idx3<usize>, fdt) -> fdt + Sync,
 {
     let field = provider.produce_scalar_field(dep_name)?;
+
+    if verbose.is_yes() {
+        println!("Computing {}", quantity_name);
+    }
 
     let grid = provider.grid();
     let grid_shape = grid.shape();
@@ -696,6 +713,7 @@ pub fn compute_quantity_binary<G, P, C>(
     dep_name_1: &str,
     dep_name_2: &str,
     compute: C,
+    verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fdt>,
@@ -715,6 +733,9 @@ where
 
         let resample_to_center = |field: &mut ScalarField3<_, _>| {
             if field.locations() != &center_locations {
+                if verbose.is_yes() {
+                    println!("Resampling {} to grid cell centers", field.name());
+                }
                 *field = field.resampled_to_grid(
                     provider.arc_with_grid(),
                     In3D::same(ResampledCoordLocation::center()),
@@ -727,6 +748,10 @@ where
         resample_to_center(&mut field_1);
         resample_to_center(&mut field_2);
         locations = center_locations;
+    }
+
+    if verbose.is_yes() {
+        println!("Computing {}", quantity_name);
     }
 
     let mut values_1 = field_1.into_values();
@@ -755,6 +780,7 @@ pub fn compute_quantity_tertiary<G, P, C>(
     dep_name_2: &str,
     dep_name_3: &str,
     compute: C,
+    verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fdt>,
@@ -775,6 +801,9 @@ where
 
         let resample_to_center = |field: &mut ScalarField3<_, _>| {
             if field.locations() != &center_locations {
+                if verbose.is_yes() {
+                    println!("Resampling {} to grid cell centers", field.name());
+                }
                 *field = field.resampled_to_grid(
                     provider.arc_with_grid(),
                     In3D::same(ResampledCoordLocation::center()),
@@ -789,6 +818,10 @@ where
         resample_to_center(&mut field_2);
         resample_to_center(&mut field_3);
         locations = center_locations;
+    }
+
+    if verbose.is_yes() {
+        println!("Computing {}", quantity_name);
     }
 
     let mut values_1 = field_1.into_values();
