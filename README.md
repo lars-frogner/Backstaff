@@ -295,6 +295,8 @@ Writing tg to photo_tr_003.nc
 Here is a ParaView volume rendering of the resulting temperature field from one of the `.nc` files:
 ![volume_rendering](figures/volume_rendering.png "Volume rendering")
 
+**_NOTE:_** To load a NetCDF file created by Backstaff in ParaView, select the `NetCDF Reader` in the menu that pops up after opening the file. Then, under `Dimensions` in the `Properties` panel, select the grid to load field values for, which for cell centered quantities will be `(xm, ym, zm)`. Finally, make sure that `Spherical Coordinates` is unchecked, and click `Apply` to load the data.
+
 ## Enabling tab-completion for `backstaff` arguments
 
 The [clap](https://clap.rs/) argument parser powering the `backstaff` CLI can generate tab-completion files compatible with various shells. This can be done for `backstaff` using the hidden `backstaff-completions` command. To generate files for your shell, start by running
