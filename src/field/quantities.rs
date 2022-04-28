@@ -16,7 +16,7 @@ use crate::{
         Endianness, Verbose,
     },
     io_result,
-    units::solar::{U_B, U_E, U_P, U_R, U_T, U_U},
+    units::solar::{U_B, U_E, U_L3, U_P, U_R, U_T, U_U},
 };
 use lazy_static::lazy_static;
 use rayon::prelude::*;
@@ -50,7 +50,6 @@ lazy_static! {
                     vec!["r", "pz"]
                 )
             ),
-            #[cfg(feature = "ebeam")]
             (
                 "ubeam",
                 (
@@ -89,6 +88,7 @@ lazy_static! {
         ("qgenrad", ((U_E / U_T) as fdt)),
         ("qpdv", ((U_E / U_T) as fdt)),
         ("qbeam", ((U_E / U_T) as fdt)),
+        ("ubeam", ((U_E * U_L3 / U_T) as fdt)),
         ("beam_en", ((U_E / U_T) as fdt))
     ]
     .into_iter()
@@ -103,11 +103,18 @@ lazy_static! {
 
 lazy_static! {
     static ref CGS_REGEX: Regex = Regex::new(r"^(\w+)_cgs$").unwrap();
+    static ref CENTER_REGEX: Regex = Regex::new(r"^(\w+[xyz])c$").unwrap();
     static ref MOD_REGEX: Regex = Regex::new(r"^mod(\w+)$").unwrap();
 }
 
 fn cgs_base_name(quantity_name: &str) -> Option<&str> {
     CGS_REGEX
+        .captures(quantity_name)
+        .map(|groups| groups.get(1).map_or("", |m| m.as_str()))
+}
+
+fn centered_base_name(quantity_name: &str) -> Option<&str> {
+    CENTER_REGEX
         .captures(quantity_name)
         .map(|groups| groups.get(1).map_or("", |m| m.as_str()))
 }
@@ -143,6 +150,9 @@ fn create_available_quantity_table_string() -> String {
          ================================================================================\n\
          mod<vector quantity> - Magnitude of any vector quantity (cell centered)\n\
          E.g., write modb to derive magnetic field strength from components bx, by and bz\n\
+         --------------------------------------------------------------------------------\n\
+         <quantity><component>c - Cell centered version of a vector component quantity\n\
+         E.g., write bzc to get bz interpolated to cell centers\n\
          --------------------------------------------------------------------------------\n\
          <quantity>_cgs - Values of a quantity converted to CGS units\n\
          (not available for all quantities)\n\
@@ -259,9 +269,9 @@ where
             Self::variable_is_available(provider, variable_name);
         if available {
             true
-        } else if let Some(base_name) = cgs_base_name(variable_name) {
+        } else if let Some(cgs_base_name) = cgs_base_name(variable_name) {
             if let Some((x_comp_name, y_comp_name, z_comp_name)) =
-                mod_vec_component_names(base_name)
+                mod_vec_component_names(cgs_base_name)
             {
                 let (available_x, missing_dependencies_x) =
                     Self::variable_is_available(provider, &x_comp_name);
@@ -292,9 +302,18 @@ where
                     );
                     false
                 }
+            } else if let Some(centered_base_name) = centered_base_name(cgs_base_name) {
+                let (available, missing_dependencies) =
+                    Self::variable_is_available(provider, centered_base_name);
+                if available {
+                    true
+                } else {
+                    handle_unavailable(variable_name, missing_dependencies);
+                    false
+                }
             } else {
                 let (available, missing_dependencies) =
-                    Self::variable_is_available(provider, base_name);
+                    Self::variable_is_available(provider, cgs_base_name);
                 if available {
                     true
                 } else {
@@ -332,6 +351,15 @@ where
                         Some(missing_dependencies)
                     },
                 );
+                false
+            }
+        } else if let Some(centered_base_name) = centered_base_name(variable_name) {
+            let (available, missing_dependencies) =
+                Self::variable_is_available(provider, centered_base_name);
+            if available {
+                true
+            } else {
+                handle_unavailable(variable_name, missing_dependencies);
                 false
             }
         } else {
@@ -562,8 +590,10 @@ where
             ),
             _ => unreachable!(),
         }
-    } else if let Some(base_name) = cgs_base_name(quantity_name) {
-        if let Some((x_comp_name, y_comp_name, z_comp_name)) = mod_vec_component_names(base_name) {
+    } else if let Some(cgs_base_name) = cgs_base_name(quantity_name) {
+        if let Some((x_comp_name, y_comp_name, z_comp_name)) =
+            mod_vec_component_names(cgs_base_name)
+        {
             if let Some(&scale) = QUANTITY_CGS_SCALES.get(x_comp_name.as_str()) {
                 compute_quantity_tertiary(
                     quantity_name,
@@ -579,19 +609,47 @@ where
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    format!("CGS version of quantity {} not available", base_name),
+                    format!("CGS version of quantity {} not available", cgs_base_name),
                 ))
             }
-        } else if let Some(&scale) = QUANTITY_CGS_SCALES.get(base_name) {
+        } else if let Some(centered_base_name) = centered_base_name(cgs_base_name) {
+            if let Some(&scale) = QUANTITY_CGS_SCALES.get(centered_base_name) {
+                if scale == 1.0 {
+                    compute_centered_quantity_unary(
+                        quantity_name,
+                        provider,
+                        centered_base_name,
+                        |_| {},
+                        verbose,
+                    )
+                } else {
+                    compute_centered_quantity_unary(
+                        quantity_name,
+                        provider,
+                        centered_base_name,
+                        |val| *val *= scale,
+                        verbose,
+                    )
+                }
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "CGS version of quantity {} not available",
+                        centered_base_name
+                    ),
+                ))
+            }
+        } else if let Some(&scale) = QUANTITY_CGS_SCALES.get(cgs_base_name) {
             if scale == 1.0 {
                 provider
-                    .produce_scalar_field(base_name)
+                    .produce_scalar_field(cgs_base_name)
                     .map(|field| field.with_name(quantity_name.to_string()))
             } else {
                 compute_quantity_unary(
                     quantity_name,
                     provider,
-                    base_name,
+                    cgs_base_name,
                     |val| val * scale,
                     verbose,
                 )
@@ -599,7 +657,7 @@ where
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("CGS version of quantity {} not available", base_name),
+                format!("CGS version of quantity {} not available", cgs_base_name),
             ))
         }
     } else if let Some((x_comp_name, y_comp_name, z_comp_name)) =
@@ -612,6 +670,14 @@ where
             &y_comp_name,
             &z_comp_name,
             |x_comp, y_comp, z_comp| (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt(),
+            verbose,
+        )
+    } else if let Some(centered_base_name) = centered_base_name(quantity_name) {
+        compute_centered_quantity_unary(
+            quantity_name,
+            provider,
+            centered_base_name,
+            |_| {},
             verbose,
         )
     } else {
@@ -654,6 +720,49 @@ where
         locations,
         values,
     ))
+}
+
+pub fn compute_centered_quantity_unary<G, P, C>(
+    quantity_name: &str,
+    provider: &mut P,
+    dep_name: &str,
+    compute: C,
+    verbose: Verbose,
+) -> io::Result<ScalarField3<fdt, G>>
+where
+    G: Grid3<fdt>,
+    P: ScalarFieldProvider3<fdt, G>,
+    C: Fn(&mut fdt) + Sync + Send,
+{
+    let center_locations = In3D::same(CoordLocation::Center);
+
+    let field = provider.provide_scalar_field(dep_name)?;
+
+    let mut centered_field = if field.locations() == &center_locations {
+        field.as_ref().clone()
+    } else {
+        let interpolator = PolyFitInterpolator3::new(PolyFitInterpolatorConfig::default());
+
+        io_result!(interpolator.verify_grid(provider.grid()))?;
+
+        if verbose.is_yes() {
+            println!("Resampling {} to grid cell centers", field.name());
+        }
+        field.resampled_to_grid(
+            provider.arc_with_grid(),
+            In3D::same(ResampledCoordLocation::center()),
+            &interpolator,
+            ResamplingMethod::DirectSampling,
+        )
+    }
+    .with_name(quantity_name.to_string());
+
+    let values = centered_field.values_mut();
+    let values_buffer = values.as_slice_memory_order_mut().unwrap();
+
+    values_buffer.par_iter_mut().for_each(compute);
+
+    Ok(centered_field)
 }
 
 pub fn compute_quantity_unary_with_indices<G, P, C>(
