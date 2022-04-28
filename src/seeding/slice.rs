@@ -149,7 +149,7 @@ impl SliceSeeder3 {
             "Number of seeds per cell must be larger than zero."
         );
         assert!(
-            randomness >= 0.0 && randomness <= 1.0,
+            (0.0..=1.0).contains(&randomness),
             "Randomness must be in the range [0, 1]."
         );
 

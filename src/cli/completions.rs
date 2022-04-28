@@ -98,7 +98,7 @@ pub fn create_completions_subcommand() -> Command<'static> {
         )
 }
 
-pub fn run_completions_subcommand<'a, 'b>(arguments: &ArgMatches) {
+pub fn run_completions_subcommand(arguments: &ArgMatches) {
     if let Ok(shell) = arguments.value_of_t::<Shell>("shell") {
         let mut cmd = build::build();
         let name = cmd.get_name().to_string();

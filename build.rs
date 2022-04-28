@@ -84,7 +84,7 @@ fn setup_python() {
     let mut python_exec_path = String::from_utf8(
         exit_on_error!(
             Command::new("which")
-                .arg(env::var("PYO3_PYTHON").unwrap_or("python3".to_string()))
+                .arg(env::var("PYO3_PYTHON").unwrap_or_else(|_| "python3".to_string()))
                 .output(),
             "Error: Could not determine location of python binary: {}"
         )

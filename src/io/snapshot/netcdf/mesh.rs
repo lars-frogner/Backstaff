@@ -12,7 +12,7 @@ use crate::{
     io_result,
 };
 use netcdf_rs::{self, File, GroupMut};
-use std::{io, path::PathBuf};
+use std::io;
 
 /// Tries to construct a grid from the data in the given NetCDF group.
 pub fn read_grid<G: Grid3<fdt>>(
@@ -48,25 +48,21 @@ pub fn read_grid<G: Grid3<fdt>>(
     ))
 }
 
-/// Reads the data required to construct a grid from the given NetCDF group.
-pub fn read_grid_data(
-    file: &File,
-    verbose: Verbose,
-) -> io::Result<(
+type NetCDFGridData = (
     GridType,
     Coords3<fdt>,
     Coords3<fdt>,
     Option<Coords3<fdt>>,
     Option<Coords3<fdt>>,
     Endianness,
-)> {
+);
+
+/// Reads the data required to construct a grid from the given NetCDF group.
+pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridData> {
     if verbose.is_yes() {
         println!(
             "Reading grid from {}",
-            PathBuf::from(file.path().unwrap())
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
+            file.path().unwrap().file_name().unwrap().to_string_lossy()
         );
     }
     let group = &file.root().unwrap();

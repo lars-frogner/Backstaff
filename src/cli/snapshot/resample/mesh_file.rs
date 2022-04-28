@@ -103,7 +103,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     let shape: Vec<usize> = utils::get_values_from_parseable_argument_with_custom_defaults(
         root_arguments,
         "shape",
-        &|| Vec::new(),
+        &Vec::new,
     );
     let new_shape = if shape.is_empty() {
         None

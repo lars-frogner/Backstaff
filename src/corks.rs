@@ -93,10 +93,10 @@ impl Cork {
             velocities: vec![velocity],
             first_time_idx: current_time_idx,
             terminated: false,
-            scalar_field_values: iter::repeat_with(|| Vec::new())
+            scalar_field_values: iter::repeat_with(Vec::new)
                 .take(number_of_scalar_quantities)
                 .collect(),
-            vector_field_values: iter::repeat_with(|| Vec::new())
+            vector_field_values: iter::repeat_with(Vec::new)
                 .take(number_of_vector_quantities)
                 .collect(),
         }
@@ -432,6 +432,7 @@ impl CorkSet {
         if self.verbose().is_yes() {
             println!("Sampling field values");
         }
+        #[allow(clippy::unnecessary_to_owned)]
         for (quantity_idx, name) in self
             .scalar_quantity_names()
             .to_vec()
@@ -443,6 +444,7 @@ impl CorkSet {
                 cork.add_scalar_quantity_value(quantity_idx, field.as_ref(), interpolator)
             });
         }
+        #[allow(clippy::unnecessary_to_owned)]
         for (quantity_idx, name) in self
             .vector_quantity_names()
             .to_vec()

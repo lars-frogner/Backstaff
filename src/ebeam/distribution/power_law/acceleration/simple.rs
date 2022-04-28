@@ -613,7 +613,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                                     total_power_density: forward_power_density,
                                     lower_cutoff_energy,
                                     acceleration_position,
-                                    acceleration_indices: indices.clone(),
+                                    acceleration_indices: indices,
                                     acceleration_volume,
                                     propagation_sense: SteppingSense::Same,
                                     electron_coulomb_logarithm,

@@ -33,24 +33,24 @@ pub enum SnapshotFormat {
 pub const FALLBACK_SNAP_NUM: u32 = 0;
 
 /// Standard names of coordinate arrays
-pub const COORDINATE_NAMES: [&'static str; 12] = [
+pub const COORDINATE_NAMES: [&str; 12] = [
     "xm", "ym", "zm", "xmdn", "ymdn", "zmdn", "dxidxup", "dyidyup", "dzidzup", "dxidxdn",
     "dyidydn", "dzidzdn",
 ];
 /// Standard name of output time step
-pub const OUTPUT_TIME_STEP_NAME: &'static str = "dtsnap";
+pub const OUTPUT_TIME_STEP_NAME: &str = "dtsnap";
 
 /// Standard name of mass density variable
-pub const MASS_DENSITY_VARIABLE_NAME: &'static str = "r";
+pub const MASS_DENSITY_VARIABLE_NAME: &str = "r";
 /// Standard base name of momentum variable
-pub const MOMENTUM_VARIABLE_NAME: &'static str = "p";
+pub const MOMENTUM_VARIABLE_NAME: &str = "p";
 /// Standard name of energy density variable
-pub const ENERGY_DENSITY_VARIABLE_NAME: &'static str = "e";
+pub const ENERGY_DENSITY_VARIABLE_NAME: &str = "e";
 /// Standard base name of magnetic field variable
-pub const MAGNETIC_FIELD_VARIABLE_NAME: &'static str = "b";
+pub const MAGNETIC_FIELD_VARIABLE_NAME: &str = "b";
 
 /// Standard names of primary MHD variables
-pub const PRIMARY_VARIABLE_NAMES_MHD: [&'static str; 8] = [
+pub const PRIMARY_VARIABLE_NAMES_MHD: [&str; 8] = [
     MASS_DENSITY_VARIABLE_NAME,
     "px",
     "py",
@@ -61,7 +61,7 @@ pub const PRIMARY_VARIABLE_NAMES_MHD: [&'static str; 8] = [
     "bz",
 ];
 /// Standard names of primary HD variables
-pub const PRIMARY_VARIABLE_NAMES_HD: [&'static str; 5] = [
+pub const PRIMARY_VARIABLE_NAMES_HD: [&str; 5] = [
     MASS_DENSITY_VARIABLE_NAME,
     "px",
     "py",
@@ -106,13 +106,13 @@ pub trait SnapshotProvider3<G: Grid3<fdt>>: ScalarFieldProvider3<fdt, G> {
         let included_primary_variable_names = all_primary_variable_names
             .iter()
             .cloned()
-            .filter(|name| variable_names.contains(&name))
+            .filter(|name| variable_names.contains(name))
             .collect::<Vec<_>>();
 
         let included_auxiliary_variable_names = variable_names
             .iter()
             .cloned()
-            .filter(|name| !included_primary_variable_names.contains(&name))
+            .filter(|name| !included_primary_variable_names.contains(name))
             .collect::<Vec<_>>();
 
         (
@@ -200,11 +200,7 @@ impl ParameterValue {
                 Ok(i) => Ok(i),
                 Err(err) => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!(
-                        "Failed parsing parameter string {} as integer: {}",
-                        s,
-                        err.to_string()
-                    ),
+                    format!("Failed parsing parameter string {} as integer: {}", s, err),
                 )),
             },
             Self::Int(i) => Ok(i),
@@ -222,11 +218,7 @@ impl ParameterValue {
                 Ok(f) => Ok(f),
                 Err(err) => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!(
-                        "Failed parsing parameter string {} as float: {}",
-                        s,
-                        err.to_string()
-                    ),
+                    format!("Failed parsing parameter string {} as float: {}", s, err),
                 )),
             },
             Self::Int(i) => Ok(i as fdt),

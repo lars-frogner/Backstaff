@@ -63,7 +63,7 @@ impl CriterionSeeder3 {
             .par_iter()
             .enumerate()
             .filter_map(|(idx, &value)| {
-                let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
+                let indices = field::compute_3d_array_indices_from_flat_idx(shape, idx);
                 let point = field.coords().point(&indices);
                 if evaluate_criterion(value) && satisfies_constraints(&point) {
                     Some(indices)
@@ -118,7 +118,7 @@ impl CriterionSeeder3 {
         let seed_indices = (0..shape[X] * shape[Y] * shape[Z])
             .into_par_iter()
             .filter_map(|idx| {
-                let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
+                let indices = field::compute_3d_array_indices_from_flat_idx(shape, idx);
                 let point = center_coords.point(&indices);
                 if !satisfies_constraints(&point) {
                     return None;
@@ -179,7 +179,7 @@ impl CriterionSeeder3 {
         let seed_indices = (0..shape[X] * shape[Y] * shape[Z])
             .into_par_iter()
             .filter_map(|idx| {
-                let indices = field::compute_3d_array_indices_from_flat_idx(&shape, idx);
+                let indices = field::compute_3d_array_indices_from_flat_idx(shape, idx);
                 let point = center_coords.point(&indices);
                 if !satisfies_constraints(&point) {
                     return None;

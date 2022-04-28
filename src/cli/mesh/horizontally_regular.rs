@@ -163,14 +163,14 @@ pub fn run_horizontally_regular_subcommand(
     let interior_z: Vec<fdt> = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "interior-z",
-        &|| Vec::new(),
+        &Vec::new,
     );
 
     let interior_dz_scales: Vec<fdt> =
         utils::get_values_from_parseable_argument_with_custom_defaults(
             arguments,
             "interior-dz-scales",
-            &|| Vec::new(),
+            &Vec::new,
         );
 
     exit_on_false!(

@@ -114,17 +114,19 @@ where
     utils::write_text_file(&text, mesh_path)
 }
 
-/// Parses the mesh file at the given path and returns relevant data.
-pub fn parse_mesh_file<P: AsRef<Path>>(
-    mesh_path: P,
-    verbose: Verbose,
-) -> io::Result<(
+type NativeGridData = (
     GridType,
     Coords3<fdt>,
     Coords3<fdt>,
     Coords3<fdt>,
     Coords3<fdt>,
-)> {
+);
+
+/// Parses the mesh file at the given path and returns relevant data.
+pub fn parse_mesh_file<P: AsRef<Path>>(
+    mesh_path: P,
+    verbose: Verbose,
+) -> io::Result<NativeGridData> {
     let file = utils::open_file_and_map_err(&mesh_path)?;
     if verbose.is_yes() {
         println!(
@@ -139,7 +141,7 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
     let mut up_derivative_vecs = VecDeque::new();
     let mut down_derivative_vecs = VecDeque::new();
 
-    for dim in 0..3 {
+    for coord_name in coord_names {
         let length = match lines.next() {
             Some(string) => match string {
                 Ok(s) => match s.trim().parse::<usize>() {
@@ -147,11 +149,7 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
                     Err(err) => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!(
-                                "Failed parsing string {} in mesh file: {}",
-                                s,
-                                err.to_string()
-                            ),
+                            format!("Failed parsing string {} in mesh file: {}", s, err),
                         ))
                     }
                 },
@@ -164,7 +162,7 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
                     io::ErrorKind::InvalidData,
                     format!(
                         "Number of {}-coordinates not found in mesh file",
-                        coord_names[dim]
+                        coord_name
                     ),
                 ))
             }
@@ -191,11 +189,7 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
                             Err(err) => {
                                 return Err(io::Error::new(
                                     io::ErrorKind::InvalidData,
-                                    format!(
-                                        "Failed parsing string {} in mesh file: {}",
-                                        s,
-                                        err.to_string()
-                                    ),
+                                    format!("Failed parsing string {} in mesh file: {}", s, err),
                                 ))
                             }
                         };
@@ -204,7 +198,7 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
                 None => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("{}-coordinates not found in mesh file", coord_names[dim]),
+                        format!("{}-coordinates not found in mesh file", coord_name),
                     ))
                 }
             };

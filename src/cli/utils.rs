@@ -44,12 +44,15 @@ macro_rules! add_subcommand_combinations {
         )
     }};
     (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; ($($subcommand_name:ident),+)) => {{
-        let mut same_level_subcommand_names = Vec::new();
-        $(
-            same_level_subcommand_names.push(stringify!($subcommand_name));
-            $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
-        )+
-        $nested_subcommand_names.push(same_level_subcommand_names);
+        #[allow(clippy::vec_init_then_push)]
+        {
+            let mut same_level_subcommand_names = Vec::new();
+            $(
+                same_level_subcommand_names.push(stringify!($subcommand_name));
+                $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
+            )+
+            $nested_subcommand_names.push(same_level_subcommand_names);
+        }
     }};
     (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; $subcommand_name:ident) => {{
         $nested_subcommand_names.push(vec![stringify!($subcommand_name)]);

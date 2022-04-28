@@ -76,7 +76,7 @@ where
     let derived_quantity_names = arguments
         .values_of("quantities")
         .map(|values| values.collect::<Vec<_>>())
-        .unwrap_or(Vec::new())
+        .unwrap_or_default()
         .into_iter()
         .filter_map(|name| {
             if name.is_empty() {
@@ -87,15 +87,13 @@ where
         })
         .collect();
 
-    let max_memory_usage = match arguments
-        .value_of("max-memory-usage")
-        .expect("No value for argument with default")
-    {
-        value_str => exit_on_error!(
-            value_str.parse::<f32>(),
-            "Error: Could not parse value of max-memory-usage: {}"
-        ),
-    };
+    let max_memory_usage = exit_on_error!(
+        arguments
+            .value_of("max-memory-usage")
+            .expect("No value for argument with default")
+            .parse::<f32>(),
+        "Error: Could not parse value of max-memory-usage: {}"
+    );
     if max_memory_usage < 0.0 {
         exit_with_error!("Error: max-memory-usage can not be negative");
     }

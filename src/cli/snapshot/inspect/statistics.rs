@@ -163,7 +163,7 @@ pub fn run_statistics_subcommand<G, P>(
         p.into_iter()
             .map(|percentage| {
                 let quantile_p_value = 0.01 * percentage;
-                if quantile_p_value < 0.0 || quantile_p_value > 1.0 {
+                if !(0.0..=1.0).contains(&quantile_p_value) {
                     exit_with_error!("Percentage not between 0 and 100: {}", percentage);
                 }
                 quantile_p_value
@@ -193,8 +193,8 @@ pub fn run_statistics_subcommand<G, P>(
             x_range,
             y_range,
             z_range,
-            slice_depths.as_ref().map(|vec| vec.as_slice()),
-            quantile_p_values.as_ref().map(|vec| vec.as_slice()),
+            slice_depths.as_deref(),
+            quantile_p_values.as_deref(),
             no_global,
             &interpolator,
         );
@@ -329,7 +329,7 @@ fn print_statistics_report<G, I>(
             .par_iter_mut()
             .enumerate()
             .for_each(|(idx, value)| {
-                let indices = field::compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
+                let indices = field::compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = coords.point(&indices);
                 if *value < value_range.0
                     || *value > value_range.1

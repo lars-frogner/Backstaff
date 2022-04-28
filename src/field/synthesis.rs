@@ -261,7 +261,7 @@ where
         H: Fn(&str, Option<Vec<&str>>) + Copy,
     {
         let quantity_names: Vec<_> = quantity_names
-            .into_iter()
+            .iter()
             .filter(|name| Self::verify_variable_availability(&provider, name, handle_unavailable))
             .collect();
 
@@ -301,7 +301,7 @@ where
             quantity_dependencies,
             emissivity_tables,
             cached_scalar_fields: HashMap::new(),
-            verbose: verbose,
+            verbose,
             phantom: PhantomData,
         }
     }
@@ -516,25 +516,21 @@ where
         let variable_name = variable_name.as_ref();
         if provider.has_variable(variable_name) {
             (true, None)
-        } else {
-            if let Some((_, dependencies)) = SYNTHESIZABLE_QUANTITIES.get(variable_name) {
-                let missing_dependencies: Vec<_> = dependencies
-                    .into_iter()
-                    .filter_map(|name| {
-                        if SYNTHESIZABLE_QUANTITIES.contains_key(name)
-                            || provider.has_variable(name)
-                        {
-                            None
-                        } else {
-                            Some(*name)
-                        }
-                    })
-                    .collect();
+        } else if let Some((_, dependencies)) = SYNTHESIZABLE_QUANTITIES.get(variable_name) {
+            let missing_dependencies: Vec<_> = dependencies
+                .iter()
+                .filter_map(|name| {
+                    if SYNTHESIZABLE_QUANTITIES.contains_key(name) || provider.has_variable(name) {
+                        None
+                    } else {
+                        Some(*name)
+                    }
+                })
+                .collect();
 
-                (missing_dependencies.is_empty(), Some(missing_dependencies))
-            } else {
-                (false, None)
-            }
+            (missing_dependencies.is_empty(), Some(missing_dependencies))
+        } else {
+            (false, None)
         }
     }
 
@@ -744,6 +740,11 @@ macro_rules! with_py_error {
 /// associated with each spectral line name.
 type EmissivityTableMap<F> = HashMap<String, (F, ScalarField2<F, RegularGrid2<F>>)>;
 
+type EmissivityTableArrMap<F> = HashMap<String, (F, Array2<F>)>;
+
+type IonLineNameMap = HashMap<String, Vec<String>>;
+type IonLineWavelengthMap<F> = HashMap<String, Vec<F>>;
+
 lazy_static! {
     static ref ION_LINE_REGEX: Regex =
         Regex::new(r"^([a-zA-Z]+)_([0-9]+)_([0-9]+(:?\.[0-9]*)?)$").unwrap();
@@ -882,7 +883,7 @@ where
         log_temperature_limits: (F, F),
         log_electron_density_limits: (F, F),
         verbose: Verbose,
-    ) -> PyResult<(Vec<F>, Vec<F>, HashMap<String, (F, Array2<F>)>)> {
+    ) -> PyResult<(Vec<F>, Vec<F>, EmissivityTableArrMap<F>)> {
         let kwargs = [
             ("dtype", F::get_dtype(py).into_py(py)),
             ("n_temperature_points", n_temperature_points.into_py(py)),
@@ -951,9 +952,9 @@ where
 
     fn line_names_to_ion_maps(
         line_names: &[String],
-    ) -> io::Result<(HashMap<String, Vec<String>>, HashMap<String, Vec<F>>)> {
-        let mut ion_line_name_map: HashMap<String, Vec<String>> = HashMap::new();
-        let mut ion_line_wavelength_map: HashMap<String, Vec<F>> = HashMap::new();
+    ) -> io::Result<(IonLineNameMap, IonLineWavelengthMap<F>)> {
+        let mut ion_line_name_map: IonLineNameMap = HashMap::new();
+        let mut ion_line_wavelength_map: IonLineWavelengthMap<F> = HashMap::new();
 
         for line_name in line_names {
             let (ion_name, _, _, wavelength) = parse_spectral_line_name(line_name)?;
@@ -991,7 +992,7 @@ where
 {
     let line_name = line_name.as_ref();
 
-    if let Some(groups) = ION_LINE_REGEX.captures(&line_name) {
+    if let Some(groups) = ION_LINE_REGEX.captures(line_name) {
         let element_name = groups
             .get(1)
             .expect("Missing capture group")

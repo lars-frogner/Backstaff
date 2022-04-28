@@ -87,7 +87,7 @@ pub struct FieldLineSet3 {
 }
 
 /// Holds the data associated with a set of 3D field lines.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FieldLineSetProperties3 {
     /// Number of field lines in the set.
     pub number_of_field_lines: usize,
@@ -506,18 +506,6 @@ impl FieldLineSet3 {
             self.properties,
             drop_id,
         )
-    }
-}
-
-impl Default for FieldLineSetProperties3 {
-    fn default() -> Self {
-        Self {
-            number_of_field_lines: 0,
-            fixed_scalar_values: FixedScalarValues::default(),
-            fixed_vector_values: FixedVector3Values::default(),
-            varying_scalar_values: VaryingScalarValues::default(),
-            varying_vector_values: VaryingVector3Values::default(),
-        }
     }
 }
 

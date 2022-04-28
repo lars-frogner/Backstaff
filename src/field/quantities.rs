@@ -192,12 +192,12 @@ where
         all_variable_names.append(&mut auxiliary_variable_names.clone());
 
         Self {
-            provider: provider,
+            provider,
             derived_quantity_names,
             auxiliary_variable_names,
             all_variable_names,
             cached_scalar_fields: HashMap::new(),
-            verbose: verbose,
+            verbose,
             phantom: PhantomData,
         }
     }
@@ -227,25 +227,23 @@ where
         let all_variable_names = provider.all_variable_names();
         if all_variable_names.contains(&variable_name.to_string()) {
             (true, None)
-        } else {
-            if let Some((_, dependencies)) = DERIVABLE_QUANTITIES.get(variable_name) {
-                let missing_dependencies: Vec<_> = dependencies
-                    .into_iter()
-                    .filter_map(|name| {
-                        if all_variable_names.contains(&name.to_string())
-                            || DERIVABLE_QUANTITIES.contains_key(name)
-                        {
-                            None
-                        } else {
-                            Some(*name)
-                        }
-                    })
-                    .collect();
+        } else if let Some((_, dependencies)) = DERIVABLE_QUANTITIES.get(variable_name) {
+            let missing_dependencies: Vec<_> = dependencies
+                .iter()
+                .filter_map(|name| {
+                    if all_variable_names.contains(&name.to_string())
+                        || DERIVABLE_QUANTITIES.contains_key(name)
+                    {
+                        None
+                    } else {
+                        Some(*name)
+                    }
+                })
+                .collect();
 
-                (missing_dependencies.is_empty(), Some(missing_dependencies))
-            } else {
-                (false, None)
-            }
+            (missing_dependencies.is_empty(), Some(missing_dependencies))
+        } else {
+            (false, None)
         }
     }
 
@@ -564,71 +562,63 @@ where
             ),
             _ => unreachable!(),
         }
-    } else {
-        if let Some(base_name) = cgs_base_name(quantity_name) {
-            if let Some((x_comp_name, y_comp_name, z_comp_name)) =
-                mod_vec_component_names(base_name)
-            {
-                if let Some(&scale) = QUANTITY_CGS_SCALES.get(x_comp_name.as_str()) {
-                    compute_quantity_tertiary(
-                        quantity_name,
-                        provider,
-                        &x_comp_name,
-                        &y_comp_name,
-                        &z_comp_name,
-                        |x_comp, y_comp, z_comp| {
-                            (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt() * scale
-                        },
-                        verbose,
-                    )
-                } else {
-                    Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("CGS version of quantity {} not available", base_name),
-                    ))
-                }
+    } else if let Some(base_name) = cgs_base_name(quantity_name) {
+        if let Some((x_comp_name, y_comp_name, z_comp_name)) = mod_vec_component_names(base_name) {
+            if let Some(&scale) = QUANTITY_CGS_SCALES.get(x_comp_name.as_str()) {
+                compute_quantity_tertiary(
+                    quantity_name,
+                    provider,
+                    &x_comp_name,
+                    &y_comp_name,
+                    &z_comp_name,
+                    |x_comp, y_comp, z_comp| {
+                        (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt() * scale
+                    },
+                    verbose,
+                )
             } else {
-                if let Some(&scale) = QUANTITY_CGS_SCALES.get(base_name) {
-                    if scale == 1.0 {
-                        provider
-                            .produce_scalar_field(base_name)
-                            .map(|field| field.with_name(quantity_name.to_string()))
-                    } else {
-                        compute_quantity_unary(
-                            quantity_name,
-                            provider,
-                            base_name,
-                            |val| val * scale,
-                            verbose,
-                        )
-                    }
-                } else {
-                    Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("CGS version of quantity {} not available", base_name),
-                    ))
-                }
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("CGS version of quantity {} not available", base_name),
+                ))
             }
-        } else if let Some((x_comp_name, y_comp_name, z_comp_name)) =
-            mod_vec_component_names(quantity_name)
-        {
-            compute_quantity_tertiary(
-                quantity_name,
-                provider,
-                &x_comp_name,
-                &y_comp_name,
-                &z_comp_name,
-                |x_comp, y_comp, z_comp| {
-                    (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt()
-                },
-                verbose,
-            )
+        } else if let Some(&scale) = QUANTITY_CGS_SCALES.get(base_name) {
+            if scale == 1.0 {
+                provider
+                    .produce_scalar_field(base_name)
+                    .map(|field| field.with_name(quantity_name.to_string()))
+            } else {
+                compute_quantity_unary(
+                    quantity_name,
+                    provider,
+                    base_name,
+                    |val| val * scale,
+                    verbose,
+                )
+            }
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Quantity {} not supported", quantity_name),
+                format!("CGS version of quantity {} not available", base_name),
             ))
         }
+    } else if let Some((x_comp_name, y_comp_name, z_comp_name)) =
+        mod_vec_component_names(quantity_name)
+    {
+        compute_quantity_tertiary(
+            quantity_name,
+            provider,
+            &x_comp_name,
+            &y_comp_name,
+            &z_comp_name,
+            |x_comp, y_comp, z_comp| (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt(),
+            verbose,
+        )
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Quantity {} not supported", quantity_name),
+        ))
     }
 }
 
@@ -695,7 +685,7 @@ where
         .par_iter_mut()
         .enumerate()
         .for_each(|(idx, value)| {
-            let indices = field::compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
+            let indices = field::compute_3d_array_indices_from_flat_idx(grid_shape, idx);
             *value = compute(&indices, *value);
         });
 

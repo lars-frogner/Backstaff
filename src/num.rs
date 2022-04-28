@@ -32,6 +32,6 @@ impl<K, V: PartialEq> Eq for KeyValueOrderableByValue<K, V> {}
 
 impl<K, V: PartialOrd> Ord for KeyValueOrderableByValue<K, V> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.partial_cmp(&other).expect("NaN in value comparison")
+        self.partial_cmp(other).expect("NaN in value comparison")
     }
 }

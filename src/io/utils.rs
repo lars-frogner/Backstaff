@@ -125,7 +125,7 @@ pub fn user_says_yes(question: &str, default_is_no: bool) -> bool {
                     }
                 }
             }
-            Err(err) => println!("{}", err.to_string()),
+            Err(err) => println!("{}", err),
         }
         answer.clear();
         println!("{}", &full_question);
@@ -280,7 +280,7 @@ where
     P: AsRef<Path>,
 {
     let mut file = create_file_and_required_directories(output_file_path)?;
-    file.write_all(&byte_buffer)
+    file.write_all(byte_buffer)
 }
 
 /// Serializes the given data into JSON format and saves at the given path.

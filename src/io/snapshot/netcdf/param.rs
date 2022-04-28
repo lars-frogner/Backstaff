@@ -3,7 +3,7 @@
 use super::super::{super::Verbose, ParameterValue, SnapshotParameters};
 use crate::{geometry::In3D, io::snapshot::fdt, io_result};
 use netcdf_rs::{AttrValue, File, Group, GroupMut};
-use std::{collections::HashMap, io, path::PathBuf};
+use std::{collections::HashMap, io};
 
 #[derive(Clone, Debug)]
 /// Representation of parameters for NetCDF snapshots.
@@ -16,10 +16,7 @@ impl NetCDFSnapshotParameters {
         if verbose.is_yes() {
             println!(
                 "Reading parameters from {}",
-                PathBuf::from(file.path().unwrap())
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
+                file.path().unwrap().file_name().unwrap().to_string_lossy()
             );
         }
         let root_group = file.root().unwrap();
@@ -72,7 +69,7 @@ impl SnapshotParameters for NetCDFSnapshotParameters {
 }
 
 /// Returns a list of all parameters in the given NetCDF group.
-fn read_all_parameter_names<'a>(group: &'a Group) -> Vec<String> {
+fn read_all_parameter_names(group: &Group) -> Vec<String> {
     group
         .attributes()
         .map(|attr| attr.name().to_string())

@@ -926,7 +926,7 @@ where
             .par_iter_mut()
             .enumerate()
             .for_each(|(idx, value)| {
-                let indices = compute_3d_array_indices_from_flat_idx(&grid_shape, idx);
+                let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = new_coords.point(&indices);
                 value.write(
                     interpolator
@@ -1263,11 +1263,11 @@ where
         match location {
             CoordLocation::Center => {
                 let regular_centers = self.grid.regular_centers();
-                [&regular_centers[axes[0]], &regular_centers[axes[1]]]
+                [regular_centers[axes[0]], regular_centers[axes[1]]]
             }
             CoordLocation::LowerEdge => {
                 let regular_lower_edges = self.grid.regular_lower_edges();
-                [&regular_lower_edges[axes[0]], &regular_lower_edges[axes[1]]]
+                [regular_lower_edges[axes[0]], regular_lower_edges[axes[1]]]
             }
         }
     }

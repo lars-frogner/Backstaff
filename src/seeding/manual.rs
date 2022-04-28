@@ -61,7 +61,7 @@ impl ManualSeeder3 {
                                                 format!(
                                                     "Failed parsing coordinate string {} in input file: {}",
                                                     coord_str,
-                                                    err.to_string()
+                                                    err
                                                 ),
                                             )
                                         })

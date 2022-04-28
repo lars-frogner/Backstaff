@@ -139,12 +139,12 @@ where
     let line_names = arguments
         .values_of("spectral-lines")
         .map(|values| values.map(|name| name.to_lowercase()).collect::<Vec<_>>())
-        .unwrap_or(Vec::new());
+        .unwrap_or_default();
 
     let quantity_names: Vec<_> = arguments
         .values_of("quantities")
         .map(|values| values.collect::<Vec<_>>())
-        .unwrap_or(Vec::new())
+        .unwrap_or_default()
         .into_iter()
         .filter_map(|name| {
             if name.is_empty() {

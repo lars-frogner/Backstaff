@@ -243,7 +243,7 @@ fn create_value_subarray_for_interior_3d<
 ) -> ([F; N_POINTS_CUBED], F) {
     let mut subarray: [MaybeUninit<F>; N_POINTS_CUBED] =
         unsafe { MaybeUninit::uninit().assume_init() };
-    let offsets = Idx3::from(&start_indices);
+    let offsets = Idx3::from(start_indices);
     let mut idx = 0;
 
     let mut sum = F::zero();
@@ -288,7 +288,7 @@ fn create_value_subarray_for_interior_2d<
 ) -> ([F; N_POINTS_SQUARED], F) {
     let mut subarray: [MaybeUninit<F>; N_POINTS_SQUARED] =
         unsafe { MaybeUninit::uninit().assume_init() };
-    let offsets = Idx2::from(&start_indices);
+    let offsets = Idx2::from(start_indices);
     let mut idx = 0;
 
     let mut sum = F::zero();
@@ -327,15 +327,13 @@ fn create_value_subarray_for_interior_1d<F: BFloat, const N_POINTS: usize>(
 ) -> ([F; N_POINTS], F) {
     let mut subarray: [MaybeUninit<F>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
     let offset = start_idx as usize;
-    let mut idx = 0;
 
     let mut sum = F::zero();
     let mut sum_of_squares = F::zero();
 
-    for i in offset..(offset + N_POINTS) {
+    for (idx, i) in (offset..(offset + N_POINTS)).enumerate() {
         let value = values[i];
         subarray[idx].write(value);
-        idx += 1;
 
         if N_POINTS > 2 {
             sum = sum + value;
@@ -466,15 +464,13 @@ fn create_value_subarray_for_periodic_1d<F: BFloat, const N_POINTS: usize>(
     let grid_size = values.len();
     let offset = (start_idx + (grid_size as isize)) as usize;
     let mut subarray: [MaybeUninit<F>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
-    let mut idx = 0;
 
     let mut sum = F::zero();
     let mut sum_of_squares = F::zero();
 
     for i in 0..N_POINTS {
         let value = values[(offset + i) % grid_size];
-        subarray[idx].write(value);
-        idx += 1;
+        subarray[i].write(value);
 
         if N_POINTS > 2 {
             sum = sum + value;
@@ -682,7 +678,6 @@ fn interp_subarrays_3d<
     let mut vals_d = init_array!(F, N_POINTS, F::zero());
     let mut poly_x = init_array!(F, N_POINTS_SQUARED, F::zero());
     let mut poly_xy = init_array!(F, N_POINTS, F::zero());
-    let mut poly_xyz;
     let mut accum;
     let mut correction;
 
@@ -734,7 +729,7 @@ fn interp_subarrays_3d<
     vals_c.copy_from_slice(&poly_xy);
     vals_d.copy_from_slice(&vals_c);
 
-    poly_xyz = vals_c[0];
+    let mut poly_xyz = vals_c[0];
 
     for n in 1..N_POINTS {
         for k in 0..(N_POINTS - n) {
@@ -760,7 +755,6 @@ fn interp_subarrays_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQUARED:
     let mut vals_c = init_array!(F, N_POINTS, F::zero());
     let mut vals_d = init_array!(F, N_POINTS, F::zero());
     let mut poly_x = init_array!(F, N_POINTS, F::zero());
-    let mut poly_xy;
     let mut accum;
     let mut correction;
 
@@ -788,7 +782,7 @@ fn interp_subarrays_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQUARED:
     vals_c.copy_from_slice(&poly_x);
     vals_d.copy_from_slice(&vals_c);
 
-    poly_xy = vals_c[0];
+    let mut poly_xy = vals_c[0];
 
     for n in 1..N_POINTS {
         for j in 0..(N_POINTS - n) {
@@ -810,13 +804,12 @@ fn interp_subarray_1d<F: BFloat, const N_POINTS: usize>(
 ) -> F {
     let mut vals_c = init_array!(F, N_POINTS, F::zero());
     let mut vals_d = init_array!(F, N_POINTS, F::zero());
-    let mut poly;
     let mut correction;
 
     vals_c.copy_from_slice(values);
     vals_d.copy_from_slice(&vals_c);
 
-    poly = vals_c[0];
+    let mut poly = vals_c[0];
 
     for n in 1..N_POINTS {
         for i in 0..(N_POINTS - n) {
@@ -1225,7 +1218,7 @@ fn interp_vector_field_in_known_grid_cell_3d<
             grid,
             &field.coords(X),
             field.locations(X),
-            &field.values(X),
+            field.values(X),
             interp_point,
             interp_indices,
             variation_threshold_for_linear,
@@ -1234,7 +1227,7 @@ fn interp_vector_field_in_known_grid_cell_3d<
             grid,
             &field.coords(Y),
             field.locations(Y),
-            &field.values(Y),
+            field.values(Y),
             interp_point,
             interp_indices,
             variation_threshold_for_linear,
@@ -1243,7 +1236,7 @@ fn interp_vector_field_in_known_grid_cell_3d<
             grid,
             &field.coords(Z),
             field.locations(Z),
-            &field.values(Z),
+            field.values(Z),
             interp_point,
             interp_indices,
             variation_threshold_for_linear,
@@ -1268,7 +1261,7 @@ fn interp_vector_field_in_known_grid_cell_2d<
             grid,
             &field.coords(X2),
             field.locations(X2),
-            &field.values(X2),
+            field.values(X2),
             interp_point,
             interp_indices,
             variation_threshold_for_linear,
@@ -1277,7 +1270,7 @@ fn interp_vector_field_in_known_grid_cell_2d<
             grid,
             &field.coords(Y2),
             field.locations(Y2),
-            &field.values(Y2),
+            field.values(Y2),
             interp_point,
             interp_indices,
             variation_threshold_for_linear,

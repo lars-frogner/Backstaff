@@ -430,7 +430,7 @@ fn write_output(
                 #[cfg(feature = "pickle")]
                 OutputType::Pickle => corks.save_as_pickle(atomic_output_path.temporary_path()),
                 #[cfg(feature = "json")]
-                OutputType::JSON => corks.save_as_json(atomic_output_path.temporary_path()),
+                OutputType::Json => corks.save_as_json(atomic_output_path.temporary_path()),
                 #[cfg(feature = "hdf5")]
                 OutputType::H5Part => unimplemented!(),
             },
@@ -450,7 +450,7 @@ enum OutputType {
     #[cfg(feature = "pickle")]
     Pickle,
     #[cfg(feature = "json")]
-    JSON,
+    Json,
     #[cfg(feature = "hdf5")]
     H5Part,
 }
@@ -490,7 +490,7 @@ impl OutputType {
             "json" => {
                 #[cfg(feature = "json")]
                 {
-                    Self::JSON
+                    Self::Json
                 }
                 #[cfg(not(feature = "json"))]
                 exit_with_error!(
@@ -538,7 +538,7 @@ impl fmt::Display for OutputType {
                 #[cfg(feature = "pickle")]
                 Self::Pickle => "pickle",
                 #[cfg(feature = "json")]
-                Self::JSON => "json",
+                Self::Json => "json",
                 #[cfg(feature = "hdf5")]
                 Self::H5Part => "h5part",
             }

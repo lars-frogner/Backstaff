@@ -635,11 +635,7 @@ impl InputType {
     }
 
     fn is_scratch(&self) -> bool {
-        if let Self::Native(NativeType::Scratch) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Native(NativeType::Scratch))
     }
 }
 
