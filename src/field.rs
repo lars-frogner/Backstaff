@@ -282,11 +282,22 @@ where
                 let field = self.provider.provide_scalar_field(variable_name)?;
 
                 self.system.refresh_memory();
-                let max_memory_exceeded = 1.0
-                    - (self.system.available_memory() as f32 / self.system.total_memory() as f32)
-                    > self.max_memory_usage_fraction;
+
+                let available_memory = self.system.available_memory() as f32;
+                let total_memory = self.system.total_memory() as f32;
+
+                let max_memory_exceeded =
+                    1.0 - (available_memory / total_memory) > self.max_memory_usage_fraction;
 
                 if max_memory_exceeded {
+                    if self.verbose.is_yes() {
+                        println!(
+                            "Available memory ({:.0} of {:.0} MB total) too small for automatic caching",
+                            available_memory * 1e-3,
+                            total_memory * 1e-3
+                        );
+                    }
+
                     match self.least_requested_cached_variable() {
                         Some((least_requested_variable, least_requested_count)) => {
                             if request_count <= least_requested_count {
