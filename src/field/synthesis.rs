@@ -262,7 +262,7 @@ where
     {
         let quantity_names: Vec<_> = quantity_names
             .iter()
-            .filter(|name| Self::verify_variable_availability(&provider, name, handle_unavailable))
+            .filter(|name| Self::verify_quantity_availability(&provider, name, handle_unavailable))
             .collect();
 
         let emissivity_tables = Arc::new(EmissivityTables::new(
@@ -509,14 +509,12 @@ where
         ))
     }
 
-    fn variable_is_available<S: AsRef<str>>(
+    fn quantity_is_available<S: AsRef<str>>(
         provider: &P,
-        variable_name: S,
+        quantity_name: S,
     ) -> (bool, Option<Vec<&str>>) {
-        let variable_name = variable_name.as_ref();
-        if provider.has_variable(variable_name) {
-            (true, None)
-        } else if let Some((_, dependencies)) = SYNTHESIZABLE_QUANTITIES.get(variable_name) {
+        let quantity_name = quantity_name.as_ref();
+        if let Some((_, dependencies)) = SYNTHESIZABLE_QUANTITIES.get(quantity_name) {
             let missing_dependencies: Vec<_> = dependencies
                 .iter()
                 .filter_map(|name| {
@@ -534,20 +532,20 @@ where
         }
     }
 
-    fn verify_variable_availability<H>(
+    fn verify_quantity_availability<H>(
         provider: &P,
-        variable_name: &str,
+        quantity_name: &str,
         handle_unavailable: H,
     ) -> bool
     where
         H: Fn(&str, Option<Vec<&str>>),
     {
         let (available, missing_dependencies) =
-            Self::variable_is_available(provider, variable_name);
+            Self::quantity_is_available(provider, quantity_name);
         if available {
             true
         } else {
-            handle_unavailable(variable_name, missing_dependencies);
+            handle_unavailable(quantity_name, missing_dependencies);
             false
         }
     }
@@ -705,7 +703,9 @@ where
     }
 
     fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        Self::variable_is_available(&self.provider, variable_name.as_ref()).0
+        let variable_name = variable_name.as_ref();
+        self.all_variable_names.contains(&variable_name.to_string())
+            || self.provider.has_variable(variable_name)
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {

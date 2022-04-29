@@ -233,21 +233,17 @@ where
         }
     }
 
-    fn variable_is_available<S: AsRef<str>>(
+    fn basic_variable_is_available<S: AsRef<str>>(
         provider: &P,
         variable_name: S,
     ) -> (bool, Option<Vec<&str>>) {
-        let variable_name = variable_name.as_ref();
-        let all_variable_names = provider.all_variable_names();
-        if all_variable_names.contains(&variable_name.to_string()) {
+        if provider.has_variable(&variable_name) {
             (true, None)
-        } else if let Some((_, dependencies)) = DERIVABLE_QUANTITIES.get(variable_name) {
+        } else if let Some((_, dependencies)) = DERIVABLE_QUANTITIES.get(variable_name.as_ref()) {
             let missing_dependencies: Vec<_> = dependencies
                 .iter()
                 .filter_map(|name| {
-                    if all_variable_names.contains(&name.to_string())
-                        || DERIVABLE_QUANTITIES.contains_key(name)
-                    {
+                    if provider.has_variable(name) || DERIVABLE_QUANTITIES.contains_key(name) {
                         None
                     } else {
                         Some(*name)
@@ -261,16 +257,18 @@ where
         }
     }
 
-    fn verify_variable_availability<H>(
+    fn verify_variable_availability<S, H>(
         provider: &P,
-        variable_name: &str,
+        variable_name: S,
         handle_unavailable: H,
     ) -> bool
     where
+        S: AsRef<str>,
         H: Fn(&str, Option<Vec<&str>>),
     {
+        let variable_name = variable_name.as_ref();
         let (available, missing_dependencies) =
-            Self::variable_is_available(provider, variable_name);
+            Self::basic_variable_is_available(provider, variable_name);
         if available {
             true
         } else if let Some(cgs_base_name) = cgs_base_name(variable_name) {
@@ -278,11 +276,11 @@ where
                 mod_vec_component_names(cgs_base_name)
             {
                 let (available_x, missing_dependencies_x) =
-                    Self::variable_is_available(provider, &x_comp_name);
+                    Self::basic_variable_is_available(provider, &x_comp_name);
                 let (available_y, missing_dependencies_y) =
-                    Self::variable_is_available(provider, &y_comp_name);
+                    Self::basic_variable_is_available(provider, &y_comp_name);
                 let (available_z, missing_dependencies_z) =
-                    Self::variable_is_available(provider, &z_comp_name);
+                    Self::basic_variable_is_available(provider, &z_comp_name);
                 if available_x && available_y && available_z {
                     true
                 } else {
@@ -308,7 +306,7 @@ where
                 }
             } else if let Some(centered_base_name) = centered_base_name(cgs_base_name) {
                 let (available, missing_dependencies) =
-                    Self::variable_is_available(provider, centered_base_name);
+                    Self::basic_variable_is_available(provider, centered_base_name);
                 if available {
                     true
                 } else {
@@ -317,7 +315,7 @@ where
                 }
             } else {
                 let (available, missing_dependencies) =
-                    Self::variable_is_available(provider, cgs_base_name);
+                    Self::basic_variable_is_available(provider, cgs_base_name);
                 if available {
                     true
                 } else {
@@ -329,11 +327,11 @@ where
             mod_vec_component_names(variable_name)
         {
             let (available_x, missing_dependencies_x) =
-                Self::variable_is_available(provider, &x_comp_name);
+                Self::basic_variable_is_available(provider, &x_comp_name);
             let (available_y, missing_dependencies_y) =
-                Self::variable_is_available(provider, &y_comp_name);
+                Self::basic_variable_is_available(provider, &y_comp_name);
             let (available_z, missing_dependencies_z) =
-                Self::variable_is_available(provider, &z_comp_name);
+                Self::basic_variable_is_available(provider, &z_comp_name);
             if available_x && available_y && available_z {
                 true
             } else {
@@ -359,7 +357,7 @@ where
             }
         } else if let Some(centered_base_name) = centered_base_name(variable_name) {
             let (available, missing_dependencies) =
-                Self::variable_is_available(provider, centered_base_name);
+                Self::basic_variable_is_available(provider, centered_base_name);
             if available {
                 true
             } else {
