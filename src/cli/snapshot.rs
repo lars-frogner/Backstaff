@@ -684,6 +684,7 @@ where
                         if !continue_on_warnings
                             && !io_utils::user_says_yes("Still continue?", true)
                         {
+                            eprintln!("Aborted");
                             process::exit(1);
                         }
                         None

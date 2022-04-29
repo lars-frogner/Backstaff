@@ -557,6 +557,7 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
                         new_upper_bound
                     );
                     if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
+                        eprintln!("Aborted");
                         process::exit(1);
                     }
                 } else if verbose.is_yes() {
@@ -583,6 +584,7 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
                 dim, original_lower_bound, original_upper_bound, new_lower_bound, new_upper_bound
             );
             if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
+                eprintln!("Aborted");
                 process::exit(1);
             }
         }
