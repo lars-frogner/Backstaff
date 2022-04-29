@@ -519,7 +519,7 @@ where
     }
 
     fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        Self::variable_is_available(&self.provider, variable_name.as_ref()).0
+        Self::verify_variable_availability(&self.provider, variable_name.as_ref(), |_, _| {})
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
