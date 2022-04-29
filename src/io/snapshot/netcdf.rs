@@ -223,6 +223,11 @@ impl<G: Grid3<fdt>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
         &self.all_variable_names
     }
 
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.all_variable_names()
+            .contains(&variable_name.as_ref().to_string())
+    }
+
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
         super::extract_name_and_num_from_snapshot_path(self.config.file_path())
     }

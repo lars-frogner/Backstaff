@@ -122,10 +122,7 @@ pub trait SnapshotProvider3<G: Grid3<fdt>>: ScalarFieldProvider3<fdt, G> {
     }
 
     /// Returns whether the given variable can be provided.
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        self.all_variable_names()
-            .contains(&variable_name.as_ref().to_string())
-    }
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool;
 
     /// Returns the name and (if available) number of the snapshot.
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
