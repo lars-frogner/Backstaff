@@ -136,7 +136,7 @@ feature_in_args() {
     if [[ $return_code = 0 ]]; then
         echo 1
     else
-        eval "echo '"$ARGS"' | grep -q -E '(^|\s)--features(=|\s+)([a-z_-]+,)*$feature_name(,[a-z_-]+)*(\s|\$)'"
+        eval "echo '"$ARGS"' | grep -q -E '(^|\s)--features(=|\s+)([a-z0-9_-]+,)*$feature_name(,[a-z0-9_-]+)*(\s|\$)'"
         local return_code=$?
         if [[ $return_code = 0 ]]; then
             echo 1
