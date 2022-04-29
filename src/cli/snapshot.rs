@@ -680,7 +680,7 @@ where
                     if has_variable {
                         Some(name)
                     } else {
-                        eprintln!("Warning: Quantity {} not present in snapshot", &name);
+                        eprintln!("Warning: Quantity {} not available", &name);
                         if !continue_on_warnings
                             && !io_utils::user_says_yes("Still continue?", true)
                         {
