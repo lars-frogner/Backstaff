@@ -224,24 +224,29 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
         let is_primary = false;
 
         for (index, name) in aux_variable_names.iter().enumerate() {
+            let name_length = name.len();
             let ends_with_x = name.ends_with('x');
             let ends_with_y = name.ends_with('y');
             let ends_with_z = name.ends_with('z');
 
-            let locations = if (ends_with_x || ends_with_y || ends_with_z)
-                && (name.starts_with('e') || name.starts_with('i'))
-            {
-                In3D::new(
-                    if ends_with_x { Center } else { LowerEdge },
-                    if ends_with_y { Center } else { LowerEdge },
-                    if ends_with_z { Center } else { LowerEdge },
-                )
+            let locations = if name_length == 2 && (ends_with_x || ends_with_y || ends_with_z) {
+                if name.starts_with('p') || name.starts_with('b') {
+                    In3D::new(
+                        if ends_with_x { LowerEdge } else { Center },
+                        if ends_with_y { LowerEdge } else { Center },
+                        if ends_with_z { LowerEdge } else { Center },
+                    )
+                } else if name.starts_with('e') || name.starts_with('i') {
+                    In3D::new(
+                        if ends_with_x { Center } else { LowerEdge },
+                        if ends_with_y { Center } else { LowerEdge },
+                        if ends_with_z { Center } else { LowerEdge },
+                    )
+                } else {
+                    In3D::same(Center)
+                }
             } else {
-                In3D::new(
-                    if ends_with_x { LowerEdge } else { Center },
-                    if ends_with_y { LowerEdge } else { Center },
-                    if ends_with_z { LowerEdge } else { Center },
-                )
+                In3D::same(Center)
             };
 
             variable_descriptors.insert(
