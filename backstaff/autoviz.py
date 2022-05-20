@@ -9,7 +9,7 @@ import csv
 import warnings
 import numpy as np
 from tqdm import tqdm
-from ruamel.yaml import YAML
+from ruamel.yaml import YAML, YAMLError
 from joblib import Parallel, delayed
 from matplotlib.offsetbox import AnchoredText
 
@@ -1657,7 +1657,7 @@ def parse_config_file(file_path, logger=logging):
     with open(file_path, "r") as f:
         try:
             entries = yaml.load(f)
-        except yaml.YAMLError as e:
+        except YAMLError as e:
             abort(logger, e)
 
     if isinstance(entries, list):
