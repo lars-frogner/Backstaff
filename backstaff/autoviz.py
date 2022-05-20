@@ -211,7 +211,9 @@ class SynthesizedQuantity(Quantity):
         if len(quantities) == 0:
             return []
         line_names = list(set((quantity.line_name for quantity in quantities)))
-        quantity_names = list(set((quantity.quantity_name for quantity in quantities)))
+        quantity_names = list(
+            set((quantity.dependency_quantity_name for quantity in quantities))
+        )
         return [
             "synthesize",
             f'--spectral-lines={",".join(line_names)}',
@@ -228,12 +230,31 @@ class SynthesizedQuantity(Quantity):
 
         self.central_wavelength = self.get_central_wavelength(line_name)
 
-        self.emis_name = f"emis_{self.line_name}"
-        self.shift_name = f"shift{self.axis_name}_{self.line_name}"
-        self.emis_shift_name = f"emis_{self.shift_name}"
-        self.vartg_name = f"vartg_{self.line_name}"
-        self.vartgshift2_name = f"vartgshift2{self.axis_name}_{self.shift_name}"
-        self.emis_vartgshift2_name = f"emis_{self.vartgshift2_name}"
+        self.emis_quantity_name = "emis"
+        self.shift_quantity_name = f"shift{self.axis_name}"
+        self.emis_shift_quantity_name = (
+            f"{self.emis_quantity_name}_{self.shift_quantity_name}"
+        )
+        self.vartg_quantity_name = "vartg"
+        self.vartgshift2_quantity_name = (
+            f"{self.vartg_quantity_name}shift2{self.axis_name}"
+        )
+        self.emis_vartgshift2_quantity_name = (
+            f"{self.emis_quantity_name}_{self.vartgshift2_quantity_name}"
+        )
+
+        self.emis_name = f"{self.emis_quantity_name}_{self.line_name}"
+        self.shift_name = f"{self.shift_quantity_name}_{self.line_name}"
+        self.emis_shift_name = f"{self.emis_shift_quantity_name}_{self.line_name}"
+        self.vartg_name = f"{self.vartg_quantity_name}_{self.line_name}"
+        self.vartgshift2_name = f"{self.vartgshift2_quantity_name}_{self.line_name}"
+        self.emis_vartgshift2_name = (
+            f"{self.emis_vartgshift2_quantity_name}_{self.line_name}"
+        )
+
+    @property
+    def dependency_quantity_name(self):
+        raise NotImplementedError()
 
     @property
     def dependency_name(self):
@@ -255,6 +276,10 @@ class LineIntensityQuantity(SynthesizedQuantity):
     supported_quantity_names = [base_quantity_name]
 
     @property
+    def dependency_quantity_name(self):
+        return self.emis_quantity_name
+
+    @property
     def dependency_name(self):
         return self.emis_name
 
@@ -268,6 +293,10 @@ class LineIntensityQuantity(SynthesizedQuantity):
 class LineShiftQuantity(SynthesizedQuantity):
     base_quantity_name = "profshift"
     supported_quantity_names = [base_quantity_name, "dopvel"]
+
+    @property
+    def dependency_quantity_name(self):
+        return self.emis_shift_quantity_name
 
     @property
     def dependency_name(self):
@@ -302,6 +331,10 @@ class LineShiftQuantity(SynthesizedQuantity):
 class LineVarianceQuantity(SynthesizedQuantity):
     base_quantity_name = "profvar"
     supported_quantity_names = [base_quantity_name, "profwidth", "widthvel"]
+
+    @property
+    def dependency_quantity_name(self):
+        return self.emis_vartgshift2_quantity_name
 
     @property
     def dependency_name(self):
