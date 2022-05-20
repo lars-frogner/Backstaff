@@ -1262,9 +1262,12 @@ class SimulationRun:
             snap_nums = [n for n in snap_nums if n >= self._start_snap_num]
         if self._end_snap_num is not None:
             snap_nums = [n for n in snap_nums if n <= self._end_snap_num]
-        self.logger.debug(
-            f'Found snaps {", ".join(map(str, snap_nums))} in {input_dir}'
-        )
+        if len(snap_nums) == 0:
+            self.logger.debug(f"Found no valid snaps in {input_dir}")
+        else:
+            self.logger.debug(
+                f'Found snaps {", ".join(map(str, snap_nums))} in {input_dir}'
+            )
         return snap_nums
 
     def _find_all_snap_nums(self, input_dir):
