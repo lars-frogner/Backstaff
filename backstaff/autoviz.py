@@ -1350,7 +1350,7 @@ class SimulationRun:
         return_code = running.run_command(
             [
                 "backstaff",
-                "--protected-file-types=",
+                "-N",
                 "snapshot",
                 "-v",
                 *snap_range_specification,
