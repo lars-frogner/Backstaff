@@ -634,7 +634,7 @@ class Ion:
     def find_line_index(self, wavelength):
         line_idx = np.argmin(np.abs(self.central_wavelengths - wavelength * 1e-8))
         closest_wavelength = self.central_wavelengths[line_idx] * 1e8  # [Å]
-        if not np.allclose(closest_wavelength, wavelength):
+        if not np.allclose(closest_wavelength, wavelength, rtol=0, atol=0.5):
             print(
                 f"Warning: No line sufficiently close to requested wavelength of {wavelength:.3f} Å for ion {self.ion_name}, using closest at {closest_wavelength:g} Å",
                 file=sys.stderr,
