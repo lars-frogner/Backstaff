@@ -563,7 +563,7 @@ class Ion:
         closest_wavelength = self.central_wavelengths[line_idx] * 1e8  # [Å]
         if not np.allclose(closest_wavelength, wavelength):
             print(
-                f"Warning: No line sufficiently close to requested wavelength of {wavelength:.3f} Å\nfor ion {self.ion_name}, using closest at {closest_wavelength:g} Å",
+                f"Warning: No line sufficiently close to requested wavelength of {wavelength:.3f} Å for ion {self.ion_name}, using closest at {closest_wavelength:g} Å",
                 file=sys.stderr,
             )
         return line_idx
