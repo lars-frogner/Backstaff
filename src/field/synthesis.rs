@@ -24,6 +24,7 @@ use pyo3::{
 };
 use rayon::prelude::*;
 use regex::Regex;
+use roman;
 use std::{
     collections::{hash_map::Entry, HashMap},
     env, io,
@@ -196,7 +197,7 @@ fn create_synthesizable_quantity_table_string() -> String {
 
 lazy_static! {
     static ref EMISSIVITY_QUANTITY_REGEX: Regex =
-        Regex::new(r"^([a-zA-Z]+)_([a-zA-Z]+_[0-9]+_[0-9]+(:?\.[0-9]*)?)$").unwrap();
+        Regex::new(r"^([a-zA-Z]+)_([a-zA-Z]+_[0-9ivxlcdmIVXLCDM]+_[0-9]+(:?\.[0-9]*)?)$").unwrap();
 }
 
 fn parse_line_quantity_name<S: AsRef<str>>(line_quantity_name: S) -> io::Result<(String, String)> {
@@ -211,7 +212,7 @@ fn parse_line_quantity_name<S: AsRef<str>>(line_quantity_name: S) -> io::Result<
             .get(2)
             .expect("Missing capture group")
             .as_str()
-            .to_string();
+            .to_lowercase();
         Ok((quantity_name, line_name))
     } else {
         Err(io::Error::new(
@@ -751,7 +752,7 @@ type IonLineWavelengthMap<F> = HashMap<String, Vec<F>>;
 
 lazy_static! {
     static ref ION_LINE_REGEX: Regex =
-        Regex::new(r"^([a-zA-Z]+)_([0-9]+)_([0-9]+(:?\.[0-9]*)?)$").unwrap();
+        Regex::new(r"^([a-zA-Z]+)_([0-9ivxlcdmIVXLCDM]+)_([0-9]+(:?\.[0-9]*)?)$").unwrap();
 }
 
 /// Holds tables of emissivity as function of temperature and electron density
@@ -1020,25 +1021,26 @@ where
             ));
         };
 
-        let ionization_stage: u32 = match groups
-            .get(2)
-            .expect("Missing capture group")
-            .as_str()
-            .parse()
-        {
-            Ok(ionization_stage) => ionization_stage,
-            Err(err) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!(
-                        "Invalid ionization stage for spectral line {}: {}",
-                        line_name, err
-                    ),
-                ))
-            }
+        let ionization_stage = groups.get(2).expect("Missing capture group").as_str();
+        let ionization_stage_uppercase = ionization_stage.to_uppercase();
+
+        let ionization_stage_value = match roman::from(ionization_stage_uppercase.as_str()) {
+            Some(value) => value as u32,
+            None => match ionization_stage.parse() {
+                Ok(value) => value,
+                Err(err) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "Invalid ionization stage for spectral line {}: {}",
+                            line_name, err
+                        ),
+                    ))
+                }
+            },
         };
 
-        if ionization_stage > nuclear_charge {
+        if ionization_stage_value > nuclear_charge {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
@@ -1048,7 +1050,7 @@ where
             ));
         }
 
-        let ion_name = format!("{}_{}", element_name, ionization_stage);
+        let ion_name = format!("{}_{}", element_name, ionization_stage.to_lowercase());
 
         let wavelength: F = match groups
             .get(3)
@@ -1067,11 +1069,11 @@ where
                 ))
             }
         };
-        Ok((ion_name, nuclear_charge, ionization_stage, wavelength))
+        Ok((ion_name, nuclear_charge, ionization_stage_value, wavelength))
     } else {
         return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Invalid format for spectral line {}, must be <element>_<ionization stage>_<wavelength>, e.g. si_4_1393.755", line_name),
+                format!("Invalid format for spectral line {}, must be <element>_<ionization stage>_<wavelength>, e.g. si_iv_1393.755", line_name),
             ));
     }
 }

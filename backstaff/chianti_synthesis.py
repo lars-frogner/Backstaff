@@ -3,6 +3,7 @@ import os
 import time
 import pickle
 import contextlib
+import re
 
 import numpy as np
 import scipy.interpolate
@@ -281,6 +282,75 @@ class IonAtmosphere3D(IonAtmosphere):
         return values.reshape(values.shape[:-1] + self.shape)
 
 
+class RomanNumeralConverter:
+    roman_numeral_map = (
+        ("M", 1000),
+        ("CM", 900),
+        ("D", 500),
+        ("CD", 400),
+        ("C", 100),
+        ("XC", 90),
+        ("L", 50),
+        ("XL", 40),
+        ("X", 10),
+        ("IX", 9),
+        ("V", 5),
+        ("IV", 4),
+        ("I", 1),
+    )
+
+    roman_numeral_pattern = re.compile(
+        """
+        ^                   # beginning of string
+        M{0,4}              # thousands - 0 to 4 M's
+        (CM|CD|D?C{0,3})    # hundreds - 900 (CM), 400 (CD), 0-300 (0 to 3 C's),
+                            #            or 500-800 (D, followed by 0 to 3 C's)
+        (XC|XL|L?X{0,3})    # tens - 90 (XC), 40 (XL), 0-30 (0 to 3 X's),
+                            #        or 50-80 (L, followed by 0 to 3 X's)
+        (IX|IV|V?I{0,3})    # ones - 9 (IX), 4 (IV), 0-3 (0 to 3 I's),
+                            #        or 5-8 (V, followed by 0 to 3 I's)
+        $                   # end of string
+        """,
+        re.VERBOSE,
+    )
+
+    @classmethod
+    def is_roman(cls, string):
+        return cls.roman_numeral_pattern.search(string.upper()) is not None
+
+    @classmethod
+    def int_to_roman(cls, number_to_convert):
+        if not isinstance(number_to_convert, int):
+            raise ValueError(
+                f"Number to convert must be int, got {type(number_to_convert)}"
+            )
+        if number_to_convert <= 0 or number_to_convert >= 5000:
+            raise ValueError(
+                f"Number to convert must be in range [1, 5000), got {number_to_convert}"
+            )
+
+        result = ""
+        for numeral, number in cls.roman_numeral_map:
+            while number_to_convert >= number:
+                result += numeral
+                number_to_convert -= number
+        return result
+
+    @classmethod
+    def roman_to_int(cls, numeral_to_convert):
+        if not cls.is_roman(numeral_to_convert):
+            raise ValueError(f"Invalid Roman numeral {numeral_to_convert}")
+        numeral_to_convert = numeral_to_convert.upper()
+
+        result = 0
+        index = 0
+        for numeral, number in cls.roman_numeral_map:
+            while numeral_to_convert[index : index + len(numeral)] == numeral:
+                result += number
+                index += len(numeral)
+        return result
+
+
 class IonProperties:
     def __init__(self, ion_name, abundance):
         self.__set_ion_name(ion_name)
@@ -346,17 +416,20 @@ class IonProperties:
 
     @staticmethod
     def parse_ion_name(ion_name):
+        splitted = ion_name.split("_")
+        if RomanNumeralConverter.is_roman(splitted[-1]):
+            ion_name = f"{'_'.join(splitted[:-1])}_{RomanNumeralConverter.roman_to_int(splitted[-1]):d}"
         parsed = ch_util.convertName(ion_name)
         nuclear_charge = parsed["Z"]
         ionization_stage = parsed["Ion"]
         spectroscopic_name = ch_util.zion2spectroscopic(
             nuclear_charge, ionization_stage
         )
-        return nuclear_charge, ionization_stage, spectroscopic_name
+        return ion_name, nuclear_charge, ionization_stage, spectroscopic_name
 
     def __set_ion_name(self, ion_name):
-        self.__ion_name = ion_name
         (
+            self.__ion_name,
             self.__nuclear_charge,
             self.__ionization_stage,
             self.__spectroscopic_name,

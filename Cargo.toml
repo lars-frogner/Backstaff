@@ -21,7 +21,7 @@ seeding = ["rand"]
 corks = ["seeding"]
 tracing = ["seeding"]
 ebeam = ["tracing", "rand", "special"]
-synthesis = ["python"]
+synthesis = ["python", "roman"]
 
 [dependencies]
 # Dependencies for core
@@ -75,6 +75,9 @@ special = { version = "*", optional = true }
 
 # Dependency for seeding and ebeam
 rand = { version = "*", optional = true }
+
+# Dependencies for synthesis
+roman = { version = "*", optional = true}
 
 [build-dependencies]
 regex = { version = "*", optional = true }

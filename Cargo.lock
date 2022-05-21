@@ -60,6 +60,7 @@ dependencies = [
  "rand",
  "rayon",
  "regex",
+ "roman",
  "serde",
  "serde-pickle",
  "serde_json",
@@ -859,6 +860,12 @@ checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
 dependencies = [
  "winapi",
 ]
+
+[[package]]
+name = "roman"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2c543f0c827ae24df93159810fd4bce2d0abe3785bb4c4d68fae3c467d58d9b"
 
 [[package]]
 name = "ryu"
