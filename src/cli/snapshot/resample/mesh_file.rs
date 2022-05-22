@@ -15,7 +15,10 @@ use crate::{
     },
     exit_on_error, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
-    geometry::In3D,
+    geometry::{
+        Dim3::{X, Y, Z},
+        In3D,
+    },
     grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::Interpolator3,
     io::{
@@ -99,13 +102,17 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         ),
         "Error: Could not interpret path to mesh file: {}"
     );
-
+    let original_shape = provider.grid().shape();
     let shape: Vec<usize> = utils::get_values_from_parseable_argument_with_custom_defaults(
         root_arguments,
         "shape",
-        &Vec::new,
+        &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
+        Some(3),
     );
-    let new_shape = if shape.is_empty() {
+    let new_shape = if shape[0] == original_shape[X]
+        && shape[1] == original_shape[Y]
+        && shape[2] == original_shape[Z]
+    {
         None
     } else {
         exit_on_false!(

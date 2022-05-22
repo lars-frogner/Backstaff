@@ -47,7 +47,8 @@ pub fn create_regular_volume_seeder_from_arguments<S>(
 where
     S: Fn(&Point3<fdt>) -> bool + Sync,
 {
-    let shape = utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
+    let shape =
+        utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(3));
 
     let grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),

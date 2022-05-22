@@ -50,7 +50,8 @@ where
     G: Grid3<fdt>,
     S: Fn(&Point2<fdt>) -> bool + Sync,
 {
-    let shape = utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
+    let shape =
+        utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(2));
 
     SliceSeeder3::regular(
         grid,

@@ -103,6 +103,7 @@ where
         arguments,
         "x-bounds",
         &|| vec![original_lower_bounds[X], original_upper_bounds[X]],
+        Some(2),
     );
     exit_on_false!(
         x_bounds[1] > x_bounds[0],
@@ -112,6 +113,7 @@ where
         arguments,
         "y-bounds",
         &|| vec![original_lower_bounds[Y], original_upper_bounds[Y]],
+        Some(2),
     );
     exit_on_false!(
         y_bounds[1] > y_bounds[0],
@@ -121,6 +123,7 @@ where
         arguments,
         "z-bounds",
         &|| vec![original_lower_bounds[Z], original_upper_bounds[Z]],
+        Some(2),
     );
     exit_on_false!(
         z_bounds[1] > z_bounds[0],

@@ -82,6 +82,7 @@ where
             SimpleReconnectionSiteDetectorConfig::DEFAULT_MIN_DETECTION_DEPTH,
             SimpleReconnectionSiteDetectorConfig::DEFAULT_MAX_DETECTION_DEPTH,
         ],
+        Some(2),
     );
     SimpleReconnectionSiteDetectorConfig {
         reconnection_factor_threshold,

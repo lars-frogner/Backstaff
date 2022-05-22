@@ -117,6 +117,7 @@ where
         arguments,
         "horizontal-limits",
         &|| vec![fdt::NEG_INFINITY, fdt::INFINITY],
+        Some(2),
     );
     exit_on_false!(
         horizontal_limits[1] >= horizontal_limits[0],
@@ -126,6 +127,7 @@ where
         arguments,
         "vertical-limits",
         &|| vec![fdt::NEG_INFINITY, fdt::INFINITY],
+        Some(2),
     );
     exit_on_false!(
         vertical_limits[1] >= vertical_limits[0],

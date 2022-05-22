@@ -4,6 +4,7 @@ mod direct_sampling;
 mod mesh_file;
 mod regular_grid;
 mod reshaped_grid;
+mod rotated_regular_grid;
 mod weighted_cell_averaging;
 mod weighted_sample_averaging;
 

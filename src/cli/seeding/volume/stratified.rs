@@ -68,7 +68,8 @@ pub fn create_stratified_volume_seeder_from_arguments<S>(
 where
     S: Fn(&Point3<fdt>) -> bool + Sync,
 {
-    let shape = utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape");
+    let shape =
+        utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(3));
     let n_seeds_per_cell =
         utils::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
     let randomness =

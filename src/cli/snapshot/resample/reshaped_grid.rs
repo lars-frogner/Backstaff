@@ -103,13 +103,14 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
     let original_shape = provider.grid().shape();
 
     let scales: Vec<fdt> =
-        utils::get_values_from_required_parseable_argument(root_arguments, "scales");
+        utils::get_values_from_required_parseable_argument(root_arguments, "scales", Some(3));
 
     let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
         utils::get_values_from_parseable_argument_with_custom_defaults(
             root_arguments,
             "shape",
             &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
+            Some(3),
         )
     } else {
         super::compute_scaled_grid_shape(original_shape, &scales)

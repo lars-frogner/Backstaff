@@ -135,33 +135,56 @@ where
     )
 }
 
+pub fn verify_argument_value_count<T>(
+    argument_name: &str,
+    values: &Vec<T>,
+    required_count: Option<usize>,
+) {
+    if let Some(required_count) = required_count {
+        let count = values.len();
+        exit_on_false!(
+            count == required_count,
+            "Error: {} must have {} values, got {}",
+            argument_name,
+            required_count,
+            count
+        );
+    }
+}
+
 pub fn get_values_from_parseable_argument<T>(
     arguments: &ArgMatches,
     argument_name: &str,
+    required_count: Option<usize>,
 ) -> Option<Vec<T>>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
 {
-    arguments
-        .values_of(argument_name)
-        .map(|values| parse_value_strings(argument_name, values))
+    arguments.values_of(argument_name).map(|values| {
+        let values = parse_value_strings(argument_name, values);
+        verify_argument_value_count(argument_name, &values, required_count);
+        values
+    })
 }
 
 pub fn get_values_from_required_parseable_argument<T>(
     arguments: &ArgMatches,
     argument_name: &str,
+    required_count: Option<usize>,
 ) -> Vec<T>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
 {
-    parse_value_strings(
+    let values = parse_value_strings(
         argument_name,
         arguments
             .values_of(argument_name)
             .expect("No values for required argument"),
-    )
+    );
+    verify_argument_value_count(argument_name, &values, required_count);
+    values
 }
 
 fn get_value_from_parseable_argument_with_custom_default<T, D>(
@@ -185,19 +208,22 @@ pub fn get_values_from_parseable_argument_with_custom_defaults<T, D>(
     arguments: &ArgMatches,
     argument_name: &str,
     default_constructor: &D,
+    required_count: Option<usize>,
 ) -> Vec<T>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
     D: Fn() -> Vec<T>,
 {
-    if let Some(value_strings) = arguments.values_of(argument_name) {
+    let values = if let Some(value_strings) = arguments.values_of(argument_name) {
         value_strings
             .map(|value_string| parse_value_string(argument_name, value_string))
             .collect()
     } else {
         default_constructor()
-    }
+    };
+    verify_argument_value_count(argument_name, &values, required_count);
+    values
 }
 
 #[allow(dead_code)]
@@ -313,6 +339,7 @@ pub fn get_values_from_param_file_argument_with_defaults<G, P, T, C>(
     param_file_argument_names: &[&str],
     conversion_mapping: &C,
     default_values: &[T],
+    required_count: Option<usize>,
 ) -> Vec<T>
 where
     G: Grid3<fdt>,
@@ -321,22 +348,27 @@ where
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,
 {
-    get_values_from_parseable_argument_with_custom_defaults(arguments, argument_name, &|| {
-        param_file_argument_names
-            .iter()
-            .zip(default_values)
-            .map(|(&param_file_argument_name, &default_value)| {
-                reader
-                    .parameters()
-                    .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                        argument_name,
-                        param_file_argument_name,
-                        conversion_mapping,
-                        default_value,
-                    )
-            })
-            .collect()
-    })
+    get_values_from_parseable_argument_with_custom_defaults(
+        arguments,
+        argument_name,
+        &|| {
+            param_file_argument_names
+                .iter()
+                .zip(default_values)
+                .map(|(&param_file_argument_name, &default_value)| {
+                    reader
+                        .parameters()
+                        .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                            argument_name,
+                            param_file_argument_name,
+                            conversion_mapping,
+                            default_value,
+                        )
+                })
+                .collect()
+        },
+        required_count,
+    )
 }
 
 pub fn parse_limits(

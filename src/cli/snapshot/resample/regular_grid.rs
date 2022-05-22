@@ -153,13 +153,14 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     let original_upper_bounds = original_grid.upper_bounds();
 
     let scales: Vec<fdt> =
-        cli_utils::get_values_from_required_parseable_argument(root_arguments, "scales");
+        cli_utils::get_values_from_required_parseable_argument(root_arguments, "scales", Some(3));
 
     let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
         cli_utils::get_values_from_parseable_argument_with_custom_defaults(
             root_arguments,
             "shape",
             &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
+            Some(3),
         )
     } else {
         super::compute_scaled_grid_shape(original_shape, &scales)
@@ -173,6 +174,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
         root_arguments,
         "x-bounds",
         &|| vec![original_lower_bounds[X], original_upper_bounds[X]],
+        Some(2),
     );
     exit_on_false!(
         x_bounds[1] > x_bounds[0],
@@ -182,6 +184,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
         root_arguments,
         "y-bounds",
         &|| vec![original_lower_bounds[Y], original_upper_bounds[Y]],
+        Some(2),
     );
     exit_on_false!(
         y_bounds[1] > y_bounds[0],
@@ -191,6 +194,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
         root_arguments,
         "z-bounds",
         &|| vec![original_lower_bounds[Z], original_upper_bounds[Z]],
+        Some(2),
     );
     exit_on_false!(
         z_bounds[1] > z_bounds[0],

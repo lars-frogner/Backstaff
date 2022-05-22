@@ -132,29 +132,35 @@ pub fn run_horizontally_regular_subcommand(
     arguments: &ArgMatches,
     protected_file_types: &[&str],
 ) {
-    let shape = utils::get_values_from_required_parseable_argument(arguments, "shape");
+    let shape = utils::get_values_from_required_parseable_argument(arguments, "shape", Some(3));
     exit_on_false!(
         shape[0] >= 8 && shape[1] >= 8 && shape[2] >= 8,
         "Error: Grid size must be at least 8 in every dimension"
     );
 
-    let bounds_x = utils::get_values_from_required_parseable_argument(arguments, "x-bounds");
+    let bounds_x =
+        utils::get_values_from_required_parseable_argument(arguments, "x-bounds", Some(2));
     exit_on_false!(
         bounds_x[1] > bounds_x[0],
         "Error: Upper bound on x must be larger than lower bound"
     );
-    let bounds_y = utils::get_values_from_required_parseable_argument(arguments, "y-bounds");
+    let bounds_y =
+        utils::get_values_from_required_parseable_argument(arguments, "y-bounds", Some(2));
     exit_on_false!(
         bounds_y[1] > bounds_y[0],
         "Error: Upper bound on y must be larger than lower bound"
     );
-    let bounds_z = utils::get_values_from_required_parseable_argument(arguments, "z-bounds");
+    let bounds_z =
+        utils::get_values_from_required_parseable_argument(arguments, "z-bounds", Some(2));
     exit_on_false!(
         bounds_z[1] > bounds_z[0],
         "Error: Upper bound on z must be larger than lower bound"
     );
-    let boundary_dz_scales =
-        utils::get_values_from_required_parseable_argument(arguments, "boundary-dz-scales");
+    let boundary_dz_scales = utils::get_values_from_required_parseable_argument(
+        arguments,
+        "boundary-dz-scales",
+        Some(2),
+    );
     exit_on_false!(
         boundary_dz_scales[0] > 0.0 && boundary_dz_scales[1] > 0.0,
         "Error: Boundary dz scales must be larger than zero"
@@ -164,6 +170,7 @@ pub fn run_horizontally_regular_subcommand(
         arguments,
         "interior-z",
         &Vec::new,
+        None,
     );
 
     let interior_dz_scales: Vec<fdt> =
@@ -171,6 +178,7 @@ pub fn run_horizontally_regular_subcommand(
             arguments,
             "interior-dz-scales",
             &Vec::new,
+            None,
         );
 
     exit_on_false!(

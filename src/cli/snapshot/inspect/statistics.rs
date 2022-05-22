@@ -153,9 +153,11 @@ pub fn run_statistics_subcommand<G, P>(
     let y_range = utils::parse_limits(arguments, "y-range", true);
     let z_range = utils::parse_limits(arguments, "z-range", true);
 
-    let slice_depths = utils::get_values_from_parseable_argument::<fdt>(arguments, "slice-depths");
+    let slice_depths =
+        utils::get_values_from_parseable_argument::<fdt>(arguments, "slice-depths", None);
 
-    let percentages = utils::get_values_from_parseable_argument::<f64>(arguments, "percentages");
+    let percentages =
+        utils::get_values_from_parseable_argument::<f64>(arguments, "percentages", None);
 
     let no_global = arguments.is_present("no-global");
 
