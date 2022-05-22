@@ -487,9 +487,9 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
 ) {
     // A coordinate difference must exceed this fraction of a grid cell
     // extent in order to be detected
-    const BOUND_DIFF_THRESHOLD_FACTOR: fdt = 0.1;
+    const EXTENT_DIFF_THRESHOLD_FACTOR: fdt = 0.1;
 
-    const WARNING_BOUND_DIFF_THRESHOLD_FACTOR: fdt = 10.0;
+    const WARNING_EXTENT_DIFF_THRESHOLD_FACTOR: fdt = 10.0;
 
     let average_grid_cell_extents = original_grid.average_grid_cell_extents();
 
@@ -502,60 +502,36 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
 
     for &dim in &Dim3::slice() {
         let average_grid_cell_extent = average_grid_cell_extents[dim];
-        let bound_diff_threshold = average_grid_cell_extent * BOUND_DIFF_THRESHOLD_FACTOR;
-        let warning_bound_diff_threshold =
-            average_grid_cell_extent * WARNING_BOUND_DIFF_THRESHOLD_FACTOR;
+        let extent_diff_threshold = average_grid_cell_extent * EXTENT_DIFF_THRESHOLD_FACTOR;
+        let warning_extent_diff_threshold =
+            average_grid_cell_extent * WARNING_EXTENT_DIFF_THRESHOLD_FACTOR;
 
         let original_lower_bound = original_lower_bounds[dim];
         let original_upper_bound = original_upper_bounds[dim];
         let new_lower_bound = new_lower_bounds[dim];
         let new_upper_bound = new_upper_bounds[dim];
 
-        let lower_difference = original_lower_bound - new_lower_bound;
-        let upper_difference = new_upper_bound - original_upper_bound;
+        let original_extent = original_upper_bound - original_lower_bound;
+        let new_extent = new_upper_bound - new_lower_bound;
 
-        let abs_lower_difference = fdt::abs(lower_difference);
-        let abs_upper_difference = fdt::abs(upper_difference);
+        let extent_difference = original_extent - new_extent;
+        let abs_extent_difference = fdt::abs(extent_difference);
 
         if original_grid.is_periodic(dim) {
-            let original_span = original_upper_bound - original_lower_bound;
-
-            if abs_lower_difference <= bound_diff_threshold
-                && abs_upper_difference <= bound_diff_threshold
-            {
+            if abs_extent_difference <= extent_diff_threshold {
                 is_periodic[dim] = true;
-            } else if upper_difference + bound_diff_threshold >= 0.0
-                && lower_difference + bound_diff_threshold >= 0.0
-            {
-                let lower_expansion_ratio = lower_difference / original_span;
-                let upper_expansion_ratio = upper_difference / original_span;
-                if fdt::abs(
-                    (lower_expansion_ratio - fdt::trunc(lower_expansion_ratio)) * original_span,
-                ) <= bound_diff_threshold
-                    && fdt::abs(
-                        (upper_expansion_ratio - fdt::trunc(upper_expansion_ratio)) * original_span,
-                    ) <= bound_diff_threshold
-                {
-                    is_periodic[dim] = true;
-                }
             }
             if !is_periodic[dim] {
-                let warning_triggered = (abs_lower_difference >= bound_diff_threshold
-                    && abs_lower_difference <= warning_bound_diff_threshold)
-                    || (abs_upper_difference >= bound_diff_threshold
-                        && abs_upper_difference <= warning_bound_diff_threshold);
+                let warning_triggered = abs_extent_difference >= extent_diff_threshold
+                    && abs_extent_difference <= warning_extent_diff_threshold;
 
                 if warning_triggered {
                     eprintln!(
                         "Warning: Field is no longer periodic in {}-direction after resampling\n\
-                         because new bounds differ slightly from original bounds:\n\
-                         Before resampling: [{}, {})\n\
-                         After resampling: [{}, {})",
-                        dim,
-                        original_lower_bound,
-                        original_upper_bound,
-                        new_lower_bound,
-                        new_upper_bound
+                         because new extent differs slightly from original extent:\n\
+                         Before resampling: {}\n\
+                         After resampling: {}",
+                        dim, original_extent, new_extent,
                     );
                     if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
                         eprintln!("Aborted");
@@ -564,19 +540,15 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
                 } else if verbose.is_yes() {
                     println!(
                         "Field is no longer periodic in {}-direction after resampling\n\
-                         because new bounds do not coincide with periodic boundaries:\n\
-                         Before resampling: [{}, {})\n\
-                         After resampling: [{}, {})",
-                        dim,
-                        original_lower_bound,
-                        original_upper_bound,
-                        new_lower_bound,
-                        new_upper_bound
+                         because new extent differs from original extent:\n\
+                         Before resampling: {}\n\
+                         After resampling: {}",
+                        dim, original_extent, new_extent,
                     );
                 }
             }
-        } else if new_upper_bound - bound_diff_threshold > original_upper_bound
-            || new_lower_bound + bound_diff_threshold < original_lower_bound
+        } else if new_upper_bound - extent_diff_threshold > original_upper_bound
+            || new_lower_bound + extent_diff_threshold < original_lower_bound
         {
             eprintln!(
                 "Warning: Extrapolating beyond {}-bounds of original field:\n\
