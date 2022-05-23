@@ -635,6 +635,11 @@ impl<F: BFloat> Vec2<F> {
         self[Dim2::X] = -self[Dim2::X];
         self[Dim2::Y] = -self[Dim2::Y];
     }
+
+    /// Returns a version of the vector rotated 90 degrees counter-clockwise.
+    pub fn rotated_90(&self) -> Self {
+        Self::new(-self[Dim2::Y], self[Dim2::X])
+    }
 }
 
 impl<F: BFloat> Index<Dim2> for Vec2<F> {
@@ -1715,5 +1720,87 @@ impl<F: BFloat> SimplePolygon2<F> {
     /// Adds the given vertex to the polygon.
     pub fn add_vertex(&mut self, vertex: Point2<F>) {
         self.vertices.push(vertex);
+    }
+}
+
+/// Defines the properties of a transformation of 2D points.
+pub trait PointTransformation2<F> {
+    /// Returns the transformed version of the given point.
+    fn transform(&self, point: &Point2<F>) -> Point2<F>;
+}
+
+/// Transformation for rotating 2D points about the origin.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RotationTransformation2<F> {
+    rotated_x_axis_unit_vec: Vec2<F>,
+    rotated_y_axis_unit_vec: Vec2<F>,
+}
+
+impl<F: BFloat> RotationTransformation2<F> {
+    /// Creates a new 2D point rotation transformation from the given rotated vector.
+    pub fn new_from_rotated_vec(mut rotated_vec: Vec2<F>) -> Self {
+        rotated_vec.normalize();
+        let rotated_y_axis_unit_vec = rotated_vec.rotated_90();
+        Self {
+            rotated_x_axis_unit_vec: rotated_vec,
+            rotated_y_axis_unit_vec,
+        }
+    }
+
+    /// Creates a new 2D point rotation transformation from the given angle (in radians).
+    pub fn new_from_angle(angle_rad: F) -> Self {
+        Self::new_from_rotated_vec(Vec2::new(F::cos(angle_rad), F::sin(angle_rad)))
+    }
+}
+
+impl<F: BFloat> PointTransformation2<F> for RotationTransformation2<F> {
+    fn transform(&self, point: &Point2<F>) -> Point2<F> {
+        (&self.rotated_x_axis_unit_vec * point[Dim2::X]
+            + &self.rotated_y_axis_unit_vec * point[Dim2::Y])
+            .to_point2()
+    }
+}
+
+/// Transformation for translating 2D points.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TranslationTransformation2<F> {
+    translation: Vec2<F>,
+}
+
+impl<F: BFloat> TranslationTransformation2<F> {
+    /// Creates a new 2D point translation transformation from the given translation vector.
+    pub fn new(translation: Vec2<F>) -> Self {
+        Self { translation }
+    }
+}
+
+impl<F: BFloat> PointTransformation2<F> for TranslationTransformation2<F> {
+    fn transform(&self, point: &Point2<F>) -> Point2<F> {
+        point + &self.translation
+    }
+}
+
+/// Transformation for rotating 2D points about the origin and then translating the origin.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RotationAndTranslationTransformation2<F> {
+    rotation: RotationTransformation2<F>,
+    translation: TranslationTransformation2<F>,
+}
+
+impl<F: BFloat> RotationAndTranslationTransformation2<F> {
+    pub fn new(
+        rotation: RotationTransformation2<F>,
+        translation: TranslationTransformation2<F>,
+    ) -> Self {
+        Self {
+            rotation,
+            translation,
+        }
+    }
+}
+
+impl<F: BFloat> PointTransformation2<F> for RotationAndTranslationTransformation2<F> {
+    fn transform(&self, point: &Point2<F>) -> Point2<F> {
+        self.translation.transform(&self.rotation.transform(point))
     }
 }
