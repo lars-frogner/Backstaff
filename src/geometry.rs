@@ -165,7 +165,13 @@ impl<T> FromIterator<T> for In3D<T> {
 
 impl<T: fmt::Display> fmt::Display for In3D<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}, {}, {}]", self[X], self[Y], self[Z])
+        f.write_str("[")?;
+        fmt::Display::fmt(&self[X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Y], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Z], f)?;
+        f.write_str("]")
     }
 }
 
@@ -248,7 +254,11 @@ impl<T> FromIterator<T> for In2D<T> {
 
 impl<T: fmt::Display> fmt::Display for In2D<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}, {}]", self[Dim2::X], self[Dim2::Y])
+        f.write_str("[")?;
+        fmt::Display::fmt(&self[Dim2::X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Dim2::Y], f)?;
+        f.write_str("]")
     }
 }
 
@@ -497,7 +507,13 @@ impl<F> FromIterator<F> for Vec3<F> {
 
 impl<F: BFloat + fmt::Display> fmt::Display for Vec3<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {}, {})", self[X], self[Y], self[Z])
+        f.write_str("(")?;
+        fmt::Display::fmt(&self[X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Y], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Z], f)?;
+        f.write_str(")")
     }
 }
 
@@ -740,7 +756,11 @@ impl<F> FromIterator<F> for Vec2<F> {
 
 impl<F: BFloat + fmt::Display> fmt::Display for Vec2<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self[Dim2::X], self[Dim2::Y])
+        f.write_str("(")?;
+        fmt::Display::fmt(&self[Dim2::X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Dim2::Y], f)?;
+        f.write_str(")")
     }
 }
 
@@ -932,7 +952,13 @@ impl<F> FromIterator<F> for Point3<F> {
 
 impl<F: BFloat + fmt::Display> fmt::Display for Point3<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {}, {})", self[X], self[Y], self[Z])
+        f.write_str("(")?;
+        fmt::Display::fmt(&self[X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Y], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Z], f)?;
+        f.write_str(")")
     }
 }
 
@@ -1123,7 +1149,11 @@ impl<F> FromIterator<F> for Point2<F> {
 
 impl<F: BFloat + fmt::Display> fmt::Display for Point2<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self[Dim2::X], self[Dim2::Y])
+        f.write_str("(")?;
+        fmt::Display::fmt(&self[Dim2::X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Dim2::Y], f)?;
+        f.write_str(")")
     }
 }
 
@@ -1222,7 +1252,13 @@ impl<F> FromIterator<F> for Idx3<F> {
 
 impl<I: num::Integer + fmt::Display> fmt::Display for Idx3<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}, {}, {}]", self[X], self[Y], self[Z])
+        f.write_str("[")?;
+        fmt::Display::fmt(&self[X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Y], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Z], f)?;
+        f.write_str("]")
     }
 }
 
@@ -1318,7 +1354,11 @@ impl<F> FromIterator<F> for Idx2<F> {
 
 impl<I: num::Integer + fmt::Display> fmt::Display for Idx2<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}, {}]", self[Dim2::X], self[Dim2::Y])
+        f.write_str("[")?;
+        fmt::Display::fmt(&self[Dim2::X], f)?;
+        f.write_str(", ")?;
+        fmt::Display::fmt(&self[Dim2::Y], f)?;
+        f.write_str("]")
     }
 }
 
