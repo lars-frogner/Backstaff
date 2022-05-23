@@ -3,6 +3,7 @@
 use crate::num::BFloat;
 use num;
 use std::{
+    borrow::Cow,
     fmt,
     ops::{Add, Div, Index, IndexMut, Mul, Sub},
 };
@@ -385,6 +386,11 @@ impl<F: BFloat> Vec3<F> {
     /// Determines the maximum component value for the vector.
     pub fn max(&self) -> F {
         F::max(self[X], F::max(self[Y], self[Z]))
+    }
+
+    /// Constructs a 2D vector by discarding the z-component.
+    pub fn without_z(&self) -> Vec2<F> {
+        Vec2::new(self[X], self[Y])
     }
 }
 
@@ -823,6 +829,11 @@ impl<F: BFloat> Point3<F> {
     /// Constructs a new vector from the point components.
     pub fn to_vec3(&self) -> Vec3<F> {
         Vec3::new(self[X], self[Y], self[Z])
+    }
+
+    /// Constructs a 2D point by discarding the z-component.
+    pub fn without_z(&self) -> Point2<F> {
+        Point2::new(self[X], self[Y])
     }
 }
 
@@ -1499,5 +1510,210 @@ impl<'a, F: BFloat> Index<Dim2> for CoordRefs2<'a, F> {
     type Output = &'a [F];
     fn index(&self, dim: Dim2) -> &Self::Output {
         &self.0[dim]
+    }
+}
+
+/// Line in 2D, specified by its coefficients in the general line equation
+///  `a*x + b*y + c = 0`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Line2<F> {
+    a: F,
+    b: F,
+    c: F,
+}
+
+impl<F: BFloat> Line2<F> {
+    /// Creates a new 2D line from the given coefficients.
+    pub fn new(a: F, b: F, c: F) -> Self {
+        Self { a, b, c }
+    }
+
+    /// Creates a new 2D line given two points on the line.
+    pub fn new_from_points(point_1: &Point2<F>, point_2: &Point2<F>) -> Self {
+        let diff = point_2 - point_1;
+        let a = diff[Dim2::Y];
+        let b = -diff[Dim2::X];
+        let c = point_2[Dim2::X] * point_1[Dim2::Y] - point_2[Dim2::Y] * point_1[Dim2::X];
+        Self::new(a, b, c)
+    }
+
+    /// Evaluates the line equation for the given point.
+    /// Evaluates to zero for points on the line, and to
+    /// non-zero values with opposite sign for points on
+    /// either side of the line.
+    pub fn evaluate(&self, point: &Point2<F>) -> F {
+        self.a * point[Dim2::X] + self.b * point[Dim2::Y] + self.c
+    }
+
+    /// Returns an `Option` with the point where this line intersects with the given line,
+    /// or `None` if the lines are parallel.
+    pub fn intersection(&self, other: &Self) -> Option<Point2<F>> {
+        let w = self.a * other.b - self.b * other.a;
+        if w == F::zero() {
+            None
+        } else {
+            Some(Point2::new(
+                (self.b * other.c - self.c * other.b) / w,
+                (self.c * other.a - self.a * other.c) / w,
+            ))
+        }
+    }
+}
+
+/// A polygon in 2D, assumed to be non-intersecting and closed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SimplePolygon2<F> {
+    vertices: Vec<Point2<F>>,
+}
+
+macro_rules! vertex_pair_iter {
+    ($vertices:expr) => {
+        $vertices.iter().zip(
+            $vertices
+                .iter()
+                .skip(1)
+                .chain(std::iter::once($vertices.first().unwrap())),
+        )
+    };
+}
+
+macro_rules! checked_vertex_pair_iter {
+    ($vertices:expr) => {
+        if $vertices.len() > 2 {
+            Some(vertex_pair_iter!($vertices))
+        } else {
+            None
+        }
+    };
+}
+
+impl<F: BFloat> SimplePolygon2<F> {
+    /// Creates a new 2D polygon from the given list of vertices.
+    pub fn new(vertices: Vec<Point2<F>>) -> Self {
+        Self { vertices }
+    }
+
+    /// Creates a new polygon with no vertices.
+    pub fn empty() -> Self {
+        Self::new(Vec::new())
+    }
+
+    /// Creates a new polygon with no vertices, but with allocated
+    /// capacity for the given number of vertices.
+    pub fn empty_with_capacity(capacity: usize) -> Self {
+        Self::new(Vec::with_capacity(capacity))
+    }
+
+    /// Returns the number of vertices of the polygon.
+    pub fn n_vertices(&self) -> usize {
+        self.vertices().len()
+    }
+
+    /// Returns a slice with the vertices of the polygon.
+    pub fn vertices(&self) -> &[Point2<F>] {
+        &self.vertices
+    }
+
+    /// Returns an `Option` with the lower and upper bounds of the polygon,
+    /// or `None` if the polygon is empty.
+    pub fn bounds(&self) -> Option<(Vec2<F>, Vec2<F>)> {
+        self.vertices().first().map(|first_vertex| {
+            self.vertices().iter().skip(1).map(Point2::to_vec2).fold(
+                (first_vertex.to_vec2(), first_vertex.to_vec2()),
+                |(lower_bounds, upper_bounds), vertex| {
+                    (
+                        vertex.min_with(&lower_bounds),
+                        vertex.max_with(&upper_bounds),
+                    )
+                },
+            )
+        })
+    }
+
+    /// Returns an `Option` with the area and centroid of the polygon,
+    /// or `None` if the polygon has no area.
+    pub fn area_and_centroid(&self) -> Option<(F, Point2<F>)> {
+        let (mut signed_area, centroid_x, centroid_y) = checked_vertex_pair_iter!(self.vertices())?
+            .fold(
+                (F::zero(), F::zero(), F::zero()),
+                |(signed_area, centroid_x, centroid_y), (current_vertex, next_vertex)| {
+                    let area_contribution = current_vertex[Dim2::X] * next_vertex[Dim2::Y]
+                        - next_vertex[Dim2::X] * current_vertex[Dim2::Y];
+                    (
+                        signed_area + area_contribution,
+                        centroid_x
+                            + (current_vertex[Dim2::X] + next_vertex[Dim2::X]) * area_contribution,
+                        centroid_y
+                            + (current_vertex[Dim2::Y] + next_vertex[Dim2::Y]) * area_contribution,
+                    )
+                },
+            );
+        if signed_area == F::zero() {
+            None
+        } else {
+            signed_area = signed_area * F::from_f32(0.5).unwrap();
+            let centroid_norm = F::one() / (F::from_i32(6).unwrap() * signed_area);
+            let centroid = Point2::new(centroid_norm * centroid_x, centroid_norm * centroid_y);
+            Some((<F as num::Float>::abs(signed_area), centroid))
+        }
+    }
+
+    /// Returns and `Option` with the polygon defined by the intersection between this
+    /// and the given polygon, or `None` if the polygons do not intersect.
+    pub fn intersection(&self, other: &Self) -> Option<Self> {
+        // Use this polygon as first guess for intersection polygon
+        let mut intersection_polygon = Cow::Borrowed(self);
+
+        // Loop through edges of the other polygon
+        for (current_vertex_other, next_vertex_other) in
+            checked_vertex_pair_iter!(other.vertices())?
+        {
+            // No intersection if the intersection polygon has fewer than 3 vertices
+            if intersection_polygon.n_vertices() <= 2 {
+                return None;
+            }
+
+            // Find line corresponding to the current edge of the other polygon
+            let edge_line_other = Line2::new_from_points(current_vertex_other, next_vertex_other);
+
+            // Evaluate edge line equation for all vertices of the intersection polygon.
+            // Vertices with line values > 0 are outside the other polygon.
+            let vertex_line_values: Vec<_> = intersection_polygon
+                .vertices()
+                .iter()
+                .map(|vertex| edge_line_other.evaluate(vertex))
+                .collect();
+
+            // Next intersection polygon candidate will correspond to the current candidate
+            // except that any part outside the current edge of the other polygon will be cut away
+            let mut new_intersection_polygon = Self::empty_with_capacity(5);
+
+            // Loop through edges of the current intersection polygon candidate
+            for (
+                (current_vertex, next_vertex),
+                (&current_vertex_line_value, &next_vertex_line_value),
+            ) in vertex_pair_iter!(intersection_polygon.vertices())
+                .zip(vertex_pair_iter!(vertex_line_values))
+            {
+                if current_vertex_line_value <= F::zero() {
+                    // Vertex where the edge starts is not outside the other polygon, so keep it in the next candidate
+                    new_intersection_polygon.add_vertex(current_vertex.clone());
+                }
+                if current_vertex_line_value * next_vertex_line_value < F::zero() {
+                    // Edge crosses the other polygon, so find the intersection and add as vertex in the next candidate
+                    let edge_line = Line2::new_from_points(current_vertex, next_vertex);
+                    new_intersection_polygon
+                        .add_vertex(edge_line_other.intersection(&edge_line).unwrap());
+                }
+            }
+            intersection_polygon = Cow::Owned(new_intersection_polygon);
+        }
+
+        Some(intersection_polygon.into_owned())
+    }
+
+    /// Adds the given vertex to the polygon.
+    pub fn add_vertex(&mut self, vertex: Point2<F>) {
+        self.vertices.push(vertex);
     }
 }
