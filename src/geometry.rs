@@ -2,9 +2,9 @@
 
 use crate::num::BFloat;
 use num;
-use std::{iter,
+use std::{
     borrow::Cow,
-    fmt,
+    fmt, iter,
     ops::{Add, Div, Index, IndexMut, Mul, Sub},
 };
 
@@ -1617,6 +1617,16 @@ impl<F: BFloat> SimplePolygon2<F> {
     /// capacity for the given number of vertices.
     pub fn empty_with_capacity(capacity: usize) -> Self {
         Self::new(Vec::with_capacity(capacity))
+    }
+
+    /// Creates a rectangle polygon from the given lower and upper bounds.
+    pub fn rectangle_from_bounds(lower_bounds: &Vec2<F>, upper_bounds: &Vec2<F>) -> Self {
+        Self::new(vec![
+            lower_bounds.to_point2(),
+            Point2::new(upper_bounds[Dim2::X], lower_bounds[Dim2::Y]),
+            upper_bounds.to_point2(),
+            Point2::new(lower_bounds[Dim2::X], upper_bounds[Dim2::Y]),
+        ])
     }
 
     /// Returns the number of vertices of the polygon.
