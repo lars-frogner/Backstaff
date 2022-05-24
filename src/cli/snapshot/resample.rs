@@ -12,6 +12,9 @@ use self::{
     mesh_file::{create_mesh_file_subcommand, run_resampling_for_mesh_file},
     regular_grid::{create_regular_grid_subcommand, run_resampling_for_regular_grid},
     reshaped_grid::{create_reshaped_grid_subcommand, run_resampling_for_reshaped_grid},
+    rotated_regular_grid::{
+        create_rotated_regular_grid_subcommand, run_resampling_for_rotated_regular_grid,
+    },
 };
 use super::SnapNumInRange;
 use crate::{
@@ -24,7 +27,7 @@ use crate::{
     geometry::{
         Coords3,
         Dim3::{self, X, Y, Z},
-        In3D,
+        IdentityTransformation2, In3D, PointTransformation2,
     },
     grid::{self, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::{
@@ -78,12 +81,14 @@ pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command
                 .help("Print status messages related to resampling"),
         )
         .subcommand(create_regular_grid_subcommand(command_name))
+        .subcommand(create_rotated_regular_grid_subcommand(command_name))
         .subcommand(create_reshaped_grid_subcommand(command_name))
         .subcommand(create_mesh_file_subcommand(command_name))
 }
 
 enum ResampleGridType {
     Regular,
+    RotatedRegular,
     Reshaped,
     MeshFile,
 }
@@ -116,6 +121,14 @@ pub fn run_resample_subcommand<G, P>(
                 ResampleGridType::Regular,
                 ResamplingMethod::WeightedSampleAveraging,
                 regular_grid_arguments,
+            )
+        } else if let Some(rotated_regular_grid_arguments) =
+            arguments.subcommand_matches("rotated_regular_grid")
+        {
+            (
+                ResampleGridType::RotatedRegular,
+                ResamplingMethod::WeightedSampleAveraging,
+                rotated_regular_grid_arguments,
             )
         } else if let Some(reshaped_grid_arguments) = arguments.subcommand_matches("reshaped_grid")
         {
@@ -234,6 +247,18 @@ fn run_with_selected_interpolator<G, P>(
 
     match resample_grid_type {
         ResampleGridType::Regular => run_resampling_for_regular_grid(
+            grid_type_arguments,
+            arguments,
+            provider,
+            snap_num_in_range,
+            resampled_locations,
+            resampling_method,
+            continue_on_warnings,
+            verbose,
+            interpolator,
+            protected_file_types,
+        ),
+        ResampleGridType::RotatedRegular => run_resampling_for_rotated_regular_grid(
             grid_type_arguments,
             arguments,
             provider,
@@ -372,6 +397,7 @@ fn resample_to_regular_grid<G, P, I>(
         provider,
         snap_num_in_range,
         &new_grid,
+        IdentityTransformation2::new(),
         resampled_locations,
         resampling_method,
         verbose,
@@ -464,7 +490,6 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     }
 
     correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings);
-}
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
@@ -472,6 +497,40 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         provider,
         snap_num_in_range,
         &new_grid,
+        IdentityTransformation2::new(),
+        resampled_locations,
+        resampling_method,
+        verbose,
+        interpolator,
+        protected_file_types,
+    );
+}
+
+fn resample_to_transformed_regular_grid<G, P, T, I>(
+    grid: RegularGrid3<fdt>,
+    arguments: &ArgMatches,
+    provider: P,
+    snap_num_in_range: &Option<SnapNumInRange>,
+    resampled_locations: &In3D<ResampledCoordLocation>,
+    resampling_method: ResamplingMethod,
+    transformation: T,
+    _continue_on_warnings: bool,
+    verbose: Verbose,
+    interpolator: I,
+    protected_file_types: &[&str],
+) where
+    G: Grid3<fdt>,
+    T: PointTransformation2<fdt>,
+    P: SnapshotProvider3<G>,
+    I: Interpolator3,
+{
+    let new_grid = Arc::new(grid);
+    resample_snapshot_for_grid(
+        arguments,
+        provider,
+        snap_num_in_range,
+        &new_grid,
+        transformation,
         resampled_locations,
         resampling_method,
         verbose,
@@ -566,11 +625,12 @@ fn compute_scaled_grid_shape(original_shape: &In3D<usize>, scales: &[fdt]) -> Ve
         .collect()
 }
 
-fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
+fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: &Arc<GOUT>,
+    transformation: T,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     verbose: Verbose,
@@ -580,6 +640,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
     GIN: Grid3<fdt>,
     P: SnapshotProvider3<GIN>,
     GOUT: Grid3<fdt>,
+    T: PointTransformation2<fdt>,
     I: Interpolator3,
 {
     exit_on_error!(
@@ -590,6 +651,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, I>(
     let provider = ResampledSnapshotProvider3::new(
         provider,
         Arc::clone(new_grid),
+        transformation,
         resampled_locations.clone(),
         interpolator,
         resampling_method,

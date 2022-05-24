@@ -11,7 +11,7 @@ use crate::{
         CachingScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod, ScalarField3,
         ScalarFieldCacher3, ScalarFieldProvider3,
     },
-    geometry::{Idx3, In3D},
+    geometry::{Idx3, In3D, PointTransformation2},
     grid::Grid3,
     interpolation::Interpolator3,
 };
@@ -226,9 +226,10 @@ impl ParameterValue {
 
 /// Wrapper for a `SnapshotProvider3` that resamples the provided fields
 /// to a given grid.
-pub struct ResampledSnapshotProvider3<GOLD, G, P, I> {
+pub struct ResampledSnapshotProvider3<GOLD, G, P, T, I> {
     provider: P,
     new_grid: Arc<G>,
+    transformation: T,
     resampled_locations: In3D<ResampledCoordLocation>,
     interpolator: I,
     resampling_method: ResamplingMethod,
@@ -236,16 +237,18 @@ pub struct ResampledSnapshotProvider3<GOLD, G, P, I> {
     phantom: PhantomData<GOLD>,
 }
 
-impl<GOLD, G, P, I> ResampledSnapshotProvider3<GOLD, G, P, I>
+impl<GOLD, G, P, T, I> ResampledSnapshotProvider3<GOLD, G, P, T, I>
 where
     GOLD: Grid3<fdt>,
     G: Grid3<fdt>,
     P: SnapshotProvider3<GOLD>,
+    T: PointTransformation2<fdt>,
     I: Interpolator3,
 {
     pub fn new(
         provider: P,
         new_grid: Arc<G>,
+        transformation: T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: I,
         resampling_method: ResamplingMethod,
@@ -254,6 +257,7 @@ where
         Self {
             provider,
             new_grid,
+            transformation,
             resampled_locations,
             interpolator,
             resampling_method,
@@ -263,11 +267,12 @@ where
     }
 }
 
-impl<GOLD, G, P, I> ScalarFieldProvider3<fdt, G> for ResampledSnapshotProvider3<GOLD, G, P, I>
+impl<GOLD, G, P, T, I> ScalarFieldProvider3<fdt, G> for ResampledSnapshotProvider3<GOLD, G, P, T, I>
 where
     GOLD: Grid3<fdt>,
     G: Grid3<fdt>,
     P: SnapshotProvider3<GOLD>,
+    T: PointTransformation2<fdt>,
     I: Interpolator3,
 {
     fn grid(&self) -> &G {
@@ -287,20 +292,31 @@ where
         if self.verbose.is_yes() {
             println!("Resampling {}", variable_name);
         }
-        Ok(field.resampled_to_grid(
-            self.arc_with_grid(),
-            self.resampled_locations.clone(),
-            &self.interpolator,
-            self.resampling_method,
-        ))
+        Ok(if T::IS_IDENTITY {
+            field.resampled_to_grid(
+                self.arc_with_grid(),
+                self.resampled_locations.clone(),
+                &self.interpolator,
+                self.resampling_method,
+            )
+        } else {
+            field.resampled_to_transformed_grid(
+                self.arc_with_grid(),
+                &self.transformation,
+                self.resampled_locations.clone(),
+                &self.interpolator,
+                self.resampling_method,
+            )
+        })
     }
 }
 
-impl<GOLD, G, P, I> SnapshotProvider3<G> for ResampledSnapshotProvider3<GOLD, G, P, I>
+impl<GOLD, G, P, T, I> SnapshotProvider3<G> for ResampledSnapshotProvider3<GOLD, G, P, T, I>
 where
     GOLD: Grid3<fdt>,
     G: Grid3<fdt>,
     P: SnapshotProvider3<GOLD>,
+    T: PointTransformation2<fdt>,
     I: Interpolator3,
 {
     type Parameters = P::Parameters;
