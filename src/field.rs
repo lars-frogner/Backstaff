@@ -709,15 +709,9 @@ where
         H: Grid3<F>,
         I: Interpolator3,
     {
-        let underlying_locations = self.locations();
-        let underlying_lower_edges = self.grid().lower_edges();
-        let underlying_extents = self.grid().extents();
-
         let overlying_grid = grid;
-        let overlying_locations = ResampledCoordLocation::convert_to_locations_3d(
-            resampled_locations,
-            underlying_locations,
-        );
+        let overlying_locations =
+            ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
