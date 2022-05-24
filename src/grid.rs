@@ -531,7 +531,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     ///
     /// The given indices must lie inside the grid, but the lower index is
     /// allowed to be larger than the upper index (happens when wrapping).
-    fn count_grid_cells_between(self, dim: Dim3, lower_idx: usize, upper_idx: usize) -> usize {
+    fn count_grid_cells_between(&self, dim: Dim3, lower_idx: usize, upper_idx: usize) -> usize {
         debug_assert!(lower_idx < self.shape()[dim] && upper_idx < self.shape()[dim]);
         if upper_idx >= lower_idx {
             upper_idx + 1 - lower_idx
