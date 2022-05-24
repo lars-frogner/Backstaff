@@ -503,9 +503,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     }
 
     /// Creates a vector containing 1D indices running from the given lower
-    /// (inclusive) to upper (inclusive) index, wrapping around periodic
-    /// boundaries and truncating the range if crossing non-periodic
-    /// boundaries.
+    /// (inclusive) to upper (inclusive) index, wrapping around boundaries.
     ///
     /// The given indices must lie inside the grid, but the lower index is
     /// allowed to be larger than the upper index.
@@ -526,6 +524,57 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
             index_list.append(&mut (0..=wrapped_upper_idx).collect());
             index_list
         }
+    }
+
+    /// Returns the number of grid cells from the given lower index to the given
+    /// upper index (inclusive).
+    ///
+    /// The given indices must lie inside the grid, but the lower index is
+    /// allowed to be larger than the upper index (happens when wrapping).
+    fn count_grid_cells_between(self, dim: Dim3, lower_idx: usize, upper_idx: usize) -> usize {
+        debug_assert!(lower_idx < self.shape()[dim] && upper_idx < self.shape()[dim]);
+        if upper_idx >= lower_idx {
+            upper_idx + 1 - lower_idx
+        } else {
+            // Wrap around boundary
+            let length = self.shape()[dim];
+            (length - lower_idx) + (upper_idx + 1)
+        }
+    }
+
+    /// Creates a list of edges for n grid cells starting with the lower edge of the
+    /// cell at the given index and ending with the upper edge of the final grid cell,
+    /// without wrapping when reaching a boundary.
+    ///
+    /// The given index must lie inside the grid.
+    fn get_n_monotonic_grid_cell_edges(
+        &self,
+        dim: Dim3,
+        start_idx: usize,
+        n_grid_cells: usize,
+        offset: F,
+    ) -> Vec<F>;
+
+    /// Creates a list of edges starting with the lower edge of the
+    /// cell at the given lower index and ending with the upper edge of
+    /// the cell a the given upper index, without wrapping when reaching
+    /// a boundary. The provided offset will be added to the coordinates.
+    ///
+    /// The given indices must lie inside the grid, but the lower index is
+    /// allowed to be larger than the upper index (happens when wrapping).
+    fn get_monotonic_grid_cell_edges_between(
+        &self,
+        dim: Dim3,
+        lower_idx: usize,
+        upper_idx: usize,
+        offset: F,
+    ) -> Vec<F> {
+        self.get_n_monotonic_grid_cell_edges(
+            dim,
+            lower_idx,
+            self.count_grid_cells_between(dim, lower_idx, upper_idx),
+            offset,
+        )
     }
 
     /// Slices the grid across the x-axis and returns the corresponding 2D grid.

@@ -253,6 +253,28 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     fn average_grid_cell_extents(&self) -> Vec3<F> {
         self.cell_extents().clone()
     }
+
+    fn get_n_monotonic_grid_cell_edges(
+        &self,
+        dim: Dim3,
+        start_idx: usize,
+        n_grid_cells: usize,
+        offset: F,
+    ) -> Vec<F> {
+        debug_assert!(start_idx < self.shape[dim]);
+        let cell_extent = self.cell_extents()[dim];
+        let start_lower_edge = self.lower_edges()[dim][start_idx] + offset;
+        iter::once(start_lower_edge)
+            .chain(
+                (0..n_grid_cells)
+                    .into_iter()
+                    .scan(start_lower_edge, |edge, _| {
+                        *edge = *edge + cell_extent;
+                        Some(*edge)
+                    }),
+            )
+            .collect()
+    }
 }
 
 /// A regular 2D grid.

@@ -9,6 +9,7 @@ use crate::{
     },
     num::BFloat,
 };
+use std::iter;
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Clone, Debug)]
@@ -186,6 +187,41 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
             self.hor_grid_cell_extents[Dim2::Y],
             self.grid_cell_extents_z[indices[Z]],
         )
+    }
+
+    fn get_n_monotonic_grid_cell_edges(
+        &self,
+        dim: Dim3,
+        start_idx: usize,
+        n_grid_cells: usize,
+        offset: F,
+    ) -> Vec<F> {
+        debug_assert!(start_idx < self.shape[dim]);
+        let start_lower_edge = self.lower_edges()[dim][start_idx] + offset;
+        if dim == Z {
+            iter::once(start_lower_edge)
+                .chain(
+                    self.grid_cell_extents_z[start_idx..n_grid_cells]
+                        .iter()
+                        .scan(start_lower_edge, |edge, &grid_cell_extent| {
+                            *edge = *edge + grid_cell_extent;
+                            Some(*edge)
+                        }),
+                )
+                .collect()
+        } else {
+            let cell_extent = self.hor_grid_cell_extents[Dim2::from_dim3(dim).unwrap()];
+            iter::once(start_lower_edge)
+                .chain(
+                    (0..n_grid_cells)
+                        .into_iter()
+                        .scan(start_lower_edge, |edge, _| {
+                            *edge = *edge + cell_extent;
+                            Some(*edge)
+                        }),
+                )
+                .collect()
+        }
     }
 }
 
