@@ -21,6 +21,7 @@ pub struct HorRegularGrid3<F> {
     lower_bounds: Vec3<F>,
     upper_bounds: Vec3<F>,
     extents: Vec3<F>,
+    hor_grid_cell_extents: Vec2<F>,
     coord_derivatives: [Option<Coords3<F>>; 2],
 }
 
@@ -93,6 +94,9 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
         let (regular_centers_z, regular_lower_edges_z) =
             super::regular_coords_from_bounds(size_z, lower_bound_z, upper_bound_z);
 
+        let grid_cell_extent_x = extent_x / F::from_usize(size_x).unwrap();
+        let grid_cell_extent_y = extent_y / F::from_usize(size_y).unwrap();
+
         Self {
             coords: [centers, lower_edges],
             grid_cell_extents_z,
@@ -102,6 +106,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
             lower_bounds: Vec3::new(lower_bound_x, lower_bound_y, lower_bound_z),
             upper_bounds: Vec3::new(upper_bound_x, upper_bound_y, upper_bound_z),
             extents: Vec3::new(extent_x, extent_y, extent_z),
+            hor_grid_cell_extents: Vec2::new(grid_cell_extent_x, grid_cell_extent_y),
             coord_derivatives: [up_derivatives, down_derivatives],
         }
     }
@@ -176,11 +181,9 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     }
 
     fn grid_cell_extents(&self, indices: &Idx3<usize>) -> Vec3<F> {
-        let shape = self.shape();
-        let extents = self.extents();
         Vec3::new(
-            extents[X] / F::from_usize(shape[X]).unwrap(),
-            extents[Y] / F::from_usize(shape[Y]).unwrap(),
+            self.hor_grid_cell_extents[Dim2::X],
+            self.hor_grid_cell_extents[Dim2::Y],
             self.grid_cell_extents_z[indices[Z]],
         )
     }
