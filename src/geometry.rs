@@ -68,6 +68,16 @@ impl Dim2 {
     pub fn slice() -> [Self; 2] {
         [Self::X, Self::Y]
     }
+
+    /// Returns an `Option` with the corresponding 2D dimension from a 3D dimension,
+    /// or `None` if the 3D dimension is `Z`.
+    pub fn from_dim3(dim: Dim3) -> Option<Self> {
+        match dim {
+            X => Some(Self::X),
+            Y => Some(Self::Y),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Dim2 {
