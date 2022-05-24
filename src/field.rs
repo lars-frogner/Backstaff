@@ -11,7 +11,7 @@ use crate::{
         Dim3::{self, X, Y, Z},
         Idx2, Idx3, In2D, In3D, Point3, Vec2, Vec3,
     },
-    grid::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3},
+    grid::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3, GridPointQuery3},
     interpolation::Interpolator3,
     io::Verbose,
     num::{BFloat, KeyValueOrderableByValue},
@@ -734,26 +734,24 @@ where
                     &mut upper_overlying_corner,
                 );
 
-                let idx_range_lists = self.compute_underlying_grid_cell_idx_ranges_for_resampling(
-                    &lower_overlying_corner,
-                    &upper_overlying_corner,
-                );
+                // Get edges of all grid cells fully or partially within by the overlying grid cell,
+                // making sure that none of the coordinates are wrapped
+                let underlying_edges = self
+                    .compute_monotonic_underlying_grid_cell_edges_for_resampling(
+                        &lower_overlying_corner,
+                        &upper_overlying_corner,
+                    );
 
                 let compute_overlap_centers_and_lengths_along_dim = |dim| {
                     iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
                         .chain(
                             // Next are the lower edges of the underlying cells completely inside the overlying cell
-                            idx_range_lists[dim]
-                                .iter()
-                                .skip(1) // Skip first underlying lower edge since it is outside lower edge of overlying cell
-                                .map(|&idx| &underlying_lower_edges[dim][idx]),
+                            underlying_edges[dim][1..underlying_edges[dim].len() - 1].iter(),
                         )
                         .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
                         .tuple_windows() // Create sliding window iterator over edge pairs
                         .map(|(&lower_coord, &upper_coord)| {
-                            let overlap_length = ((upper_coord - lower_coord)
-                                + underlying_extents[dim])
-                                % underlying_extents[dim]; // Make sure coordinate difference is correct also for wrapped coordinates
+                            let overlap_length = upper_coord - lower_coord;
                             let overlap_center =
                                 lower_coord + overlap_length * F::from_f32(0.5).unwrap();
                             (overlap_center, overlap_length)
@@ -1081,6 +1079,46 @@ where
             lower_overlying_corner[dim] = lower_overlying_corner[dim] + shift;
             upper_overlying_corner[dim] = upper_overlying_corner[dim] + shift;
         }
+    }
+
+    fn compute_monotonic_underlying_grid_cell_edges_for_resampling(
+        &self,
+        lower_overlying_corner: &Point3<F>,
+        upper_overlying_corner: &Point3<F>,
+    ) -> In3D<Vec<F>> {
+        let (lower_underlying_indices, offset) =
+            match self.grid.find_closest_grid_cell(lower_overlying_corner) {
+                GridPointQuery3::Inside(indices) => (indices, Vec3::zero()),
+                GridPointQuery3::MovedInside((indices, moved_point)) => {
+                    (indices, lower_overlying_corner - &moved_point)
+                }
+                _ => unreachable!(),
+            };
+        let upper_underlying_indices = self
+            .grid
+            .find_closest_grid_cell(upper_overlying_corner)
+            .expect_inside_or_moved();
+
+        In3D::new(
+            self.grid.get_monotonic_grid_cell_edges_between(
+                X,
+                lower_underlying_indices[X],
+                upper_underlying_indices[X],
+                offset[X],
+            ),
+            self.grid.get_monotonic_grid_cell_edges_between(
+                Y,
+                lower_underlying_indices[Y],
+                upper_underlying_indices[Y],
+                offset[Y],
+            ),
+            self.grid.get_monotonic_grid_cell_edges_between(
+                Z,
+                lower_underlying_indices[Z],
+                upper_underlying_indices[Z],
+                offset[Z],
+            ),
+        )
     }
 
     fn compute_underlying_grid_cell_idx_ranges_for_resampling(
