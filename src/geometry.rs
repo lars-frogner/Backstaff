@@ -12,7 +12,7 @@ use std::{
 use serde::Serialize;
 
 /// Denotes the x-, y- or z-dimension.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Dim3 {
     X = 0,
     Y = 1,
@@ -57,7 +57,7 @@ impl fmt::Display for Dim3 {
 use Dim3::{X, Y, Z};
 
 /// Denotes the x- or y-dimension.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Dim2 {
     X = 0,
     Y = 1,
