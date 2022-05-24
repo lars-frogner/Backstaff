@@ -201,7 +201,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
         if dim == Z {
             iter::once(start_lower_edge)
                 .chain(
-                    self.grid_cell_extents_z[start_idx..n_grid_cells]
+                    self.grid_cell_extents_z[start_idx..start_idx + n_grid_cells]
                         .iter()
                         .scan(start_lower_edge, |edge, &grid_cell_extent| {
                             *edge = *edge + grid_cell_extent;
