@@ -2,7 +2,7 @@
 
 use crate::num::BFloat;
 use num;
-use std::{
+use std::{iter,
     borrow::Cow,
     fmt,
     ops::{Add, Div, Index, IndexMut, Mul, Sub},
@@ -1577,7 +1577,7 @@ macro_rules! vertex_pair_iter {
             $vertices
                 .iter()
                 .skip(1)
-                .chain(std::iter::once($vertices.first().unwrap())),
+                .chain(iter::once($vertices.first().unwrap())),
         )
     };
 }
