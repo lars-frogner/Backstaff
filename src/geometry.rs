@@ -5,6 +5,7 @@ use num;
 use std::{
     borrow::Cow,
     fmt, iter,
+    marker::PhantomData,
     ops::{Add, Div, Index, IndexMut, Mul, Sub},
 };
 
@@ -1744,9 +1745,34 @@ impl<F: BFloat> SimplePolygon2<F> {
 }
 
 /// Defines the properties of a transformation of 2D points.
-pub trait PointTransformation2<F> {
+pub trait PointTransformation2<F>: Sync {
+    /// Whether the transformation is the identity transformation.
+    const IS_IDENTITY: bool = false;
+
     /// Returns the transformed version of the given point.
     fn transform(&self, point: &Point2<F>) -> Point2<F>;
+}
+
+/// Identity transformation for 2D points.
+pub struct IdentityTransformation2<F> {
+    _phantom: PhantomData<F>,
+}
+
+impl<F> IdentityTransformation2<F> {
+    /// Creates a new identity transformation.
+    pub fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<F: BFloat> PointTransformation2<F> for IdentityTransformation2<F> {
+    const IS_IDENTITY: bool = true;
+
+    fn transform(&self, point: &Point2<F>) -> Point2<F> {
+        point.clone()
+    }
 }
 
 /// Transformation for rotating 2D points about the origin.
