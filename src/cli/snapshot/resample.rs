@@ -364,7 +364,7 @@ fn resample_to_regular_grid<G, P, I>(
         );
     }
 
-    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, verbose);
+    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings);
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
@@ -463,7 +463,8 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         );
     }
 
-    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings, verbose);
+    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings);
+}
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
@@ -483,7 +484,6 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
     original_grid: &GIN,
     new_grid: &mut GOUT,
     continue_on_warnings: bool,
-    verbose: Verbose,
 ) {
     // A coordinate difference must exceed this fraction of a grid cell
     // extent in order to be detected
@@ -537,14 +537,6 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
                         eprintln!("Aborted");
                         process::exit(1);
                     }
-                } else if verbose.is_yes() {
-                    println!(
-                        "Field is no longer periodic in {}-direction after resampling\n\
-                         because new extent differs from original extent:\n\
-                         Before resampling: {}\n\
-                         After resampling: {}",
-                        dim, original_extent, new_extent,
-                    );
                 }
             }
         } else if new_upper_bound - extent_diff_threshold > original_upper_bound
