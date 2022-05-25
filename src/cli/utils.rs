@@ -2,11 +2,12 @@
 
 use crate::{
     exit_on_error,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     io::{
-        snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
+        snapshot::{fpa, SnapshotParameters, SnapshotProvider3},
         OverwriteMode,
     },
+    num::BFloat,
 };
 use clap::{self, ArgMatches, Command};
 use num;
@@ -137,7 +138,7 @@ where
 
 pub fn verify_argument_value_count<T>(
     argument_name: &str,
-    values: &Vec<T>,
+    values: &[T],
     required_count: Option<usize>,
 ) {
     if let Some(required_count) = required_count {
@@ -314,9 +315,9 @@ pub fn get_value_from_param_file_argument_with_default<G, P, T, C>(
     default_value: T,
 ) -> T
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
-    T: From<fdt> + std::fmt::Display + FromStr + Copy,
+    T: From<fpa> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,
 {
@@ -342,9 +343,9 @@ pub fn get_values_from_param_file_argument_with_defaults<G, P, T, C>(
     required_count: Option<usize>,
 ) -> Vec<T>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
-    T: From<fdt> + std::fmt::Display + FromStr + Copy,
+    T: From<fpa> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,
 {
@@ -371,20 +372,20 @@ where
     )
 }
 
-pub fn parse_limits(
-    arguments: &ArgMatches,
-    argument_name: &str,
-    allow_infinity: bool,
-) -> (fdt, fdt) {
+pub fn parse_limits<F>(arguments: &ArgMatches, argument_name: &str, allow_infinity: bool) -> (F, F)
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+{
     let limits: Vec<_> = arguments
         .values_of(argument_name)
         .expect("No value for argument with default")
         .into_iter()
         .map(|string| match string {
-            "-inf" if allow_infinity => fdt::NEG_INFINITY,
-            "inf" if allow_infinity => fdt::INFINITY,
+            "-inf" if allow_infinity => F::neg_infinity(),
+            "inf" if allow_infinity => F::infinity(),
             values_str => exit_on_error!(
-                values_str.parse::<fdt>(),
+                values_str.parse::<F>(),
                 "Error: Could not parse value in {0}: {1}",
                 argument_name
             ),

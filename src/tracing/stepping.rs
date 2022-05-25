@@ -6,7 +6,7 @@ use super::ftr;
 use crate::{
     field::VectorField3,
     geometry::{Point3, Vec3},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
 };
@@ -80,7 +80,7 @@ pub trait Stepper3: Clone {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
@@ -118,7 +118,7 @@ pub trait Stepper3: Clone {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
@@ -156,7 +156,7 @@ pub trait Stepper3: Clone {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;

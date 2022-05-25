@@ -4,12 +4,11 @@ use crate::{
     cli::utils,
     exit_on_false,
     geometry::{Coords3, In3D},
-    grid::{self, hor_regular::HorRegularGrid3, Grid3},
+    grid::{self, fgr, hor_regular::HorRegularGrid3, Grid3},
     interpolation::cubic_hermite_spline::{
         BoundaryTangents, CubicHermiteSplineInterpolator, CubicHermiteSplineInterpolatorConfig,
         TangentScheme,
     },
-    io::snapshot::fdt,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -166,14 +165,14 @@ pub fn run_horizontally_regular_subcommand(
         "Error: Boundary dz scales must be larger than zero"
     );
 
-    let interior_z: Vec<fdt> = utils::get_values_from_parseable_argument_with_custom_defaults(
+    let interior_z: Vec<fgr> = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "interior-z",
         &Vec::new,
         None,
     );
 
-    let interior_dz_scales: Vec<fdt> =
+    let interior_dz_scales: Vec<fgr> =
         utils::get_values_from_parseable_argument_with_custom_defaults(
             arguments,
             "interior-dz-scales",

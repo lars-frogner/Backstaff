@@ -17,13 +17,13 @@ use crate::{
     },
     corks::{ConstantCorkAdvector, CorkAdvector, CorkSet, CorkStepper, HeunCorkStepper},
     field::ScalarFieldCacher3,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{CachingSnapshotProvider3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -121,7 +121,7 @@ pub fn run_corks_subcommand<G, P>(
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     exit_with_error!(
@@ -139,7 +139,7 @@ pub fn run_corks_subcommand<G, P>(
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();
@@ -160,7 +160,7 @@ fn run_with_selected_interpolator<G, P>(
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
@@ -201,7 +201,7 @@ fn run_tracing<G, P, I>(
     protected_file_types: &[&str],
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -236,7 +236,7 @@ fn initialize_with_selected_seeder<G, P, I>(
     interpolator: I,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -286,7 +286,7 @@ fn initialize_corks<G, P, I, Sd>(
     seeder: Sd,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
     Sd: Seeder3,
@@ -310,7 +310,7 @@ fn initialize_corks<G, P, I, Sd>(
 
 fn advect_with_selected_advector<G, P, I>(snapshot: &mut P, interpolator: I, corks: &mut CorkSet)
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -325,7 +325,7 @@ fn advect_with_selected_stepper<G, P, I, A>(
     advector: A,
     corks: &mut CorkSet,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
     A: CorkAdvector,
@@ -342,7 +342,7 @@ fn advect_corks<G, P, I, A, St>(
     stepper: St,
     corks: &mut CorkSet,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator3,
     A: CorkAdvector,

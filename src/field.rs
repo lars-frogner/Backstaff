@@ -11,7 +11,7 @@ use crate::{
         Dim3::{self, X, Y, Z},
         Idx2, Idx3, In2D, In3D, Point3, PointTransformation2, SimplePolygon2, Vec2, Vec3,
     },
-    grid::{regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3, GridPointQuery3},
+    grid::{fgr, regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3, GridPointQuery3},
     interpolation::Interpolator3,
     io::Verbose,
     num::{BFloat, KeyValueOrderableByValue},
@@ -34,7 +34,7 @@ use serde::Serialize;
 use crate::io::utils::save_data_as_pickle;
 
 /// Defines the properties of a provider of 3D scalar fields.
-pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<F>>: Sync {
+pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<fgr>>: Sync {
     /// Returns a reference to the grid.
     fn grid(&self) -> &G;
 
@@ -86,7 +86,7 @@ pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<F>>: Sync {
 pub trait CachingScalarFieldProvider3<F, G>: ScalarFieldProvider3<F, G>
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
 {
     /// Whether the scalar field representing the given variable is cached.
     fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool;
@@ -177,7 +177,7 @@ pub struct ScalarFieldCacher3<F, G, P> {
 impl<F, G, P> ScalarFieldCacher3<F, G, P>
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<F, G>,
 {
     /// Creates a new snapshot cacher from the given provider.
@@ -244,7 +244,7 @@ where
 impl<F, G, P> ScalarFieldProvider3<F, G> for ScalarFieldCacher3<F, G, P>
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<F, G>,
 {
     fn grid(&self) -> &G {
@@ -341,7 +341,7 @@ where
 impl<F, G, P> CachingScalarFieldProvider3<F, G> for ScalarFieldCacher3<F, G, P>
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<F, G>,
 {
     fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
@@ -503,7 +503,7 @@ pub struct ScalarField3<F, G> {
 impl<F, G> ScalarField3<F, G>
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
 {
     /// Creates a new scalar field given a name, a grid, the values and
     /// coordinate locations specifying where in the grid cell the values are defined.
@@ -546,7 +546,7 @@ where
 
     /// Returns a set of references to the coordinates where the field
     /// values are defined.
-    pub fn coords(&self) -> CoordRefs3<F> {
+    pub fn coords(&self) -> CoordRefs3<fgr> {
         CoordRefs3::new(
             &self.grid.coords_by_type(self.locations[X])[X],
             &self.grid.coords_by_type(self.locations[Y])[Y],
@@ -673,7 +673,7 @@ where
         method: ResamplingMethod,
     ) -> ScalarField3<F, H>
     where
-        H: Grid3<F>,
+        H: Grid3<fgr>,
         I: Interpolator3,
     {
         match method {
@@ -706,8 +706,8 @@ where
         method: ResamplingMethod,
     ) -> ScalarField3<F, H>
     where
-        H: Grid3<F>,
-        T: PointTransformation2<F>,
+        H: Grid3<fgr>,
+        T: PointTransformation2<fgr>,
         I: Interpolator3,
     {
         match method {
@@ -743,7 +743,7 @@ where
         interpolator: &I,
     ) -> ScalarField3<F, H>
     where
-        H: Grid3<F>,
+        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let overlying_grid = grid;
@@ -783,8 +783,7 @@ where
                         .tuple_windows() // Create sliding window iterator over edge pairs
                         .map(|(&lower_coord, &upper_coord)| {
                             let overlap_length = upper_coord - lower_coord;
-                            let overlap_center =
-                                lower_coord + overlap_length * F::from_f32(0.5).unwrap();
+                            let overlap_center = lower_coord + overlap_length * 0.5;
                             (overlap_center, overlap_length)
                         })
                         .collect::<Vec<_>>()
@@ -807,30 +806,32 @@ where
                     for &(overlap_center_y, overlap_length_y) in &overlap_centers_and_lengths[Y] {
                         for &(overlap_center_x, overlap_length_x) in &overlap_centers_and_lengths[X]
                         {
-                            let weight = overlap_length_x * overlap_length_y * overlap_length_z;
+                            let weight =
+                                F::from(overlap_length_x * overlap_length_y * overlap_length_z)
+                                    .unwrap();
 
                             accum_value = accum_value
                                 + interpolator
                                     .interp_extrap_scalar_field(
                                         self,
-                                        &dbg!(Point3::new(
+                                        &Point3::new(
                                             overlap_center_x,
                                             overlap_center_y,
                                             overlap_center_z,
-                                        ),),
+                                        ),
                                     )
                                     .expect_inside_or_moved()
-                                    * dbg!(weight);
+                                    * weight;
 
                             accum_weight = accum_weight + weight;
                         }
                     }
                 }
-                overlying_value.write(accum_value / dbg!(accum_weight));
+                overlying_value.write(accum_value / accum_weight);
             },
         );
         let overlying_values = unsafe { overlying_values.assume_init() };
-        println!("{}", overlying_values);
+
         ScalarField3::new(
             self.name.clone(),
             overlying_grid,
@@ -858,8 +859,8 @@ where
         interpolator: &I,
     ) -> ScalarField3<F, H>
     where
-        H: Grid3<F>,
-        T: PointTransformation2<F>,
+        H: Grid3<fgr>,
+        T: PointTransformation2<fgr>,
         I: Interpolator3,
     {
         let overlying_grid = grid;
@@ -881,31 +882,27 @@ where
                     &mut upper_overlying_corner,
                 );
 
-                let transformed_lower_overlying_hor_corner =
-                    transformation.transform(&lower_overlying_corner.without_z());
-                let transformed_upper_overlying_hor_corner =
-                    transformation.transform(&upper_overlying_corner.without_z());
-
-                // Create 2D rotated rectangle corresponding to overlying grid cell in the
+                // Create polygon corresponding to overlying grid cell in the
                 // coordinate system of the underlying grid
-                let overlying_rect = SimplePolygon2::rectangle_from_bounds(
-                    &transformed_lower_overlying_hor_corner.to_vec2(),
-                    &transformed_upper_overlying_hor_corner.to_vec2(),
-                );
+                let hor_overlying_grid_cell_polygon = SimplePolygon2::rectangle_from_bounds(
+                    &lower_overlying_corner.without_z().to_vec2(),
+                    &upper_overlying_corner.without_z().to_vec2(),
+                )
+                .transformed(transformation);
 
                 // Determine axis-aligned bounding box for the overlying grid cell in the
                 // coordinate system of the underlying grid
-                let (overlying_rect_lower_hor_bounds, overlying_rect_upper_hor_bounds) =
-                    overlying_rect.bounds().unwrap();
+                let (hor_bounding_box_lower_corner, hor_bounding_box_upper_corner) =
+                    hor_overlying_grid_cell_polygon.bounds().unwrap();
 
                 let bounding_box_lower_corner = Point3::new(
-                    overlying_rect_lower_hor_bounds[Dim2::X],
-                    overlying_rect_lower_hor_bounds[Dim2::Y],
+                    hor_bounding_box_lower_corner[Dim2::X],
+                    hor_bounding_box_lower_corner[Dim2::Y],
                     lower_overlying_corner[Z],
                 );
                 let bounding_box_upper_corner = Point3::new(
-                    overlying_rect_upper_hor_bounds[Dim2::X],
-                    overlying_rect_upper_hor_bounds[Dim2::Y],
+                    hor_bounding_box_upper_corner[Dim2::X],
+                    hor_bounding_box_upper_corner[Dim2::Y],
                     upper_overlying_corner[Z],
                 );
 
@@ -919,17 +916,17 @@ where
 
                 // Compute the center points and areas of the polynomials found by
                 // horizontally intersecting the underlying grid with the overlying grid.
-                let overlap_areas_and_centers_hor: Vec<_> = underlying_edges[Y]
+                let hor_overlap_areas_and_centers: Vec<_> = underlying_edges[Y]
                     .iter()
                     .tuple_windows()
-                    .flat_map(|(lower_edge_x, upper_edge_x)| {
+                    .flat_map(|(lower_edge_y, upper_edge_y)| {
                         underlying_edges[X].iter().tuple_windows().filter_map(
-                            |(lower_edge_y, upper_edge_y)| {
+                            |(lower_edge_x, upper_edge_x)| {
                                 SimplePolygon2::rectangle_from_bounds(
                                     &Vec2::new(*lower_edge_x, *lower_edge_y),
                                     &Vec2::new(*upper_edge_x, *upper_edge_y),
                                 )
-                                .intersection(&overlying_rect)
+                                .intersection(&hor_overlying_grid_cell_polygon)
                                 .map(|intersection_polygon| {
                                     intersection_polygon.area_and_centroid().unwrap()
                                 })
@@ -949,8 +946,7 @@ where
                     .tuple_windows() // Create sliding window iterator over edge pairs
                     .map(|(&lower_coord, &upper_coord)| {
                         let overlap_length = upper_coord - lower_coord;
-                        let overlap_center =
-                            lower_coord + overlap_length * F::from_f32(0.5).unwrap();
+                        let overlap_center = lower_coord + overlap_length * 0.5;
                         (overlap_length, overlap_center)
                     })
                     .collect::<Vec<_>>();
@@ -961,30 +957,30 @@ where
                 // Accumulate the interpolated value from each sub grid cell center,
                 // weighted with the relative volume of the sub grid cell.
                 for &(overlap_z_length, overlap_z_center) in &overlap_lengths_and_centers_z {
-                    for (overlap_hor_area, overlap_hor_center) in &overlap_areas_and_centers_hor {
-                        let weight = *overlap_hor_area * overlap_z_length;
+                    for (hor_overlap_area, hor_overlap_center) in &hor_overlap_areas_and_centers {
+                        let weight = F::from(*hor_overlap_area * overlap_z_length).unwrap();
 
                         accum_value = accum_value
                             + interpolator
                                 .interp_extrap_scalar_field(
                                     self,
-                                    &dbg!(Point3::new(
-                                        overlap_hor_center[Dim2::X],
-                                        overlap_hor_center[Dim2::Y],
+                                    &Point3::new(
+                                        hor_overlap_center[Dim2::X],
+                                        hor_overlap_center[Dim2::Y],
                                         overlap_z_center,
-                                    ),),
+                                    ),
                                 )
                                 .expect_inside_or_moved()
-                                * dbg!(weight);
+                                * weight;
 
                         accum_weight = accum_weight + weight;
                     }
                 }
-                overlying_value.write(accum_value / dbg!(accum_weight));
+                overlying_value.write(accum_value / accum_weight);
             },
         );
         let overlying_values = unsafe { overlying_values.assume_init() };
-        println!("{}", overlying_values);
+
         ScalarField3::new(
             self.name.clone(),
             overlying_grid,
@@ -1000,7 +996,7 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<F>>(
+    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<fgr>>(
         &self,
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
@@ -1074,7 +1070,9 @@ where
                 for &(overlap_length_z, &k) in &overlap_lengths_and_indices[Z] {
                     for &(overlap_length_y, &j) in &overlap_lengths_and_indices[Y] {
                         for &(overlap_length_x, &i) in &overlap_lengths_and_indices[X] {
-                            let weight = overlap_length_x * overlap_length_y * overlap_length_z;
+                            let weight =
+                                F::from(overlap_length_x * overlap_length_y * overlap_length_z)
+                                    .unwrap();
                             accum_value = accum_value + self.value(&Idx3::new(i, j, k)) * weight;
                             accum_weight = accum_weight + weight;
                         }
@@ -1106,7 +1104,7 @@ where
         interpolator: &I,
     ) -> ScalarField3<F, H>
     where
-        H: Grid3<F>,
+        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let locations =
@@ -1142,7 +1140,7 @@ where
     pub fn slice_across_x<I>(
         &self,
         interpolator: &I,
-        x_coord: F,
+        x_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::XSliceGrid>
     where
@@ -1161,7 +1159,7 @@ where
     pub fn slice_across_y<I>(
         &self,
         interpolator: &I,
-        y_coord: F,
+        y_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::YSliceGrid>
     where
@@ -1180,7 +1178,7 @@ where
     pub fn slice_across_z<I>(
         &self,
         interpolator: &I,
-        z_coord: F,
+        z_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::ZSliceGrid>
     where
@@ -1200,9 +1198,9 @@ where
         &self,
         interpolator: &I,
         axis: Dim3,
-        coord: F,
+        coord: fgr,
         location: CoordLocation,
-    ) -> ScalarField2<F, RegularGrid2<F>>
+    ) -> ScalarField2<F, RegularGrid2<fgr>>
     where
         I: Interpolator3,
     {
@@ -1216,10 +1214,10 @@ where
         )
     }
 
-    fn compute_overlying_grid_cell_corners_for_resampling<H: Grid3<F>>(
+    fn compute_overlying_grid_cell_corners_for_resampling<H: Grid3<fgr>>(
         overlying_grid: &H,
         overlying_grid_cell_idx: usize,
-    ) -> (Point3<F>, Point3<F>) {
+    ) -> (Point3<fgr>, Point3<fgr>) {
         let overlying_indices =
             compute_3d_array_indices_from_flat_idx(overlying_grid.shape(), overlying_grid_cell_idx);
         overlying_grid.grid_cell_extremal_corners(&overlying_indices)
@@ -1227,17 +1225,16 @@ where
 
     fn shift_overlying_grid_cell_corners_for_weighted_sample_averaging(
         overlying_locations: &In3D<CoordLocation>,
-        lower_overlying_corner: &mut Point3<F>,
-        upper_overlying_corner: &mut Point3<F>,
+        lower_overlying_corner: &mut Point3<fgr>,
+        upper_overlying_corner: &mut Point3<fgr>,
     ) {
         for &dim in &Dim3::slice() {
             if let CoordLocation::LowerEdge = overlying_locations[dim] {
                 // Shift the overlying grid cell half a cell down to be centered around the
                 // location of the value to estimate
-                let shift = -(upper_overlying_corner[dim] - lower_overlying_corner[dim])
-                    * F::from_f32(0.5).unwrap();
-                lower_overlying_corner[dim] = lower_overlying_corner[dim] + shift;
-                upper_overlying_corner[dim] = upper_overlying_corner[dim] + shift;
+                let shift = -(upper_overlying_corner[dim] - lower_overlying_corner[dim]) * 0.5;
+                lower_overlying_corner[dim] += shift;
+                upper_overlying_corner[dim] += shift;
             }
         }
     }
@@ -1245,33 +1242,33 @@ where
     fn shift_overlying_grid_cell_corners_for_weighted_cell_averaging(
         underlying_locations: &In3D<CoordLocation>,
         overlying_locations: &In3D<CoordLocation>,
-        average_underlying_cell_extents: &Vec3<F>,
-        lower_overlying_corner: &mut Point3<F>,
-        upper_overlying_corner: &mut Point3<F>,
+        average_underlying_cell_extents: &Vec3<fgr>,
+        lower_overlying_corner: &mut Point3<fgr>,
+        upper_overlying_corner: &mut Point3<fgr>,
     ) {
         for &dim in &Dim3::slice() {
-            let mut shift = F::zero();
+            let mut shift = 0.0;
             if let CoordLocation::LowerEdge = underlying_locations[dim] {
                 // Shift overlying grid cell half an underlying grid cell up to compensate
                 // for downward bias due the underlying values being located on lower edges
-                shift = shift + average_underlying_cell_extents[dim];
+                shift += average_underlying_cell_extents[dim];
             }
             if let CoordLocation::LowerEdge = overlying_locations[dim] {
                 // Shift the overlying grid cell half a cell down to be centered around the
                 // location of the value to estimate
-                shift = shift - (upper_overlying_corner[dim] - lower_overlying_corner[dim]);
+                shift -= upper_overlying_corner[dim] - lower_overlying_corner[dim];
             }
-            shift = shift * F::from_f32(0.5).unwrap();
-            lower_overlying_corner[dim] = lower_overlying_corner[dim] + shift;
-            upper_overlying_corner[dim] = upper_overlying_corner[dim] + shift;
+            shift *= 0.5;
+            lower_overlying_corner[dim] += shift;
+            upper_overlying_corner[dim] += shift;
         }
     }
 
     fn compute_monotonic_underlying_grid_cell_edges_for_resampling(
         &self,
-        lower_overlying_corner: &Point3<F>,
-        upper_overlying_corner: &Point3<F>,
-    ) -> In3D<Vec<F>> {
+        lower_overlying_corner: &Point3<fgr>,
+        upper_overlying_corner: &Point3<fgr>,
+    ) -> In3D<Vec<fgr>> {
         let (lower_underlying_indices, offset) =
             match self.grid.find_closest_grid_cell(lower_overlying_corner) {
                 GridPointQuery3::Inside(indices) => (indices, Vec3::zero()),
@@ -1309,8 +1306,8 @@ where
 
     fn compute_underlying_grid_cell_idx_ranges_for_resampling(
         &self,
-        lower_overlying_corner: &Point3<F>,
-        upper_overlying_corner: &Point3<F>,
+        lower_overlying_corner: &Point3<fgr>,
+        upper_overlying_corner: &Point3<fgr>,
     ) -> In3D<Vec<usize>> {
         let lower_underlying_indices = self
             .grid
@@ -1340,10 +1337,10 @@ where
         )
     }
 
-    fn coords_from_grid<'a, 'b, H: Grid3<F>>(
+    fn coords_from_grid<'a, 'b, H: Grid3<fgr>>(
         grid: &'a H,
         locations: &'b In3D<CoordLocation>,
-    ) -> CoordRefs3<'a, F> {
+    ) -> CoordRefs3<'a, fgr> {
         CoordRefs3::new(
             &grid.coords_by_type(locations[X])[X],
             &grid.coords_by_type(locations[Y])[Y],
@@ -1367,7 +1364,7 @@ where
         &self,
         slice_grid: Arc<G::XSliceGrid>,
         interpolator: &I,
-        x_coord: F,
+        x_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::XSliceGrid>
     where
@@ -1388,7 +1385,7 @@ where
         &self,
         slice_grid: Arc<G::YSliceGrid>,
         interpolator: &I,
-        y_coord: F,
+        y_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::YSliceGrid>
     where
@@ -1409,7 +1406,7 @@ where
         &self,
         slice_grid: Arc<G::ZSliceGrid>,
         interpolator: &I,
-        z_coord: F,
+        z_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F, G::ZSliceGrid>
     where
@@ -1428,12 +1425,12 @@ where
 
     fn create_regular_slice_across_axis<I>(
         &self,
-        slice_grid: Arc<RegularGrid2<F>>,
+        slice_grid: Arc<RegularGrid2<fgr>>,
         interpolator: &I,
         axis: Dim3,
-        coord: F,
+        coord: fgr,
         location: CoordLocation,
-    ) -> ScalarField2<F, RegularGrid2<F>>
+    ) -> ScalarField2<F, RegularGrid2<fgr>>
     where
         I: Interpolator3,
     {
@@ -1477,7 +1474,7 @@ where
         &self,
         axes: [Dim3; 2],
         resampled_location: ResampledCoordLocation,
-    ) -> [&[F]; 2] {
+    ) -> [&[fgr]; 2] {
         match resampled_location {
             ResampledCoordLocation::Original => {
                 let coords = self.coords();
@@ -1494,7 +1491,7 @@ where
         }
     }
 
-    fn select_regular_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&[F]; 2] {
+    fn select_regular_slice_coords(&self, axes: [Dim3; 2], location: CoordLocation) -> [&[fgr]; 2] {
         match location {
             CoordLocation::Center => {
                 let regular_centers = self.grid.regular_centers();
@@ -1511,7 +1508,7 @@ where
         &self,
         interpolator: &I,
         axis: Dim3,
-        coord: F,
+        coord: fgr,
         resampled_location: ResampledCoordLocation,
         regular: bool,
     ) -> Array2<F>
@@ -1543,8 +1540,8 @@ where
         &self,
         interpolator: &I,
         axes: [Dim3; 2],
-        coords: &[&[F]; 2],
-        slice_axis_coord: F,
+        coords: &[&[fgr]; 2],
+        slice_axis_coord: fgr,
     ) -> Array2<F>
     where
         I: Interpolator3,
@@ -1586,7 +1583,7 @@ pub struct VectorField3<F, G> {
 impl<F, G> VectorField3<F, G>
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
 {
     /// Creates a new vector field given a name, a grid, and the scalar fields
     /// representing the component values.
@@ -1624,13 +1621,13 @@ where
 
     /// Returns a set of references to the coordinates where the field
     /// values of the specified component are defined.
-    pub fn coords(&self, dim: Dim3) -> CoordRefs3<F> {
+    pub fn coords(&self, dim: Dim3) -> CoordRefs3<fgr> {
         self.components[dim].coords()
     }
 
     /// Returns a set of references to the coordinates where the field
     /// values of each component are defined.
-    pub fn all_coords(&self) -> In3D<CoordRefs3<F>> {
+    pub fn all_coords(&self) -> In3D<CoordRefs3<fgr>> {
         In3D::new(self.coords(X), self.coords(Y), self.coords(Z))
     }
 
@@ -1686,7 +1683,7 @@ where
         interpolator: &I,
     ) -> VectorField3<F, H>
     where
-        H: Grid3<F>,
+        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let components = In3D::new(
@@ -1716,7 +1713,7 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<F>>(
+    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<fgr>>(
         &self,
         grid: Arc<H>,
     ) -> VectorField3<F, H> {
@@ -1750,7 +1747,7 @@ where
         interpolator: &I,
     ) -> VectorField3<F, H>
     where
-        H: Grid3<F>,
+        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let components = In3D::new(
@@ -1787,7 +1784,7 @@ where
     pub fn slice_across_x<I>(
         &self,
         interpolator: &I,
-        x_coord: F,
+        x_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F, G::XSliceGrid>
     where
@@ -1821,7 +1818,7 @@ where
     pub fn slice_across_y<I>(
         &self,
         interpolator: &I,
-        y_coord: F,
+        y_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F, G::YSliceGrid>
     where
@@ -1855,7 +1852,7 @@ where
     pub fn slice_across_z<I>(
         &self,
         interpolator: &I,
-        z_coord: F,
+        z_coord: fgr,
         resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F, G::ZSliceGrid>
     where
@@ -1890,9 +1887,9 @@ where
         &self,
         interpolator: &I,
         axis: Dim3,
-        coord: F,
+        coord: fgr,
         location: CoordLocation,
-    ) -> PlaneVectorField3<F, RegularGrid2<F>>
+    ) -> PlaneVectorField3<F, RegularGrid2<fgr>>
     where
         I: Interpolator3,
     {
@@ -1939,14 +1936,14 @@ pub struct ScalarField2<F, G> {
 
 #[cfg_attr(feature = "serialization", derive(Serialize))]
 struct ScalarFieldSerializeData2<F> {
-    coords: Coords2<F>,
+    coords: Coords2<fgr>,
     values: Array2<F>,
 }
 
 impl<F, G> ScalarField2<F, G>
 where
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
 {
     /// Creates a new scalar field given a name, a grid, the values and
     /// coordinate locations specifying where in the grid cell the values are defined.
@@ -1981,7 +1978,7 @@ where
 
     /// Returns a set of references to the coordinates where the field
     /// values are defined.
-    pub fn coords(&self) -> CoordRefs2<F> {
+    pub fn coords(&self) -> CoordRefs2<fgr> {
         CoordRefs2::new(
             &self.grid.coords_by_type(self.locations[Dim2::X])[Dim2::X],
             &self.grid.coords_by_type(self.locations[Dim2::Y])[Dim2::Y],
@@ -2118,7 +2115,7 @@ pub struct VectorField2<F, G> {
 impl<F, G> VectorField2<F, G>
 where
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
 {
     /// Creates a new vector field given a name, a grid, and the scalar fields
     /// representing the component values.
@@ -2155,13 +2152,13 @@ where
 
     /// Returns a set of references to the coordinates where the field
     /// values of the specified component are defined.
-    pub fn coords(&self, dim: Dim2) -> CoordRefs2<F> {
+    pub fn coords(&self, dim: Dim2) -> CoordRefs2<fgr> {
         self.components[dim].coords()
     }
 
     /// Returns a set of references to the coordinates where the field
     /// values of each component are defined.
-    pub fn all_coords(&self) -> In2D<CoordRefs2<F>> {
+    pub fn all_coords(&self) -> In2D<CoordRefs2<fgr>> {
         In2D::new(self.coords(Dim2::X), self.coords(Dim2::Y))
     }
 
@@ -2216,7 +2213,7 @@ pub struct PlaneVectorField3<F, G> {
 impl<F, G> PlaneVectorField3<F, G>
 where
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
 {
     /// Creates a new vector field given a name, a grid, and the scalar fields
     /// representing the component values.
@@ -2254,13 +2251,13 @@ where
 
     /// Returns a set of references to the coordinates where the field
     /// values of the specified component are defined.
-    pub fn coords(&self, dim: Dim3) -> CoordRefs2<F> {
+    pub fn coords(&self, dim: Dim3) -> CoordRefs2<fgr> {
         self.components[dim].coords()
     }
 
     /// Returns a set of references to the coordinates where the field
     /// values of each component are defined.
-    pub fn all_coords(&self) -> In3D<CoordRefs2<F>> {
+    pub fn all_coords(&self) -> In3D<CoordRefs2<fgr>> {
         In3D::new(self.coords(X), self.coords(Y), self.coords(Z))
     }
 
@@ -2316,14 +2313,14 @@ pub struct ScalarField1<F, G> {
 
 #[cfg_attr(feature = "serialization", derive(Serialize))]
 struct ScalarFieldSerializeData1<F> {
-    coords: Vec<F>,
+    coords: Vec<fgr>,
     values: Array1<F>,
 }
 
 impl<F, G> ScalarField1<F, G>
 where
     F: BFloat,
-    G: Grid1<F>,
+    G: Grid1<fgr>,
 {
     /// Creates a new scalar field given a name, a grid, the values and
     /// coordinate location specifying where in the grid cell the values are defined.
@@ -2353,7 +2350,7 @@ where
 
     /// Returns a set of references to the coordinates where the field
     /// values are defined.
-    pub fn coords(&self) -> &[F] {
+    pub fn coords(&self) -> &[fgr] {
         self.grid.coords_by_type(self.location)
     }
 

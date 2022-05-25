@@ -7,7 +7,7 @@ use crate::{
         quantities::{DerivedSnapshotProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     io::{
         snapshot::{fdt, SnapshotProvider3},
         utils as io_utils,
@@ -70,7 +70,7 @@ pub fn create_derive_provider<G, P>(
     provider: P,
 ) -> DerivedSnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let derived_quantity_names = arguments

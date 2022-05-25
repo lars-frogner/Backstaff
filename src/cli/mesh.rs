@@ -12,11 +12,8 @@ use self::{
 use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    grid::Grid3,
-    io::{
-        snapshot::{fdt, native},
-        utils::AtomicOutputPath,
-    },
+    grid::{fgr, Grid3},
+    io::{snapshot::native, utils::AtomicOutputPath},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -71,7 +68,7 @@ pub fn run_create_mesh_subcommand(arguments: &ArgMatches, protected_file_types: 
     };
 }
 
-fn write_mesh_file<G: Grid3<fdt>>(
+fn write_mesh_file<G: Grid3<fgr>>(
     root_arguments: &ArgMatches,
     grid: G,
     protected_file_types: &[&str],

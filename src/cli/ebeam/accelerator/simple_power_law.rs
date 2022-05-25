@@ -8,8 +8,8 @@ use crate::{
     },
     ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig,
     exit_on_error,
-    grid::Grid3,
-    io::snapshot::{fdt, SnapshotProvider3},
+    grid::{fgr, Grid3},
+    io::snapshot::SnapshotProvider3,
     units::solar::U_T,
     update_command_graph,
 };
@@ -179,7 +179,7 @@ pub fn construct_simple_power_law_accelerator_config_from_options<G, P>(
     provider: &P,
 ) -> SimplePowerLawAccelerationConfig
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let acceleration_duration = utils::get_value_from_param_file_argument_with_default(

@@ -27,13 +27,13 @@ use crate::{
     },
     exit_on_error, exit_with_error,
     field::ScalarFieldCacher3,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{self, CachingSnapshotProvider3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     seeding::Seeder3,
@@ -163,7 +163,7 @@ pub fn run_trace_subcommand<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();
@@ -279,7 +279,7 @@ fn run_with_selected_tracer<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     let (tracer_config, tracer_arguments) =
@@ -316,7 +316,7 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
     tracer: Tr,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
@@ -370,7 +370,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
     stepper_factory: StF,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
@@ -421,7 +421,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
@@ -482,7 +482,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     seeder: Sd,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
@@ -581,7 +581,7 @@ fn perform_post_tracing_actions<G, P, I>(
     interpolator: I,
     mut field_lines: FieldLineSet3,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {

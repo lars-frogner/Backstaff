@@ -1,7 +1,7 @@
 //! Utilities for parameters in NetCDF format.
 
-use super::super::{super::Verbose, ParameterValue, SnapshotParameters};
-use crate::{geometry::In3D, io::snapshot::fdt, io_result};
+use super::super::{super::Verbose, fpa, ParameterValue, SnapshotParameters};
+use crate::{geometry::In3D, io_result};
 use netcdf_rs::{AttrValue, File, Group, GroupMut};
 use std::{collections::HashMap, io};
 
@@ -97,8 +97,8 @@ fn read_snapshot_parameter(group: &Group, name: &str) -> io::Result<ParameterVal
             AttrValue::Int(i) => ParameterValue::Int(i as i64),
             AttrValue::Ulonglong(i) => ParameterValue::Int(i as i64),
             AttrValue::Longlong(i) => ParameterValue::Int(i),
-            AttrValue::Float(f) => ParameterValue::Float(f as fdt),
-            AttrValue::Double(f) => ParameterValue::Float(f as fdt),
+            AttrValue::Float(f) => ParameterValue::Float(f as fpa),
+            AttrValue::Double(f) => ParameterValue::Float(f as fpa),
             AttrValue::Str(s) => ParameterValue::Str(s),
             _ => {
                 return Err(io::Error::new(

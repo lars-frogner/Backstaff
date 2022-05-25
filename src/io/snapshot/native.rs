@@ -8,7 +8,7 @@ use super::{
         utils::{self, AtomicOutputPath},
         Endianness, OverwriteMode, Verbose,
     },
-    fdt, ParameterValue, SnapshotParameters, SnapshotProvider3, FALLBACK_SNAP_NUM,
+    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, FALLBACK_SNAP_NUM,
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
         In3D,
     },
     grid::{
+        fgr,
         CoordLocation::{self, Center, LowerEdge},
         Grid3,
     },
@@ -60,7 +61,7 @@ pub struct NativeSnapshotReader3<G> {
     variable_descriptors: HashMap<String, VariableDescriptor>,
 }
 
-impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
+impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NativeSnapshotReaderConfig) -> io::Result<Self> {
         let parameters = NativeSnapshotParameters::new(&config.param_file_path, config.verbose())?;
@@ -333,7 +334,7 @@ impl<G: Grid3<fdt>> NativeSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fdt>> ScalarFieldProvider3<fdt, G> for NativeSnapshotReader3<G> {
+impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NativeSnapshotReader3<G> {
     fn grid(&self) -> &G {
         self.grid.as_ref()
     }
@@ -350,7 +351,7 @@ impl<G: Grid3<fdt>> ScalarFieldProvider3<fdt, G> for NativeSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fdt>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
+impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
     type Parameters = NativeSnapshotParameters;
 
     fn parameters(&self) -> &Self::Parameters {
@@ -420,7 +421,7 @@ pub fn write_modified_snapshot<Pa, G, P>(
 ) -> io::Result<()>
 where
     Pa: AsRef<Path>,
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let output_param_path = output_param_path.as_ref();
@@ -459,9 +460,18 @@ where
     modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
     modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
     modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
-    modified_parameters.insert("dx", ParameterValue::Float(average_grid_cell_extents[X]));
-    modified_parameters.insert("dy", ParameterValue::Float(average_grid_cell_extents[Y]));
-    modified_parameters.insert("dz", ParameterValue::Float(average_grid_cell_extents[Z]));
+    modified_parameters.insert(
+        "dx",
+        ParameterValue::Float(average_grid_cell_extents[X] as fpa),
+    );
+    modified_parameters.insert(
+        "dy",
+        ParameterValue::Float(average_grid_cell_extents[Y] as fpa),
+    );
+    modified_parameters.insert(
+        "dz",
+        ParameterValue::Float(average_grid_cell_extents[Z] as fpa),
+    );
 
     let has_primary = !included_primary_variable_names.is_empty();
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();

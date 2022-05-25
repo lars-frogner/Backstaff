@@ -12,13 +12,13 @@ use crate::{
     exit_on_error, exit_with_error,
     field::ResampledCoordLocation,
     geometry::Dim3,
-    grid::{CoordLocation, Grid3},
+    grid::{fgr, CoordLocation, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, SnapshotProvider3},
+        snapshot::{self, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     update_command_graph,
@@ -127,7 +127,7 @@ pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'s
 #[cfg(not(feature = "pickle"))]
 pub fn run_slice_subcommand<G, P>(_: &ArgMatches, _: P, _: &Option<SnapNumInRange>, _: &[&str])
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     exit_with_error!(
@@ -144,7 +144,7 @@ pub fn run_slice_subcommand<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let quantity = arguments
@@ -156,7 +156,7 @@ pub fn run_slice_subcommand<G, P>(
         .value_of("axis")
         .expect("No value for required argument");
 
-    let coord = cli_utils::get_value_from_required_parseable_argument::<fdt>(arguments, "coord");
+    let coord = cli_utils::get_value_from_required_parseable_argument::<fgr>(arguments, "coord");
 
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(

@@ -1,13 +1,13 @@
 //! Generation of seed indices by evaluating a criterion on field values.
 
-use super::{fsd, IndexSeeder3};
+use super::IndexSeeder3;
 use crate::{
     field::{self, ScalarField3, VectorField3},
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, Point3, Vec3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
 };
@@ -49,9 +49,9 @@ impl CriterionSeeder3 {
     ) -> Self
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         C: Fn(F) -> bool + Sync,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         let shape = field.shape();
         let values_slice = field
@@ -107,10 +107,10 @@ impl CriterionSeeder3 {
     ) -> Self
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(F) -> bool + Sync,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         let shape = field.shape();
         let center_coords = field.grid().centers();
@@ -168,10 +168,10 @@ impl CriterionSeeder3 {
     ) -> Self
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> bool + Sync,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         let shape = field.shape();
         let center_coords = field.grid().centers();
@@ -227,7 +227,7 @@ impl IndexSeeder3 for CriterionSeeder3 {
         self.seed_indices.retain(predicate);
     }
 
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fsd>>
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fgr>>
     where
         F: BFloat,
         G: Grid3<F>,

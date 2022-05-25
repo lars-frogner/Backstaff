@@ -6,9 +6,13 @@ pub mod poly_fit;
 use crate::{
     field::{ScalarField1, ScalarField2, ScalarField3, VectorField2, VectorField3},
     geometry::{Idx2, Idx3, Point2, Point3, Vec2, Vec3},
-    grid::{Grid1, Grid2, Grid3, GridPointQuery1, GridPointQuery2, GridPointQuery3},
+    grid::{fgr, Grid1, Grid2, Grid3, GridPointQuery1, GridPointQuery2, GridPointQuery3},
     num::BFloat,
 };
+
+/// Default floating-point precision to use for interpolated values.
+#[allow(non_camel_case_types)]
+pub type fin = f64;
 
 /// Defines the properties of a 3D interpolator.
 pub trait Interpolator3: Clone + Sync + Send {
@@ -27,12 +31,10 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// # Type parameters
     ///
-    /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
-    fn verify_grid<F, G>(&self, grid: &G) -> Result<(), String>
+    fn verify_grid<G>(&self, grid: &G) -> Result<(), String>
     where
-        F: BFloat,
-        G: Grid3<F>;
+        G: Grid3<fgr>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -44,7 +46,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery3<F, F>` which is either:
+    /// A `GridPointQuery3<fgr, F>` which is either:
     ///
     /// - `Inside`: Contains the interpolated field value.
     /// - `MovedInside`: Contains the interpolated field value and a wrapped version of the
@@ -58,11 +60,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, F>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, F>
     where
         F: BFloat,
-        G: Grid3<F>;
+        G: Grid3<fgr>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -88,12 +90,12 @@ pub trait Interpolator3: Clone + Sync + Send {
     fn interp_scalar_field_known_cell<F, G>(
         &self,
         field: &ScalarField3<F, G>,
-        interp_point: &Point3<F>,
+        interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
     ) -> F
     where
         F: BFloat,
-        G: Grid3<F>;
+        G: Grid3<fgr>;
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -107,7 +109,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery3<F, F>` which is either:
+    /// A `GridPointQuery3<fgr, F>` which is either:
     ///
     /// - `Inside`: Contains the interpolated/extrapolated field value.
     /// - `MovedInside`: Contains the interpolated/extrapolated field value and a wrapped/truncated
@@ -120,11 +122,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, F>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, F>
     where
         F: BFloat,
-        G: Grid3<F>;
+        G: Grid3<fgr>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -136,7 +138,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery3<F, Vec3<F>>` which is either:
+    /// A `GridPointQuery3<fgr, Vec3<F>>` which is either:
     ///
     /// - `Inside`: Contains the interpolated field vector.
     /// - `MovedInside`: Contains the interpolated field vector and a wrapped version of the
@@ -150,11 +152,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     fn interp_vector_field<F, G>(
         &self,
         field: &VectorField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, Vec3<F>>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, Vec3<F>>
     where
         F: BFloat,
-        G: Grid3<F>;
+        G: Grid3<fgr>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -180,12 +182,12 @@ pub trait Interpolator3: Clone + Sync + Send {
     fn interp_vector_field_known_cell<F, G>(
         &self,
         field: &VectorField3<F, G>,
-        interp_point: &Point3<F>,
+        interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
     ) -> Vec3<F>
     where
         F: BFloat,
-        G: Grid3<F>;
+        G: Grid3<fgr>;
 
     /// Computes the interpolated or extrapolated value of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -199,7 +201,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery3<F, Vec3<F>>` which is either:
+    /// A `GridPointQuery3<fgr, Vec3<F>>` which is either:
     ///
     /// - `Inside`: Contains the interpolated/extrapolated field vector.
     /// - `MovedInside`: Contains the interpolated/extrapolated field vector and a wrapped/truncated
@@ -212,11 +214,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     fn interp_extrap_vector_field<F, G>(
         &self,
         field: &VectorField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, Vec3<F>>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, Vec3<F>>
     where
         F: BFloat,
-        G: Grid3<F>;
+        G: Grid3<fgr>;
 }
 
 /// Defines the properties of a 2D interpolator.
@@ -231,7 +233,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery2<F, F>` which is either:
+    /// A `GridPointQuery2<fgr, F>` which is either:
     ///
     /// - `Inside`: Contains the interpolated field value.
     /// - `MovedInside`: Contains the interpolated field value and a wrapped version of the
@@ -245,11 +247,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, F>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, F>
     where
         F: BFloat,
-        G: Grid2<F>;
+        G: Grid2<fgr>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -275,12 +277,12 @@ pub trait Interpolator2: Clone + Sync + Send {
     fn interp_scalar_field_known_cell<F, G>(
         &self,
         field: &ScalarField2<F, G>,
-        interp_point: &Point2<F>,
+        interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
     ) -> F
     where
         F: BFloat,
-        G: Grid2<F>;
+        G: Grid2<fgr>;
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -294,7 +296,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery3<F, F>` which is either:
+    /// A `GridPointQuery3<fgr, F>` which is either:
     ///
     /// - `Inside`: Contains the interpolated/extrapolated field value.
     /// - `MovedInside`: Contains the interpolated/extrapolated field value and a wrapped/truncated
@@ -307,11 +309,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, F>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, F>
     where
         F: BFloat,
-        G: Grid2<F>;
+        G: Grid2<fgr>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -323,7 +325,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery2<F, Vec2<F>>` which is either:
+    /// A `GridPointQuery2<fgr, Vec2<F>>` which is either:
     ///
     /// - `Inside`: Contains the interpolated field vector.
     /// - `MovedInside`: Contains the interpolated field vector and a wrapped version of the
@@ -337,11 +339,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     fn interp_vector_field<F, G>(
         &self,
         field: &VectorField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, Vec2<F>>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, Vec2<F>>
     where
         F: BFloat,
-        G: Grid2<F>;
+        G: Grid2<fgr>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -367,12 +369,12 @@ pub trait Interpolator2: Clone + Sync + Send {
     fn interp_vector_field_known_cell<F, G>(
         &self,
         field: &VectorField2<F, G>,
-        interp_point: &Point2<F>,
+        interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
     ) -> Vec2<F>
     where
         F: BFloat,
-        G: Grid2<F>;
+        G: Grid2<fgr>;
 
     /// Computes the interpolated or extrapolated value of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -386,7 +388,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery2<F, Vec2<F>>` which is either:
+    /// A `GridPointQuery2<fgr, Vec2<F>>` which is either:
     ///
     /// - `Inside`: Contains the interpolated/extrapolated field vector.
     /// - `MovedInside`: Contains the interpolated/extrapolated field vector and a wrapped/truncated
@@ -399,11 +401,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     fn interp_extrap_vector_field<F, G>(
         &self,
         field: &VectorField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, Vec2<F>>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, Vec2<F>>
     where
         F: BFloat,
-        G: Grid2<F>;
+        G: Grid2<fgr>;
 }
 
 /// Defines the properties of a 1D interpolator.
@@ -418,7 +420,7 @@ pub trait Interpolator1: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery1<F, F>` which is either:
+    /// A `GridPointQuery1<fgr, F>` which is either:
     ///
     /// - `Inside`: Contains the interpolated field value.
     /// - `MovedInside`: Contains the interpolated field value and a wrapped version of the
@@ -432,11 +434,11 @@ pub trait Interpolator1: Clone + Sync + Send {
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
-    ) -> GridPointQuery1<F, F>
+        interp_coord: fgr,
+    ) -> GridPointQuery1<fgr, F>
     where
         F: BFloat,
-        G: Grid1<F>;
+        G: Grid1<fgr>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -462,12 +464,12 @@ pub trait Interpolator1: Clone + Sync + Send {
     fn interp_scalar_field_known_cell<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
+        interp_coord: fgr,
         interp_index: usize,
     ) -> F
     where
         F: BFloat,
-        G: Grid1<F>;
+        G: Grid1<fgr>;
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -481,7 +483,7 @@ pub trait Interpolator1: Clone + Sync + Send {
     ///
     /// # Returns
     ///
-    /// A `GridPointQuery1<F, F>` which is either:
+    /// A `GridPointQuery1<fgr, F>` which is either:
     ///
     /// - `Inside`: Contains the interpolated/extrapolated field value.
     /// - `MovedInside`: Contains the interpolated/extrapolated field value and a wrapped/truncated
@@ -494,9 +496,9 @@ pub trait Interpolator1: Clone + Sync + Send {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
-    ) -> GridPointQuery1<F, F>
+        interp_coord: fgr,
+    ) -> GridPointQuery1<fgr, F>
     where
         F: BFloat,
-        G: Grid1<F>;
+        G: Grid1<fgr>;
 }

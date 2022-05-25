@@ -17,6 +17,10 @@ use crate::{
 use ndarray::prelude::*;
 use std::{borrow::Cow, io, sync::Arc};
 
+/// Default floating-point precision to use for grids.
+#[allow(non_camel_case_types)]
+pub type fgr = f64;
+
 /// Coordinates located at center or lower edge of grid cell.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CoordLocation {

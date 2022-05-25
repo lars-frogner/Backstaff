@@ -10,7 +10,7 @@ use super::{
 use crate::{
     field::VectorField3,
     geometry::{Point3, Vec3},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
     tracing::ftr,
@@ -131,7 +131,7 @@ impl RKFStepper3 for RKF45Stepper3 {
     ) -> StepperResult<StepAttempt3>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
     {
@@ -312,7 +312,7 @@ impl Stepper3 for RKF45Stepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -329,7 +329,7 @@ impl Stepper3 for RKF45Stepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -346,7 +346,7 @@ impl Stepper3 for RKF45Stepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,

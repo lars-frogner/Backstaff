@@ -7,7 +7,7 @@ use crate::{
         CachingScalarFieldProvider3, ScalarField2, ScalarField3, ScalarFieldProvider3, VectorField3,
     },
     geometry::{Coords2, In2D, In3D, Point2},
-    grid::{regular::RegularGrid2, CoordLocation, Grid2, Grid3},
+    grid::{fgr, regular::RegularGrid2, CoordLocation, Grid2, Grid3},
     interpolation::Interpolator2,
     io::{
         snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
@@ -241,7 +241,7 @@ pub struct EmissivitySnapshotProvider3<G, P, I> {
 
 impl<G, P, I> EmissivitySnapshotProvider3<G, P, I>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator2,
 {
@@ -554,7 +554,7 @@ where
 
 impl<G, P, I> ScalarFieldProvider3<fdt, G> for EmissivitySnapshotProvider3<G, P, I>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator2,
 {
@@ -596,7 +596,7 @@ where
 
 impl<G, P, I> CachingScalarFieldProvider3<fdt, G> for EmissivitySnapshotProvider3<G, P, I>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator2,
 {
@@ -677,7 +677,7 @@ where
 
 impl<G, P, I> SnapshotProvider3<G> for EmissivitySnapshotProvider3<G, P, I>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     I: Interpolator2,
 {
@@ -743,7 +743,7 @@ macro_rules! with_py_error {
 
 /// Map containing the tuple of central wavelength \[cm\] and table of emissivities \[erg/s/sr/cm³\]
 /// associated with each spectral line name.
-type EmissivityTableMap<F> = HashMap<String, (F, ScalarField2<F, RegularGrid2<F>>)>;
+type EmissivityTableMap<F> = HashMap<String, (F, ScalarField2<F, RegularGrid2<fgr>>)>;
 
 type EmissivityTableArrMap<F> = HashMap<String, (F, Array2<F>)>;
 
@@ -795,9 +795,9 @@ where
             });
 
         let half_log_temperature_interval =
-            F::from_f32(0.5).unwrap() * (log_table_temperatures[1] - log_table_temperatures[0]);
-        let half_log_electron_density_interval = F::from_f32(0.5).unwrap()
-            * (log_table_electron_densities[1] - log_table_electron_densities[0]);
+            0.5 * (log_table_temperatures[1] - log_table_temperatures[0]);
+        let half_log_electron_density_interval =
+            0.5 * (log_table_electron_densities[1] - log_table_electron_densities[0]);
         let lower_log_temperatures = log_table_temperatures
             .iter()
             .map(|&val| val - half_log_temperature_interval)
@@ -871,7 +871,8 @@ where
             .zip(temperatures)
             .zip(electron_densities)
             .for_each(|((emissivity, &temperature), &electron_density)| {
-                let point = Point2::new(temperature.log10(), electron_density.log10());
+                let point =
+                    Point2::new(temperature.into().log10(), electron_density.into().log10());
                 emissivity.write(
                     interpolator
                         .interp_scalar_field(emissivity_table, &point)
@@ -888,7 +889,7 @@ where
         log_temperature_limits: (F, F),
         log_electron_density_limits: (F, F),
         verbose: Verbose,
-    ) -> PyResult<(Vec<F>, Vec<F>, EmissivityTableArrMap<F>)> {
+    ) -> PyResult<(Vec<fgr>, Vec<fgr>, EmissivityTableArrMap<F>)> {
         let kwargs = [
             ("dtype", F::get_dtype(py).into_py(py)),
             ("n_temperature_points", n_temperature_points.into_py(py)),
@@ -927,8 +928,9 @@ where
             )?
             .extract()?;
 
-        let log_table_temperatures: &PyArray1<F> = log_table_temperatures.extract()?;
-        let log_table_electron_densities: &PyArray1<F> = log_table_electron_densities.extract()?;
+        let log_table_temperatures: &PyArray1<fgr> = log_table_temperatures.extract()?;
+        let log_table_electron_densities: &PyArray1<fgr> =
+            log_table_electron_densities.extract()?;
         let line_names: Vec<String> = line_names.extract()?;
         let wavelengths: &PyArray1<F> = wavelengths.extract()?;
         let emissivity_tables: Vec<&PyArray2<F>> = emissivity_tables.extract()?;

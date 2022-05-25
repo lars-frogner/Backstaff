@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     field::CachingScalarFieldProvider3,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::{snapshot::fdt, Verbose},
     tracing::stepping::StepperFactory3,
@@ -31,7 +31,7 @@ pub trait Accelerator {
         Self::AccelerationDataCollectionType,
     )>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         D: ReconnectionSiteDetector,
         I: Interpolator3,

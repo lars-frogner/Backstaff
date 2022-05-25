@@ -16,12 +16,13 @@ use crate::{
         Dim3::{X, Y, Z},
         Point3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::snapshot::{fdt, SnapshotProvider3},
+    num::BFloat,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -145,7 +146,7 @@ pub fn run_statistics_subcommand<G, P>(
     mut provider: P,
     quantity_names: Vec<String>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let value_range = utils::parse_limits(arguments, "value-range", true);
@@ -154,7 +155,7 @@ pub fn run_statistics_subcommand<G, P>(
     let z_range = utils::parse_limits(arguments, "z-range", true);
 
     let slice_depths =
-        utils::get_values_from_parseable_argument::<fdt>(arguments, "slice-depths", None);
+        utils::get_values_from_parseable_argument::<fgr>(arguments, "slice-depths", None);
 
     let percentages =
         utils::get_values_from_parseable_argument::<f64>(arguments, "percentages", None);
@@ -233,7 +234,7 @@ fn format_value(value: fdt) -> String {
     .pad_to_width(VALUE_WIDTH)
 }
 
-fn format_coord(value: fdt) -> String {
+fn format_coord(value: fgr) -> String {
     format!("{:cw$.cp$}", value, cw = COORD_WIDTH, cp = COORD_PRECISION)
 }
 
@@ -241,16 +242,17 @@ fn format_idx(idx: usize) -> String {
     format!("{:iw$}", idx, iw = IDX_WIDTH)
 }
 
-fn format_range<S, M>(name: &str, range: &(fdt, fdt), precision: usize, mapper: M) -> String
+fn format_range<F, S, M>(name: &str, range: &(F, F), precision: usize, mapper: M) -> String
 where
+    F: BFloat,
     S: Display,
-    M: Fn(fdt) -> S,
+    M: Fn(F) -> S,
 {
-    if range.0 == fdt::NEG_INFINITY && range.1 == fdt::INFINITY {
+    if range.0 == F::neg_infinity() && range.1 == F::infinity() {
         format!("all {}", name)
-    } else if range.1 == fdt::INFINITY {
+    } else if range.1 == F::infinity() {
         format!("{} \u{2265} {:.p$}", name, mapper(range.0), p = precision)
-    } else if range.0 == fdt::NEG_INFINITY {
+    } else if range.0 == F::neg_infinity() {
         format!("{} \u{2264} {:.p$}", name, mapper(range.1), p = precision)
     } else {
         format!(
@@ -267,15 +269,15 @@ fn print_statistics_report<G, I>(
     field: ScalarField3<fdt, G>,
     snap_name_and_num: (String, Option<u32>),
     value_range: (fdt, fdt),
-    x_range: (fdt, fdt),
-    y_range: (fdt, fdt),
-    z_range: (fdt, fdt),
-    slice_depths: Option<&[fdt]>,
+    x_range: (fgr, fgr),
+    y_range: (fgr, fgr),
+    z_range: (fgr, fgr),
+    slice_depths: Option<&[fgr]>,
     quantile_p_values: Option<&[f64]>,
     no_global: bool,
     interpolator: &I,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     I: Interpolator3,
 {
     let quantity_name = field.name().to_string();
@@ -454,7 +456,7 @@ fn print_statistics_report<G, I>(
             let lower_bound_z = filtered_field.grid().lower_bounds()[Z];
             let upper_bound_z = filtered_field.grid().upper_bounds()[Z];
             for &z_coord in slice_depths {
-                if z_coord >= fdt::max(z_range.0, lower_bound_z)
+                if z_coord >= fgr::max(z_range.0, lower_bound_z)
                     && z_coord <= z_range.1
                     && z_coord < upper_bound_z
                 {
@@ -471,9 +473,9 @@ fn print_statistics_report<G, I>(
     }
 }
 
-fn print_slice_statistics_report<G: Grid3<fdt>, I: Interpolator3>(
+fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
     field: &ScalarField3<fdt, G>,
-    z_coord: fdt,
+    z_coord: fgr,
     quantile_p_values: Option<&[f64]>,
     interpolator: &I,
 ) {

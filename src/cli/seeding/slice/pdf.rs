@@ -6,7 +6,7 @@ use crate::{
     cli::utils,
     exit_on_error,
     geometry::Point2,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotProvider3},
     seeding::slice::SliceSeeder3,
@@ -73,10 +73,10 @@ pub fn create_slice_pdf_seeder_from_arguments<G, P, I, S>(
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
-    S: Fn(&Point2<fdt>) -> bool + Sync,
+    S: Fn(&Point2<fgr>) -> bool + Sync,
 {
     let quantity = arguments
         .value_of("quantity")

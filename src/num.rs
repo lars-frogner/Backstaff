@@ -6,7 +6,14 @@ use std::{cmp, fmt};
 
 /// Floating point marker trait for easier control over trait bounds.
 pub trait BFloat:
-    Sync + Send + num::Float + num::cast::FromPrimitive + ieee754::Ieee754 + fmt::Debug + fmt::Display
+    Sync
+    + Send
+    + num::Float
+    + num::cast::FromPrimitive
+    + ieee754::Ieee754
+    + fmt::Debug
+    + fmt::Display
+    + Into<f64>
 {
 }
 

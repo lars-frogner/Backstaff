@@ -13,7 +13,7 @@ use crate::{
         Dim3::{X, Y, Z},
         Idx3, Point3, Vec3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
     math,
@@ -59,7 +59,7 @@ pub struct PowerLawDistributionData {
     /// Lower cut-off energy [keV].
     lower_cutoff_energy: feb,
     /// Position where the distribution originates [Mm].
-    acceleration_position: Point3<fdt>,
+    acceleration_position: Point3<fgr>,
     /// Indices of position where the distribution originates [Mm].
     acceleration_indices: Idx3<usize>,
     /// Volume of the grid cell where the distribution originates [cm^3].
@@ -391,7 +391,7 @@ impl ParallelExtend<PowerLawDistributionProperties> for PowerLawDistributionProp
 impl Distribution for PowerLawDistribution {
     type PropertiesCollectionType = PowerLawDistributionPropertiesCollection;
 
-    fn acceleration_position(&self) -> &Point3<fdt> {
+    fn acceleration_position(&self) -> &Point3<fgr> {
         &self.data.acceleration_position
     }
 
@@ -431,7 +431,7 @@ impl Distribution for PowerLawDistribution {
         new_position: &Point3<ftr>,
     ) -> PropagationResult
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
     {
@@ -464,18 +464,21 @@ impl Distribution for PowerLawDistribution {
             let mass_density_field = snapshot.cached_scalar_field("r");
             let temperature_field = snapshot.cached_scalar_field("tg");
 
+            #[allow(clippy::useless_conversion)]
             let electron_density = feb::from(interpolator.interp_scalar_field_known_cell(
                 electron_density_field,
                 &Point3::from(&deposition_position),
                 &deposition_indices,
             ));
 
+            #[allow(clippy::useless_conversion)]
             let mass_density = feb::from(interpolator.interp_scalar_field_known_cell(
                 mass_density_field,
                 &Point3::from(&deposition_position),
                 &deposition_indices,
             )) * U_R;
 
+            #[allow(clippy::useless_conversion)]
             let temperature = feb::from(interpolator.interp_scalar_field_known_cell(
                 temperature_field,
                 &Point3::from(&deposition_position),
@@ -510,7 +513,7 @@ impl Distribution for PowerLawDistribution {
             self.hydrogen_column_depth = new_hydrogen_column_depth;
             self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
 
-            let volume = feb::from(snapshot.grid().grid_cell_volume(&deposition_indices)) * U_L3;
+            let volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
             let deposited_power_density = deposited_power / volume;
 
             let depletion_status = if self.config.continue_depleted_beams
@@ -545,7 +548,7 @@ impl PowerLawDistributionConfig {
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G, P>(reader: &P) -> Self
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: SnapshotProvider3<G>,
     {
         let min_residual_factor = reader

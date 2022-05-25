@@ -6,7 +6,7 @@ use crate::{
         ScalarFieldProvider3, VectorField3,
     },
     geometry::{Idx3, In3D},
-    grid::{CoordLocation, Grid3},
+    grid::{fgr, CoordLocation, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
@@ -181,7 +181,7 @@ pub struct DerivedSnapshotProvider3<G, P> {
 
 impl<G, P> DerivedSnapshotProvider3<G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     /// Creates a computer of derived 3D quantities.
@@ -373,7 +373,7 @@ where
 
 impl<G, P> ScalarFieldProvider3<fdt, G> for DerivedSnapshotProvider3<G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     fn grid(&self) -> &G {
@@ -411,7 +411,7 @@ where
 
 impl<G, P> CachingScalarFieldProvider3<fdt, G> for DerivedSnapshotProvider3<G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
@@ -491,7 +491,7 @@ where
 
 impl<G, P> SnapshotProvider3<G> for DerivedSnapshotProvider3<G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     type Parameters = P::Parameters;
@@ -576,7 +576,7 @@ fn compute_quantity<G, P>(
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let grid = provider.arc_with_grid();
@@ -587,7 +587,7 @@ where
             "uy" => compute_derived_quantity!(uy, |py, r| py / r, provider, verbose),
             "uz" => compute_derived_quantity!(uz, |pz, r| pz / r, provider, verbose),
             "ubeam" => compute_derived_quantity!(ubeam,
-                with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices),
+                with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices) as fdt,
                 provider, verbose
             ),
             _ => unreachable!(),
@@ -698,7 +698,7 @@ pub fn compute_quantity_unary<G, P, C>(
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(fdt) -> fdt + Sync,
 {
@@ -732,7 +732,7 @@ pub fn compute_centered_quantity_unary<G, P, C>(
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(&mut fdt) + Sync + Send,
 {
@@ -775,7 +775,7 @@ pub fn compute_quantity_unary_with_indices<G, P, C>(
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(&Idx3<usize>, fdt) -> fdt + Sync,
 {
@@ -817,7 +817,7 @@ pub fn compute_quantity_binary<G, P, C>(
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(fdt, fdt) -> fdt + Sync,
 {
@@ -884,7 +884,7 @@ pub fn compute_quantity_tertiary<G, P, C>(
     verbose: Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: ScalarFieldProvider3<fdt, G>,
     C: Fn(fdt, fdt, fdt) -> fdt + Sync,
 {

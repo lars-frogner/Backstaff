@@ -8,7 +8,7 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D, Point3, Vec3,
     },
-    grid::{regular::RegularGrid3, Grid3},
+    grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotProvider3},
     seeding::volume::VolumeSeeder3,
@@ -69,17 +69,17 @@ pub fn create_value_pdf_subcommand(_parent_command_name: &'static str) -> Comman
 /// Creates a volume PDF seeder based on the provided arguments.
 pub fn create_volume_pdf_seeder_from_arguments<G, P, I, S>(
     arguments: &ArgMatches,
-    lower_bounds: Vec3<fdt>,
-    upper_bounds: Vec3<fdt>,
+    lower_bounds: Vec3<fgr>,
+    upper_bounds: Vec3<fgr>,
     provider: &mut P,
     interpolator: &I,
     satisfies_constraints: &S,
 ) -> VolumeSeeder3
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
-    S: Fn(&Point3<fdt>) -> bool + Sync,
+    S: Fn(&Point3<fgr>) -> bool + Sync,
 {
     let quantity = arguments
         .value_of("quantity")

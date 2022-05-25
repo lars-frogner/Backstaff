@@ -15,7 +15,7 @@ use crate::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::{snapshot::fdt, utils, Verbose},
     num::BFloat,
@@ -331,7 +331,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
     pub fn generate_unpropagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
-    where G: Grid3<fdt>,
+    where G: Grid3<fgr>,
           P: CachingScalarFieldProvider3<fdt, G>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
@@ -385,7 +385,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
     pub fn generate_propagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
-    where G: Grid3<fdt>,
+    where G: Grid3<fgr>,
           P: CachingScalarFieldProvider3<fdt, G>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
@@ -468,7 +468,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_fixed_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
@@ -498,7 +498,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_fixed_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
@@ -528,7 +528,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_varying_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
@@ -565,7 +565,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_varying_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
@@ -743,7 +743,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
         stepper: S,
     ) -> Option<Self>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         S: Stepper3,

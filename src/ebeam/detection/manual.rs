@@ -4,7 +4,7 @@ use super::ReconnectionSiteDetector;
 use crate::{
     field::CachingScalarFieldProvider3,
     geometry::Idx3,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     io::{snapshot::fdt, Verbose},
     seeding::{manual::ManualSeeder3, Seeder3},
 };
@@ -33,7 +33,7 @@ impl ReconnectionSiteDetector for ManualReconnectionSiteDetector {
 
     fn detect_reconnection_sites<G, P>(&self, snapshot: &mut P, _verbose: Verbose) -> Self::Seeder
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         self.seeder.to_index_seeder(snapshot.grid())

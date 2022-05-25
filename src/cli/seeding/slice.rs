@@ -15,10 +15,10 @@ use crate::{
     cli::utils,
     exit_on_false, exit_with_error,
     geometry::{Dim2, Dim3, Point2},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotProvider3},
-    seeding::{fsd, slice::SliceSeeder3},
+    io::snapshot::SnapshotProvider3,
+    seeding::slice::SliceSeeder3,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -26,7 +26,7 @@ use clap::{Arg, ArgMatches, Command};
 /// Holds parameters that are required by all slice seeders.
 pub struct CommonSliceSeederParameters {
     axis: Dim3,
-    coord: fsd,
+    coord: fgr,
 }
 
 /// Creates a subcommand for using a slice seeder.
@@ -101,7 +101,7 @@ pub fn create_slice_seeder_from_arguments<G, P, I>(
     interpolator: &I,
 ) -> SliceSeeder3
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -111,12 +111,12 @@ where
         &["x", "y", "z"],
         &Dim3::slice(),
     );
-    let coord = utils::get_value_from_required_parseable_argument::<fsd>(arguments, "coord");
+    let coord = utils::get_value_from_required_parseable_argument::<fgr>(arguments, "coord");
 
     let horizontal_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "horizontal-limits",
-        &|| vec![fdt::NEG_INFINITY, fdt::INFINITY],
+        &|| vec![fgr::NEG_INFINITY, fgr::INFINITY],
         Some(2),
     );
     exit_on_false!(
@@ -126,7 +126,7 @@ where
     let vertical_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
         arguments,
         "vertical-limits",
-        &|| vec![fdt::NEG_INFINITY, fdt::INFINITY],
+        &|| vec![fgr::NEG_INFINITY, fgr::INFINITY],
         Some(2),
     );
     exit_on_false!(
@@ -136,7 +136,7 @@ where
 
     let parameters = CommonSliceSeederParameters { axis, coord };
 
-    let satisifes_constraints = |point: &Point2<fdt>| {
+    let satisifes_constraints = |point: &Point2<fgr>| {
         point[Dim2::X] >= horizontal_limits[0]
             && point[Dim2::X] < horizontal_limits[1]
             && point[Dim2::Y] >= vertical_limits[0]

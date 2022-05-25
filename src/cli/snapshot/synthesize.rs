@@ -6,7 +6,7 @@ use crate::{
         synthesis::{EmissivitySnapshotProvider3, SYNTHESIZABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
     io::{
         snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
@@ -133,7 +133,7 @@ pub fn create_synthesize_provider<G, P>(
     provider: P,
 ) -> EmissivitySnapshotProvider3<G, P, PolyFitInterpolator2>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     let line_names = arguments
@@ -216,7 +216,7 @@ pub fn create_synthesize_provider_added_caching<G, P>(
     provider: P,
 ) -> EmissivitySnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>, PolyFitInterpolator2>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();

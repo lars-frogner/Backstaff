@@ -5,9 +5,9 @@ use crate::{
     exit_on_error,
     field::CachingScalarFieldProvider3,
     geometry::Dim3,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     io::{
-        snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
+        snapshot::{fdt, fpa, SnapshotParameters, SnapshotProvider3},
         Verbose,
     },
     seeding::{criterion::CriterionSeeder3, IndexSeeder3},
@@ -17,11 +17,11 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct SimpleReconnectionSiteDetectorConfig {
     /// Reconnection sites will be detected where the reconnection factor value is larger than this.
-    pub reconnection_factor_threshold: fdt,
+    pub reconnection_factor_threshold: fpa,
     /// Smallest depth at which reconnection sites will be detected [Mm].
-    pub min_detection_depth: fdt,
+    pub min_detection_depth: fpa,
     /// Largest depth at which reconnection sites will be detected [Mm].
-    pub max_detection_depth: fdt,
+    pub max_detection_depth: fpa,
 }
 
 /// Detector evaluating the topological conservation criterion from Biskamp (2005)
@@ -44,7 +44,7 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
 
     fn detect_reconnection_sites<G, P>(&self, provider: &mut P, verbose: Verbose) -> Self::Seeder
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         let reconnection_factor_field = exit_on_error!(
@@ -53,7 +53,9 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
         );
         let seeder = CriterionSeeder3::on_scalar_field_values(
             reconnection_factor_field.as_ref(),
-            &|reconnection_factor| reconnection_factor >= self.config.reconnection_factor_threshold,
+            &|reconnection_factor| {
+                (reconnection_factor as fpa) >= self.config.reconnection_factor_threshold
+            },
             &|point| {
                 point[Dim3::Z] >= self.config.min_detection_depth
                     && point[Dim3::Z] <= self.config.max_detection_depth
@@ -68,16 +70,16 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
 }
 
 impl SimpleReconnectionSiteDetectorConfig {
-    pub const DEFAULT_RECONNECTION_FACTOR_THRESHOLD: fdt = 5e-4;
-    pub const DEFAULT_MIN_DETECTION_DEPTH: fdt = -13.0; // [Mm]
-    pub const DEFAULT_MAX_DETECTION_DEPTH: fdt = 0.0; // [Mm]
+    pub const DEFAULT_RECONNECTION_FACTOR_THRESHOLD: fpa = 5e-4;
+    pub const DEFAULT_MIN_DETECTION_DEPTH: fpa = -13.0; // [Mm]
+    pub const DEFAULT_MAX_DETECTION_DEPTH: fpa = 0.0; // [Mm]
 
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G, P>(provider: &P) -> Self
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: SnapshotProvider3<G>,
     {
         let reconnection_factor_threshold = provider

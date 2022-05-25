@@ -22,10 +22,10 @@ use crate::{
     add_subcommand_combinations,
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
+    grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     io::{
         snapshot::{
-            self, fdt,
+            self,
             native::{
                 self, NativeSnapshotParameters, NativeSnapshotReader3, NativeSnapshotReaderConfig,
             },
@@ -259,7 +259,7 @@ fn create_native_reader_and_run(
                 Some(down_derivatives),
             );
             let reader = exit_on_error!(
-                NativeSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
+                NativeSnapshotReader3::<RegularGrid3<fgr>>::new_from_parameters_and_grid(
                     config, parameters, grid,
                 ),
                 "Error: Could not create snapshot reader: {}"
@@ -280,7 +280,7 @@ fn create_native_reader_and_run(
                 Some(down_derivatives),
             );
             let reader = exit_on_error!(
-                NativeSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
+                NativeSnapshotReader3::<HorRegularGrid3<fgr>>::new_from_parameters_and_grid(
                     config, parameters, grid,
                 ),
                 "Error: Could not create snapshot reader: {}"
@@ -336,7 +336,7 @@ fn create_netcdf_reader_and_run(
             );
             run_snapshot_subcommand_with_derive(
                 arguments,
-                NetCDFSnapshotReader3::<RegularGrid3<fdt>>::new_from_parameters_and_grid(
+                NetCDFSnapshotReader3::<RegularGrid3<fgr>>::new_from_parameters_and_grid(
                     config, file, parameters, grid, endianness,
                 ),
                 snap_num_in_range,
@@ -353,7 +353,7 @@ fn create_netcdf_reader_and_run(
             );
             run_snapshot_subcommand_with_derive(
                 arguments,
-                NetCDFSnapshotReader3::<HorRegularGrid3<fdt>>::new_from_parameters_and_grid(
+                NetCDFSnapshotReader3::<HorRegularGrid3<fgr>>::new_from_parameters_and_grid(
                     config, file, parameters, grid, endianness,
                 ),
                 snap_num_in_range,
@@ -369,7 +369,7 @@ fn run_snapshot_subcommand_with_derive<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
@@ -396,7 +396,7 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     #[cfg(feature = "synthesis")]
@@ -425,7 +425,7 @@ fn run_snapshot_subcommand_with_synthesis_added_caching<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     #[cfg(feature = "synthesis")]
@@ -455,7 +455,7 @@ fn run_snapshot_subcommand_for_provider<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
@@ -660,7 +660,7 @@ fn parse_included_quantity_list<G, P>(
     continue_on_warnings: bool,
 ) -> Vec<String>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if arguments.is_present("all-quantities") {

@@ -18,9 +18,9 @@ use crate::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::snapshot::SnapshotProvider3,
     seeding::volume::VolumeSeeder3,
     update_command_graph,
 };
@@ -90,7 +90,7 @@ pub fn create_volume_seeder_from_arguments<G, P, I>(
     interpolator: &I,
 ) -> VolumeSeeder3
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -132,7 +132,7 @@ where
     let lower_bounds = Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]);
     let upper_bounds = Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]);
 
-    let satisifes_constraints = |_: &Point3<fdt>| true;
+    let satisifes_constraints = |_: &Point3<fgr>| true;
 
     if let Some(seeder_arguments) = arguments.subcommand_matches("regular") {
         create_regular_volume_seeder_from_arguments(

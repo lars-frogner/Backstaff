@@ -20,12 +20,9 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::{
-        snapshot::{fdt, SnapshotProvider3},
-        Verbose,
-    },
+    io::{snapshot::SnapshotProvider3, Verbose},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -44,7 +41,7 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
         .long_about("Resample to a reshaped version of the original grid.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
-                   weighted sample averaging with the default prameters is used.",
+             weighted sample averaging with the default prameters is used.",
         )
         .arg(
             Arg::new("scales")
@@ -96,13 +93,13 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
     let original_shape = provider.grid().shape();
 
-    let scales: Vec<fdt> =
+    let scales: Vec<fgr> =
         utils::get_values_from_required_parseable_argument(root_arguments, "scales", Some(3));
 
     let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {

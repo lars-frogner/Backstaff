@@ -7,18 +7,14 @@ pub mod volume;
 
 use crate::{
     geometry::{Idx3, Point3},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     num::BFloat,
 };
 use rayon::prelude::*;
 
-/// Floating-point precision to use for seeding.
-#[allow(non_camel_case_types)]
-pub type fsd = f32;
-
 /// Defines the properties of a 3D seed point generator.
 pub trait Seeder3:
-    IntoIterator<Item = Point3<fsd>> + IntoParallelIterator<Item = Point3<fsd>>
+    IntoIterator<Item = Point3<fgr>> + IntoParallelIterator<Item = Point3<fgr>>
 {
     /// Returns the number of seed points that will be produced by the seeder.
     fn number_of_points(&self) -> usize;
@@ -26,7 +22,7 @@ pub trait Seeder3:
     /// Filters the seed points using the given predicate.
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<fsd>) -> bool;
+        P: FnMut(&Point3<fgr>) -> bool;
 
     /// Creates a list of seed indices from the seed points by looking up the grid cells
     /// of the given grid containing the seed points.
@@ -50,21 +46,21 @@ pub trait IndexSeeder3:
 
     /// Creates a list of seed points from the seed indices by indexing the center coordinates
     /// of the given grid.
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fsd>>
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fgr>>
     where
         F: BFloat,
         G: Grid3<F>;
 }
 
 // Let a vector of points work as a seeder.
-impl Seeder3 for Vec<Point3<fsd>> {
+impl Seeder3 for Vec<Point3<fgr>> {
     fn number_of_points(&self) -> usize {
         self.len()
     }
 
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<fsd>) -> bool,
+        P: FnMut(&Point3<fgr>) -> bool,
     {
         self.retain(predicate);
     }
@@ -96,7 +92,7 @@ impl IndexSeeder3 for Vec<Idx3<usize>> {
         self.retain(predicate);
     }
 
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fsd>>
+    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fgr>>
     where
         F: BFloat,
         G: Grid3<F>,

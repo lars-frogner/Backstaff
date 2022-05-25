@@ -7,7 +7,7 @@ use self::stepping::{Stepper3, StepperInstruction, StepperResult, SteppingSense,
 use crate::{
     field::VectorField3,
     geometry::{Point3, Vec3},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
 };
@@ -59,7 +59,7 @@ pub fn trace_3d_field_line<F, G, I, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     I: Interpolator3,
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -125,7 +125,7 @@ pub fn trace_3d_field_line_dense<F, G, I, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     I: Interpolator3,
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -193,7 +193,7 @@ pub fn custom_trace_3d_field_line<F, G, I, D, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     I: Interpolator3,
     D: Fn(&mut Vec3<ftr>),
     St: Stepper3,
@@ -256,7 +256,7 @@ pub fn custom_trace_3d_field_line_dense<F, G, I, D, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     I: Interpolator3,
     D: Fn(&mut Vec3<ftr>),
     St: Stepper3,

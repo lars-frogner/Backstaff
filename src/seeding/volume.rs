@@ -1,13 +1,13 @@
 //! Generation of seed points in a volume of a 3D field.
 
-use super::{fsd, Seeder3};
+use super::Seeder3;
 use crate::{
     field::{ScalarField3, VectorField3},
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, In3D, Point3, Vec3,
     },
-    grid::{regular::RegularGrid3, CoordLocation, Grid3},
+    grid::{fgr, regular::RegularGrid3, CoordLocation, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
     random,
@@ -19,7 +19,7 @@ use std::{collections::HashSet, iter::FromIterator, vec};
 /// Generator for seed points in a volume of a 3D field.
 #[derive(Clone, Debug)]
 pub struct VolumeSeeder3 {
-    seed_points: Vec<Point3<fsd>>,
+    seed_points: Vec<Point3<fgr>>,
 }
 
 impl VolumeSeeder3 {
@@ -36,12 +36,10 @@ impl VolumeSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `F`: Floating point type of the field data.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn regular<F, S>(grid: &RegularGrid3<F>, satisfies_constraints: &S) -> Self
+    pub fn regular<S>(grid: &RegularGrid3<fgr>, satisfies_constraints: &S) -> Self
     where
-        F: BFloat,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         let centers = grid.create_point_list(CoordLocation::Center);
         Self {
@@ -64,17 +62,15 @@ impl VolumeSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `F`: Floating point type of the field data.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn random<F, S>(
-        lower_bounds: &Vec3<F>,
-        upper_bounds: &Vec3<F>,
+    pub fn random<S>(
+        lower_bounds: &Vec3<fgr>,
+        upper_bounds: &Vec3<fgr>,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
     where
-        F: BFloat + SampleUniform,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         let grid = RegularGrid3::from_bounds(
             In3D::same(1),
@@ -100,17 +96,15 @@ impl VolumeSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `F`: Floating point type of the field data.
     /// - `C`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn stratified<F, S>(
-        grid: &RegularGrid3<F>,
+    pub fn stratified<S>(
+        grid: &RegularGrid3<fgr>,
         n_seeds_per_cell: usize,
-        randomness: fsd,
+        randomness: fgr,
         satisfies_constraints: &S,
     ) -> Self
     where
-        F: BFloat + SampleUniform,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         assert_ne!(
             n_seeds_per_cell, 0,
@@ -128,7 +122,7 @@ impl VolumeSeeder3 {
         let centers = grid.create_point_list(CoordLocation::Center);
         let cell_extents = grid.cell_extents();
 
-        let offset_limit = F::from(0.5 * randomness).expect("Conversion failed");
+        let offset_limit = 0.5 * randomness;
         let rng = rand::thread_rng();
         let mut uniform_offset_samples = Uniform::new(-offset_limit, offset_limit).sample_iter(rng);
 
@@ -172,7 +166,7 @@ impl VolumeSeeder3 {
     /// - `C`: Function type taking and returning a floating point value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
     pub fn scalar_field_pdf<F, G, I, C, S>(
-        grid: &RegularGrid3<F>,
+        grid: &RegularGrid3<fgr>,
         field: &ScalarField3<F, G>,
         interpolator: &I,
         compute_pdf_value: &C,
@@ -181,10 +175,10 @@ impl VolumeSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(F) -> F + Sync,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
@@ -237,7 +231,7 @@ impl VolumeSeeder3 {
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
     pub fn vector_field_pdf<F, G, I, C, S>(
-        grid: &RegularGrid3<F>,
+        grid: &RegularGrid3<fgr>,
         field: &VectorField3<F, G>,
         interpolator: &I,
         compute_pdf_value: &C,
@@ -246,10 +240,10 @@ impl VolumeSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> F + Sync,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
@@ -277,13 +271,9 @@ impl VolumeSeeder3 {
         }
     }
 
-    fn apply_constraints<F, S>(
-        points: Vec<Point3<F>>,
-        satisfies_constraints: &S,
-    ) -> Vec<Point3<fsd>>
+    fn apply_constraints<S>(points: Vec<Point3<fgr>>, satisfies_constraints: &S) -> Vec<Point3<fgr>>
     where
-        F: BFloat,
-        S: Fn(&Point3<F>) -> bool + Sync,
+        S: Fn(&Point3<fgr>) -> bool + Sync,
     {
         points
             .into_par_iter()
@@ -299,7 +289,7 @@ impl VolumeSeeder3 {
 }
 
 impl IntoIterator for VolumeSeeder3 {
-    type Item = Point3<fsd>;
+    type Item = Point3<fgr>;
     type IntoIter = vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
         self.seed_points.into_iter()
@@ -307,7 +297,7 @@ impl IntoIterator for VolumeSeeder3 {
 }
 
 impl IntoParallelIterator for VolumeSeeder3 {
-    type Item = Point3<fsd>;
+    type Item = Point3<fgr>;
     type Iter = rayon::vec::IntoIter<Self::Item>;
     fn into_par_iter(self) -> Self::Iter {
         self.seed_points.into_par_iter()
@@ -321,7 +311,7 @@ impl Seeder3 for VolumeSeeder3 {
 
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<fsd>) -> bool,
+        P: FnMut(&Point3<fgr>) -> bool,
     {
         self.seed_points.retain(predicate);
     }

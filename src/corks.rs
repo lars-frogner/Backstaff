@@ -3,7 +3,7 @@
 use crate::{
     field::{ScalarField3, VectorField3},
     geometry::{Idx3, Point3, Vec3},
-    grid::{Grid3, GridPointQuery3},
+    grid::{fgr, Grid3, GridPointQuery3},
     interpolation::Interpolator3,
     io::{
         snapshot::{
@@ -24,7 +24,7 @@ use serde::{
 
 /// Floating-point precision to use for cork tracing.
 #[allow(non_camel_case_types)]
-pub type fco = f32;
+pub type fco = f64;
 
 type ScalarFieldValues = Vec<Vec<fdt>>;
 type VectorFieldValues = Vec<Vec<Vec3<fdt>>>;
@@ -112,7 +112,7 @@ impl Cork {
         interpolator: &I,
     ) -> Self
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         let (position_indices, velocity) = evaluate_velocity(
@@ -192,7 +192,7 @@ impl Cork {
         field: &ScalarField3<fdt, G>,
         interpolator: &I,
     ) where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.is_terminated() {
@@ -218,7 +218,7 @@ impl Cork {
         field: &VectorField3<fdt, G>,
         interpolator: &I,
     ) where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.is_terminated() {
@@ -290,7 +290,7 @@ impl CorkSet {
     ) -> io::Result<Self>
     where
         Po: IntoParallelIterator<Item = Point3<fco>>,
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingSnapshotProvider3<G>,
         I: Interpolator3,
     {
@@ -391,7 +391,7 @@ impl CorkSet {
         momentum_field: &VectorField3<fdt, G>,
         interpolator: &I,
     ) where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         self.corks.push(Cork::new_from_fields(
@@ -425,7 +425,7 @@ impl CorkSet {
 
     fn sample_field_values<G, P, I>(&mut self, provider: &mut P, interpolator: &I) -> io::Result<()>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: SnapshotProvider3<G>,
         I: Interpolator3,
     {
@@ -512,7 +512,7 @@ pub trait CorkStepper: Sync {
         momentum_field: &VectorField3<fdt, G>,
         interpolator: &I,
     ) where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         I: Interpolator3;
 
     fn step_all_corks<G, P, I>(
@@ -522,7 +522,7 @@ pub trait CorkStepper: Sync {
         interpolator: &I,
     ) -> io::Result<()>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingSnapshotProvider3<G>,
         I: Interpolator3,
     {
@@ -568,7 +568,7 @@ impl CorkStepper for HeunCorkStepper {
         momentum_field: &VectorField3<fdt, G>,
         interpolator: &I,
     ) where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if cork.is_terminated() {
@@ -638,7 +638,7 @@ pub trait CorkAdvector {
         stepper: &S,
     ) -> io::Result<()>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingSnapshotProvider3<G>,
         I: Interpolator3,
         S: CorkStepper;
@@ -653,7 +653,7 @@ impl CorkAdvector for ConstantCorkAdvector {
         stepper: &S,
     ) -> io::Result<()>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingSnapshotProvider3<G>,
         I: Interpolator3,
         S: CorkStepper,
@@ -669,7 +669,7 @@ fn evaluate_velocity<G, I>(
     interpolator: &I,
 ) -> Option<(Idx3<usize>, Vec3<fco>)>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     I: Interpolator3,
 {
     let interp_point = position.converted();

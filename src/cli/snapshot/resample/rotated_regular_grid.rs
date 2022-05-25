@@ -15,17 +15,14 @@ use crate::{
     },
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::{
-        self, Dim2,
+        Dim2,
         Dim3::{X, Y, Z},
         In3D, Point2, PointTransformation2, RotationAndTranslationTransformation2,
-        RotationTransformation2, SimplePolygon2, TranslationTransformation2, Vec3,
+        RotationTransformation2, TranslationTransformation2, Vec3,
     },
-    grid::{regular::RegularGrid3, Grid3},
+    grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::{
-        snapshot::{fdt, SnapshotProvider3},
-        Verbose,
-    },
+    io::{snapshot::SnapshotProvider3, Verbose},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -152,7 +149,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -163,7 +160,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let scales: Vec<fdt> =
+    let scales: Vec<fgr> =
         cli_utils::get_values_from_required_parseable_argument(root_arguments, "scales", Some(3));
 
     let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
@@ -182,10 +179,16 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
         "Error: Grid size must be larger than zero in every dimension"
     );
 
-    let x_start =
-        cli_utils::get_values_from_required_parseable_argument(root_arguments, "x-start", Some(2));
-    let x_end =
-        cli_utils::get_values_from_required_parseable_argument(root_arguments, "x-end", Some(2));
+    let x_start = cli_utils::get_values_from_required_parseable_argument::<fgr>(
+        root_arguments,
+        "x-start",
+        Some(2),
+    );
+    let x_end = cli_utils::get_values_from_required_parseable_argument::<fgr>(
+        root_arguments,
+        "x-end",
+        Some(2),
+    );
 
     let x_start = Point2::new(x_start[0], x_start[1]);
     let x_end = Point2::new(x_end[0], x_end[1]);
@@ -198,7 +201,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     );
 
     let y_extent =
-        cli_utils::get_value_from_required_parseable_argument::<fdt>(arguments, "y-extent");
+        cli_utils::get_value_from_required_parseable_argument::<fgr>(arguments, "y-extent");
     exit_on_false!(
         y_extent > 0.0,
         "Error: Extent in y-direction must be larger than zero"

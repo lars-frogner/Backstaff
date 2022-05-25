@@ -8,7 +8,7 @@ use crate::{
     constants::{INFINITY, KBOLTZMANN, KEV_TO_ERG, PI},
     field::CachingScalarFieldProvider3,
     geometry::{Dim3, Idx3, Point3, Vec3},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::{
         snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
@@ -78,10 +78,11 @@ impl SimplePowerLawAccelerator {
 
     fn determine_total_power_density<G, P>(&self, snapshot: &P, indices: &Idx3<usize>) -> feb
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         let joule_heating_field = snapshot.cached_scalar_field("qjoule");
+        #[allow(clippy::useless_conversion)]
         let joule_heating = feb::from(joule_heating_field.value(indices));
         let joule_heating = feb::max(0.0, joule_heating * U_E / U_T); // [erg/(cm^3 s)]
 
@@ -90,15 +91,15 @@ impl SimplePowerLawAccelerator {
 
     fn determine_acceleration_volume<G, P>(&self, snapshot: &P, indices: &Idx3<usize>) -> feb
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
-        feb::from(snapshot.grid().grid_cell_volume(indices)) * U_L3 // [cm^3]
+        snapshot.grid().grid_cell_volume(indices) * U_L3 // [cm^3]
     }
 
-    fn determine_acceleration_position<G, P>(snapshot: &P, indices: &Idx3<usize>) -> Point3<fdt>
+    fn determine_acceleration_position<G, P>(snapshot: &P, indices: &Idx3<usize>) -> Point3<fgr>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         snapshot.grid().centers().point(indices)
@@ -109,7 +110,7 @@ impl SimplePowerLawAccelerator {
         indices: &Idx3<usize>,
     ) -> Option<Vec3<fdt>>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         let electric_field = snapshot.cached_vector_field("e");
@@ -157,10 +158,10 @@ impl SimplePowerLawAccelerator {
     fn determine_magnetic_field_direction<G, P, I>(
         snapshot: &P,
         interpolator: &I,
-        acceleration_position: &Point3<fdt>,
+        acceleration_position: &Point3<fgr>,
     ) -> Vec3<fdt>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
     {
@@ -177,6 +178,7 @@ impl SimplePowerLawAccelerator {
         magnetic_field_direction: &Vec3<fdt>,
         electric_field_direction: &Vec3<fdt>,
     ) -> feb {
+        #[allow(clippy::useless_conversion)]
         feb::from(electric_field_direction.dot(magnetic_field_direction))
     }
 
@@ -207,25 +209,28 @@ impl SimplePowerLawAccelerator {
         )
     }
 
+    #[allow(clippy::useless_conversion)]
     fn determine_temperature<G, P>(snapshot: &P, indices: &Idx3<usize>) -> feb
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         feb::from(snapshot.cached_scalar_field("tg").value(indices))
     }
 
+    #[allow(clippy::useless_conversion)]
     fn determine_electron_density<G, P>(snapshot: &P, indices: &Idx3<usize>) -> feb
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         feb::from(snapshot.cached_scalar_field("nel").value(indices)) // [1/cm^3]
     }
 
+    #[allow(clippy::useless_conversion)]
     fn determine_mass_density<G, P>(snapshot: &P, indices: &Idx3<usize>) -> feb
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
     {
         feb::from(snapshot.cached_scalar_field("r").value(indices)) * U_R // [g/cm^3]
@@ -367,7 +372,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         Self::AccelerationDataCollectionType,
     )>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         D: ReconnectionSiteDetector,
         I: Interpolator3,
@@ -664,7 +669,7 @@ impl SimplePowerLawAccelerationConfig {
     /// falling back to the hardcoded defaults.
     pub fn with_defaults_from_param_file<G, P>(provider: &P) -> Self
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: SnapshotProvider3<G>,
     {
         let acceleration_duration = provider

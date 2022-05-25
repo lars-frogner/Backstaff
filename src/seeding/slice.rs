@@ -1,6 +1,6 @@
 //! Generation of seed points in a slice through a field.
 
-use super::{fsd, Seeder3};
+use super::Seeder3;
 use crate::{
     field::{ScalarField3, VectorField3},
     geometry::{
@@ -8,7 +8,7 @@ use crate::{
         Dim3::{self, X, Y, Z},
         Idx3, In2D, Point2, Point3, Vec3,
     },
-    grid::{CoordLocation, Grid2, Grid3},
+    grid::{fgr, CoordLocation, Grid2, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
     random,
@@ -20,7 +20,7 @@ use std::{collections::HashSet, iter::FromIterator, vec};
 /// Generator for seed points in a slice of a 3D field.
 #[derive(Clone, Debug)]
 pub struct SliceSeeder3 {
-    seed_points: Vec<Point3<fsd>>,
+    seed_points: Vec<Point3<fgr>>,
 }
 
 impl SliceSeeder3 {
@@ -40,20 +40,18 @@ impl SliceSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn regular<F, G, S>(
+    pub fn regular<G, S>(
         grid: &G,
         axis: Dim3,
-        coord: fsd,
+        coord: fgr,
         shape: In2D<usize>,
         satisfies_constraints: &S,
     ) -> Self
     where
-        F: BFloat,
-        G: Grid3<F>,
-        S: Fn(&Point2<F>) -> bool + Sync,
+        G: Grid3<fgr>,
+        S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         let slice_grid = grid.regular_slice_across_axis(axis).reshaped(shape);
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
@@ -83,20 +81,18 @@ impl SliceSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn random<F, G, S>(
+    pub fn random<G, S>(
         grid: &G,
         axis: Dim3,
-        coord: fsd,
+        coord: fgr,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
     where
-        F: BFloat + SampleUniform,
-        G: Grid3<F>,
-        S: Fn(&Point2<F>) -> bool + Sync,
+        G: Grid3<fgr>,
+        S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         Self::stratified(
             grid,
@@ -127,22 +123,20 @@ impl SliceSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `F`: Floating point type of the field data.
     /// - `G`: Type of grid.
     /// - `C`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn stratified<F, G, S>(
+    pub fn stratified<G, S>(
         grid: &G,
         axis: Dim3,
-        coord: fsd,
+        coord: fgr,
         shape: In2D<usize>,
         n_seeds_per_cell: usize,
-        randomness: fsd,
+        randomness: fgr,
         satisfies_constraints: &S,
     ) -> Self
     where
-        F: BFloat + SampleUniform,
-        G: Grid3<F>,
-        S: Fn(&Point2<F>) -> bool + Sync,
+        G: Grid3<fgr>,
+        S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         assert_ne!(
             n_seeds_per_cell, 0,
@@ -161,7 +155,7 @@ impl SliceSeeder3 {
         let slice_centers = slice_grid.create_point_list(CoordLocation::Center);
         let slice_cell_extents = slice_grid.cell_extents();
 
-        let offset_limit = F::from(0.5 * randomness).expect("Conversion failed");
+        let offset_limit = 0.5 * randomness;
         let rng = rand::thread_rng();
         let mut uniform_offset_samples = Uniform::new(-offset_limit, offset_limit).sample_iter(rng);
 
@@ -215,26 +209,22 @@ impl SliceSeeder3 {
         field: &ScalarField3<F, G>,
         interpolator: &I,
         axis: Dim3,
-        coord: fsd,
+        coord: fgr,
         compute_pdf_value: &C,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(F) -> F,
-        S: Fn(&Point2<F>) -> bool + Sync,
+        S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
-        let slice_field = field.regular_slice_across_axis(
-            interpolator,
-            axis,
-            F::from(coord).expect("Conversion failed"),
-            CoordLocation::Center,
-        );
+        let slice_field =
+            field.regular_slice_across_axis(interpolator, axis, coord, CoordLocation::Center);
         let slice_values = slice_field.values();
         let slice_grid = slice_field.grid();
         let slice_shape = slice_grid.shape();
@@ -292,26 +282,22 @@ impl SliceSeeder3 {
         field: &VectorField3<F, G>,
         interpolator: &I,
         axis: Dim3,
-        coord: fsd,
+        coord: fgr,
         compute_pdf_value: &C,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> F,
-        S: Fn(&Point2<F>) -> bool + Sync,
+        S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         assert_ne!(n_seeds, 0, "Number of seeds must be larger than zero.");
 
-        let slice_field = field.regular_slice_across_axis(
-            interpolator,
-            axis,
-            F::from(coord).expect("Conversion failed"),
-            CoordLocation::Center,
-        );
+        let slice_field =
+            field.regular_slice_across_axis(interpolator, axis, coord, CoordLocation::Center);
         let slice_values = slice_field.all_values();
         let slice_grid = slice_field.grid();
         let slice_shape = slice_grid.shape();
@@ -344,15 +330,14 @@ impl SliceSeeder3 {
         }
     }
 
-    fn construct_seed_points_from_slice_points<F, S>(
-        slice_points: Vec<Point2<F>>,
+    fn construct_seed_points_from_slice_points<S>(
+        slice_points: Vec<Point2<fgr>>,
         axis: Dim3,
-        coord: fsd,
+        coord: fgr,
         satisfies_constraints: &S,
-    ) -> Vec<Point3<fsd>>
+    ) -> Vec<Point3<fgr>>
     where
-        F: BFloat,
-        S: Fn(&Point2<F>) -> bool + Sync,
+        S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         match axis {
             X => slice_points
@@ -402,7 +387,7 @@ impl SliceSeeder3 {
 }
 
 impl IntoIterator for SliceSeeder3 {
-    type Item = Point3<fsd>;
+    type Item = Point3<fgr>;
     type IntoIter = vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
         self.seed_points.into_iter()
@@ -410,7 +395,7 @@ impl IntoIterator for SliceSeeder3 {
 }
 
 impl IntoParallelIterator for SliceSeeder3 {
-    type Item = Point3<fsd>;
+    type Item = Point3<fgr>;
     type Iter = rayon::vec::IntoIter<Self::Item>;
     fn into_par_iter(self) -> Self::Iter {
         self.seed_points.into_par_iter()
@@ -424,7 +409,7 @@ impl Seeder3 for SliceSeeder3 {
 
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<fsd>) -> bool,
+        P: FnMut(&Point3<fgr>) -> bool,
     {
         self.seed_points.retain(predicate);
     }

@@ -19,10 +19,10 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
+    grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, native, SnapshotProvider3},
+        snapshot::{native, SnapshotProvider3},
         Verbose,
     },
     update_command_graph,
@@ -44,7 +44,7 @@ pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Comman
         .long_about("Resample to a grid specified by a mesh file.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
-                   weighted sample averaging with the default prameters is used.",
+             weighted sample averaging with the default prameters is used.",
         )
         .arg(
             Arg::new("mesh-file")
@@ -90,7 +90,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {

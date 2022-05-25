@@ -4,8 +4,8 @@ use super::SnapNumInRange;
 use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    grid::Grid3,
-    io::snapshot::{self, fdt, native, ParameterValue, SnapshotProvider3},
+    grid::{fgr, Grid3},
+    io::snapshot::{self, native, ParameterValue, SnapshotProvider3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -123,7 +123,7 @@ pub fn run_write_subcommand<G, P>(
     modified_parameters: HashMap<&str, ParameterValue>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let mut output_file_path = exit_on_error!(

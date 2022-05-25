@@ -2,7 +2,10 @@
 
 use super::CommonSliceSeederParameters;
 use crate::{
-    cli::utils, geometry::Point2, grid::Grid3, io::snapshot::fdt, seeding::slice::SliceSeeder3,
+    cli::utils,
+    geometry::Point2,
+    grid::{fgr, Grid3},
+    seeding::slice::SliceSeeder3,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -40,8 +43,8 @@ pub fn create_random_slice_seeder_from_arguments<G, S>(
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
-    G: Grid3<fdt>,
-    S: Fn(&Point2<fdt>) -> bool + Sync,
+    G: Grid3<fgr>,
+    S: Fn(&Point2<fgr>) -> bool + Sync,
 {
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
 

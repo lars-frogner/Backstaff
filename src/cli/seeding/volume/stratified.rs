@@ -3,9 +3,8 @@
 use crate::{
     cli::utils,
     geometry::{In3D, Point3, Vec3},
-    grid::regular::RegularGrid3,
-    io::snapshot::fdt,
-    seeding::{fsd, volume::VolumeSeeder3},
+    grid::{fgr, regular::RegularGrid3},
+    seeding::volume::VolumeSeeder3,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -61,19 +60,19 @@ pub fn create_stratified_subcommand(_parent_command_name: &'static str) -> Comma
 /// Creates a stratified volume seeder based on the provided arguments.
 pub fn create_stratified_volume_seeder_from_arguments<S>(
     arguments: &ArgMatches,
-    lower_bounds: Vec3<fdt>,
-    upper_bounds: Vec3<fdt>,
+    lower_bounds: Vec3<fgr>,
+    upper_bounds: Vec3<fgr>,
     satisfies_constraints: &S,
 ) -> VolumeSeeder3
 where
-    S: Fn(&Point3<fdt>) -> bool + Sync,
+    S: Fn(&Point3<fgr>) -> bool + Sync,
 {
     let shape =
         utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(3));
     let n_seeds_per_cell =
         utils::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
     let randomness =
-        utils::get_value_from_required_parseable_argument::<fsd>(arguments, "randomness");
+        utils::get_value_from_required_parseable_argument::<fgr>(arguments, "randomness");
 
     let grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),

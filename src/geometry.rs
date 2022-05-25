@@ -1735,12 +1735,30 @@ impl<F: BFloat> SimplePolygon2<F> {
             intersection_polygon = Cow::Owned(new_intersection_polygon);
         }
 
-        Some(intersection_polygon.into_owned())
+        if intersection_polygon.n_vertices() <= 2 {
+            None
+        } else {
+            Some(intersection_polygon.into_owned())
+        }
     }
 
     /// Adds the given vertex to the polygon.
     pub fn add_vertex(&mut self, vertex: Point2<F>) {
         self.vertices.push(vertex);
+    }
+
+    /// Creates a version of the polygon where the vertices have been transformed
+    /// with the given point transformation.
+    pub fn transformed<T>(&self, transformation: &T) -> Self
+    where
+        T: PointTransformation2<F>,
+    {
+        Self::new(
+            self.vertices()
+                .iter()
+                .map(|point| transformation.transform(point))
+                .collect(),
+        )
     }
 }
 

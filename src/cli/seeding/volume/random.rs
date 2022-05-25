@@ -3,7 +3,7 @@
 use crate::{
     cli::utils,
     geometry::{Point3, Vec3},
-    io::snapshot::fdt,
+    grid::fgr,
     seeding::volume::VolumeSeeder3,
     update_command_graph,
 };
@@ -37,12 +37,12 @@ pub fn create_random_subcommand(_parent_command_name: &'static str) -> Command<'
 /// Creates a random volume seeder based on the provided arguments.
 pub fn create_random_volume_seeder_from_arguments<S>(
     arguments: &ArgMatches,
-    lower_bounds: Vec3<fdt>,
-    upper_bounds: Vec3<fdt>,
+    lower_bounds: Vec3<fgr>,
+    upper_bounds: Vec3<fgr>,
     satisfies_constraints: &S,
 ) -> VolumeSeeder3
 where
-    S: Fn(&Point3<fdt>) -> bool + Sync,
+    S: Fn(&Point3<fgr>) -> bool + Sync,
 {
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
 

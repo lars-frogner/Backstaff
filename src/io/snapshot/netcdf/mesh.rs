@@ -7,15 +7,14 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{self, Grid3, GridType},
-    io::snapshot::fdt,
+    grid::{self, fgr, Grid3, GridType},
     io_result,
 };
 use netcdf_rs::{self, File, GroupMut};
 use std::io;
 
 /// Tries to construct a grid from the data in the given NetCDF group.
-pub fn read_grid<G: Grid3<fdt>>(
+pub fn read_grid<G: Grid3<fgr>>(
     file: &File,
     is_periodic: In3D<bool>,
     verbose: Verbose,
@@ -50,10 +49,10 @@ pub fn read_grid<G: Grid3<fdt>>(
 
 type NetCDFGridData = (
     GridType,
-    Coords3<fdt>,
-    Coords3<fdt>,
-    Option<Coords3<fdt>>,
-    Option<Coords3<fdt>>,
+    Coords3<fgr>,
+    Coords3<fgr>,
+    Option<Coords3<fgr>>,
+    Option<Coords3<fgr>>,
     Endianness,
 );
 
@@ -66,36 +65,36 @@ pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridDat
         );
     }
     let group = &file.root().unwrap();
-    let (xm, endianness) = super::read_snapshot_1d_variable::<fdt>(group, "xm")?;
-    let ym = match super::read_snapshot_1d_variable::<fdt>(group, "ym")? {
+    let (xm, endianness) = super::read_snapshot_1d_variable::<fgr>(group, "xm")?;
+    let ym = match super::read_snapshot_1d_variable::<fgr>(group, "ym")? {
         (ym, e) if e == endianness => Ok(ym),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Inconsistent grid endianness in NetCDF file".to_string(),
         )),
     }?;
-    let zm = match super::read_snapshot_1d_variable::<fdt>(group, "zm")? {
+    let zm = match super::read_snapshot_1d_variable::<fgr>(group, "zm")? {
         (zm, e) if e == endianness => Ok(zm),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Inconsistent grid endianness in NetCDF file".to_string(),
         )),
     }?;
-    let xmdn = match super::read_snapshot_1d_variable::<fdt>(group, "xmdn")? {
+    let xmdn = match super::read_snapshot_1d_variable::<fgr>(group, "xmdn")? {
         (xmdn, e) if e == endianness => Ok(xmdn),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Inconsistent grid endianness in NetCDF file".to_string(),
         )),
     }?;
-    let ymdn = match super::read_snapshot_1d_variable::<fdt>(group, "ymdn")? {
+    let ymdn = match super::read_snapshot_1d_variable::<fgr>(group, "ymdn")? {
         (ymdn, e) if e == endianness => Ok(ymdn),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Inconsistent grid endianness in NetCDF file".to_string(),
         )),
     }?;
-    let zmdn = match super::read_snapshot_1d_variable::<fdt>(group, "zmdn")? {
+    let zmdn = match super::read_snapshot_1d_variable::<fgr>(group, "zmdn")? {
         (zmdn, e) if e == endianness => Ok(zmdn),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -120,42 +119,42 @@ pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridDat
         .count();
 
     let (up_derivatives, down_derivatives) = if derivative_count == 6 {
-        let dxidxup = match super::read_snapshot_1d_variable::<fdt>(group, "dxidxup")? {
+        let dxidxup = match super::read_snapshot_1d_variable::<fgr>(group, "dxidxup")? {
             (dxidxup, e) if e == endianness => Ok(dxidxup),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Inconsistent grid endianness in NetCDF file".to_string(),
             )),
         }?;
-        let dyidyup = match super::read_snapshot_1d_variable::<fdt>(group, "dyidyup")? {
+        let dyidyup = match super::read_snapshot_1d_variable::<fgr>(group, "dyidyup")? {
             (dyidyup, e) if e == endianness => Ok(dyidyup),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Inconsistent grid endianness in NetCDF file".to_string(),
             )),
         }?;
-        let dzidzup = match super::read_snapshot_1d_variable::<fdt>(group, "dzidzup")? {
+        let dzidzup = match super::read_snapshot_1d_variable::<fgr>(group, "dzidzup")? {
             (dzidzup, e) if e == endianness => Ok(dzidzup),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Inconsistent grid endianness in NetCDF file".to_string(),
             )),
         }?;
-        let dxidxdn = match super::read_snapshot_1d_variable::<fdt>(group, "dxidxdn")? {
+        let dxidxdn = match super::read_snapshot_1d_variable::<fgr>(group, "dxidxdn")? {
             (dxidxdn, e) if e == endianness => Ok(dxidxdn),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Inconsistent grid endianness in NetCDF file".to_string(),
             )),
         }?;
-        let dyidydn = match super::read_snapshot_1d_variable::<fdt>(group, "dyidydn")? {
+        let dyidydn = match super::read_snapshot_1d_variable::<fgr>(group, "dyidydn")? {
             (dyidydn, e) if e == endianness => Ok(dyidydn),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "Inconsistent grid endianness in NetCDF file".to_string(),
             )),
         }?;
-        let dzidzdn = match super::read_snapshot_1d_variable::<fdt>(group, "dzidzdn")? {
+        let dzidzdn = match super::read_snapshot_1d_variable::<fgr>(group, "dzidzdn")? {
             (dzidzdn, e) if e == endianness => Ok(dzidzdn),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -186,7 +185,7 @@ pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridDat
 }
 
 /// Writes a representation of the given grid to the given NetCDF group.
-pub fn write_grid<G: Grid3<fdt>>(
+pub fn write_grid<G: Grid3<fgr>>(
     group: &mut GroupMut,
     grid: &G,
     exclude_derivatives: bool,
@@ -343,9 +342,9 @@ fn add_coordinate_variable(
     long_name: &str,
     units: Option<&str>,
     positive: Option<&str>,
-    values: &[fdt],
+    values: &[fgr],
 ) -> io::Result<()> {
-    let mut coord_var = io_result!(group.add_variable::<fdt>(name, &[dimension_name]))?;
+    let mut coord_var = io_result!(group.add_variable::<fgr>(name, &[dimension_name]))?;
     io_result!(coord_var.add_attribute("axis", axis))?;
     io_result!(coord_var.add_attribute("long_name", long_name))?;
     if let Some(units) = units {

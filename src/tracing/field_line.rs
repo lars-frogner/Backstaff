@@ -9,7 +9,7 @@ use super::{
 use crate::{
     field::{CachingScalarFieldProvider3, ScalarField3, VectorField3},
     geometry::{Dim3, Point3, Vec3},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::{snapshot::fdt, utils, Endianness, Verbose},
     num::BFloat,
@@ -71,7 +71,7 @@ pub trait FieldLineTracer3 {
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         St: Stepper3;
@@ -155,7 +155,7 @@ impl FieldLineSet3 {
         Tr: FieldLineTracer3 + Sync,
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
@@ -204,7 +204,7 @@ impl FieldLineSet3 {
     pub fn extract_fixed_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
@@ -235,7 +235,7 @@ impl FieldLineSet3 {
     pub fn extract_fixed_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
@@ -266,7 +266,7 @@ impl FieldLineSet3 {
     pub fn extract_varying_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {
@@ -306,7 +306,7 @@ impl FieldLineSet3 {
     pub fn extract_varying_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbose.is_yes() {

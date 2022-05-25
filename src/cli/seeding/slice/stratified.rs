@@ -4,9 +4,8 @@ use super::CommonSliceSeederParameters;
 use crate::{
     cli::utils,
     geometry::{In2D, Point2},
-    grid::Grid3,
-    io::snapshot::fdt,
-    seeding::{fsd, slice::SliceSeeder3},
+    grid::{fgr, Grid3},
+    seeding::slice::SliceSeeder3,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -68,15 +67,15 @@ pub fn create_stratified_slice_seeder_from_arguments<G, S>(
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
-    G: Grid3<fdt>,
-    S: Fn(&Point2<fdt>) -> bool + Sync,
+    G: Grid3<fgr>,
+    S: Fn(&Point2<fgr>) -> bool + Sync,
 {
     let shape =
         utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(2));
     let n_seeds_per_cell =
         utils::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
     let randomness =
-        utils::get_value_from_required_parseable_argument::<fsd>(arguments, "randomness");
+        utils::get_value_from_required_parseable_argument::<fgr>(arguments, "randomness");
 
     SliceSeeder3::stratified(
         grid,

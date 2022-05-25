@@ -1,6 +1,6 @@
 //! Reading seed points from an input file.
 
-use super::{fsd, Seeder3};
+use super::{fgr, Seeder3};
 use crate::{
     geometry::{Idx3, Point3},
     grid::Grid3,
@@ -17,7 +17,7 @@ use std::{
 /// Generator for 3D seed points read from an input file.
 #[derive(Clone, Debug)]
 pub struct ManualSeeder3 {
-    seed_points: Vec<Point3<fsd>>,
+    seed_points: Vec<Point3<fgr>>,
 }
 
 impl ManualSeeder3 {
@@ -55,7 +55,7 @@ impl ManualSeeder3 {
                                 trimmed_line
                                     .split(',')
                                     .map(|coord_str| {
-                                        coord_str.trim().parse::<fsd>().map_err(|err| {
+                                        coord_str.trim().parse::<fgr>().map_err(|err| {
                                             io::Error::new(
                                                 io::ErrorKind::InvalidData,
                                                 format!(
@@ -66,7 +66,7 @@ impl ManualSeeder3 {
                                             )
                                         })
                                     })
-                                    .collect::<io::Result<Vec<fsd>>>()
+                                    .collect::<io::Result<Vec<fgr>>>()
                                     .map(|coords| {
                                         if coords.len() >= 3 {
                                             Ok(Point3::new(coords[0], coords[1], coords[2]))
@@ -92,7 +92,7 @@ impl ManualSeeder3 {
 }
 
 impl IntoIterator for ManualSeeder3 {
-    type Item = Point3<fsd>;
+    type Item = Point3<fgr>;
     type IntoIter = vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
         self.seed_points.into_iter()
@@ -100,7 +100,7 @@ impl IntoIterator for ManualSeeder3 {
 }
 
 impl IntoParallelIterator for ManualSeeder3 {
-    type Item = Point3<fsd>;
+    type Item = Point3<fgr>;
     type Iter = rayon::vec::IntoIter<Self::Item>;
     fn into_par_iter(self) -> Self::Iter {
         self.seed_points.into_par_iter()
@@ -114,7 +114,7 @@ impl Seeder3 for ManualSeeder3 {
 
     fn retain_points<P>(&mut self, predicate: P)
     where
-        P: FnMut(&Point3<fsd>) -> bool,
+        P: FnMut(&Point3<fgr>) -> bool,
     {
         self.seed_points.retain(predicate);
     }

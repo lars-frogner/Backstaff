@@ -12,15 +12,19 @@ use crate::{
         ScalarFieldCacher3, ScalarFieldProvider3,
     },
     geometry::{Idx3, In3D, PointTransformation2},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
 };
 use regex::Regex;
 use std::{collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
 
-/// Floating-point precision assumed for Bifrost data.
+/// Floating-point precision assumed for snapshot data.
 #[allow(non_camel_case_types)]
 pub type fdt = f32;
+
+/// Floating-point precision assumed for parameter values.
+#[allow(non_camel_case_types)]
+pub type fpa = f64;
 
 #[derive(Clone, Copy, Debug)]
 pub enum SnapshotFormat {
@@ -70,7 +74,7 @@ pub const PRIMARY_VARIABLE_NAMES_HD: [&str; 5] = [
 ];
 
 /// Defines the properties of a provider of 3D Bifrost snapshot variables.
-pub trait SnapshotProvider3<G: Grid3<fdt>>: ScalarFieldProvider3<fdt, G> {
+pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
     type Parameters: SnapshotParameters;
 
     /// Returns a reference to the parameters associated with the snapshot.
@@ -153,7 +157,7 @@ pub trait SnapshotParameters: Clone {
         default_value: U,
     ) -> U
     where
-        T: From<fdt>,
+        T: From<fpa>,
         U: std::fmt::Display + Copy,
         C: Fn(T) -> U,
     {
@@ -177,7 +181,7 @@ pub trait SnapshotParameters: Clone {
 pub enum ParameterValue {
     Str(String),
     Int(i64),
-    Float(fdt),
+    Float(fpa),
 }
 
 impl ParameterValue {
@@ -209,16 +213,16 @@ impl ParameterValue {
     }
 
     /// Try interpreting the parameter value as a float, or return an error if not possible.
-    pub fn try_as_float(&self) -> io::Result<fdt> {
+    pub fn try_as_float(&self) -> io::Result<fpa> {
         match *self {
-            Self::Str(ref s) => match s.parse::<fdt>() {
+            Self::Str(ref s) => match s.parse::<fpa>() {
                 Ok(f) => Ok(f),
                 Err(err) => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("Failed parsing parameter string {} as float: {}", s, err),
                 )),
             },
-            Self::Int(i) => Ok(i as fdt),
+            Self::Int(i) => Ok(i as fpa),
             Self::Float(f) => Ok(f),
         }
     }
@@ -239,10 +243,10 @@ pub struct ResampledSnapshotProvider3<GOLD, G, P, T, I> {
 
 impl<GOLD, G, P, T, I> ResampledSnapshotProvider3<GOLD, G, P, T, I>
 where
-    GOLD: Grid3<fdt>,
-    G: Grid3<fdt>,
+    GOLD: Grid3<fgr>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<GOLD>,
-    T: PointTransformation2<fdt>,
+    T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
     pub fn new(
@@ -269,10 +273,10 @@ where
 
 impl<GOLD, G, P, T, I> ScalarFieldProvider3<fdt, G> for ResampledSnapshotProvider3<GOLD, G, P, T, I>
 where
-    GOLD: Grid3<fdt>,
-    G: Grid3<fdt>,
+    GOLD: Grid3<fgr>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<GOLD>,
-    T: PointTransformation2<fdt>,
+    T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
     fn grid(&self) -> &G {
@@ -313,10 +317,10 @@ where
 
 impl<GOLD, G, P, T, I> SnapshotProvider3<G> for ResampledSnapshotProvider3<GOLD, G, P, T, I>
 where
-    GOLD: Grid3<fdt>,
-    G: Grid3<fdt>,
+    GOLD: Grid3<fgr>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<GOLD>,
-    T: PointTransformation2<fdt>,
+    T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
     type Parameters = P::Parameters;
@@ -361,7 +365,7 @@ pub struct ExtractedSnapshotProvider3<G, P> {
 
 impl<G, P> ExtractedSnapshotProvider3<G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     pub fn new(
@@ -382,7 +386,7 @@ where
 
 impl<G, P> ScalarFieldProvider3<fdt, G> for ExtractedSnapshotProvider3<G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     fn grid(&self) -> &G {
@@ -408,7 +412,7 @@ where
 
 impl<G, P> SnapshotProvider3<G> for ExtractedSnapshotProvider3<G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     type Parameters = P::Parameters;
@@ -443,21 +447,21 @@ where
 }
 
 /// A provider of 3D Bifrost snapshot variables that also supports caching.
-pub trait CachingSnapshotProvider3<G: Grid3<fdt>>:
+pub trait CachingSnapshotProvider3<G: Grid3<fgr>>:
     CachingScalarFieldProvider3<fdt, G> + SnapshotProvider3<G>
 {
 }
 
 impl<G, C> CachingSnapshotProvider3<G> for C
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     C: CachingScalarFieldProvider3<fdt, G> + SnapshotProvider3<G>,
 {
 }
 
 impl<G, P> SnapshotProvider3<G> for ScalarFieldCacher3<fdt, G, P>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     type Parameters = P::Parameters;

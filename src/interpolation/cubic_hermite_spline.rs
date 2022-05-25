@@ -3,7 +3,7 @@
 use super::Interpolator1;
 use crate::{
     field::ScalarField1,
-    grid::{CoordLocation, Grid1, GridPointQuery1},
+    grid::{fgr, CoordLocation, Grid1, GridPointQuery1},
     num::BFloat,
 };
 
@@ -42,26 +42,26 @@ impl CubicHermiteSplineInterpolator {
         Self { config }
     }
 
-    fn hermite_basis_00<F: BFloat>(t: F) -> F {
-        (F::one() + F::from_f32(2.0).unwrap() * t) * F::powi(F::one() - t, 2)
+    fn hermite_basis_00(t: fgr) -> fgr {
+        (1.0 + 2.0 * t) * fgr::powi(1.0 - t, 2)
     }
 
-    fn hermite_basis_10<F: BFloat>(t: F) -> F {
-        t * F::powi(F::one() - t, 2)
+    fn hermite_basis_10(t: fgr) -> fgr {
+        t * fgr::powi(1.0 - t, 2)
     }
 
-    fn hermite_basis_01<F: BFloat>(t: F) -> F {
-        t * t * (F::from_f32(3.0).unwrap() - F::from_f32(2.0).unwrap() * t)
+    fn hermite_basis_01(t: fgr) -> fgr {
+        t * t * (3.0 - 2.0 * t)
     }
 
-    fn hermite_basis_11<F: BFloat>(t: F) -> F {
-        t * t * (t - F::one())
+    fn hermite_basis_11(t: fgr) -> fgr {
+        t * t * (t - 1.0)
     }
 
-    fn compute_tangent<F, G>(&self, field: &ScalarField1<F, G>, index: usize) -> F
+    fn compute_tangent<F, G>(&self, field: &ScalarField1<F, G>, index: usize) -> fgr
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         let size = field.size();
         let coords = field.coords();
@@ -69,29 +69,30 @@ impl CubicHermiteSplineInterpolator {
 
         if index == 0 {
             match self.config.boundary_tangents {
-                BoundaryTangents::Computed => (values[1] - values[0]) / (coords[1] - coords[0]),
-                BoundaryTangents::Zero => F::zero(),
+                BoundaryTangents::Computed => {
+                    (values[1] - values[0]).into() / (coords[1] - coords[0])
+                }
+                BoundaryTangents::Zero => 0.0,
             }
         } else if index == size - 1 {
             match self.config.boundary_tangents {
                 BoundaryTangents::Computed => {
-                    (values[size - 1] - values[size - 2]) / (coords[size - 1] - coords[size - 2])
+                    (values[size - 1] - values[size - 2]).into()
+                        / (coords[size - 1] - coords[size - 2])
                 }
-                BoundaryTangents::Zero => F::zero(),
+                BoundaryTangents::Zero => 0.0,
             }
         } else {
             let lower_distance = coords[index] - coords[index - 1];
             let upper_distance = coords[index + 1] - coords[index];
             let (lower_weight, upper_weight) = match self.config.tangent_scheme {
-                TangentScheme::FiniteDifference => {
-                    (F::from_f32(0.5).unwrap(), F::from_f32(0.5).unwrap())
-                }
+                TangentScheme::FiniteDifference => (0.5, 0.5),
                 TangentScheme::ProximityWeightedFiniteDifference => {
-                    (F::one() / lower_distance, F::one() / upper_distance)
+                    (1.0 / lower_distance, 1.0 / upper_distance)
                 }
             };
-            (lower_weight * (values[index] - values[index - 1]) / lower_distance
-                + upper_weight * (values[index + 1] - values[index]) / upper_distance)
+            (lower_weight * (values[index] - values[index - 1]).into() / lower_distance
+                + upper_weight * (values[index + 1] - values[index]).into() / upper_distance)
                 / (lower_weight + upper_weight)
         }
     }
@@ -99,12 +100,12 @@ impl CubicHermiteSplineInterpolator {
     fn interp<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
+        interp_coord: fgr,
         mut interp_index: usize,
     ) -> F
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         assert!(field.size() >= 2);
         assert!(interp_index < field.size());
@@ -129,18 +130,21 @@ impl CubicHermiteSplineInterpolator {
         let span = end_coord - start_coord;
 
         let values = field.values();
-        let start_value = values[interp_index];
-        let end_value = values[interp_index + 1];
+        let start_value = values[interp_index].into();
+        let end_value = values[interp_index + 1].into();
 
         let start_tangent = self.compute_tangent(field, interp_index);
         let end_tangent = self.compute_tangent(field, interp_index + 1);
 
         let t = (interp_coord - start_coord) / span;
 
-        Self::hermite_basis_00(t) * start_value
-            + Self::hermite_basis_01(t) * end_value
-            + Self::hermite_basis_10(t) * span * start_tangent
-            + Self::hermite_basis_11(t) * span * end_tangent
+        F::from(
+            Self::hermite_basis_00(t) * start_value
+                + Self::hermite_basis_01(t) * end_value
+                + Self::hermite_basis_10(t) * span * start_tangent
+                + Self::hermite_basis_11(t) * span * end_tangent,
+        )
+        .unwrap()
     }
 }
 
@@ -148,11 +152,11 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
-    ) -> GridPointQuery1<F, F>
+        interp_coord: fgr,
+    ) -> GridPointQuery1<fgr, F>
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         let grid_point_query = field.grid().find_grid_cell(interp_coord);
         match grid_point_query {
@@ -172,12 +176,12 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
     fn interp_scalar_field_known_cell<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
+        interp_coord: fgr,
         interp_index: usize,
     ) -> F
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         self.interp(field, interp_coord, interp_index)
     }
@@ -185,11 +189,11 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
-    ) -> GridPointQuery1<F, F>
+        interp_coord: fgr,
+    ) -> GridPointQuery1<fgr, F>
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         let grid_point_query = field.grid().find_closest_grid_cell(interp_coord);
         match grid_point_query {

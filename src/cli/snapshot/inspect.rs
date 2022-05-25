@@ -4,8 +4,8 @@
 mod statistics;
 
 use crate::{
-    grid::Grid3,
-    io::snapshot::{fdt, SnapshotProvider3},
+    grid::{fgr, Grid3},
+    io::snapshot::SnapshotProvider3,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -74,7 +74,7 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
 pub fn run_inspect_subcommand<G, P>(arguments: &ArgMatches, provider: P)
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let continue_on_warnings = arguments.is_present("ignore-warnings");

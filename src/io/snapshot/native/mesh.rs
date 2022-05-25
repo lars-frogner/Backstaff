@@ -1,13 +1,13 @@
 //! Utilities for mesh files in native format.
 
-use super::super::{super::utils, fdt, Verbose};
+use super::super::{super::utils, Verbose};
 use crate::{
     geometry::{
         Coords3,
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{self, Grid3, GridType},
+    grid::{self, fgr, Grid3, GridType},
 };
 use std::{collections::VecDeque, io, io::BufRead, path::Path};
 
@@ -37,7 +37,7 @@ pub fn create_grid_from_mesh_file<P, G>(
 ) -> io::Result<G>
 where
     P: AsRef<Path>,
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
 {
     let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) =
         parse_mesh_file(mesh_path, verbose)?;
@@ -79,7 +79,7 @@ where
 pub fn write_mesh_file_from_grid<P, G>(grid: &G, mesh_path: P) -> io::Result<()>
 where
     P: AsRef<Path>,
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
 {
     let shape = grid.shape();
     let centers = grid.centers();
@@ -91,7 +91,7 @@ where
         .down_derivatives()
         .unwrap_or_else(|| panic!("Downward derivatives were not available."));
 
-    let format_slice = |slice: &[fdt]| {
+    let format_slice = |slice: &[fgr]| {
         slice
             .iter()
             .map(|&coord| format!("{:width$.precision$E}", coord, width = 15, precision = 8))
@@ -116,10 +116,10 @@ where
 
 type NativeGridData = (
     GridType,
-    Coords3<fdt>,
-    Coords3<fdt>,
-    Coords3<fdt>,
-    Coords3<fdt>,
+    Coords3<fgr>,
+    Coords3<fgr>,
+    Coords3<fgr>,
+    Coords3<fgr>,
 );
 
 /// Parses the mesh file at the given path and returns relevant data.
@@ -184,7 +184,7 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
             match lines.next() {
                 Some(string) => {
                     for s in string?.split_whitespace() {
-                        match s.parse::<fdt>() {
+                        match s.parse::<fgr>() {
                             Ok(val) => coords.push(val),
                             Err(err) => {
                                 return Err(io::Error::new(

@@ -29,13 +29,13 @@ use crate::{
         Dim3::{self, X, Y, Z},
         IdentityTransformation2, In3D, PointTransformation2,
     },
-    grid::{self, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
+    grid::{self, fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::{
         poly_fit::{PolyFitInterpolator1, PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
+        snapshot::{CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
         utils, Verbose,
     },
     update_command_graph,
@@ -100,7 +100,7 @@ pub fn run_resample_subcommand<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let resampled_locations = match arguments
@@ -171,7 +171,7 @@ fn run_with_selected_method<G, P>(
     verbose: Verbose,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let (resampling_method, method_arguments, has_interpolator_subcommand) =
@@ -227,7 +227,7 @@ fn run_with_selected_interpolator<G, P>(
     verbose: Verbose,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let (interpolator_config, arguments) = if has_interpolator_subcommand {
@@ -309,7 +309,7 @@ fn resample_to_reshaped_grid<G, P, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -364,7 +364,7 @@ fn resample_to_reshaped_grid<G, P, I>(
 }
 
 fn resample_to_regular_grid<G, P, I>(
-    mut grid: RegularGrid3<fdt>,
+    mut grid: RegularGrid3<fgr>,
     new_shape: Option<In3D<usize>>,
     arguments: &ArgMatches,
     provider: P,
@@ -376,7 +376,7 @@ fn resample_to_regular_grid<G, P, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -407,7 +407,7 @@ fn resample_to_regular_grid<G, P, I>(
 }
 
 fn resample_to_horizontally_regular_grid<G, P, I>(
-    mut grid: HorRegularGrid3<fdt>,
+    mut grid: HorRegularGrid3<fgr>,
     new_shape: Option<In3D<usize>>,
     arguments: &ArgMatches,
     provider: P,
@@ -419,7 +419,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -507,7 +507,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
 }
 
 fn resample_to_transformed_regular_grid<G, P, T, I>(
-    grid: RegularGrid3<fdt>,
+    grid: RegularGrid3<fgr>,
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
@@ -519,8 +519,8 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
-    T: PointTransformation2<fdt>,
+    G: Grid3<fgr>,
+    T: PointTransformation2<fgr>,
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
@@ -539,16 +539,16 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     );
 }
 
-fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
+fn correct_periodicity_for_new_grid<GIN: Grid3<fgr>, GOUT: Grid3<fgr>>(
     original_grid: &GIN,
     new_grid: &mut GOUT,
     continue_on_warnings: bool,
 ) {
     // A coordinate difference must exceed this fraction of a grid cell
     // extent in order to be detected
-    const EXTENT_DIFF_THRESHOLD_FACTOR: fdt = 0.1;
+    const EXTENT_DIFF_THRESHOLD_FACTOR: fgr = 0.1;
 
-    const WARNING_EXTENT_DIFF_THRESHOLD_FACTOR: fdt = 10.0;
+    const WARNING_EXTENT_DIFF_THRESHOLD_FACTOR: fgr = 10.0;
 
     let average_grid_cell_extents = original_grid.average_grid_cell_extents();
 
@@ -574,7 +574,7 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
         let new_extent = new_upper_bound - new_lower_bound;
 
         let extent_difference = original_extent - new_extent;
-        let abs_extent_difference = fdt::abs(extent_difference);
+        let abs_extent_difference = fgr::abs(extent_difference);
 
         if original_grid.is_periodic(dim) {
             if abs_extent_difference <= extent_diff_threshold {
@@ -617,11 +617,11 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fdt>, GOUT: Grid3<fdt>>(
     new_grid.set_periodicity(is_periodic);
 }
 
-fn compute_scaled_grid_shape(original_shape: &In3D<usize>, scales: &[fdt]) -> Vec<usize> {
+fn compute_scaled_grid_shape(original_shape: &In3D<usize>, scales: &[fgr]) -> Vec<usize> {
     original_shape
         .into_iter()
         .zip(scales.iter())
-        .map(|(&n, &scale)| usize::max(1, fdt::round(scale * (n as fdt)) as usize))
+        .map(|(&n, &scale)| usize::max(1, fgr::round(scale * (n as fgr)) as usize))
         .collect()
 }
 
@@ -637,10 +637,10 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     interpolator: I,
     protected_file_types: &[&str],
 ) where
-    GIN: Grid3<fdt>,
+    GIN: Grid3<fgr>,
     P: SnapshotProvider3<GIN>,
-    GOUT: Grid3<fdt>,
-    T: PointTransformation2<fdt>,
+    GOUT: Grid3<fgr>,
+    T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
     exit_on_error!(
@@ -672,7 +672,7 @@ fn run_snapshot_resampling_with_derive<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
@@ -699,7 +699,7 @@ fn run_snapshot_resampling_with_synthesis<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     #[cfg(feature = "synthesis")]
@@ -729,7 +729,7 @@ fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     #[cfg(feature = "synthesis")]
@@ -761,7 +761,7 @@ fn run_snapshot_resampling_for_provider<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let write_arguments = arguments.subcommand_matches("write").unwrap();

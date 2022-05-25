@@ -8,7 +8,7 @@ use super::{
         utils::{self, AtomicOutputPath},
         Endianness, OverwriteMode, Verbose,
     },
-    fdt, ParameterValue, SnapshotParameters, SnapshotProvider3, COORDINATE_NAMES,
+    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, COORDINATE_NAMES,
     FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{CoordLocation, Grid3},
+    grid::{fgr, CoordLocation, Grid3},
     io_result,
     num::BFloat,
 };
@@ -55,7 +55,7 @@ pub struct NetCDFSnapshotReader3<G> {
     all_variable_names: Vec<String>,
 }
 
-impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
+impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
         let file = open_file(&config.file_path)?;
@@ -183,7 +183,7 @@ impl<G: Grid3<fdt>> NetCDFSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fdt>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
+impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
     fn grid(&self) -> &G {
         self.grid.as_ref()
     }
@@ -200,7 +200,7 @@ impl<G: Grid3<fdt>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fdt>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
+impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
     type Parameters = NetCDFSnapshotParameters;
 
     fn parameters(&self) -> &Self::Parameters {
@@ -262,7 +262,7 @@ pub fn write_identical_snapshot<Pa, G, P>(
 ) -> io::Result<()>
 where
     Pa: AsRef<Path>,
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let mut quantity_names = provider.primary_variable_names().to_vec();
@@ -292,7 +292,7 @@ pub fn write_modified_snapshot<Pa, G, P>(
 ) -> io::Result<()>
 where
     Pa: AsRef<Path>,
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let output_file_path = output_file_path.as_ref();
@@ -327,9 +327,18 @@ where
     modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
     modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
     modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
-    modified_parameters.insert("dx", ParameterValue::Float(average_grid_cell_extents[X]));
-    modified_parameters.insert("dy", ParameterValue::Float(average_grid_cell_extents[Y]));
-    modified_parameters.insert("dz", ParameterValue::Float(average_grid_cell_extents[Z]));
+    modified_parameters.insert(
+        "dx",
+        ParameterValue::Float(average_grid_cell_extents[X] as fpa),
+    );
+    modified_parameters.insert(
+        "dy",
+        ParameterValue::Float(average_grid_cell_extents[Y] as fpa),
+    );
+    modified_parameters.insert(
+        "dz",
+        ParameterValue::Float(average_grid_cell_extents[Z] as fpa),
+    );
 
     let atomic_output_path = AtomicOutputPath::new(output_file_path)?;
     if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
@@ -424,7 +433,7 @@ fn read_snapshot_1d_variable<F: Numeric + BFloat + Default>(
 }
 
 /// Reads the given 3D variable from the given NetCDF group.
-fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<F>>(
+fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<fgr>>(
     group: &Group,
     grid: &G,
     name: &str,
@@ -526,7 +535,7 @@ pub fn write_snapshot_primary_variables<G, P>(
     provider: &mut P,
 ) -> io::Result<()>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     for name in &provider.primary_variable_names().to_vec() {
@@ -542,7 +551,7 @@ pub fn write_snapshot_auxiliary_variables<G, P>(
     provider: &mut P,
 ) -> io::Result<()>
 where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     for name in &provider.auxiliary_variable_names().to_vec() {
@@ -553,7 +562,7 @@ where
 }
 
 /// Writes a representation of the given 3D scalar field to the given NetCDF group.
-pub fn write_3d_scalar_field<G: Grid3<fdt>>(
+pub fn write_3d_scalar_field<G: Grid3<fgr>>(
     group: &mut GroupMut,
     field: &ScalarField3<fdt, G>,
 ) -> io::Result<()> {

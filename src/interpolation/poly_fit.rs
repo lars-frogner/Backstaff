@@ -9,16 +9,18 @@ use crate::{
         Dim3::{self, X, Y, Z},
         Idx2, Idx3, In2D, In3D, Point2, Point3, Vec2, Vec3,
     },
-    grid::{CoordLocation, Grid1, Grid2, Grid3, GridPointQuery1, GridPointQuery2, GridPointQuery3},
+    grid::{
+        fgr, CoordLocation, Grid1, Grid2, Grid3, GridPointQuery1, GridPointQuery2, GridPointQuery3,
+    },
     num::BFloat,
 };
 use ndarray::prelude::*;
 use std::mem::MaybeUninit;
 
-fn compute_start_offset<F: BFloat, const N_POINTS: usize>(
-    center_coords: &[F],
+fn compute_start_offset<const N_POINTS: usize>(
+    center_coords: &[fgr],
     location: CoordLocation,
-    interp_coord: F,
+    interp_coord: fgr,
     interp_idx: usize,
 ) -> isize {
     let default_start_offset = 1 - ((N_POINTS + 1) as isize) / 2;
@@ -47,26 +49,26 @@ fn compute_start_offset<F: BFloat, const N_POINTS: usize>(
     }
 }
 
-fn compute_start_indices_3d<F: BFloat, G: Grid3<F>, const N_POINTS: usize>(
+fn compute_start_indices_3d<G: Grid3<fgr>, const N_POINTS: usize>(
     grid: &G,
     locations: &In3D<CoordLocation>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
 ) -> Idx3<isize> {
     let center_coords = grid.centers();
-    let start_offset_x = compute_start_offset::<_, N_POINTS>(
+    let start_offset_x = compute_start_offset::<N_POINTS>(
         &center_coords[X],
         locations[X],
         interp_point[X],
         interp_indices[X],
     );
-    let start_offset_y = compute_start_offset::<_, N_POINTS>(
+    let start_offset_y = compute_start_offset::<N_POINTS>(
         &center_coords[Y],
         locations[Y],
         interp_point[Y],
         interp_indices[Y],
     );
-    let start_offset_z = compute_start_offset::<_, N_POINTS>(
+    let start_offset_z = compute_start_offset::<N_POINTS>(
         &center_coords[Z],
         locations[Z],
         interp_point[Z],
@@ -79,20 +81,20 @@ fn compute_start_indices_3d<F: BFloat, G: Grid3<F>, const N_POINTS: usize>(
     )
 }
 
-fn compute_start_indices_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize>(
+fn compute_start_indices_2d<G: Grid2<fgr>, const N_POINTS: usize>(
     grid: &G,
     locations: &In2D<CoordLocation>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
 ) -> Idx2<isize> {
     let center_coords = grid.centers();
-    let start_offset_x = compute_start_offset::<_, N_POINTS>(
+    let start_offset_x = compute_start_offset::<N_POINTS>(
         &center_coords[X2],
         locations[X2],
         interp_point[X2],
         interp_indices[X2],
     );
-    let start_offset_y = compute_start_offset::<_, N_POINTS>(
+    let start_offset_y = compute_start_offset::<N_POINTS>(
         &center_coords[Y2],
         locations[Y2],
         interp_point[Y2],
@@ -104,26 +106,26 @@ fn compute_start_indices_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize>(
     )
 }
 
-fn compute_start_idx_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
+fn compute_start_idx_1d<G: Grid1<fgr>, const N_POINTS: usize>(
     grid: &G,
     location: CoordLocation,
-    interp_coord: F,
+    interp_coord: fgr,
     interp_idx: usize,
 ) -> isize {
     let center_coords = grid.centers();
     let start_offset =
-        compute_start_offset::<_, N_POINTS>(center_coords, location, interp_coord, interp_idx);
+        compute_start_offset::<N_POINTS>(center_coords, location, interp_coord, interp_idx);
     (interp_idx as isize) + start_offset
 }
 
-fn find_start_indices_and_crossings_3d<F: BFloat, G: Grid3<F>, const N_POINTS: usize>(
+fn find_start_indices_and_crossings_3d<G: Grid3<fgr>, const N_POINTS: usize>(
     grid: &G,
     locations: &In3D<CoordLocation>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
 ) -> (Idx3<isize>, bool, In3D<bool>) {
     let mut start_indices =
-        compute_start_indices_3d::<_, _, N_POINTS>(grid, locations, interp_point, interp_indices);
+        compute_start_indices_3d::<_, N_POINTS>(grid, locations, interp_point, interp_indices);
 
     let grid_shape = grid.shape();
     let mut crosses_periodic_bound = In3D::new(false, false, false);
@@ -158,14 +160,14 @@ fn find_start_indices_and_crossings_3d<F: BFloat, G: Grid3<F>, const N_POINTS: u
     )
 }
 
-fn find_start_indices_and_crossings_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize>(
+fn find_start_indices_and_crossings_2d<G: Grid2<fgr>, const N_POINTS: usize>(
     grid: &G,
     locations: &In2D<CoordLocation>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
 ) -> (Idx2<isize>, bool, In2D<bool>) {
     let mut start_indices =
-        compute_start_indices_2d::<_, _, N_POINTS>(grid, locations, interp_point, interp_indices);
+        compute_start_indices_2d::<_, N_POINTS>(grid, locations, interp_point, interp_indices);
 
     let grid_shape = grid.shape();
     let mut crosses_periodic_bound = In2D::new(false, false);
@@ -200,14 +202,14 @@ fn find_start_indices_and_crossings_2d<F: BFloat, G: Grid2<F>, const N_POINTS: u
     )
 }
 
-fn find_start_idx_and_crossing_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
+fn find_start_idx_and_crossing_1d<G: Grid1<fgr>, const N_POINTS: usize>(
     grid: &G,
     location: CoordLocation,
-    interp_coord: F,
+    interp_coord: fgr,
     interp_idx: usize,
 ) -> (isize, bool) {
     let mut start_idx =
-        compute_start_idx_1d::<_, _, N_POINTS>(grid, location, interp_coord, interp_idx);
+        compute_start_idx_1d::<_, N_POINTS>(grid, location, interp_coord, interp_idx);
 
     let grid_size = grid.size();
     let mut crosses_periodic_bound = false;
@@ -240,25 +242,25 @@ fn create_value_subarray_for_interior_3d<
 >(
     values: &Array3<F>,
     start_indices: &Idx3<isize>,
-) -> ([F; N_POINTS_CUBED], F) {
-    let mut subarray: [MaybeUninit<F>; N_POINTS_CUBED] =
+) -> ([fgr; N_POINTS_CUBED], F) {
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS_CUBED] =
         unsafe { MaybeUninit::uninit().assume_init() };
     let offsets = Idx3::from(start_indices);
     let mut idx = 0;
 
-    let mut sum = F::zero();
-    let mut sum_of_squares = F::zero();
+    let mut sum = 0.0;
+    let mut sum_of_squares = 0.0;
 
     for k in offsets[Z]..(offsets[Z] + N_POINTS) {
         for j in offsets[Y]..(offsets[Y] + N_POINTS) {
             for i in offsets[X]..(offsets[X] + N_POINTS) {
-                let value = values[[i, j, k]];
+                let value = values[[i, j, k]].into();
                 subarray[idx].write(value);
                 idx += 1;
 
                 if N_POINTS > 2 {
-                    sum = sum + value;
-                    sum_of_squares = sum_of_squares + value * value;
+                    sum += value;
+                    sum_of_squares += value * value;
                 }
             }
         }
@@ -267,14 +269,14 @@ fn create_value_subarray_for_interior_3d<
     debug_assert_eq!(idx, N_POINTS_CUBED);
 
     let variation = if N_POINTS > 2 {
-        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_CUBED).unwrap())
+        1.0 - (sum * sum) / (sum_of_squares * (N_POINTS_CUBED as fgr))
     } else {
-        F::zero()
+        0.0
     };
 
     (
-        unsafe { (&subarray as *const _ as *const [F; N_POINTS_CUBED]).read() },
-        variation,
+        unsafe { (&subarray as *const _ as *const [fgr; N_POINTS_CUBED]).read() },
+        F::from(variation).unwrap(),
     )
 }
 
@@ -285,24 +287,24 @@ fn create_value_subarray_for_interior_2d<
 >(
     values: &Array2<F>,
     start_indices: &Idx2<isize>,
-) -> ([F; N_POINTS_SQUARED], F) {
-    let mut subarray: [MaybeUninit<F>; N_POINTS_SQUARED] =
+) -> ([fgr; N_POINTS_SQUARED], F) {
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS_SQUARED] =
         unsafe { MaybeUninit::uninit().assume_init() };
     let offsets = Idx2::from(start_indices);
     let mut idx = 0;
 
-    let mut sum = F::zero();
-    let mut sum_of_squares = F::zero();
+    let mut sum = 0.0;
+    let mut sum_of_squares = 0.0;
 
     for j in offsets[Y2]..(offsets[Y2] + N_POINTS) {
         for i in offsets[X2]..(offsets[X2] + N_POINTS) {
-            let value = values[[i, j]];
+            let value = values[[i, j]].into();
             subarray[idx].write(value);
             idx += 1;
 
             if N_POINTS > 2 {
-                sum = sum + value;
-                sum_of_squares = sum_of_squares + value * value;
+                sum += value;
+                sum_of_squares += value * value;
             }
         }
     }
@@ -310,46 +312,46 @@ fn create_value_subarray_for_interior_2d<
     debug_assert_eq!(idx, N_POINTS_SQUARED);
 
     let variation = if N_POINTS > 2 {
-        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_SQUARED).unwrap())
+        1.0 - (sum * sum) / (sum_of_squares * (N_POINTS_SQUARED as fgr))
     } else {
-        F::zero()
+        0.0
     };
 
     (
-        unsafe { (&subarray as *const _ as *const [F; N_POINTS_SQUARED]).read() },
-        variation,
+        unsafe { (&subarray as *const _ as *const [fgr; N_POINTS_SQUARED]).read() },
+        F::from(variation).unwrap(),
     )
 }
 
 fn create_value_subarray_for_interior_1d<F: BFloat, const N_POINTS: usize>(
     values: &Array1<F>,
     start_idx: isize,
-) -> ([F; N_POINTS], F) {
-    let mut subarray: [MaybeUninit<F>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
+) -> ([fgr; N_POINTS], F) {
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
     let offset = start_idx as usize;
 
-    let mut sum = F::zero();
-    let mut sum_of_squares = F::zero();
+    let mut sum = 0.0;
+    let mut sum_of_squares = 0.0;
 
     for (idx, i) in (offset..(offset + N_POINTS)).enumerate() {
-        let value = values[i];
+        let value = values[i].into();
         subarray[idx].write(value);
 
         if N_POINTS > 2 {
-            sum = sum + value;
-            sum_of_squares = sum_of_squares + value * value;
+            sum += value;
+            sum_of_squares += value * value;
         }
     }
 
     let variation = if N_POINTS > 2 {
-        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS).unwrap())
+        1.0 - (sum * sum) / (sum_of_squares * (N_POINTS as fgr))
     } else {
-        F::zero()
+        0.0
     };
 
     (
-        unsafe { (&subarray as *const _ as *const [F; N_POINTS]).read() },
-        variation,
+        unsafe { (&subarray as *const _ as *const [fgr; N_POINTS]).read() },
+        F::from(variation).unwrap(),
     )
 }
 
@@ -360,19 +362,19 @@ fn create_value_subarray_for_periodic_3d<
 >(
     values: &Array3<F>,
     start_indices: &Idx3<isize>,
-) -> ([F; N_POINTS_CUBED], F) {
+) -> ([fgr; N_POINTS_CUBED], F) {
     let grid_shape = values.shape();
     let offsets = In3D::new(
         (start_indices[X] + (grid_shape[0] as isize)) as usize,
         (start_indices[Y] + (grid_shape[1] as isize)) as usize,
         (start_indices[Z] + (grid_shape[2] as isize)) as usize,
     );
-    let mut subarray: [MaybeUninit<F>; N_POINTS_CUBED] =
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS_CUBED] =
         unsafe { MaybeUninit::uninit().assume_init() };
     let mut idx = 0;
 
-    let mut sum = F::zero();
-    let mut sum_of_squares = F::zero();
+    let mut sum = 0.0;
+    let mut sum_of_squares = 0.0;
 
     for k in 0..N_POINTS {
         for j in 0..N_POINTS {
@@ -381,13 +383,14 @@ fn create_value_subarray_for_periodic_3d<
                     (offsets[X] + i) % grid_shape[0],
                     (offsets[Y] + j) % grid_shape[1],
                     (offsets[Z] + k) % grid_shape[2],
-                ]];
+                ]]
+                .into();
                 subarray[idx].write(value);
                 idx += 1;
 
                 if N_POINTS > 2 {
-                    sum = sum + value;
-                    sum_of_squares = sum_of_squares + value * value;
+                    sum += value;
+                    sum_of_squares += value * value;
                 }
             }
         }
@@ -396,14 +399,14 @@ fn create_value_subarray_for_periodic_3d<
     debug_assert_eq!(idx, N_POINTS_CUBED);
 
     let variation = if N_POINTS > 2 {
-        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_CUBED).unwrap())
+        1.0 - (sum * sum) / (sum_of_squares * (N_POINTS_CUBED as fgr))
     } else {
-        F::zero()
+        0.0
     };
 
     (
-        unsafe { (&subarray as *const _ as *const [F; N_POINTS_CUBED]).read() },
-        variation,
+        unsafe { (&subarray as *const _ as *const [fgr; N_POINTS_CUBED]).read() },
+        F::from(variation).unwrap(),
     )
 }
 
@@ -414,31 +417,32 @@ fn create_value_subarray_for_periodic_2d<
 >(
     values: &Array2<F>,
     start_indices: &Idx2<isize>,
-) -> ([F; N_POINTS_SQUARED], F) {
+) -> ([fgr; N_POINTS_SQUARED], F) {
     let grid_shape = values.shape();
     let offsets = In2D::new(
         (start_indices[X2] + (grid_shape[0] as isize)) as usize,
         (start_indices[Y2] + (grid_shape[1] as isize)) as usize,
     );
-    let mut subarray: [MaybeUninit<F>; N_POINTS_SQUARED] =
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS_SQUARED] =
         unsafe { MaybeUninit::uninit().assume_init() };
     let mut idx = 0;
 
-    let mut sum = F::zero();
-    let mut sum_of_squares = F::zero();
+    let mut sum = 0.0;
+    let mut sum_of_squares = 0.0;
 
     for j in 0..N_POINTS {
         for i in 0..N_POINTS {
             let value = values[[
                 (offsets[X2] + i) % grid_shape[0],
                 (offsets[Y2] + j) % grid_shape[1],
-            ]];
+            ]]
+            .into();
             subarray[idx].write(value);
             idx += 1;
 
             if N_POINTS > 2 {
-                sum = sum + value;
-                sum_of_squares = sum_of_squares + value * value;
+                sum += value;
+                sum_of_squares += value * value;
             }
         }
     }
@@ -446,47 +450,47 @@ fn create_value_subarray_for_periodic_2d<
     debug_assert_eq!(idx, N_POINTS_SQUARED);
 
     let variation = if N_POINTS > 2 {
-        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS_SQUARED).unwrap())
+        1.0 - (sum * sum) / (sum_of_squares * (N_POINTS_SQUARED as fgr))
     } else {
-        F::zero()
+        0.0
     };
 
     (
-        unsafe { (&subarray as *const _ as *const [F; N_POINTS_SQUARED]).read() },
-        variation,
+        unsafe { (&subarray as *const _ as *const [fgr; N_POINTS_SQUARED]).read() },
+        F::from(variation).unwrap(),
     )
 }
 
 fn create_value_subarray_for_periodic_1d<F: BFloat, const N_POINTS: usize>(
     values: &Array1<F>,
     start_idx: isize,
-) -> ([F; N_POINTS], F) {
+) -> ([fgr; N_POINTS], F) {
     let grid_size = values.len();
     let offset = (start_idx + (grid_size as isize)) as usize;
-    let mut subarray: [MaybeUninit<F>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
 
-    let mut sum = F::zero();
-    let mut sum_of_squares = F::zero();
+    let mut sum = 0.0;
+    let mut sum_of_squares = 0.0;
 
     for i in 0..N_POINTS {
-        let value = values[(offset + i) % grid_size];
+        let value = values[(offset + i) % grid_size].into();
         subarray[i].write(value);
 
         if N_POINTS > 2 {
-            sum = sum + value;
-            sum_of_squares = sum_of_squares + value * value;
+            sum += value;
+            sum_of_squares += value * value;
         }
     }
 
     let variation = if N_POINTS > 2 {
-        F::one() - (sum * sum) / (sum_of_squares * F::from(N_POINTS).unwrap())
+        1.0 - (sum * sum) / (sum_of_squares * (N_POINTS as fgr))
     } else {
-        F::zero()
+        0.0
     };
 
     (
-        unsafe { (&subarray as *const _ as *const [F; N_POINTS]).read() },
-        variation,
+        unsafe { (&subarray as *const _ as *const [fgr; N_POINTS]).read() },
+        F::from(variation).unwrap(),
     )
 }
 
@@ -494,7 +498,7 @@ fn create_value_subarray_3d<F: BFloat, const N_POINTS: usize, const N_POINTS_CUB
     any_crosses_periodic_bound: bool,
     values: &Array3<F>,
     start_indices: &Idx3<isize>,
-) -> ([F; N_POINTS_CUBED], F) {
+) -> ([fgr; N_POINTS_CUBED], F) {
     if any_crosses_periodic_bound {
         create_value_subarray_for_periodic_3d::<_, N_POINTS, N_POINTS_CUBED>(values, start_indices)
     } else {
@@ -506,7 +510,7 @@ fn create_value_subarray_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQU
     any_crosses_periodic_bound: bool,
     values: &Array2<F>,
     start_indices: &Idx2<isize>,
-) -> ([F; N_POINTS_SQUARED], F) {
+) -> ([fgr; N_POINTS_SQUARED], F) {
     if any_crosses_periodic_bound {
         create_value_subarray_for_periodic_2d::<_, N_POINTS, N_POINTS_SQUARED>(
             values,
@@ -524,7 +528,7 @@ fn create_value_subarray_1d<F: BFloat, const N_POINTS: usize>(
     crosses_periodic_bound: bool,
     values: &Array1<F>,
     start_idx: isize,
-) -> ([F; N_POINTS], F) {
+) -> ([fgr; N_POINTS], F) {
     if crosses_periodic_bound {
         create_value_subarray_for_periodic_1d::<_, N_POINTS>(values, start_idx)
     } else {
@@ -532,25 +536,25 @@ fn create_value_subarray_1d<F: BFloat, const N_POINTS: usize>(
     }
 }
 
-fn create_coordinate_subarray_for_interior<F: BFloat, const N_POINTS: usize>(
-    coords: &[F],
+fn create_coordinate_subarray_for_interior<const N_POINTS: usize>(
+    coords: &[fgr],
     start_idx: isize,
-) -> [F; N_POINTS] {
+) -> [fgr; N_POINTS] {
     let offset = start_idx as usize;
-    let mut subarray: [MaybeUninit<F>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
     for idx in 0..N_POINTS {
         subarray[idx].write(coords[offset + idx]);
     }
-    unsafe { (&subarray as *const _ as *const [F; N_POINTS]).read() }
+    unsafe { (&subarray as *const _ as *const [fgr; N_POINTS]).read() }
 }
 
-fn create_coordinate_subarray_for_periodic<F: BFloat, const N_POINTS: usize>(
-    coords: &[F],
-    extent: F,
+fn create_coordinate_subarray_for_periodic<const N_POINTS: usize>(
+    coords: &[fgr],
+    extent: fgr,
     start_idx: isize,
-) -> [F; N_POINTS] {
+) -> [fgr; N_POINTS] {
     let len = coords.len();
-    let mut subarray: [MaybeUninit<F>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
+    let mut subarray: [MaybeUninit<fgr>; N_POINTS] = unsafe { MaybeUninit::uninit().assume_init() };
     if start_idx < 0 {
         let n_points_below = (-start_idx) as usize;
         let offset = len - n_points_below;
@@ -571,82 +575,70 @@ fn create_coordinate_subarray_for_periodic<F: BFloat, const N_POINTS: usize>(
             subarray[idx].write(coords[idx - n_points_below] + extent);
         }
     }
-    unsafe { (&subarray as *const _ as *const [F; N_POINTS]).read() }
+    unsafe { (&subarray as *const _ as *const [fgr; N_POINTS]).read() }
 }
 
-fn create_coordinate_subarrays_3d<F: BFloat, const N_POINTS: usize>(
+fn create_coordinate_subarrays_3d<const N_POINTS: usize>(
     crosses_periodic_bound: &In3D<bool>,
-    coords: &CoordRefs3<F>,
-    extents: &Vec3<F>,
+    coords: &CoordRefs3<fgr>,
+    extents: &Vec3<fgr>,
     start_indices: &Idx3<isize>,
-) -> ([F; N_POINTS], [F; N_POINTS], [F; N_POINTS]) {
+) -> ([fgr; N_POINTS], [fgr; N_POINTS], [fgr; N_POINTS]) {
     let x_coord_subarray = if crosses_periodic_bound[X] {
-        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
-            coords[X],
-            extents[X],
-            start_indices[X],
-        )
+        create_coordinate_subarray_for_periodic::<N_POINTS>(coords[X], extents[X], start_indices[X])
     } else {
-        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[X], start_indices[X])
+        create_coordinate_subarray_for_interior::<N_POINTS>(coords[X], start_indices[X])
     };
     let y_coord_subarray = if crosses_periodic_bound[Y] {
-        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
-            coords[Y],
-            extents[Y],
-            start_indices[Y],
-        )
+        create_coordinate_subarray_for_periodic::<N_POINTS>(coords[Y], extents[Y], start_indices[Y])
     } else {
-        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[Y], start_indices[Y])
+        create_coordinate_subarray_for_interior::<N_POINTS>(coords[Y], start_indices[Y])
     };
     let z_coord_subarray = if crosses_periodic_bound[Z] {
-        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
-            coords[Z],
-            extents[Z],
-            start_indices[Z],
-        )
+        create_coordinate_subarray_for_periodic::<N_POINTS>(coords[Z], extents[Z], start_indices[Z])
     } else {
-        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[Z], start_indices[Z])
+        create_coordinate_subarray_for_interior::<N_POINTS>(coords[Z], start_indices[Z])
     };
     (x_coord_subarray, y_coord_subarray, z_coord_subarray)
 }
 
-fn create_coordinate_subarrays_2d<F: BFloat, const N_POINTS: usize>(
+fn create_coordinate_subarrays_2d<const N_POINTS: usize>(
     crosses_periodic_bound: &In2D<bool>,
-    coords: &CoordRefs2<F>,
-    extents: &Vec2<F>,
+    coords: &CoordRefs2<fgr>,
+    extents: &Vec2<fgr>,
     start_indices: &Idx2<isize>,
-) -> ([F; N_POINTS], [F; N_POINTS]) {
+) -> ([fgr; N_POINTS], [fgr; N_POINTS]) {
     let x_coord_subarray = if crosses_periodic_bound[X2] {
-        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
+        create_coordinate_subarray_for_periodic::<N_POINTS>(
             coords[X2],
             extents[X2],
             start_indices[X2],
         )
     } else {
-        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[X2], start_indices[X2])
+        create_coordinate_subarray_for_interior::<N_POINTS>(coords[X2], start_indices[X2])
     };
     let y_coord_subarray = if crosses_periodic_bound[Y2] {
-        create_coordinate_subarray_for_periodic::<_, N_POINTS>(
+        create_coordinate_subarray_for_periodic::<N_POINTS>(
             coords[Y2],
             extents[Y2],
             start_indices[Y2],
         )
     } else {
-        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords[Y2], start_indices[Y2])
+        create_coordinate_subarray_for_interior::<N_POINTS>(coords[Y2], start_indices[Y2])
     };
     (x_coord_subarray, y_coord_subarray)
 }
 
-fn create_coordinate_subarray_1d<F: BFloat, const N_POINTS: usize>(
+fn create_coordinate_subarray_1d<const N_POINTS: usize>(
     crosses_periodic_bound: bool,
-    coords: &[F],
-    extent: F,
+    coords: &[fgr],
+    extent: fgr,
     start_idx: isize,
-) -> [F; N_POINTS] {
+) -> [fgr; N_POINTS] {
     if crosses_periodic_bound {
-        create_coordinate_subarray_for_periodic::<_, N_POINTS>(coords, extent, start_idx)
+        create_coordinate_subarray_for_periodic::<N_POINTS>(coords, extent, start_idx)
     } else {
-        create_coordinate_subarray_for_interior::<_, N_POINTS>(coords, start_idx)
+        create_coordinate_subarray_for_interior::<N_POINTS>(coords, start_idx)
     }
 }
 
@@ -666,18 +658,18 @@ fn interp_subarrays_3d<
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
-    coords: In3D<&[F; N_POINTS]>,
-    values: &[F; N_POINTS_CUBED],
-    interp_point: &Point3<F>,
+    coords: In3D<&[fgr; N_POINTS]>,
+    values: &[fgr; N_POINTS_CUBED],
+    interp_point: &Point3<fgr>,
 ) -> F {
     let x_coords = coords[X];
     let y_coords = coords[Y];
     let z_coords = coords[Z];
 
-    let mut vals_c = init_array!(F, N_POINTS, F::zero());
-    let mut vals_d = init_array!(F, N_POINTS, F::zero());
-    let mut poly_x = init_array!(F, N_POINTS_SQUARED, F::zero());
-    let mut poly_xy = init_array!(F, N_POINTS, F::zero());
+    let mut vals_c = init_array!(fgr, N_POINTS, 0.0);
+    let mut vals_d = init_array!(fgr, N_POINTS, 0.0);
+    let mut poly_x = init_array!(fgr, N_POINTS_SQUARED, 0.0);
+    let mut poly_xy = init_array!(fgr, N_POINTS, 0.0);
     let mut accum;
     let mut correction;
 
@@ -700,7 +692,7 @@ fn interp_subarrays_3d<
                     vals_d[i] = (interp_point[X] - x_coords[i + n]) * correction;
                 }
 
-                accum = accum + vals_c[0];
+                accum += vals_c[0];
             }
 
             poly_x[k * N_POINTS + j] = accum;
@@ -720,7 +712,7 @@ fn interp_subarrays_3d<
                 vals_d[j] = (interp_point[Y] - y_coords[j + n]) * correction;
             }
 
-            accum = accum + vals_c[0];
+            accum += vals_c[0];
         }
 
         poly_xy[k] = accum;
@@ -738,23 +730,23 @@ fn interp_subarrays_3d<
             vals_d[k] = (interp_point[Z] - z_coords[k + n]) * correction;
         }
 
-        poly_xyz = poly_xyz + vals_c[0];
+        poly_xyz += vals_c[0];
     }
 
-    poly_xyz
+    F::from(poly_xyz).unwrap()
 }
 
 fn interp_subarrays_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQUARED: usize>(
-    coords: In2D<&[F; N_POINTS]>,
-    values: &[F; N_POINTS_SQUARED],
-    interp_point: &Point2<F>,
+    coords: In2D<&[fgr; N_POINTS]>,
+    values: &[fgr; N_POINTS_SQUARED],
+    interp_point: &Point2<fgr>,
 ) -> F {
     let x_coords = coords[X2];
     let y_coords = coords[Y2];
 
-    let mut vals_c = init_array!(F, N_POINTS, F::zero());
-    let mut vals_d = init_array!(F, N_POINTS, F::zero());
-    let mut poly_x = init_array!(F, N_POINTS, F::zero());
+    let mut vals_c = init_array!(fgr, N_POINTS, 0.0);
+    let mut vals_d = init_array!(fgr, N_POINTS, 0.0);
+    let mut poly_x = init_array!(fgr, N_POINTS, 0.0);
     let mut accum;
     let mut correction;
 
@@ -773,7 +765,7 @@ fn interp_subarrays_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQUARED:
                 vals_d[i] = (interp_point[X2] - x_coords[i + n]) * correction;
             }
 
-            accum = accum + vals_c[0];
+            accum += vals_c[0];
         }
 
         poly_x[j] = accum;
@@ -791,19 +783,19 @@ fn interp_subarrays_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQUARED:
             vals_d[j] = (interp_point[Y2] - y_coords[j + n]) * correction;
         }
 
-        poly_xy = poly_xy + vals_c[0];
+        poly_xy += vals_c[0];
     }
 
-    poly_xy
+    F::from(poly_xy).unwrap()
 }
 
 fn interp_subarray_1d<F: BFloat, const N_POINTS: usize>(
-    coords: &[F; N_POINTS],
-    values: &[F; N_POINTS],
-    interp_coord: F,
+    coords: &[fgr; N_POINTS],
+    values: &[fgr; N_POINTS],
+    interp_coord: fgr,
 ) -> F {
-    let mut vals_c = init_array!(F, N_POINTS, F::zero());
-    let mut vals_d = init_array!(F, N_POINTS, F::zero());
+    let mut vals_c = init_array!(fgr, N_POINTS, 0.0);
+    let mut vals_d = init_array!(fgr, N_POINTS, 0.0);
     let mut correction;
 
     vals_c.copy_from_slice(values);
@@ -818,30 +810,30 @@ fn interp_subarray_1d<F: BFloat, const N_POINTS: usize>(
             vals_d[i] = (interp_coord - coords[i + n]) * correction;
         }
 
-        poly = poly + vals_c[0];
+        poly += vals_c[0];
     }
 
-    poly
+    F::from(poly).unwrap()
 }
 
 fn interp_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     grid: &G,
-    coords: &CoordRefs3<F>,
+    coords: &CoordRefs3<fgr>,
     locations: &In3D<CoordLocation>,
     values: &Array3<F>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
     variation_threshold_for_linear: F,
 ) -> F {
     {
         let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
-            find_start_indices_and_crossings_3d::<_, _, N_POINTS>(
+            find_start_indices_and_crossings_3d::<_, N_POINTS>(
                 grid,
                 locations,
                 interp_point,
@@ -858,7 +850,7 @@ fn interp_3d<
         // in order to avoid overshoot.
         if variation > variation_threshold_for_linear && N_POINTS > 2 {
             let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
-                find_start_indices_and_crossings_3d::<_, _, 2>(
+                find_start_indices_and_crossings_3d::<_, 2>(
                     grid,
                     locations,
                     interp_point,
@@ -872,7 +864,7 @@ fn interp_3d<
             );
 
             let (x_coord_subarray, y_coord_subarray, z_coord_subarray) =
-                create_coordinate_subarrays_3d::<_, 2>(
+                create_coordinate_subarrays_3d::<2>(
                     &crosses_periodic_bound,
                     coords,
                     grid.extents(),
@@ -886,7 +878,7 @@ fn interp_3d<
             )
         } else {
             let (x_coord_subarray, y_coord_subarray, z_coord_subarray) =
-                create_coordinate_subarrays_3d::<_, N_POINTS>(
+                create_coordinate_subarrays_3d::<N_POINTS>(
                     &crosses_periodic_bound,
                     coords,
                     grid.extents(),
@@ -902,18 +894,18 @@ fn interp_3d<
     }
 }
 
-fn interp_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize, const N_POINTS_SQUARED: usize>(
+fn interp_2d<F: BFloat, G: Grid2<fgr>, const N_POINTS: usize, const N_POINTS_SQUARED: usize>(
     grid: &G,
-    coords: &CoordRefs2<F>,
+    coords: &CoordRefs2<fgr>,
     locations: &In2D<CoordLocation>,
     values: &Array2<F>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
     variation_threshold_for_linear: F,
 ) -> F {
     {
         let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
-            find_start_indices_and_crossings_2d::<_, _, N_POINTS>(
+            find_start_indices_and_crossings_2d::<_, N_POINTS>(
                 grid,
                 locations,
                 interp_point,
@@ -930,7 +922,7 @@ fn interp_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize, const N_POINTS_SQUAR
         // in order to avoid overshoot.
         if variation > variation_threshold_for_linear && N_POINTS > 2 {
             let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
-                find_start_indices_and_crossings_2d::<_, _, 2>(
+                find_start_indices_and_crossings_2d::<_, 2>(
                     grid,
                     locations,
                     interp_point,
@@ -943,7 +935,7 @@ fn interp_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize, const N_POINTS_SQUAR
                 &start_indices,
             );
 
-            let (x_coord_subarray, y_coord_subarray) = create_coordinate_subarrays_2d::<_, 2>(
+            let (x_coord_subarray, y_coord_subarray) = create_coordinate_subarrays_2d::<2>(
                 &crosses_periodic_bound,
                 coords,
                 grid.extents(),
@@ -956,7 +948,7 @@ fn interp_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize, const N_POINTS_SQUAR
                 interp_point,
             )
         } else {
-            let (x_coord_subarray, y_coord_subarray) = create_coordinate_subarrays_2d::<_, N_POINTS>(
+            let (x_coord_subarray, y_coord_subarray) = create_coordinate_subarrays_2d::<N_POINTS>(
                 &crosses_periodic_bound,
                 coords,
                 grid.extents(),
@@ -972,22 +964,18 @@ fn interp_2d<F: BFloat, G: Grid2<F>, const N_POINTS: usize, const N_POINTS_SQUAR
     }
 }
 
-fn interp_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
+fn interp_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
     grid: &G,
-    coords: &[F],
+    coords: &[fgr],
     location: CoordLocation,
     values: &Array1<F>,
-    interp_coord: F,
+    interp_coord: fgr,
     interp_idx: usize,
     variation_threshold_for_linear: F,
 ) -> F {
     {
-        let (start_idx, crosses_periodic_bound) = find_start_idx_and_crossing_1d::<_, _, N_POINTS>(
-            grid,
-            location,
-            interp_coord,
-            interp_idx,
-        );
+        let (start_idx, crosses_periodic_bound) =
+            find_start_idx_and_crossing_1d::<_, N_POINTS>(grid, location, interp_coord, interp_idx);
 
         let (value_subarray, variation) =
             create_value_subarray_1d::<_, N_POINTS>(crosses_periodic_bound, values, start_idx);
@@ -996,12 +984,12 @@ fn interp_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
         // in order to avoid overshoot.
         if variation > variation_threshold_for_linear && N_POINTS > 2 {
             let (start_idx, crosses_periodic_bound) =
-                find_start_idx_and_crossing_1d::<_, _, 2>(grid, location, interp_coord, interp_idx);
+                find_start_idx_and_crossing_1d::<_, 2>(grid, location, interp_coord, interp_idx);
 
             let (value_subarray, _) =
                 create_value_subarray_1d::<_, 2>(crosses_periodic_bound, values, start_idx);
 
-            let coord_subarray = create_coordinate_subarray_1d::<_, 2>(
+            let coord_subarray = create_coordinate_subarray_1d::<2>(
                 crosses_periodic_bound,
                 coords,
                 grid.extent(),
@@ -1010,7 +998,7 @@ fn interp_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
 
             interp_subarray_1d::<_, 2>(&coord_subarray, &value_subarray, interp_coord)
         } else {
-            let coord_subarray = create_coordinate_subarray_1d::<_, N_POINTS>(
+            let coord_subarray = create_coordinate_subarray_1d::<N_POINTS>(
                 crosses_periodic_bound,
                 coords,
                 grid.extent(),
@@ -1024,13 +1012,13 @@ fn interp_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
 
 fn interp_scalar_field_in_known_grid_cell_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &ScalarField3<F, G>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
     variation_threshold_for_linear: F,
 ) -> F {
@@ -1047,12 +1035,12 @@ fn interp_scalar_field_in_known_grid_cell_3d<
 
 fn interp_scalar_field_in_known_grid_cell_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &ScalarField2<F, G>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
     variation_threshold_for_linear: F,
 ) -> F {
@@ -1067,9 +1055,9 @@ fn interp_scalar_field_in_known_grid_cell_2d<
     )
 }
 
-fn interp_scalar_field_in_known_grid_cell_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
+fn interp_scalar_field_in_known_grid_cell_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
     field: &ScalarField1<F, G>,
-    interp_coord: F,
+    interp_coord: fgr,
     interp_idx: usize,
     variation_threshold_for_linear: F,
 ) -> F {
@@ -1086,16 +1074,16 @@ fn interp_scalar_field_in_known_grid_cell_1d<F: BFloat, G: Grid1<F>, const N_POI
 
 fn interp_scalar_field_from_grid_point_query_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &ScalarField3<F, G>,
-    grid_point_query: GridPointQuery3<F, Idx3<usize>>,
-    interp_point: &Point3<F>,
+    grid_point_query: GridPointQuery3<fgr, Idx3<usize>>,
+    interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<F, F> {
+) -> GridPointQuery3<fgr, F> {
     match grid_point_query {
         GridPointQuery3::Inside(interp_indices) => {
             GridPointQuery3::Inside(interp_scalar_field_in_known_grid_cell_3d::<
@@ -1134,15 +1122,15 @@ fn interp_scalar_field_from_grid_point_query_3d<
 
 fn interp_scalar_field_from_grid_point_query_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &ScalarField2<F, G>,
-    grid_point_query: GridPointQuery2<F, Idx2<usize>>,
-    interp_point: &Point2<F>,
+    grid_point_query: GridPointQuery2<fgr, Idx2<usize>>,
+    interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<F, F> {
+) -> GridPointQuery2<fgr, F> {
     match grid_point_query {
         GridPointQuery2::Inside(interp_indices) => {
             GridPointQuery2::Inside(interp_scalar_field_in_known_grid_cell_2d::<
@@ -1172,12 +1160,12 @@ fn interp_scalar_field_from_grid_point_query_2d<
     }
 }
 
-fn interp_scalar_field_from_grid_point_query_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
+fn interp_scalar_field_from_grid_point_query_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
     field: &ScalarField1<F, G>,
-    grid_point_query: GridPointQuery1<F, usize>,
-    interp_coord: F,
+    grid_point_query: GridPointQuery1<fgr, usize>,
+    interp_coord: fgr,
     variation_threshold_for_linear: F,
-) -> GridPointQuery1<F, F> {
+) -> GridPointQuery1<fgr, F> {
     match grid_point_query {
         GridPointQuery1::Inside(interp_idx) => {
             GridPointQuery1::Inside(interp_scalar_field_in_known_grid_cell_1d::<_, _, N_POINTS>(
@@ -1202,13 +1190,13 @@ fn interp_scalar_field_from_grid_point_query_1d<F: BFloat, G: Grid1<F>, const N_
 
 fn interp_vector_field_in_known_grid_cell_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &VectorField3<F, G>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
     variation_threshold_for_linear: F,
 ) -> Vec3<F> {
@@ -1246,12 +1234,12 @@ fn interp_vector_field_in_known_grid_cell_3d<
 
 fn interp_vector_field_in_known_grid_cell_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &VectorField2<F, G>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
     variation_threshold_for_linear: F,
 ) -> Vec2<F> {
@@ -1280,16 +1268,16 @@ fn interp_vector_field_in_known_grid_cell_2d<
 
 fn interp_vector_field_from_grid_point_query_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &VectorField3<F, G>,
-    grid_point_query: GridPointQuery3<F, Idx3<usize>>,
-    interp_point: &Point3<F>,
+    grid_point_query: GridPointQuery3<fgr, Idx3<usize>>,
+    interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<F, Vec3<F>> {
+) -> GridPointQuery3<fgr, Vec3<F>> {
     match grid_point_query {
         GridPointQuery3::Inside(interp_indices) => {
             GridPointQuery3::Inside(interp_vector_field_in_known_grid_cell_3d::<
@@ -1328,15 +1316,15 @@ fn interp_vector_field_from_grid_point_query_3d<
 
 fn interp_vector_field_from_grid_point_query_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &VectorField2<F, G>,
-    grid_point_query: GridPointQuery2<F, Idx2<usize>>,
-    interp_point: &Point2<F>,
+    grid_point_query: GridPointQuery2<fgr, Idx2<usize>>,
+    interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<F, Vec2<F>> {
+) -> GridPointQuery2<fgr, Vec2<F>> {
     match grid_point_query {
         GridPointQuery2::Inside(interp_indices) => {
             GridPointQuery2::Inside(interp_vector_field_in_known_grid_cell_2d::<
@@ -1368,15 +1356,15 @@ fn interp_vector_field_from_grid_point_query_2d<
 
 fn interp_scalar_field_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &ScalarField3<F, G>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<F, F> {
+) -> GridPointQuery3<fgr, F> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1388,14 +1376,14 @@ fn interp_scalar_field_3d<
 
 fn interp_scalar_field_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &ScalarField2<F, G>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<F, F> {
+) -> GridPointQuery2<fgr, F> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1405,11 +1393,11 @@ fn interp_scalar_field_2d<
     )
 }
 
-fn interp_scalar_field_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
+fn interp_scalar_field_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
     field: &ScalarField1<F, G>,
-    interp_coord: F,
+    interp_coord: fgr,
     variation_threshold_for_linear: F,
-) -> GridPointQuery1<F, F> {
+) -> GridPointQuery1<fgr, F> {
     let grid_point_query = field.grid().find_grid_cell(interp_coord);
     interp_scalar_field_from_grid_point_query_1d::<_, _, N_POINTS>(
         field,
@@ -1421,15 +1409,15 @@ fn interp_scalar_field_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
 
 fn interp_extrap_scalar_field_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &ScalarField3<F, G>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<F, F> {
+) -> GridPointQuery3<fgr, F> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1441,14 +1429,14 @@ fn interp_extrap_scalar_field_3d<
 
 fn interp_extrap_scalar_field_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &ScalarField2<F, G>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<F, F> {
+) -> GridPointQuery2<fgr, F> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1458,11 +1446,11 @@ fn interp_extrap_scalar_field_2d<
     )
 }
 
-fn interp_extrap_scalar_field_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
+fn interp_extrap_scalar_field_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
     field: &ScalarField1<F, G>,
-    interp_coord: F,
+    interp_coord: fgr,
     variation_threshold_for_linear: F,
-) -> GridPointQuery1<F, F> {
+) -> GridPointQuery1<fgr, F> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_coord);
     interp_scalar_field_from_grid_point_query_1d::<_, _, N_POINTS>(
         field,
@@ -1474,15 +1462,15 @@ fn interp_extrap_scalar_field_1d<F: BFloat, G: Grid1<F>, const N_POINTS: usize>(
 
 fn interp_vector_field_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &VectorField3<F, G>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<F, Vec3<F>> {
+) -> GridPointQuery3<fgr, Vec3<F>> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1494,14 +1482,14 @@ fn interp_vector_field_3d<
 
 fn interp_vector_field_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &VectorField2<F, G>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<F, Vec2<F>> {
+) -> GridPointQuery2<fgr, Vec2<F>> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1513,15 +1501,15 @@ fn interp_vector_field_2d<
 
 fn interp_extrap_vector_field_3d<
     F: BFloat,
-    G: Grid3<F>,
+    G: Grid3<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
 >(
     field: &VectorField3<F, G>,
-    interp_point: &Point3<F>,
+    interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<F, Vec3<F>> {
+) -> GridPointQuery3<fgr, Vec3<F>> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1533,14 +1521,14 @@ fn interp_extrap_vector_field_3d<
 
 fn interp_extrap_vector_field_2d<
     F: BFloat,
-    G: Grid2<F>,
+    G: Grid2<fgr>,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
 >(
     field: &VectorField2<F, G>,
-    interp_point: &Point2<F>,
+    interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<F, Vec2<F>> {
+) -> GridPointQuery2<fgr, Vec2<F>> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1577,10 +1565,9 @@ impl PolyFitInterpolator3 {
 }
 
 impl Interpolator3 for PolyFitInterpolator3 {
-    fn verify_grid<F, G>(&self, grid: &G) -> Result<(), String>
+    fn verify_grid<G>(&self, grid: &G) -> Result<(), String>
     where
-        F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
     {
         if grid.shape().into_iter().any(|&n| n <= self.config.order) {
             Err(format!(
@@ -1596,11 +1583,11 @@ impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, F>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, F>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -1637,12 +1624,12 @@ impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_scalar_field_known_cell<F, G>(
         &self,
         field: &ScalarField3<F, G>,
-        interp_point: &Point3<F>,
+        interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
     ) -> F
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
     {
         assert!(field
             .grid()
@@ -1688,11 +1675,11 @@ impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, F>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, F>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -1729,11 +1716,11 @@ impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_vector_field<F, G>(
         &self,
         field: &VectorField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, Vec3<F>>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, Vec3<F>>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -1770,12 +1757,12 @@ impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_vector_field_known_cell<F, G>(
         &self,
         field: &VectorField3<F, G>,
-        interp_point: &Point3<F>,
+        interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
     ) -> Vec3<F>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
     {
         assert!(field
             .grid()
@@ -1821,11 +1808,11 @@ impl Interpolator3 for PolyFitInterpolator3 {
     fn interp_extrap_vector_field<F, G>(
         &self,
         field: &VectorField3<F, G>,
-        interp_point: &Point3<F>,
-    ) -> GridPointQuery3<F, Vec3<F>>
+        interp_point: &Point3<fgr>,
+    ) -> GridPointQuery3<fgr, Vec3<F>>
     where
         F: BFloat,
-        G: Grid3<F>,
+        G: Grid3<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -1878,11 +1865,11 @@ impl Interpolator2 for PolyFitInterpolator2 {
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, F>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, F>
     where
         F: BFloat,
-        G: Grid2<F>,
+        G: Grid2<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -1919,12 +1906,12 @@ impl Interpolator2 for PolyFitInterpolator2 {
     fn interp_scalar_field_known_cell<F, G>(
         &self,
         field: &ScalarField2<F, G>,
-        interp_point: &Point2<F>,
+        interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
     ) -> F
     where
         F: BFloat,
-        G: Grid2<F>,
+        G: Grid2<fgr>,
     {
         assert!(field
             .grid()
@@ -1970,11 +1957,11 @@ impl Interpolator2 for PolyFitInterpolator2 {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, F>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, F>
     where
         F: BFloat,
-        G: Grid2<F>,
+        G: Grid2<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -2011,11 +1998,11 @@ impl Interpolator2 for PolyFitInterpolator2 {
     fn interp_vector_field<F, G>(
         &self,
         field: &VectorField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, Vec2<F>>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, Vec2<F>>
     where
         F: BFloat,
-        G: Grid2<F>,
+        G: Grid2<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -2052,12 +2039,12 @@ impl Interpolator2 for PolyFitInterpolator2 {
     fn interp_vector_field_known_cell<F, G>(
         &self,
         field: &VectorField2<F, G>,
-        interp_point: &Point2<F>,
+        interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
     ) -> Vec2<F>
     where
         F: BFloat,
-        G: Grid2<F>,
+        G: Grid2<fgr>,
     {
         assert!(field
             .grid()
@@ -2103,11 +2090,11 @@ impl Interpolator2 for PolyFitInterpolator2 {
     fn interp_extrap_vector_field<F, G>(
         &self,
         field: &VectorField2<F, G>,
-        interp_point: &Point2<F>,
-    ) -> GridPointQuery2<F, Vec2<F>>
+        interp_point: &Point2<fgr>,
+    ) -> GridPointQuery2<fgr, Vec2<F>>
     where
         F: BFloat,
-        G: Grid2<F>,
+        G: Grid2<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -2160,11 +2147,11 @@ impl Interpolator1 for PolyFitInterpolator1 {
     fn interp_scalar_field<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
-    ) -> GridPointQuery1<F, F>
+        interp_coord: fgr,
+    ) -> GridPointQuery1<fgr, F>
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -2201,12 +2188,12 @@ impl Interpolator1 for PolyFitInterpolator1 {
     fn interp_scalar_field_known_cell<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
+        interp_coord: fgr,
         interp_idx: usize,
     ) -> F
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         assert!(field.grid().coord_is_inside_cell(interp_coord, interp_idx));
 
@@ -2250,11 +2237,11 @@ impl Interpolator1 for PolyFitInterpolator1 {
     fn interp_extrap_scalar_field<F, G>(
         &self,
         field: &ScalarField1<F, G>,
-        interp_coord: F,
-    ) -> GridPointQuery1<F, F>
+        interp_coord: fgr,
+    ) -> GridPointQuery1<fgr, F>
     where
         F: BFloat,
-        G: Grid1<F>,
+        G: Grid1<fgr>,
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();

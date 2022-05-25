@@ -52,13 +52,13 @@ use crate::{
     },
     exit_on_error, exit_with_error,
     field::ScalarFieldCacher3,
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{self, CachingSnapshotProvider3, SnapshotProvider3},
         utils::AtomicOutputPath,
     },
     tracing::stepping::rkf::{
@@ -219,7 +219,7 @@ pub fn run_simulate_subcommand<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbose = arguments.is_present("verbose").into();
@@ -335,7 +335,7 @@ fn run_with_selected_detector<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
@@ -390,7 +390,7 @@ fn run_with_selected_accelerator<G, P, D>(
     detector: D,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
     D: ReconnectionSiteDetector,
 {
@@ -463,7 +463,7 @@ fn run_with_selected_interpolator<G, P, D, A>(
     detector: D,
     accelerator: A,
     protected_file_types: &[&str])
-where G: Grid3<fdt>,
+where G: Grid3<fgr>,
       P: CachingSnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
@@ -513,7 +513,7 @@ fn run_with_selected_stepper_factory<G, P, D, A, I>(
     accelerator: A,
     interpolator: I,
     protected_file_types: &[&str])
-where G: Grid3<fdt>,
+where G: Grid3<fgr>,
       P: CachingSnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
@@ -650,7 +650,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
     A: Accelerator,
     I: Interpolator3,

@@ -16,9 +16,9 @@ use crate::{
         Dim3::{X, Y, Z},
         Idx3, Point3,
     },
-    grid::Grid3,
+    grid::{fgr, Grid3},
     io::{
-        snapshot::{fdt, CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
+        snapshot::{CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
         Verbose,
     },
     update_command_graph,
@@ -141,7 +141,7 @@ pub fn run_extract_subcommand<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let original_grid = provider.grid();
@@ -240,7 +240,7 @@ fn run_extract_subcommand_with_derive<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
 {
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
@@ -267,7 +267,7 @@ fn run_extract_subcommand_with_synthesis<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G> + Sync,
 {
     #[cfg(feature = "synthesis")]
@@ -297,7 +297,7 @@ fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
 {
     #[cfg(feature = "synthesis")]
@@ -329,7 +329,7 @@ fn run_extract_subcommand_for_provider<G, P>(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) where
-    G: Grid3<fdt>,
+    G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
 {
     if let Some(resample_arguments) = arguments.subcommand_matches("resample") {

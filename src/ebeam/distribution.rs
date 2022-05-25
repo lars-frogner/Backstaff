@@ -6,7 +6,7 @@ use super::{feb, BeamPropertiesCollection};
 use crate::{
     field::CachingScalarFieldProvider3,
     geometry::{Idx3, Point3, Vec3},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::snapshot::fdt,
     tracing::{ftr, stepping::SteppingSense},
@@ -40,7 +40,7 @@ pub trait Distribution {
     type PropertiesCollectionType: BeamPropertiesCollection;
 
     /// Returns the position where the distribution originates.
-    fn acceleration_position(&self) -> &Point3<fdt>;
+    fn acceleration_position(&self) -> &Point3<fgr>;
 
     /// Returns the indices of the position where the distribution originates.
     fn acceleration_indices(&self) -> &Idx3<usize>;
@@ -65,7 +65,7 @@ pub trait Distribution {
         new_position: &Point3<ftr>,
     ) -> PropagationResult
     where
-        G: Grid3<fdt>,
+        G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
         I: Interpolator3;
 }
