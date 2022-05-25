@@ -45,7 +45,6 @@ dependencies = [
  "float-pretty-print",
  "hdf5",
  "ieee754",
- "itertools",
  "lazy_static",
  "ndarray",
  "ndarray-stats",

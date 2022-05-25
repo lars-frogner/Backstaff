@@ -27,7 +27,6 @@ synthesis = ["python", "roman"]
 # Dependencies for core
 byteorder = "*"
 ieee754 = "*"
-itertools = "*"
 lazy_static = "*"
 ndarray = { version = "*", features = ["rayon"] }
 num = "*"

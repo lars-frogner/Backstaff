@@ -16,7 +16,6 @@ use crate::{
     io::Verbose,
     num::{BFloat, KeyValueOrderableByValue},
 };
-use itertools::Itertools;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use std::{
@@ -500,6 +499,12 @@ pub struct ScalarField3<F, G> {
     values: Array3<F>,
 }
 
+macro_rules! sliding_window {
+    ($iter:expr) => {
+        $iter.zip($iter.skip(1))
+    };
+}
+
 impl<F, G> ScalarField3<F, G>
 where
     F: BFloat,
@@ -774,19 +779,20 @@ where
                     );
 
                 let compute_overlap_centers_and_lengths_along_dim = |dim| {
-                    iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
-                        .chain(
-                            // Next are the lower edges of the underlying cells completely inside the overlying cell
-                            underlying_edges[dim][1..underlying_edges[dim].len() - 1].iter(),
-                        )
-                        .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
-                        .tuple_windows() // Create sliding window iterator over edge pairs
-                        .map(|(&lower_coord, &upper_coord)| {
-                            let overlap_length = upper_coord - lower_coord;
-                            let overlap_center = lower_coord + overlap_length * 0.5;
-                            (overlap_center, overlap_length)
-                        })
-                        .collect::<Vec<_>>()
+                    sliding_window!(
+                        iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
+                            .chain(
+                                // Next are the lower edges of the underlying cells completely inside the overlying cell
+                                underlying_edges[dim][1..underlying_edges[dim].len() - 1].iter(),
+                            )
+                            .chain(iter::once(&upper_overlying_corner[dim]))
+                    ) // Create sliding window iterator over edge pairs
+                    .map(|(&lower_coord, &upper_coord)| {
+                        let overlap_length = upper_coord - lower_coord;
+                        let overlap_center = lower_coord + overlap_length * 0.5;
+                        (overlap_center, overlap_length)
+                    })
+                    .collect::<Vec<_>>()
                 };
 
                 // Compute the center points and extents of the "sub grid cells" found
@@ -914,43 +920,43 @@ where
 
                 // Compute the center points and areas of the polynomials found by
                 // horizontally intersecting the underlying grid with the overlying grid.
-                let hor_overlap_areas_and_centers: Vec<_> = underlying_edges[Y]
-                    .iter()
-                    .tuple_windows()
-                    .flat_map(|(lower_edge_y, upper_edge_y)| {
-                        underlying_edges[X].iter().tuple_windows().filter_map(
-                            |(lower_edge_x, upper_edge_x)| {
-                                match SimplePolygon2::rectangle_from_bounds(
-                                    &Vec2::new(*lower_edge_x, *lower_edge_y),
-                                    &Vec2::new(*upper_edge_x, *upper_edge_y),
-                                )
-                                .intersection(&hor_overlying_grid_cell_polygon)
-                                {
-                                    Some(intersection_polygon) => {
-                                        intersection_polygon.area_and_centroid()
+                let hor_overlap_areas_and_centers: Vec<_> =
+                    sliding_window!(underlying_edges[Y].iter())
+                        .flat_map(|(lower_edge_y, upper_edge_y)| {
+                            sliding_window!(underlying_edges[X].iter()).filter_map(
+                                |(lower_edge_x, upper_edge_x)| {
+                                    match SimplePolygon2::rectangle_from_bounds(
+                                        &Vec2::new(*lower_edge_x, *lower_edge_y),
+                                        &Vec2::new(*upper_edge_x, *upper_edge_y),
+                                    )
+                                    .intersection(&hor_overlying_grid_cell_polygon)
+                                    {
+                                        Some(intersection_polygon) => {
+                                            intersection_polygon.area_and_centroid()
+                                        }
+                                        None => None,
                                     }
-                                    None => None,
-                                }
-                            },
-                        )
-                    })
-                    .collect();
+                                },
+                            )
+                        })
+                        .collect();
 
                 // Compute the center coordinates and extents of the segments found by
                 // intersecting the z-components of the underlying grid and overlying grid.
-                let overlap_lengths_and_centers_z = iter::once(&lower_overlying_corner[Z]) // First edge is lower edge of overlying cell
-                    .chain(
-                        // Next are the lower edges of the underlying cells completely inside the overlying cell
-                        underlying_edges[Z][1..underlying_edges[Z].len() - 1].iter(),
-                    )
-                    .chain(iter::once(&upper_overlying_corner[Z])) // Last edge is the upper edge of the overlying cell
-                    .tuple_windows() // Create sliding window iterator over edge pairs
-                    .map(|(&lower_coord, &upper_coord)| {
-                        let overlap_length = upper_coord - lower_coord;
-                        let overlap_center = lower_coord + overlap_length * 0.5;
-                        (overlap_length, overlap_center)
-                    })
-                    .collect::<Vec<_>>();
+                let overlap_lengths_and_centers_z = sliding_window!(
+                    iter::once(&lower_overlying_corner[Z]) // First edge is lower edge of overlying cell
+                        .chain(
+                            // Next are the lower edges of the underlying cells completely inside the overlying cell
+                            underlying_edges[Z][1..underlying_edges[Z].len() - 1].iter(),
+                        )
+                        .chain(iter::once(&upper_overlying_corner[Z])) // Last edge is the upper edge of the overlying cell
+                ) // Create sliding window iterator over edge pairs
+                .map(|(&lower_coord, &upper_coord)| {
+                    let overlap_length = upper_coord - lower_coord;
+                    let overlap_center = lower_coord + overlap_length * 0.5;
+                    (overlap_length, overlap_center)
+                })
+                .collect::<Vec<_>>();
 
                 let mut accum_value = 0.0;
                 let mut accum_weight = 0.0;
@@ -1035,22 +1041,23 @@ where
                 );
 
                 let compute_overlap_lengths_and_indices_along_dim = |dim| {
-                    iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
-                        .chain(
-                            // Next are the lower edges of the underlying cells completely inside the overlying cell
-                            idx_range_lists[dim]
-                                .iter()
-                                .skip(1) // Skip first underlying lower edge since it is outside lower edge of overlying cell
-                                .map(|&idx| &underlying_lower_edges[dim][idx]),
-                        )
-                        .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
-                        .tuple_windows() // Create sliding window iterator over edge pairs
-                        .map(|(&lower_coord, &upper_coord)| {
-                            ((upper_coord - lower_coord) + underlying_extents[dim])
-                                % underlying_extents[dim] // Make sure coordinate difference is correct also for wrapped coordinates
-                        })
-                        .zip(idx_range_lists[dim].iter())
-                        .collect::<Vec<_>>()
+                    sliding_window!(
+                        iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
+                            .chain(
+                                // Next are the lower edges of the underlying cells completely inside the overlying cell
+                                idx_range_lists[dim]
+                                    .iter()
+                                    .skip(1) // Skip first underlying lower edge since it is outside lower edge of overlying cell
+                                    .map(|&idx| &underlying_lower_edges[dim][idx]),
+                            )
+                            .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
+                    ) // Create sliding window iterator over edge pairs
+                    .map(|(&lower_coord, &upper_coord)| {
+                        ((upper_coord - lower_coord) + underlying_extents[dim])
+                            % underlying_extents[dim] // Make sure coordinate difference is correct also for wrapped coordinates
+                    })
+                    .zip(idx_range_lists[dim].iter())
+                    .collect::<Vec<_>>()
                 };
 
                 // Compute the extents of the "sub grid cells" found by intersecting
