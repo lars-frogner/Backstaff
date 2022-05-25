@@ -2030,50 +2030,52 @@ where
     ///
     /// NaN values are ignored. Returns `None` if there are no finite values.
     pub fn find_minimum(&self) -> Option<(Idx2<usize>, F)> {
-        self.values
-            .as_slice_memory_order()
-            .unwrap()
-            .par_iter()
-            .enumerate()
-            .filter_map(|(idx, &value)| {
-                if value.is_nan() {
-                    None
-                } else {
-                    Some(KeyValueOrderableByValue(idx, value))
-                }
-            })
-            .min()
-            .map(|KeyValueOrderableByValue(idx_of_min_value, min_value)| {
-                (
-                    compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_min_value),
-                    min_value,
-                )
-            })
+        ParallelIterator::min(
+            self.values
+                .as_slice_memory_order()
+                .unwrap()
+                .par_iter()
+                .enumerate()
+                .filter_map(|(idx, &value)| {
+                    if value.is_nan() {
+                        None
+                    } else {
+                        Some(KeyValueOrderableByValue(idx, value))
+                    }
+                }),
+        )
+        .map(|KeyValueOrderableByValue(idx_of_min_value, min_value)| {
+            (
+                compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_min_value),
+                min_value,
+            )
+        })
     }
 
     /// Computes the 2D indices and value of the maximum of the field.
     ///
     /// NaN values are ignored. Returns `None` if there are no finite values.
     pub fn find_maximum(&self) -> Option<(Idx2<usize>, F)> {
-        self.values
-            .as_slice_memory_order()
-            .unwrap()
-            .par_iter()
-            .enumerate()
-            .filter_map(|(idx, &value)| {
-                if value.is_nan() {
-                    None
-                } else {
-                    Some(KeyValueOrderableByValue(idx, value))
-                }
-            })
-            .max()
-            .map(|KeyValueOrderableByValue(idx_of_max_value, max_value)| {
-                (
-                    compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_max_value),
-                    max_value,
-                )
-            })
+        ParallelIterator::max(
+            self.values
+                .as_slice_memory_order()
+                .unwrap()
+                .par_iter()
+                .enumerate()
+                .filter_map(|(idx, &value)| {
+                    if value.is_nan() {
+                        None
+                    } else {
+                        Some(KeyValueOrderableByValue(idx, value))
+                    }
+                }),
+        )
+        .map(|KeyValueOrderableByValue(idx_of_max_value, max_value)| {
+            (
+                compute_2d_array_indices_from_flat_idx(self.shape(), idx_of_max_value),
+                max_value,
+            )
+        })
     }
 
     /// Serializes the field data into pickle format and save at the given path.
@@ -2399,44 +2401,42 @@ where
     ///
     /// NaN values are ignored. Returns `None` if there are no finite values.
     pub fn find_minimum(&self) -> Option<(usize, F)> {
-        self.values
-            .as_slice_memory_order()
-            .unwrap()
-            .par_iter()
-            .enumerate()
-            .filter_map(|(idx, &value)| {
-                if value.is_nan() {
-                    None
-                } else {
-                    Some(KeyValueOrderableByValue(idx, value))
-                }
-            })
-            .min()
-            .map(|KeyValueOrderableByValue(idx_of_min_value, min_value)| {
-                (idx_of_min_value, min_value)
-            })
+        ParallelIterator::min(
+            self.values
+                .as_slice_memory_order()
+                .unwrap()
+                .par_iter()
+                .enumerate()
+                .filter_map(|(idx, &value)| {
+                    if value.is_nan() {
+                        None
+                    } else {
+                        Some(KeyValueOrderableByValue(idx, value))
+                    }
+                }),
+        )
+        .map(|KeyValueOrderableByValue(idx_of_min_value, min_value)| (idx_of_min_value, min_value))
     }
 
     /// Computes the index and value of the maximum of the field.
     ///
     /// NaN values are ignored. Returns `None` if there are no finite values.
     pub fn find_maximum(&self) -> Option<(usize, F)> {
-        self.values
-            .as_slice_memory_order()
-            .unwrap()
-            .par_iter()
-            .enumerate()
-            .filter_map(|(idx, &value)| {
-                if value.is_nan() {
-                    None
-                } else {
-                    Some(KeyValueOrderableByValue(idx, value))
-                }
-            })
-            .max()
-            .map(|KeyValueOrderableByValue(idx_of_max_value, max_value)| {
-                (idx_of_max_value, max_value)
-            })
+        ParallelIterator::max(
+            self.values
+                .as_slice_memory_order()
+                .unwrap()
+                .par_iter()
+                .enumerate()
+                .filter_map(|(idx, &value)| {
+                    if value.is_nan() {
+                        None
+                    } else {
+                        Some(KeyValueOrderableByValue(idx, value))
+                    }
+                }),
+        )
+        .map(|KeyValueOrderableByValue(idx_of_max_value, max_value)| (idx_of_max_value, max_value))
     }
 
     /// Serializes the field data into pickle format and save at the given path.
