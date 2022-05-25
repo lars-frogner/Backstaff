@@ -1767,6 +1767,12 @@ impl<F> IdentityTransformation2<F> {
     }
 }
 
+impl<F> Default for IdentityTransformation2<F> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<F: BFloat> PointTransformation2<F> for IdentityTransformation2<F> {
     const IS_IDENTITY: bool = true;
 
