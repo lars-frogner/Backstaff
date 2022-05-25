@@ -797,8 +797,8 @@ where
                     compute_overlap_centers_and_lengths_along_dim(Z),
                 );
 
-                let mut accum_value = F::zero();
-                let mut accum_weight = F::zero();
+                let mut accum_value = 0.0;
+                let mut accum_weight = 0.0;
 
                 // Accumulate the interpolated value from each sub grid cell center,
                 // weighted with the relative volume of the sub grid cell.
@@ -806,28 +806,26 @@ where
                     for &(overlap_center_y, overlap_length_y) in &overlap_centers_and_lengths[Y] {
                         for &(overlap_center_x, overlap_length_x) in &overlap_centers_and_lengths[X]
                         {
-                            let weight =
-                                F::from(overlap_length_x * overlap_length_y * overlap_length_z)
-                                    .unwrap();
+                            let weight = overlap_length_x * overlap_length_y * overlap_length_z;
 
-                            accum_value = accum_value
-                                + interpolator
-                                    .interp_extrap_scalar_field(
-                                        self,
-                                        &Point3::new(
-                                            overlap_center_x,
-                                            overlap_center_y,
-                                            overlap_center_z,
-                                        ),
-                                    )
-                                    .expect_inside_or_moved()
-                                    * weight;
+                            accum_value += interpolator
+                                .interp_extrap_scalar_field(
+                                    self,
+                                    &Point3::new(
+                                        overlap_center_x,
+                                        overlap_center_y,
+                                        overlap_center_z,
+                                    ),
+                                )
+                                .expect_inside_or_moved()
+                                as fgr
+                                * weight;
 
-                            accum_weight = accum_weight + weight;
+                            accum_weight += weight;
                         }
                     }
                 }
-                overlying_value.write(accum_value / accum_weight);
+                overlying_value.write(F::from(accum_value / accum_weight).unwrap());
             },
         );
         let overlying_values = unsafe { overlying_values.assume_init() };
@@ -951,32 +949,31 @@ where
                     })
                     .collect::<Vec<_>>();
 
-                let mut accum_value = F::zero();
-                let mut accum_weight = F::zero();
+                let mut accum_value = 0.0;
+                let mut accum_weight = 0.0;
 
                 // Accumulate the interpolated value from each sub grid cell center,
                 // weighted with the relative volume of the sub grid cell.
                 for &(overlap_z_length, overlap_z_center) in &overlap_lengths_and_centers_z {
                     for (hor_overlap_area, hor_overlap_center) in &hor_overlap_areas_and_centers {
-                        let weight = F::from(*hor_overlap_area * overlap_z_length).unwrap();
+                        let weight = *hor_overlap_area * overlap_z_length;
 
-                        accum_value = accum_value
-                            + interpolator
-                                .interp_extrap_scalar_field(
-                                    self,
-                                    &Point3::new(
-                                        hor_overlap_center[Dim2::X],
-                                        hor_overlap_center[Dim2::Y],
-                                        overlap_z_center,
-                                    ),
-                                )
-                                .expect_inside_or_moved()
-                                * weight;
+                        accum_value += interpolator
+                            .interp_extrap_scalar_field(
+                                self,
+                                &Point3::new(
+                                    hor_overlap_center[Dim2::X],
+                                    hor_overlap_center[Dim2::Y],
+                                    overlap_z_center,
+                                ),
+                            )
+                            .expect_inside_or_moved() as fgr
+                            * weight;
 
-                        accum_weight = accum_weight + weight;
+                        accum_weight += weight;
                     }
                 }
-                overlying_value.write(accum_value / accum_weight);
+                overlying_value.write(F::from(accum_value / accum_weight).unwrap());
             },
         );
         let overlying_values = unsafe { overlying_values.assume_init() };
@@ -1122,9 +1119,12 @@ where
                 let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = new_coords.point(&indices);
                 value.write(
-                    interpolator
-                        .interp_extrap_scalar_field(self, &point)
-                        .expect_inside_or_moved(),
+                    F::from(
+                        interpolator
+                            .interp_extrap_scalar_field(self, &point)
+                            .expect_inside_or_moved(),
+                    )
+                    .unwrap(),
                 );
             });
         let new_values = unsafe { new_values.assume_init() };
@@ -1559,9 +1559,12 @@ where
                 point_in_slice[axes[0]] = coords[0][idx_0];
                 point_in_slice[axes[1]] = coords[1][idx_1];
                 value.write(
-                    interpolator
-                        .interp_scalar_field(self, &point_in_slice)
-                        .expect_inside(),
+                    F::from(
+                        interpolator
+                            .interp_scalar_field(self, &point_in_slice)
+                            .expect_inside(),
+                    )
+                    .unwrap(),
                 );
             });
         unsafe { slice_values.assume_init() }

@@ -204,7 +204,7 @@ impl Cork {
             &last_position,
             self.last_position_indices(),
         );
-        self.scalar_field_values[quantity_idx].push(value);
+        self.scalar_field_values[quantity_idx].push(value as fdt);
         debug_assert_eq!(
             self.scalar_field_values[quantity_idx].len(),
             self.positions.len(),
@@ -230,7 +230,7 @@ impl Cork {
             &last_position,
             self.last_position_indices(),
         );
-        self.vector_field_values[quantity_idx].push(value);
+        self.vector_field_values[quantity_idx].push(value.cast());
         debug_assert_eq!(
             self.vector_field_values[quantity_idx].len(),
             self.positions.len(),

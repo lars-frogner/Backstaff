@@ -1,6 +1,6 @@
 //! Interpolation by polynomial fitting.
 
-use super::{Interpolator1, Interpolator2, Interpolator3};
+use super::{fip, Interpolator1, Interpolator2, Interpolator3};
 use crate::{
     field::{ScalarField1, ScalarField2, ScalarField3, VectorField2, VectorField3},
     geometry::{
@@ -653,7 +653,6 @@ macro_rules! init_array {
 }
 
 fn interp_subarrays_3d<
-    F: BFloat,
     const N_POINTS: usize,
     const N_POINTS_SQUARED: usize,
     const N_POINTS_CUBED: usize,
@@ -661,7 +660,7 @@ fn interp_subarrays_3d<
     coords: In3D<&[fgr; N_POINTS]>,
     values: &[fgr; N_POINTS_CUBED],
     interp_point: &Point3<fgr>,
-) -> F {
+) -> fip {
     let x_coords = coords[X];
     let y_coords = coords[Y];
     let z_coords = coords[Z];
@@ -733,14 +732,14 @@ fn interp_subarrays_3d<
         poly_xyz += vals_c[0];
     }
 
-    F::from(poly_xyz).unwrap()
+    poly_xyz as fip
 }
 
-fn interp_subarrays_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQUARED: usize>(
+fn interp_subarrays_2d<const N_POINTS: usize, const N_POINTS_SQUARED: usize>(
     coords: In2D<&[fgr; N_POINTS]>,
     values: &[fgr; N_POINTS_SQUARED],
     interp_point: &Point2<fgr>,
-) -> F {
+) -> fip {
     let x_coords = coords[X2];
     let y_coords = coords[Y2];
 
@@ -786,14 +785,14 @@ fn interp_subarrays_2d<F: BFloat, const N_POINTS: usize, const N_POINTS_SQUARED:
         poly_xy += vals_c[0];
     }
 
-    F::from(poly_xy).unwrap()
+    poly_xy as fip
 }
 
-fn interp_subarray_1d<F: BFloat, const N_POINTS: usize>(
+fn interp_subarray_1d<const N_POINTS: usize>(
     coords: &[fgr; N_POINTS],
     values: &[fgr; N_POINTS],
     interp_coord: fgr,
-) -> F {
+) -> fip {
     let mut vals_c = init_array!(fgr, N_POINTS, 0.0);
     let mut vals_d = init_array!(fgr, N_POINTS, 0.0);
     let mut correction;
@@ -813,7 +812,7 @@ fn interp_subarray_1d<F: BFloat, const N_POINTS: usize>(
         poly += vals_c[0];
     }
 
-    F::from(poly).unwrap()
+    poly as fip
 }
 
 fn interp_3d<
@@ -830,7 +829,7 @@ fn interp_3d<
     interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
     variation_threshold_for_linear: F,
-) -> F {
+) -> fip {
     {
         let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
             find_start_indices_and_crossings_3d::<_, N_POINTS>(
@@ -871,7 +870,7 @@ fn interp_3d<
                     &start_indices,
                 );
 
-            interp_subarrays_3d::<_, 2, 4, 8>(
+            interp_subarrays_3d::<2, 4, 8>(
                 In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray),
                 &value_subarray,
                 interp_point,
@@ -885,7 +884,7 @@ fn interp_3d<
                     &start_indices,
                 );
 
-            interp_subarrays_3d::<_, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
+            interp_subarrays_3d::<N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
                 In3D::new(&x_coord_subarray, &y_coord_subarray, &z_coord_subarray),
                 &value_subarray,
                 interp_point,
@@ -902,7 +901,7 @@ fn interp_2d<F: BFloat, G: Grid2<fgr>, const N_POINTS: usize, const N_POINTS_SQU
     interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
     variation_threshold_for_linear: F,
-) -> F {
+) -> fip {
     {
         let (start_indices, any_crosses_periodic_bound, crosses_periodic_bound) =
             find_start_indices_and_crossings_2d::<_, N_POINTS>(
@@ -942,7 +941,7 @@ fn interp_2d<F: BFloat, G: Grid2<fgr>, const N_POINTS: usize, const N_POINTS_SQU
                 &start_indices,
             );
 
-            interp_subarrays_2d::<_, 2, 4>(
+            interp_subarrays_2d::<2, 4>(
                 In2D::new(&x_coord_subarray, &y_coord_subarray),
                 &value_subarray,
                 interp_point,
@@ -955,7 +954,7 @@ fn interp_2d<F: BFloat, G: Grid2<fgr>, const N_POINTS: usize, const N_POINTS_SQU
                 &start_indices,
             );
 
-            interp_subarrays_2d::<_, N_POINTS, N_POINTS_SQUARED>(
+            interp_subarrays_2d::<N_POINTS, N_POINTS_SQUARED>(
                 In2D::new(&x_coord_subarray, &y_coord_subarray),
                 &value_subarray,
                 interp_point,
@@ -972,7 +971,7 @@ fn interp_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
     interp_coord: fgr,
     interp_idx: usize,
     variation_threshold_for_linear: F,
-) -> F {
+) -> fip {
     {
         let (start_idx, crosses_periodic_bound) =
             find_start_idx_and_crossing_1d::<_, N_POINTS>(grid, location, interp_coord, interp_idx);
@@ -996,7 +995,7 @@ fn interp_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
                 start_idx,
             );
 
-            interp_subarray_1d::<_, 2>(&coord_subarray, &value_subarray, interp_coord)
+            interp_subarray_1d::<2>(&coord_subarray, &value_subarray, interp_coord)
         } else {
             let coord_subarray = create_coordinate_subarray_1d::<N_POINTS>(
                 crosses_periodic_bound,
@@ -1005,7 +1004,7 @@ fn interp_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
                 start_idx,
             );
 
-            interp_subarray_1d::<_, N_POINTS>(&coord_subarray, &value_subarray, interp_coord)
+            interp_subarray_1d::<N_POINTS>(&coord_subarray, &value_subarray, interp_coord)
         }
     }
 }
@@ -1021,7 +1020,7 @@ fn interp_scalar_field_in_known_grid_cell_3d<
     interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
     variation_threshold_for_linear: F,
-) -> F {
+) -> fip {
     interp_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field.grid(),
         &field.coords(),
@@ -1043,7 +1042,7 @@ fn interp_scalar_field_in_known_grid_cell_2d<
     interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
     variation_threshold_for_linear: F,
-) -> F {
+) -> fip {
     interp_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field.grid(),
         &field.coords(),
@@ -1060,7 +1059,7 @@ fn interp_scalar_field_in_known_grid_cell_1d<F: BFloat, G: Grid1<fgr>, const N_P
     interp_coord: fgr,
     interp_idx: usize,
     variation_threshold_for_linear: F,
-) -> F {
+) -> fip {
     interp_1d::<_, _, N_POINTS>(
         field.grid(),
         field.coords(),
@@ -1083,7 +1082,7 @@ fn interp_scalar_field_from_grid_point_query_3d<
     grid_point_query: GridPointQuery3<fgr, Idx3<usize>>,
     interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<fgr, F> {
+) -> GridPointQuery3<fgr, fip> {
     match grid_point_query {
         GridPointQuery3::Inside(interp_indices) => {
             GridPointQuery3::Inside(interp_scalar_field_in_known_grid_cell_3d::<
@@ -1130,7 +1129,7 @@ fn interp_scalar_field_from_grid_point_query_2d<
     grid_point_query: GridPointQuery2<fgr, Idx2<usize>>,
     interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<fgr, F> {
+) -> GridPointQuery2<fgr, fip> {
     match grid_point_query {
         GridPointQuery2::Inside(interp_indices) => {
             GridPointQuery2::Inside(interp_scalar_field_in_known_grid_cell_2d::<
@@ -1165,7 +1164,7 @@ fn interp_scalar_field_from_grid_point_query_1d<F: BFloat, G: Grid1<fgr>, const 
     grid_point_query: GridPointQuery1<fgr, usize>,
     interp_coord: fgr,
     variation_threshold_for_linear: F,
-) -> GridPointQuery1<fgr, F> {
+) -> GridPointQuery1<fgr, fip> {
     match grid_point_query {
         GridPointQuery1::Inside(interp_idx) => {
             GridPointQuery1::Inside(interp_scalar_field_in_known_grid_cell_1d::<_, _, N_POINTS>(
@@ -1199,7 +1198,7 @@ fn interp_vector_field_in_known_grid_cell_3d<
     interp_point: &Point3<fgr>,
     interp_indices: &Idx3<usize>,
     variation_threshold_for_linear: F,
-) -> Vec3<F> {
+) -> Vec3<fip> {
     let grid = field.grid();
     Vec3::new(
         interp_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
@@ -1242,7 +1241,7 @@ fn interp_vector_field_in_known_grid_cell_2d<
     interp_point: &Point2<fgr>,
     interp_indices: &Idx2<usize>,
     variation_threshold_for_linear: F,
-) -> Vec2<F> {
+) -> Vec2<fip> {
     let grid = field.grid();
     Vec2::new(
         interp_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
@@ -1277,7 +1276,7 @@ fn interp_vector_field_from_grid_point_query_3d<
     grid_point_query: GridPointQuery3<fgr, Idx3<usize>>,
     interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<fgr, Vec3<F>> {
+) -> GridPointQuery3<fgr, Vec3<fip>> {
     match grid_point_query {
         GridPointQuery3::Inside(interp_indices) => {
             GridPointQuery3::Inside(interp_vector_field_in_known_grid_cell_3d::<
@@ -1324,7 +1323,7 @@ fn interp_vector_field_from_grid_point_query_2d<
     grid_point_query: GridPointQuery2<fgr, Idx2<usize>>,
     interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<fgr, Vec2<F>> {
+) -> GridPointQuery2<fgr, Vec2<fip>> {
     match grid_point_query {
         GridPointQuery2::Inside(interp_indices) => {
             GridPointQuery2::Inside(interp_vector_field_in_known_grid_cell_2d::<
@@ -1364,7 +1363,7 @@ fn interp_scalar_field_3d<
     field: &ScalarField3<F, G>,
     interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<fgr, F> {
+) -> GridPointQuery3<fgr, fip> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1383,7 +1382,7 @@ fn interp_scalar_field_2d<
     field: &ScalarField2<F, G>,
     interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<fgr, F> {
+) -> GridPointQuery2<fgr, fip> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1397,7 +1396,7 @@ fn interp_scalar_field_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize>(
     field: &ScalarField1<F, G>,
     interp_coord: fgr,
     variation_threshold_for_linear: F,
-) -> GridPointQuery1<fgr, F> {
+) -> GridPointQuery1<fgr, fip> {
     let grid_point_query = field.grid().find_grid_cell(interp_coord);
     interp_scalar_field_from_grid_point_query_1d::<_, _, N_POINTS>(
         field,
@@ -1417,7 +1416,7 @@ fn interp_extrap_scalar_field_3d<
     field: &ScalarField3<F, G>,
     interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<fgr, F> {
+) -> GridPointQuery3<fgr, fip> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1436,7 +1435,7 @@ fn interp_extrap_scalar_field_2d<
     field: &ScalarField2<F, G>,
     interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<fgr, F> {
+) -> GridPointQuery2<fgr, fip> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_scalar_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1450,7 +1449,7 @@ fn interp_extrap_scalar_field_1d<F: BFloat, G: Grid1<fgr>, const N_POINTS: usize
     field: &ScalarField1<F, G>,
     interp_coord: fgr,
     variation_threshold_for_linear: F,
-) -> GridPointQuery1<fgr, F> {
+) -> GridPointQuery1<fgr, fip> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_coord);
     interp_scalar_field_from_grid_point_query_1d::<_, _, N_POINTS>(
         field,
@@ -1470,7 +1469,7 @@ fn interp_vector_field_3d<
     field: &VectorField3<F, G>,
     interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<fgr, Vec3<F>> {
+) -> GridPointQuery3<fgr, Vec3<fip>> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1489,7 +1488,7 @@ fn interp_vector_field_2d<
     field: &VectorField2<F, G>,
     interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<fgr, Vec2<F>> {
+) -> GridPointQuery2<fgr, Vec2<fip>> {
     let grid_point_query = field.grid().find_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1509,7 +1508,7 @@ fn interp_extrap_vector_field_3d<
     field: &VectorField3<F, G>,
     interp_point: &Point3<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery3<fgr, Vec3<F>> {
+) -> GridPointQuery3<fgr, Vec3<fip>> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
         field,
@@ -1528,7 +1527,7 @@ fn interp_extrap_vector_field_2d<
     field: &VectorField2<F, G>,
     interp_point: &Point2<fgr>,
     variation_threshold_for_linear: F,
-) -> GridPointQuery2<fgr, Vec2<F>> {
+) -> GridPointQuery2<fgr, Vec2<fip>> {
     let grid_point_query = field.grid().find_closest_grid_cell(interp_point);
     interp_vector_field_from_grid_point_query_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
         field,
@@ -1584,7 +1583,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         &self,
         field: &ScalarField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, F>
+    ) -> GridPointQuery3<fgr, fip>
     where
         F: BFloat,
         G: Grid3<fgr>,
@@ -1626,7 +1625,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         field: &ScalarField3<F, G>,
         interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid3<fgr>,
@@ -1676,7 +1675,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         &self,
         field: &ScalarField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, F>
+    ) -> GridPointQuery3<fgr, fip>
     where
         F: BFloat,
         G: Grid3<fgr>,
@@ -1717,7 +1716,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         &self,
         field: &VectorField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, Vec3<F>>
+    ) -> GridPointQuery3<fgr, Vec3<fip>>
     where
         F: BFloat,
         G: Grid3<fgr>,
@@ -1759,7 +1758,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         field: &VectorField3<F, G>,
         interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
-    ) -> Vec3<F>
+    ) -> Vec3<fip>
     where
         F: BFloat,
         G: Grid3<fgr>,
@@ -1809,7 +1808,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         &self,
         field: &VectorField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, Vec3<F>>
+    ) -> GridPointQuery3<fgr, Vec3<fip>>
     where
         F: BFloat,
         G: Grid3<fgr>,
@@ -1866,7 +1865,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         &self,
         field: &ScalarField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, F>
+    ) -> GridPointQuery2<fgr, fip>
     where
         F: BFloat,
         G: Grid2<fgr>,
@@ -1908,7 +1907,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         field: &ScalarField2<F, G>,
         interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid2<fgr>,
@@ -1958,7 +1957,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         &self,
         field: &ScalarField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, F>
+    ) -> GridPointQuery2<fgr, fip>
     where
         F: BFloat,
         G: Grid2<fgr>,
@@ -1999,7 +1998,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         &self,
         field: &VectorField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, Vec2<F>>
+    ) -> GridPointQuery2<fgr, Vec2<fip>>
     where
         F: BFloat,
         G: Grid2<fgr>,
@@ -2041,7 +2040,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         field: &VectorField2<F, G>,
         interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
-    ) -> Vec2<F>
+    ) -> Vec2<fip>
     where
         F: BFloat,
         G: Grid2<fgr>,
@@ -2091,7 +2090,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         &self,
         field: &VectorField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, Vec2<F>>
+    ) -> GridPointQuery2<fgr, Vec2<fip>>
     where
         F: BFloat,
         G: Grid2<fgr>,
@@ -2148,7 +2147,7 @@ impl Interpolator1 for PolyFitInterpolator1 {
         &self,
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, F>
+    ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
         G: Grid1<fgr>,
@@ -2190,7 +2189,7 @@ impl Interpolator1 for PolyFitInterpolator1 {
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
         interp_idx: usize,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid1<fgr>,
@@ -2238,7 +2237,7 @@ impl Interpolator1 for PolyFitInterpolator1 {
         &self,
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, F>
+    ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
         G: Grid1<fgr>,

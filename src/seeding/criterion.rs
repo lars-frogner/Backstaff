@@ -126,7 +126,7 @@ impl CriterionSeeder3 {
                 let value = interpolator
                     .interp_scalar_field(field, &point)
                     .expect_inside();
-                if evaluate_criterion(value) {
+                if evaluate_criterion(F::from(value).unwrap()) {
                     Some(indices)
                 } else {
                     None
@@ -187,7 +187,7 @@ impl CriterionSeeder3 {
                 let vector = interpolator
                     .interp_vector_field(field, &point)
                     .expect_inside();
-                if evaluate_criterion(&vector) {
+                if evaluate_criterion(&vector.cast()) {
                     Some(indices)
                 } else {
                     None

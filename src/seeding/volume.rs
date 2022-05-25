@@ -188,9 +188,12 @@ impl VolumeSeeder3 {
             .par_iter()
             .map(|point| {
                 compute_pdf_value(
-                    interpolator
-                        .interp_extrap_scalar_field(field, point)
-                        .expect_inside_or_moved(),
+                    F::from(
+                        interpolator
+                            .interp_extrap_scalar_field(field, point)
+                            .expect_inside_or_moved(),
+                    )
+                    .unwrap(),
                 )
             })
             .collect();
@@ -255,7 +258,8 @@ impl VolumeSeeder3 {
                 compute_pdf_value(
                     &interpolator
                         .interp_extrap_vector_field(field, point)
-                        .expect_inside_or_moved(),
+                        .expect_inside_or_moved()
+                        .cast(),
                 )
             })
             .collect();

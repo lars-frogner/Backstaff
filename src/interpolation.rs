@@ -12,7 +12,7 @@ use crate::{
 
 /// Default floating-point precision to use for interpolated values.
 #[allow(non_camel_case_types)]
-pub type fin = f64;
+pub type fip = f64;
 
 /// Defines the properties of a 3D interpolator.
 pub trait Interpolator3: Clone + Sync + Send {
@@ -61,7 +61,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         &self,
         field: &ScalarField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, F>
+    ) -> GridPointQuery3<fgr, fip>
     where
         F: BFloat,
         G: Grid3<fgr>;
@@ -92,7 +92,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         field: &ScalarField3<F, G>,
         interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid3<fgr>;
@@ -123,7 +123,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         &self,
         field: &ScalarField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, F>
+    ) -> GridPointQuery3<fgr, fip>
     where
         F: BFloat,
         G: Grid3<fgr>;
@@ -153,7 +153,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         &self,
         field: &VectorField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, Vec3<F>>
+    ) -> GridPointQuery3<fgr, Vec3<fip>>
     where
         F: BFloat,
         G: Grid3<fgr>;
@@ -184,7 +184,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         field: &VectorField3<F, G>,
         interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
-    ) -> Vec3<F>
+    ) -> Vec3<fip>
     where
         F: BFloat,
         G: Grid3<fgr>;
@@ -215,7 +215,7 @@ pub trait Interpolator3: Clone + Sync + Send {
         &self,
         field: &VectorField3<F, G>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, Vec3<F>>
+    ) -> GridPointQuery3<fgr, Vec3<fip>>
     where
         F: BFloat,
         G: Grid3<fgr>;
@@ -248,7 +248,7 @@ pub trait Interpolator2: Clone + Sync + Send {
         &self,
         field: &ScalarField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, F>
+    ) -> GridPointQuery2<fgr, fip>
     where
         F: BFloat,
         G: Grid2<fgr>;
@@ -279,7 +279,7 @@ pub trait Interpolator2: Clone + Sync + Send {
         field: &ScalarField2<F, G>,
         interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid2<fgr>;
@@ -310,7 +310,7 @@ pub trait Interpolator2: Clone + Sync + Send {
         &self,
         field: &ScalarField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, F>
+    ) -> GridPointQuery2<fgr, fip>
     where
         F: BFloat,
         G: Grid2<fgr>;
@@ -340,7 +340,7 @@ pub trait Interpolator2: Clone + Sync + Send {
         &self,
         field: &VectorField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, Vec2<F>>
+    ) -> GridPointQuery2<fgr, Vec2<fip>>
     where
         F: BFloat,
         G: Grid2<fgr>;
@@ -371,7 +371,7 @@ pub trait Interpolator2: Clone + Sync + Send {
         field: &VectorField2<F, G>,
         interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
-    ) -> Vec2<F>
+    ) -> Vec2<fip>
     where
         F: BFloat,
         G: Grid2<fgr>;
@@ -402,7 +402,7 @@ pub trait Interpolator2: Clone + Sync + Send {
         &self,
         field: &VectorField2<F, G>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, Vec2<F>>
+    ) -> GridPointQuery2<fgr, Vec2<fip>>
     where
         F: BFloat,
         G: Grid2<fgr>;
@@ -435,7 +435,7 @@ pub trait Interpolator1: Clone + Sync + Send {
         &self,
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, F>
+    ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
         G: Grid1<fgr>;
@@ -466,7 +466,7 @@ pub trait Interpolator1: Clone + Sync + Send {
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
         interp_index: usize,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid1<fgr>;
@@ -497,7 +497,7 @@ pub trait Interpolator1: Clone + Sync + Send {
         &self,
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, F>
+    ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
         G: Grid1<fgr>;

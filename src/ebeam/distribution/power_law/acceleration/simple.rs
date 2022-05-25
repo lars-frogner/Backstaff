@@ -170,7 +170,7 @@ impl SimplePowerLawAccelerator {
             .interp_vector_field(magnetic_field, acceleration_position)
             .expect_inside();
         magnetic_field_direction.normalize();
-        magnetic_field_direction
+        magnetic_field_direction.cast()
     }
 
     fn compute_electric_field_angle_cosine(

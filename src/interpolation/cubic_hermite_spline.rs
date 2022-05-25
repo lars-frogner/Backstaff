@@ -1,6 +1,6 @@
 //! Interpolation with a cubic Hermite spline.
 
-use super::Interpolator1;
+use super::{fip, Interpolator1};
 use crate::{
     field::ScalarField1,
     grid::{fgr, CoordLocation, Grid1, GridPointQuery1},
@@ -102,7 +102,7 @@ impl CubicHermiteSplineInterpolator {
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
         mut interp_index: usize,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid1<fgr>,
@@ -138,13 +138,10 @@ impl CubicHermiteSplineInterpolator {
 
         let t = (interp_coord - start_coord) / span;
 
-        F::from(
-            Self::hermite_basis_00(t) * start_value
-                + Self::hermite_basis_01(t) * end_value
-                + Self::hermite_basis_10(t) * span * start_tangent
-                + Self::hermite_basis_11(t) * span * end_tangent,
-        )
-        .unwrap()
+        (Self::hermite_basis_00(t) * start_value
+            + Self::hermite_basis_01(t) * end_value
+            + Self::hermite_basis_10(t) * span * start_tangent
+            + Self::hermite_basis_11(t) * span * end_tangent) as fip
     }
 }
 
@@ -153,7 +150,7 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
         &self,
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, F>
+    ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
         G: Grid1<fgr>,
@@ -178,7 +175,7 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
         interp_index: usize,
-    ) -> F
+    ) -> fip
     where
         F: BFloat,
         G: Grid1<fgr>,
@@ -190,7 +187,7 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
         &self,
         field: &ScalarField1<F, G>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, F>
+    ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
         G: Grid1<fgr>,
