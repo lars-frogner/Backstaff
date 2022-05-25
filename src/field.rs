@@ -920,14 +920,17 @@ where
                     .flat_map(|(lower_edge_y, upper_edge_y)| {
                         underlying_edges[X].iter().tuple_windows().filter_map(
                             |(lower_edge_x, upper_edge_x)| {
-                                SimplePolygon2::rectangle_from_bounds(
+                                match SimplePolygon2::rectangle_from_bounds(
                                     &Vec2::new(*lower_edge_x, *lower_edge_y),
                                     &Vec2::new(*upper_edge_x, *upper_edge_y),
                                 )
                                 .intersection(&hor_overlying_grid_cell_polygon)
-                                .map(|intersection_polygon| {
-                                    intersection_polygon.area_and_centroid().unwrap()
-                                })
+                                {
+                                    Some(intersection_polygon) => {
+                                        intersection_polygon.area_and_centroid()
+                                    }
+                                    None => None,
+                                }
                             },
                         )
                     })
