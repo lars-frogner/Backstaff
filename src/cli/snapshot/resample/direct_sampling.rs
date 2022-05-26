@@ -4,7 +4,10 @@ use crate::{
     add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
-        snapshot::{derive::create_derive_subcommand, write::create_write_subcommand},
+        snapshot::{
+            derive::create_derive_subcommand, inspect::create_inspect_subcommand,
+            write::create_write_subcommand,
+        },
     },
     update_command_graph,
 };
@@ -34,9 +37,9 @@ pub fn create_direct_sampling_subcommand(_parent_command_name: &'static str) -> 
         );
 
     #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, derive, synthesize, write);
+    let command = add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, derive, synthesize, (write, inspect));
     #[cfg(not(feature = "synthesis"))]
-    let command = add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, derive, write);
+    let command = add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, derive, (write, inspect));
 
     command
 }

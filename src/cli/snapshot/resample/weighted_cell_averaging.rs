@@ -2,7 +2,10 @@
 
 use crate::{
     add_subcommand_combinations,
-    cli::snapshot::{derive::create_derive_subcommand, write::create_write_subcommand},
+    cli::snapshot::{
+        derive::create_derive_subcommand, inspect::create_inspect_subcommand,
+        write::create_write_subcommand,
+    },
     update_command_graph,
 };
 use clap::Command;
@@ -29,10 +32,10 @@ pub fn create_weighted_cell_averaging_subcommand(
         );
 
     #[cfg(feature = "synthesis")]
-    let command =
-        add_subcommand_combinations!(command, command_name, true; derive, synthesize, write);
+    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (write, inspect));
     #[cfg(not(feature = "synthesis"))]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, write);
+    let command =
+        add_subcommand_combinations!(command, command_name, true; derive, (write, inspect));
 
     command
 }

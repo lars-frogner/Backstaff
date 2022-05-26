@@ -20,7 +20,10 @@ use super::SnapNumInRange;
 use crate::{
     cli::{
         interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options,
-        snapshot::{derive::create_derive_provider, write::run_write_subcommand},
+        snapshot::{
+            derive::create_derive_provider, inspect::run_inspect_subcommand,
+            write::run_write_subcommand,
+        },
     },
     exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
@@ -764,13 +767,15 @@ fn run_snapshot_resampling_for_provider<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let write_arguments = arguments.subcommand_matches("write").unwrap();
-
-    run_write_subcommand(
-        write_arguments,
-        provider,
-        snap_num_in_range,
-        HashMap::new(),
-        protected_file_types,
-    );
+    if let Some(write_arguments) = arguments.subcommand_matches("write") {
+        run_write_subcommand(
+            write_arguments,
+            provider,
+            snap_num_in_range,
+            HashMap::new(),
+            protected_file_types,
+        );
+    } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
+        run_inspect_subcommand(inspect_arguments, provider);
+    }
 }
