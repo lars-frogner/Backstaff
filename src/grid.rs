@@ -581,6 +581,25 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         )
     }
 
+    /// Like `get_monotonic_grid_cell_edges_between`, but also returns the
+    /// indices of the grid cells of the lower edges.
+    fn determine_indexed_monotonic_grid_cell_edges_between(
+        &self,
+        dim: Dim3,
+        lower_idx: usize,
+        upper_idx: usize,
+        offset: F,
+    ) -> (Vec<usize>, Vec<F>) {
+        let idx_range_list = self.create_idx_range_list_wrapped(dim, lower_idx, upper_idx);
+        let edges = self.determine_n_monotonic_grid_cell_edges(
+            dim,
+            lower_idx,
+            idx_range_list.len(),
+            offset,
+        );
+        (idx_range_list, edges)
+    }
+
     /// Slices the grid across the x-axis and returns the corresponding 2D grid.
     fn slice_across_x(&self) -> Self::XSliceGrid {
         let centers = self.centers();

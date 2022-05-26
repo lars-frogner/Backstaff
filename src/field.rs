@@ -770,10 +770,10 @@ where
                     &mut upper_overlying_corner,
                 );
 
-                // Get edges of all grid cells fully or partially within by the overlying grid cell,
+                // Get indices and edges of all grid cells fully or partially within by the overlying grid cell,
                 // making sure that none of the coordinates are wrapped
-                let underlying_edges = self
-                    .compute_monotonic_underlying_grid_cell_edges_for_resampling(
+                let (underlying_indices, underlying_edges) = self
+                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
                         &lower_overlying_corner,
                         &upper_overlying_corner,
                     );
@@ -808,23 +808,27 @@ where
 
                 // Accumulate the interpolated value from each sub grid cell center,
                 // weighted with the relative volume of the sub grid cell.
-                for &(overlap_center_z, overlap_length_z) in &overlap_centers_and_lengths[Z] {
-                    for &(overlap_center_y, overlap_length_y) in &overlap_centers_and_lengths[Y] {
-                        for &(overlap_center_x, overlap_length_x) in &overlap_centers_and_lengths[X]
+                for (&underlying_k, &(overlap_center_z, overlap_length_z)) in underlying_indices[Z]
+                    .iter()
+                    .zip(overlap_centers_and_lengths[Z].iter())
+                {
+                    for (&underlying_j, &(overlap_center_y, overlap_length_y)) in underlying_indices
+                        [Y]
+                        .iter()
+                        .zip(overlap_centers_and_lengths[Y].iter())
+                    {
+                        for (&underlying_i, &(overlap_center_x, overlap_length_x)) in
+                            underlying_indices[X]
+                                .iter()
+                                .zip(overlap_centers_and_lengths[X].iter())
                         {
                             let weight = overlap_length_x * overlap_length_y * overlap_length_z;
 
-                            accum_value += interpolator
-                                .interp_extrap_scalar_field(
-                                    self,
-                                    &Point3::new(
-                                        overlap_center_x,
-                                        overlap_center_y,
-                                        overlap_center_z,
-                                    ),
-                                )
-                                .expect_inside_or_moved()
-                                as fgr
+                            accum_value += interpolator.interp_scalar_field_known_cell(
+                                self,
+                                &Point3::new(overlap_center_x, overlap_center_y, overlap_center_z),
+                                &Idx3::new(underlying_i, underlying_j, underlying_k),
+                            ) as fgr
                                 * weight;
 
                             accum_weight += weight;
@@ -910,36 +914,40 @@ where
                     upper_overlying_corner[Z],
                 );
 
-                // Get edges of all grid cells fully or partially within by the bounding box,
+                // Get indices and edges of all grid cells fully or partially within by the bounding box,
                 // making sure that none of the coordinates are wrapped
-                let underlying_edges = self
-                    .compute_monotonic_underlying_grid_cell_edges_for_resampling(
+                let (underlying_indices, underlying_edges) = self
+                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
                         &bounding_box_lower_corner,
                         &bounding_box_upper_corner,
                     );
 
                 // Compute the center points and areas of the polynomials found by
                 // horizontally intersecting the underlying grid with the overlying grid.
-                let hor_overlap_areas_and_centers: Vec<_> =
-                    sliding_window!(underlying_edges[Y].iter())
-                        .flat_map(|(lower_edge_y, upper_edge_y)| {
-                            sliding_window!(underlying_edges[X].iter()).filter_map(
-                                |(lower_edge_x, upper_edge_x)| {
-                                    match SimplePolygon2::rectangle_from_bounds(
-                                        &Vec2::new(*lower_edge_x, *lower_edge_y),
-                                        &Vec2::new(*upper_edge_x, *upper_edge_y),
-                                    )
-                                    .intersection(&hor_overlying_grid_cell_polygon)
-                                    {
-                                        Some(intersection_polygon) => {
-                                            intersection_polygon.area_and_centroid()
-                                        }
-                                        None => None,
-                                    }
-                                },
-                            )
-                        })
-                        .collect();
+                let hor_overlap_indices_areas_and_centers: Vec<_> = underlying_indices[Y]
+                    .iter()
+                    .zip(sliding_window!(underlying_edges[Y].iter()))
+                    .flat_map(|(underlying_j, (lower_edge_y, upper_edge_y))| {
+                        underlying_indices[X]
+                            .iter()
+                            .zip(sliding_window!(underlying_edges[X].iter()))
+                            .filter_map(|(underlying_i, (lower_edge_x, upper_edge_x))| {
+                                match SimplePolygon2::rectangle_from_bounds(
+                                    &Vec2::new(*lower_edge_x, *lower_edge_y),
+                                    &Vec2::new(*upper_edge_x, *upper_edge_y),
+                                )
+                                .intersection(&hor_overlying_grid_cell_polygon)
+                                {
+                                    Some(intersection_polygon) => intersection_polygon
+                                        .area_and_centroid()
+                                        .map(|(area, centroid)| {
+                                            (*underlying_i, *underlying_j, area, centroid)
+                                        }),
+                                    None => None,
+                                }
+                            })
+                    })
+                    .collect();
 
                 // Compute the center coordinates and extents of the segments found by
                 // intersecting the z-components of the underlying grid and overlying grid.
@@ -963,20 +971,24 @@ where
 
                 // Accumulate the interpolated value from each sub grid cell center,
                 // weighted with the relative volume of the sub grid cell.
-                for &(overlap_z_length, overlap_z_center) in &overlap_lengths_and_centers_z {
-                    for (hor_overlap_area, hor_overlap_center) in &hor_overlap_areas_and_centers {
+                for (underlying_k, &(overlap_z_length, overlap_z_center)) in underlying_indices[Z]
+                    .iter()
+                    .zip(overlap_lengths_and_centers_z.iter())
+                {
+                    for (underlying_i, underlying_j, hor_overlap_area, hor_overlap_center) in
+                        &hor_overlap_indices_areas_and_centers
+                    {
                         let weight = *hor_overlap_area * overlap_z_length;
 
-                        accum_value += interpolator
-                            .interp_extrap_scalar_field(
-                                self,
-                                &Point3::new(
-                                    hor_overlap_center[Dim2::X],
-                                    hor_overlap_center[Dim2::Y],
-                                    overlap_z_center,
-                                ),
-                            )
-                            .expect_inside_or_moved() as fgr
+                        accum_value += interpolator.interp_scalar_field_known_cell(
+                            self,
+                            &Point3::new(
+                                hor_overlap_center[Dim2::X],
+                                hor_overlap_center[Dim2::Y],
+                                overlap_z_center,
+                            ),
+                            &Idx3::new(*underlying_i, *underlying_j, *underlying_k),
+                        ) as fgr
                             * weight;
 
                         accum_weight += weight;
@@ -1274,11 +1286,11 @@ where
         }
     }
 
-    fn compute_monotonic_underlying_grid_cell_edges_for_resampling(
+    fn compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
         &self,
         lower_overlying_corner: &Point3<fgr>,
         upper_overlying_corner: &Point3<fgr>,
-    ) -> In3D<Vec<fgr>> {
+    ) -> (In3D<Vec<usize>>, In3D<Vec<fgr>>) {
         let (lower_underlying_indices, offset) =
             match self.grid.find_closest_grid_cell(lower_overlying_corner) {
                 GridPointQuery3::Inside(indices) => (indices, Vec3::zero()),
@@ -1292,25 +1304,27 @@ where
             .find_closest_grid_cell(upper_overlying_corner)
             .expect_inside_or_moved();
 
-        In3D::new(
-            self.grid.get_monotonic_grid_cell_edges_between(
-                X,
-                lower_underlying_indices[X],
-                upper_underlying_indices[X],
-                offset[X],
+        let determine_underlying_indices_and_edges = |dim| {
+            self.grid
+                .determine_indexed_monotonic_grid_cell_edges_between(
+                    dim,
+                    lower_underlying_indices[dim],
+                    upper_underlying_indices[dim],
+                    offset[dim],
+                )
+        };
+
+        let (underlying_indices_x, underlying_edges_x) = determine_underlying_indices_and_edges(X);
+        let (underlying_indices_y, underlying_edges_y) = determine_underlying_indices_and_edges(Y);
+        let (underlying_indices_z, underlying_edges_z) = determine_underlying_indices_and_edges(Z);
+
+        (
+            In3D::new(
+                underlying_indices_x,
+                underlying_indices_y,
+                underlying_indices_z,
             ),
-            self.grid.get_monotonic_grid_cell_edges_between(
-                Y,
-                lower_underlying_indices[Y],
-                upper_underlying_indices[Y],
-                offset[Y],
-            ),
-            self.grid.get_monotonic_grid_cell_edges_between(
-                Z,
-                lower_underlying_indices[Z],
-                upper_underlying_indices[Z],
-                offset[Z],
-            ),
+            In3D::new(underlying_edges_x, underlying_edges_y, underlying_edges_z),
         )
     }
 
