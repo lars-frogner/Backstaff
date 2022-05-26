@@ -201,7 +201,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     );
 
     let y_extent =
-        cli_utils::get_value_from_required_parseable_argument::<fgr>(arguments, "y-extent");
+        cli_utils::get_value_from_required_parseable_argument::<fgr>(root_arguments, "y-extent");
     exit_on_false!(
         y_extent > 0.0,
         "Error: Extent in y-direction must be larger than zero"
