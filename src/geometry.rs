@@ -1656,6 +1656,24 @@ impl<F: BFloat> SimplePolygon2<F> {
         })
     }
 
+    /// Returns an `Option` with the area of the polygon,
+    /// or `None` if the polygon has no area.
+    pub fn area(&self) -> Option<F> {
+        let mut signed_area = checked_vertex_pair_iter!(self.vertices())?.fold(
+            F::zero(),
+            |signed_area, (current_vertex, next_vertex)| {
+                signed_area + current_vertex[Dim2::X] * next_vertex[Dim2::Y]
+                    - next_vertex[Dim2::X] * current_vertex[Dim2::Y]
+            },
+        );
+        if signed_area == F::zero() {
+            None
+        } else {
+            signed_area = signed_area * F::from_f32(0.5).unwrap();
+            Some(<F as num::Float>::abs(signed_area))
+        }
+    }
+
     /// Returns an `Option` with the area and centroid of the polygon,
     /// or `None` if the polygon has no area.
     pub fn area_and_centroid(&self) -> Option<(F, Point2<F>)> {
