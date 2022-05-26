@@ -5,6 +5,7 @@ use crate::{
     cli::{
         snapshot::{
             derive::{create_derive_provider, create_derive_subcommand},
+            inspect::{create_inspect_subcommand, run_inspect_subcommand},
             resample::{create_resample_subcommand, run_resample_subcommand},
             write::{create_write_subcommand, run_write_subcommand},
             SnapNumInRange,
@@ -126,10 +127,9 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
         );
 
     #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (resample, write));
+    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (resample, write, inspect));
     #[cfg(not(feature = "synthesis"))]
-    let command =
-        add_subcommand_combinations!(command, command_name, true; derive, (resample, write));
+    let command = add_subcommand_combinations!(command, command_name, true; derive, (resample, write, inspect));
 
     command
 }
@@ -339,9 +339,7 @@ fn run_extract_subcommand_for_provider<G, P>(
             snap_num_in_range,
             protected_file_types,
         );
-    } else {
-        let write_arguments = arguments.subcommand_matches("write").unwrap();
-
+    } else if let Some(write_arguments) = arguments.subcommand_matches("write") {
         run_write_subcommand(
             write_arguments,
             provider,
@@ -349,5 +347,7 @@ fn run_extract_subcommand_for_provider<G, P>(
             HashMap::new(),
             protected_file_types,
         );
+    } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
+        run_inspect_subcommand(inspect_arguments, provider);
     }
 }
