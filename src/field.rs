@@ -723,9 +723,12 @@ where
                     resampled_locations,
                     interpolator,
                 ),
-            ResamplingMethod::WeightedCellAveraging => {
-                todo!() //self.resampled_to_grid_with_weighted_cell_averaging(grid, resampled_locations)
-            }
+            ResamplingMethod::WeightedCellAveraging => self
+                .resampled_to_transformed_grid_with_weighted_cell_averaging(
+                    grid,
+                    transformation,
+                    resampled_locations,
+                ),
             ResamplingMethod::DirectSampling => {
                 todo!() //self.resampled_to_grid_with_direct_sampling(grid, resampled_locations, interpolator)
             }
@@ -1095,6 +1098,152 @@ where
                                 * weight;
                             accum_weight += weight;
                         }
+                    }
+                }
+                overlying_value.write(F::from(accum_value / accum_weight).unwrap());
+            },
+        );
+        let overlying_values = unsafe { overlying_values.assume_init() };
+        ScalarField3::new(
+            self.name.clone(),
+            overlying_grid,
+            overlying_locations,
+            overlying_values,
+        )
+    }
+
+    /// Resamples the scalar field onto the given grid and returns the resampled field.
+    /// The horizontal components of the grid are transformed with respect to the original
+    /// grid using the given point transformation prior to resampling.
+    ///
+    /// For each new grid cell, the values of all overlapped original grid cells are
+    /// averaged with weights according to the intersected volumes.
+    ///
+    /// This method is suited for downsampling. It is faster than weighted sample
+    /// averaging, but slightly less accurate.
+    pub fn resampled_to_transformed_grid_with_weighted_cell_averaging<H, T>(
+        &self,
+        grid: Arc<H>,
+        transformation: &T,
+        resampled_locations: In3D<ResampledCoordLocation>,
+    ) -> ScalarField3<F, H>
+    where
+        H: Grid3<fgr>,
+        T: PointTransformation2<fgr>,
+    {
+        let underlying_locations = self.locations();
+        let average_underlying_cell_extents = self.grid().average_grid_cell_extents();
+
+        let overlying_grid = grid;
+        let overlying_locations = ResampledCoordLocation::convert_to_locations_3d(
+            resampled_locations,
+            underlying_locations,
+        );
+        let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
+        let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
+
+        overlying_values_buffer.par_iter_mut().enumerate().for_each(
+            |(overlying_idx, overlying_value)| {
+                let (mut lower_overlying_corner, mut upper_overlying_corner) =
+                    Self::compute_overlying_grid_cell_corners_for_resampling(
+                        overlying_grid.as_ref(),
+                        overlying_idx,
+                    );
+                Self::shift_overlying_grid_cell_corners_for_weighted_cell_averaging(
+                    underlying_locations,
+                    &overlying_locations,
+                    &average_underlying_cell_extents,
+                    &mut lower_overlying_corner,
+                    &mut upper_overlying_corner,
+                );
+
+                // Create polygon corresponding to overlying grid cell in the
+                // coordinate system of the underlying grid
+                let hor_overlying_grid_cell_polygon = SimplePolygon2::rectangle_from_bounds(
+                    &lower_overlying_corner.without_z().to_vec2(),
+                    &upper_overlying_corner.without_z().to_vec2(),
+                )
+                .transformed(transformation);
+
+                // Determine axis-aligned bounding box for the overlying grid cell in the
+                // coordinate system of the underlying grid
+                let (hor_bounding_box_lower_corner, hor_bounding_box_upper_corner) =
+                    hor_overlying_grid_cell_polygon.bounds().unwrap();
+
+                let bounding_box_lower_corner = Point3::new(
+                    hor_bounding_box_lower_corner[Dim2::X],
+                    hor_bounding_box_lower_corner[Dim2::Y],
+                    lower_overlying_corner[Z],
+                );
+                let bounding_box_upper_corner = Point3::new(
+                    hor_bounding_box_upper_corner[Dim2::X],
+                    hor_bounding_box_upper_corner[Dim2::Y],
+                    upper_overlying_corner[Z],
+                );
+
+                // Get indices and edges of all grid cells fully or partially within by the overlying grid cell,
+                // making sure that none of the coordinates are wrapped
+                let (underlying_indices, underlying_edges) = self
+                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
+                        &bounding_box_lower_corner,
+                        &bounding_box_upper_corner,
+                    );
+
+                // Compute the areas of the polynomials found by  horizontally intersecting
+                // the underlying grid with the overlying grid.
+                let hor_overlap_indices_and_areas: Vec<_> = underlying_indices[Y]
+                    .iter()
+                    .zip(sliding_window!(underlying_edges[Y].iter()))
+                    .flat_map(|(underlying_j, (lower_edge_y, upper_edge_y))| {
+                        underlying_indices[X]
+                            .iter()
+                            .zip(sliding_window!(underlying_edges[X].iter()))
+                            .filter_map(|(underlying_i, (lower_edge_x, upper_edge_x))| {
+                                match SimplePolygon2::rectangle_from_bounds(
+                                    &Vec2::new(*lower_edge_x, *lower_edge_y),
+                                    &Vec2::new(*upper_edge_x, *upper_edge_y),
+                                )
+                                .intersection(&hor_overlying_grid_cell_polygon)
+                                {
+                                    Some(intersection_polygon) => intersection_polygon
+                                        .area()
+                                        .map(|area| (*underlying_i, *underlying_j, area)),
+                                    None => None,
+                                }
+                            })
+                    })
+                    .collect();
+
+                // Compute the extents of the segments found by intersecting the
+                // z-components of the underlying grid and overlying grid.
+                let overlap_lengths_z = sliding_window!(
+                    iter::once(&lower_overlying_corner[Z]) // First edge is lower edge of overlying cell
+                        .chain(
+                            // Next are the lower edges of the underlying cells completely inside the overlying cell
+                            underlying_edges[Z][1..underlying_edges[Z].len() - 1].iter(),
+                        )
+                        .chain(iter::once(&upper_overlying_corner[Z]))
+                ) // Create sliding window iterator over edge pairs
+                .map(|(&lower_coord, &upper_coord)| upper_coord - lower_coord)
+                .collect::<Vec<_>>();
+
+                let mut accum_value = 0.0;
+                let mut accum_weight = 0.0;
+
+                // Accumulate the value from each sub grid cell, weighted with the
+                // relative volume of the sub grid cell.
+                for (underlying_k, &overlap_length_z) in
+                    underlying_indices[Z].iter().zip(overlap_lengths_z.iter())
+                {
+                    for (underlying_i, underlying_j, hor_overlap_area) in
+                        &hor_overlap_indices_and_areas
+                    {
+                        let weight = *hor_overlap_area * overlap_length_z;
+                        accum_value += self
+                            .value(&Idx3::new(*underlying_i, *underlying_j, *underlying_k))
+                            .into()
+                            * weight;
+                        accum_weight += weight;
                     }
                 }
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
