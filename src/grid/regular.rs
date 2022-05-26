@@ -254,7 +254,7 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
         self.cell_extents().clone()
     }
 
-    fn get_n_monotonic_grid_cell_edges(
+    fn determine_n_monotonic_grid_cell_edges(
         &self,
         dim: Dim3,
         start_idx: usize,

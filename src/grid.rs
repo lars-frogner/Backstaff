@@ -551,7 +551,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     /// without wrapping when reaching a boundary.
     ///
     /// The given index must lie inside the grid.
-    fn get_n_monotonic_grid_cell_edges(
+    fn determine_n_monotonic_grid_cell_edges(
         &self,
         dim: Dim3,
         start_idx: usize,
@@ -566,14 +566,14 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     ///
     /// The given indices must lie inside the grid, but the lower index is
     /// allowed to be larger than the upper index (happens when wrapping).
-    fn get_monotonic_grid_cell_edges_between(
+    fn determine_monotonic_grid_cell_edges_between(
         &self,
         dim: Dim3,
         lower_idx: usize,
         upper_idx: usize,
         offset: F,
     ) -> Vec<F> {
-        self.get_n_monotonic_grid_cell_edges(
+        self.determine_n_monotonic_grid_cell_edges(
             dim,
             lower_idx,
             self.count_grid_cells_between(dim, lower_idx, upper_idx),

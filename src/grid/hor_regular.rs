@@ -189,7 +189,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
         )
     }
 
-    fn get_n_monotonic_grid_cell_edges(
+    fn determine_n_monotonic_grid_cell_edges(
         &self,
         dim: Dim3,
         start_idx: usize,
