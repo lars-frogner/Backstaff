@@ -729,9 +729,13 @@ where
                     transformation,
                     resampled_locations,
                 ),
-            ResamplingMethod::DirectSampling => {
-                todo!() //self.resampled_to_grid_with_direct_sampling(grid, resampled_locations, interpolator)
-            }
+            ResamplingMethod::DirectSampling => self
+                .resampled_to_transformed_grid_with_direct_sampling(
+                    grid,
+                    transformation,
+                    resampled_locations,
+                    interpolator,
+                ),
         }
     }
 
@@ -1293,6 +1297,55 @@ where
                     F::from(
                         interpolator
                             .interp_extrap_scalar_field(self, &point)
+                            .expect_inside_or_moved(),
+                    )
+                    .unwrap(),
+                );
+            });
+        let new_values = unsafe { new_values.assume_init() };
+        ScalarField3::new(self.name.clone(), grid, locations, new_values)
+    }
+
+    /// Resamples the scalar field onto the given grid and returns the resampled field.
+    /// The horizontal components of the grid are transformed with respect to the original
+    /// grid using the given point transformation prior to resampling.
+    ///
+    /// Each value on the new grid is found by interpolation of the values on the old grid
+    /// at the new coordinate location.
+    ///
+    /// This is the preferred method for upsampling. For heavy downsampling it yields a
+    /// more noisy result than weighted averaging.
+    pub fn resampled_to_transformed_grid_with_direct_sampling<H, T, I>(
+        &self,
+        grid: Arc<H>,
+        transformation: &T,
+        resampled_locations: In3D<ResampledCoordLocation>,
+        interpolator: &I,
+    ) -> ScalarField3<F, H>
+    where
+        H: Grid3<fgr>,
+        T: PointTransformation2<fgr>,
+        I: Interpolator3,
+    {
+        let locations =
+            ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
+        let new_coords = Self::coords_from_grid(grid.as_ref(), &locations);
+
+        let grid_shape = grid.shape();
+        let mut new_values = Array3::uninit(grid_shape.to_tuple().f());
+        let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
+
+        values_buffer
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(idx, value)| {
+                let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
+                let point = new_coords.point(&indices);
+                let transformed_point = transformation.transform_horizontally(&point);
+                value.write(
+                    F::from(
+                        interpolator
+                            .interp_extrap_scalar_field(self, &transformed_point)
                             .expect_inside_or_moved(),
                     )
                     .unwrap(),
