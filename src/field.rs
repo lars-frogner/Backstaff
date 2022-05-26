@@ -1020,8 +1020,6 @@ where
         resampled_locations: In3D<ResampledCoordLocation>,
     ) -> ScalarField3<F, H> {
         let underlying_locations = self.locations();
-        let underlying_lower_edges = self.grid().lower_edges();
-        let underlying_extents = self.grid().extents();
         let average_underlying_cell_extents = self.grid().average_grid_cell_extents();
 
         let overlying_grid = grid;
@@ -1047,57 +1045,59 @@ where
                     &mut upper_overlying_corner,
                 );
 
-                let idx_range_lists = self.compute_underlying_grid_cell_idx_ranges_for_resampling(
-                    &lower_overlying_corner,
-                    &upper_overlying_corner,
-                );
+                // Get indices and edges of all grid cells fully or partially within by the overlying grid cell,
+                // making sure that none of the coordinates are wrapped
+                let (underlying_indices, underlying_edges) = self
+                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
+                        &lower_overlying_corner,
+                        &upper_overlying_corner,
+                    );
 
-                let compute_overlap_lengths_and_indices_along_dim = |dim| {
+                let compute_overlap_lengths_along_dim = |dim| {
                     sliding_window!(
                         iter::once(&lower_overlying_corner[dim]) // First edge is lower edge of overlying cell
                             .chain(
                                 // Next are the lower edges of the underlying cells completely inside the overlying cell
-                                idx_range_lists[dim]
-                                    .iter()
-                                    .skip(1) // Skip first underlying lower edge since it is outside lower edge of overlying cell
-                                    .map(|&idx| &underlying_lower_edges[dim][idx]),
+                                underlying_edges[dim][1..underlying_edges[dim].len() - 1].iter(),
                             )
-                            .chain(iter::once(&upper_overlying_corner[dim])) // Last edge is the upper edge of the overlying cell
+                            .chain(iter::once(&upper_overlying_corner[dim]))
                     ) // Create sliding window iterator over edge pairs
-                    .map(|(&lower_coord, &upper_coord)| {
-                        ((upper_coord - lower_coord) + underlying_extents[dim])
-                            % underlying_extents[dim] // Make sure coordinate difference is correct also for wrapped coordinates
-                    })
-                    .zip(idx_range_lists[dim].iter())
+                    .map(|(&lower_coord, &upper_coord)| upper_coord - lower_coord)
                     .collect::<Vec<_>>()
                 };
 
                 // Compute the extents of the "sub grid cells" found by intersecting
-                // the underlying grid with the overlying grid, as well as the indices
-                // of the underlying grid cells.
-                let overlap_lengths_and_indices = In3D::new(
-                    compute_overlap_lengths_and_indices_along_dim(X),
-                    compute_overlap_lengths_and_indices_along_dim(Y),
-                    compute_overlap_lengths_and_indices_along_dim(Z),
+                // the underlying grid with the overlying grid
+                let overlap_lengths = In3D::new(
+                    compute_overlap_lengths_along_dim(X),
+                    compute_overlap_lengths_along_dim(Y),
+                    compute_overlap_lengths_along_dim(Z),
                 );
 
-                let mut accum_value = F::zero();
-                let mut accum_weight = F::zero();
+                let mut accum_value = 0.0;
+                let mut accum_weight = 0.0;
 
                 // Accumulate the value from each sub grid cell, weighted with the
                 // relative volume of the sub grid cell.
-                for &(overlap_length_z, &k) in &overlap_lengths_and_indices[Z] {
-                    for &(overlap_length_y, &j) in &overlap_lengths_and_indices[Y] {
-                        for &(overlap_length_x, &i) in &overlap_lengths_and_indices[X] {
-                            let weight =
-                                F::from(overlap_length_x * overlap_length_y * overlap_length_z)
-                                    .unwrap();
-                            accum_value = accum_value + self.value(&Idx3::new(i, j, k)) * weight;
-                            accum_weight = accum_weight + weight;
+                for (&underlying_k, &overlap_length_z) in
+                    underlying_indices[Z].iter().zip(overlap_lengths[Z].iter())
+                {
+                    for (&underlying_j, &overlap_length_y) in
+                        underlying_indices[Y].iter().zip(overlap_lengths[Y].iter())
+                    {
+                        for (&underlying_i, &overlap_length_x) in
+                            underlying_indices[X].iter().zip(overlap_lengths[X].iter())
+                        {
+                            let weight = overlap_length_x * overlap_length_y * overlap_length_z;
+                            accum_value += self
+                                .value(&Idx3::new(underlying_i, underlying_j, underlying_k))
+                                .into()
+                                * weight;
+                            accum_weight += weight;
                         }
                     }
                 }
-                overlying_value.write(accum_value / accum_weight);
+                overlying_value.write(F::from(accum_value / accum_weight).unwrap());
             },
         );
         let overlying_values = unsafe { overlying_values.assume_init() };
@@ -1325,39 +1325,6 @@ where
                 underlying_indices_z,
             ),
             In3D::new(underlying_edges_x, underlying_edges_y, underlying_edges_z),
-        )
-    }
-
-    fn compute_underlying_grid_cell_idx_ranges_for_resampling(
-        &self,
-        lower_overlying_corner: &Point3<fgr>,
-        upper_overlying_corner: &Point3<fgr>,
-    ) -> In3D<Vec<usize>> {
-        let lower_underlying_indices = self
-            .grid
-            .find_closest_grid_cell(lower_overlying_corner)
-            .expect_inside_or_moved();
-        let upper_underlying_indices = self
-            .grid
-            .find_closest_grid_cell(upper_overlying_corner)
-            .expect_inside_or_moved();
-
-        In3D::new(
-            self.grid.create_idx_range_list_wrapped(
-                X,
-                lower_underlying_indices[X],
-                upper_underlying_indices[X],
-            ),
-            self.grid.create_idx_range_list_wrapped(
-                Y,
-                lower_underlying_indices[Y],
-                upper_underlying_indices[Y],
-            ),
-            self.grid.create_idx_range_list_wrapped(
-                Z,
-                lower_underlying_indices[Z],
-                upper_underlying_indices[Z],
-            ),
         )
     }
 
