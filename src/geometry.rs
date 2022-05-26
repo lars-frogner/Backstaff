@@ -1781,12 +1781,22 @@ impl<F: BFloat> SimplePolygon2<F> {
 }
 
 /// Defines the properties of a transformation of 2D points.
-pub trait PointTransformation2<F>: Sync {
+pub trait PointTransformation2<F: BFloat>: Sync {
     /// Whether the transformation is the identity transformation.
     const IS_IDENTITY: bool = false;
 
-    /// Returns the transformed version of the given point.
+    /// Returns the transformed version of the given 2D point.
     fn transform(&self, point: &Point2<F>) -> Point2<F>;
+
+    /// Returns the horizontally transformed version of the given 3D point.
+    fn transform_horizontally(&self, point: &Point3<F>) -> Point3<F> {
+        let transformed_hor_point = self.transform(&point.without_z());
+        Point3::new(
+            transformed_hor_point[Dim2::X],
+            transformed_hor_point[Dim2::Y],
+            point[Z],
+        )
+    }
 }
 
 /// Identity transformation for 2D points.
