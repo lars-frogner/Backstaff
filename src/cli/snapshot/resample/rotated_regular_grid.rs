@@ -1,9 +1,9 @@
 //! Command line interface for resampling a snapshot to a rotated regular grid.
 
 use super::{
+    cell_averaging::create_cell_averaging_subcommand,
     direct_sampling::create_direct_sampling_subcommand,
-    weighted_cell_averaging::create_weighted_cell_averaging_subcommand,
-    weighted_sample_averaging::create_weighted_sample_averaging_subcommand,
+    sample_averaging::create_sample_averaging_subcommand,
 };
 use crate::{
     add_subcommand_combinations,
@@ -47,7 +47,7 @@ pub fn create_rotated_regular_grid_subcommand(
         )
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
-             weighted sample averaging with the default prameters is used.",
+             sample averaging with the default prameters is used.",
         )
         .arg(
             Arg::new("scales")
@@ -125,8 +125,8 @@ pub fn create_rotated_regular_grid_subcommand(
                 )
                 .takes_value(true),
         )
-        .subcommand(create_weighted_sample_averaging_subcommand(command_name))
-        .subcommand(create_weighted_cell_averaging_subcommand(command_name))
+        .subcommand(create_sample_averaging_subcommand(command_name))
+        .subcommand(create_cell_averaging_subcommand(command_name))
         .subcommand(create_direct_sampling_subcommand(command_name));
 
     #[cfg(feature = "synthesis")]

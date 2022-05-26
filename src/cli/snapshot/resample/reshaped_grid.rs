@@ -2,9 +2,9 @@
 //! version of the original grid.
 
 use super::{
+    cell_averaging::create_cell_averaging_subcommand,
     direct_sampling::create_direct_sampling_subcommand,
-    weighted_cell_averaging::create_weighted_cell_averaging_subcommand,
-    weighted_sample_averaging::create_weighted_sample_averaging_subcommand,
+    sample_averaging::create_sample_averaging_subcommand,
 };
 use crate::{
     add_subcommand_combinations,
@@ -42,7 +42,7 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
         .long_about("Resample to a reshaped version of the original grid.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
-             weighted sample averaging with the default prameters is used.",
+             sample averaging with the default prameters is used.",
         )
         .arg(
             Arg::new("scales")
@@ -69,8 +69,8 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
                 .takes_value(true)
                 .conflicts_with("scales"),
         )
-        .subcommand(create_weighted_sample_averaging_subcommand(command_name))
-        .subcommand(create_weighted_cell_averaging_subcommand(command_name))
+        .subcommand(create_sample_averaging_subcommand(command_name))
+        .subcommand(create_cell_averaging_subcommand(command_name))
         .subcommand(create_direct_sampling_subcommand(command_name));
 
     #[cfg(feature = "synthesis")]

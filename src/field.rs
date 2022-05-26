@@ -481,8 +481,8 @@ impl ResampledCoordLocation {
 /// Method for resampling a field.
 #[derive(Clone, Copy, Debug)]
 pub enum ResamplingMethod {
-    WeightedSampleAveraging,
-    WeightedCellAveraging,
+    SampleAveraging,
+    CellAveraging,
     DirectSampling,
 }
 
@@ -682,14 +682,13 @@ where
         I: Interpolator3,
     {
         match method {
-            ResamplingMethod::WeightedSampleAveraging => self
-                .resampled_to_grid_with_weighted_sample_averaging(
-                    grid,
-                    resampled_locations,
-                    interpolator,
-                ),
-            ResamplingMethod::WeightedCellAveraging => {
-                self.resampled_to_grid_with_weighted_cell_averaging(grid, resampled_locations)
+            ResamplingMethod::SampleAveraging => self.resampled_to_grid_with_sample_averaging(
+                grid,
+                resampled_locations,
+                interpolator,
+            ),
+            ResamplingMethod::CellAveraging => {
+                self.resampled_to_grid_with_cell_averaging(grid, resampled_locations)
             }
             ResamplingMethod::DirectSampling => {
                 self.resampled_to_grid_with_direct_sampling(grid, resampled_locations, interpolator)
@@ -716,15 +715,15 @@ where
         I: Interpolator3,
     {
         match method {
-            ResamplingMethod::WeightedSampleAveraging => self
-                .resampled_to_transformed_grid_with_weighted_sample_averaging(
+            ResamplingMethod::SampleAveraging => self
+                .resampled_to_transformed_grid_with_sample_averaging(
                     grid,
                     transformation,
                     resampled_locations,
                     interpolator,
                 ),
-            ResamplingMethod::WeightedCellAveraging => self
-                .resampled_to_transformed_grid_with_weighted_cell_averaging(
+            ResamplingMethod::CellAveraging => self
+                .resampled_to_transformed_grid_with_cell_averaging(
                     grid,
                     transformation,
                     resampled_locations,
@@ -748,7 +747,7 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_grid_with_weighted_sample_averaging<H, I>(
+    pub fn resampled_to_grid_with_sample_averaging<H, I>(
         &self,
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
@@ -771,7 +770,7 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_weighted_sample_averaging(
+                Self::shift_overlying_grid_cell_corners_for_sample_averaging(
                     &overlying_locations,
                     &mut lower_overlying_corner,
                     &mut upper_overlying_corner,
@@ -866,7 +865,7 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_transformed_grid_with_weighted_sample_averaging<H, T, I>(
+    pub fn resampled_to_transformed_grid_with_sample_averaging<H, T, I>(
         &self,
         grid: Arc<H>,
         transformation: &T,
@@ -891,7 +890,7 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_weighted_sample_averaging(
+                Self::shift_overlying_grid_cell_corners_for_sample_averaging(
                     &overlying_locations,
                     &mut lower_overlying_corner,
                     &mut upper_overlying_corner,
@@ -1021,7 +1020,7 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<fgr>>(
+    pub fn resampled_to_grid_with_cell_averaging<H: Grid3<fgr>>(
         &self,
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
@@ -1044,7 +1043,7 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_weighted_cell_averaging(
+                Self::shift_overlying_grid_cell_corners_for_cell_averaging(
                     underlying_locations,
                     &overlying_locations,
                     &average_underlying_cell_extents,
@@ -1125,7 +1124,7 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_transformed_grid_with_weighted_cell_averaging<H, T>(
+    pub fn resampled_to_transformed_grid_with_cell_averaging<H, T>(
         &self,
         grid: Arc<H>,
         transformation: &T,
@@ -1153,7 +1152,7 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_weighted_cell_averaging(
+                Self::shift_overlying_grid_cell_corners_for_cell_averaging(
                     underlying_locations,
                     &overlying_locations,
                     &average_underlying_cell_extents,
@@ -1447,7 +1446,7 @@ where
         overlying_grid.grid_cell_extremal_corners(&overlying_indices)
     }
 
-    fn shift_overlying_grid_cell_corners_for_weighted_sample_averaging(
+    fn shift_overlying_grid_cell_corners_for_sample_averaging(
         overlying_locations: &In3D<CoordLocation>,
         lower_overlying_corner: &mut Point3<fgr>,
         upper_overlying_corner: &mut Point3<fgr>,
@@ -1463,7 +1462,7 @@ where
         }
     }
 
-    fn shift_overlying_grid_cell_corners_for_weighted_cell_averaging(
+    fn shift_overlying_grid_cell_corners_for_cell_averaging(
         underlying_locations: &In3D<CoordLocation>,
         overlying_locations: &In3D<CoordLocation>,
         average_underlying_cell_extents: &Vec3<fgr>,
@@ -1873,7 +1872,7 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_grid_with_weighted_sample_averaging<H, I>(
+    pub fn resampled_to_grid_with_sample_averaging<H, I>(
         &self,
         grid: Arc<H>,
         interpolator: &I,
@@ -1883,17 +1882,17 @@ where
         I: Interpolator3,
     {
         let components = In3D::new(
-            self.components[X].resampled_to_grid_with_weighted_sample_averaging(
+            self.components[X].resampled_to_grid_with_sample_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
             ),
-            self.components[Y].resampled_to_grid_with_weighted_sample_averaging(
+            self.components[Y].resampled_to_grid_with_sample_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
             ),
-            self.components[Z].resampled_to_grid_with_weighted_sample_averaging(
+            self.components[Z].resampled_to_grid_with_sample_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
@@ -1909,20 +1908,20 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_grid_with_weighted_cell_averaging<H: Grid3<fgr>>(
+    pub fn resampled_to_grid_with_cell_averaging<H: Grid3<fgr>>(
         &self,
         grid: Arc<H>,
     ) -> VectorField3<F, H> {
         let components = In3D::new(
-            self.components[X].resampled_to_grid_with_weighted_cell_averaging(
+            self.components[X].resampled_to_grid_with_cell_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
             ),
-            self.components[Y].resampled_to_grid_with_weighted_cell_averaging(
+            self.components[Y].resampled_to_grid_with_cell_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
             ),
-            self.components[Z].resampled_to_grid_with_weighted_cell_averaging(
+            self.components[Z].resampled_to_grid_with_cell_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
             ),

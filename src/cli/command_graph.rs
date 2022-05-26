@@ -18,8 +18,8 @@ use std::{
 pub const CONFIG_COMMANDS: [&str; 17] = [
     "derive",
     "synthesize",
-    "weighted_sample_averaging",
-    "weighted_cell_averaging",
+    "sample_averaging",
+    "cell_averaging",
     "direct_sampling",
     "poly_fit_interpolator",
     "basic_field_line_tracer",

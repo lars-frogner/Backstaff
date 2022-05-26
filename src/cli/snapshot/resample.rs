@@ -1,12 +1,12 @@
 //! Command line interface for resampling a snapshot.
 
+mod cell_averaging;
 mod direct_sampling;
 mod mesh_file;
 mod regular_grid;
 mod reshaped_grid;
 mod rotated_regular_grid;
-mod weighted_cell_averaging;
-mod weighted_sample_averaging;
+mod sample_averaging;
 
 use self::{
     mesh_file::{create_mesh_file_subcommand, run_resampling_for_mesh_file},
@@ -122,7 +122,7 @@ pub fn run_resample_subcommand<G, P>(
         if let Some(regular_grid_arguments) = arguments.subcommand_matches("regular_grid") {
             (
                 ResampleGridType::Regular,
-                ResamplingMethod::WeightedSampleAveraging,
+                ResamplingMethod::SampleAveraging,
                 regular_grid_arguments,
             )
         } else if let Some(rotated_regular_grid_arguments) =
@@ -130,20 +130,20 @@ pub fn run_resample_subcommand<G, P>(
         {
             (
                 ResampleGridType::RotatedRegular,
-                ResamplingMethod::WeightedSampleAveraging,
+                ResamplingMethod::SampleAveraging,
                 rotated_regular_grid_arguments,
             )
         } else if let Some(reshaped_grid_arguments) = arguments.subcommand_matches("reshaped_grid")
         {
             (
                 ResampleGridType::Reshaped,
-                ResamplingMethod::WeightedSampleAveraging,
+                ResamplingMethod::SampleAveraging,
                 reshaped_grid_arguments,
             )
         } else if let Some(mesh_file_arguments) = arguments.subcommand_matches("mesh_file") {
             (
                 ResampleGridType::MeshFile,
-                ResamplingMethod::WeightedSampleAveraging,
+                ResamplingMethod::SampleAveraging,
                 mesh_file_arguments,
             )
         } else {
@@ -177,30 +177,21 @@ fn run_with_selected_method<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let (resampling_method, method_arguments, has_interpolator_subcommand) =
-        if let Some(method_arguments) =
-            grid_type_arguments.subcommand_matches("weighted_sample_averaging")
-        {
-            (
-                ResamplingMethod::WeightedSampleAveraging,
-                method_arguments,
-                true,
-            )
-        } else if let Some(method_arguments) =
-            grid_type_arguments.subcommand_matches("weighted_cell_averaging")
-        {
-            (
-                ResamplingMethod::WeightedCellAveraging,
-                method_arguments,
-                false,
-            )
-        } else if let Some(method_arguments) =
-            grid_type_arguments.subcommand_matches("direct_sampling")
-        {
-            (ResamplingMethod::DirectSampling, method_arguments, true)
-        } else {
-            (default_method, grid_type_arguments, false)
-        };
+    let (resampling_method, method_arguments, has_interpolator_subcommand) = if let Some(
+        method_arguments,
+    ) =
+        grid_type_arguments.subcommand_matches("sample_averaging")
+    {
+        (ResamplingMethod::SampleAveraging, method_arguments, true)
+    } else if let Some(method_arguments) = grid_type_arguments.subcommand_matches("cell_averaging")
+    {
+        (ResamplingMethod::CellAveraging, method_arguments, false)
+    } else if let Some(method_arguments) = grid_type_arguments.subcommand_matches("direct_sampling")
+    {
+        (ResamplingMethod::DirectSampling, method_arguments, true)
+    } else {
+        (default_method, grid_type_arguments, false)
+    };
 
     run_with_selected_interpolator(
         grid_type_arguments,

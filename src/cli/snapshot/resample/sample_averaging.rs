@@ -16,11 +16,9 @@ use clap::Command;
 #[cfg(feature = "synthesis")]
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
 
-/// Builds a representation of the `snapshot-resample-weighted_sample_averaging` command line subcommand.
-pub fn create_weighted_sample_averaging_subcommand(
-    _parent_command_name: &'static str,
-) -> Command<'static> {
-    let command_name = "weighted_sample_averaging";
+/// Builds a representation of the `snapshot-resample-sample_averaging` command line subcommand.
+pub fn create_sample_averaging_subcommand(_parent_command_name: &'static str) -> Command<'static> {
+    let command_name = "sample_averaging";
 
     update_command_graph!(_parent_command_name, command_name);
 
