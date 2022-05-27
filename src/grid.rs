@@ -9,7 +9,7 @@ use crate::{
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
         Dim3::{self, X, Y, Z},
-        Idx2, Idx3, In2D, In3D, Point2, Point3, Vec2, Vec3,
+        Idx2, Idx3, In2D, In3D, Point2, Point3, PointTransformation2, SimplePolygon2, Vec2, Vec3,
     },
     interpolation::Interpolator1,
     num::BFloat,
@@ -263,6 +263,59 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         Dim3::slice()
             .iter()
             .all(|&dim| coord_is_inside_grid_cell(&lower_edges[dim], point[dim], cell_idx[dim]))
+    }
+
+    /// Whether the given grid bounds are fully inside the non-periodic boundaries of the grid.
+    fn contains_bounds(&self, other_lower_bounds: &Vec3<F>, other_upper_bounds: &Vec3<F>) -> bool {
+        let lower_bounds = self.lower_bounds();
+        let upper_bounds = self.upper_bounds();
+        let is_periodic = self.periodicity();
+        Dim3::slice().iter().all(|&dim| {
+            is_periodic[dim]
+                || (other_lower_bounds[dim] >= lower_bounds[dim]
+                    && other_upper_bounds[dim] <= upper_bounds[dim])
+        })
+    }
+
+    /// Whether the given grid is fully inside the non-periodic boundaries of the grid.
+    fn contains_grid<H: Grid3<F>>(&self, other: &H) -> bool {
+        self.contains_bounds(other.lower_bounds(), other.upper_bounds())
+    }
+
+    /// Whether the given grid after applying the given transformation is fully inside
+    /// the non-periodic boundaries of the grid
+    fn contains_transformed_grid<H, T>(&self, other: &H, transformation: &T) -> bool
+    where
+        H: Grid3<F>,
+        T: PointTransformation2<F>,
+    {
+        let other_lower_bounds = other.lower_bounds();
+        let other_upper_bounds = other.upper_bounds();
+
+        let other_hor_bound_polygon = SimplePolygon2::rectangle_from_bounds(
+            &other_lower_bounds.without_z(),
+            &other_upper_bounds.without_z(),
+        )
+        .transformed(transformation);
+
+        let (other_hor_bounding_box_lower_corner, other_hor_bounding_box_upper_corner) =
+            other_hor_bound_polygon.bounds().unwrap();
+
+        let other_bounding_box_lower_corner = Vec3::new(
+            other_hor_bounding_box_lower_corner[Dim2::X],
+            other_hor_bounding_box_lower_corner[Dim2::Y],
+            other_lower_bounds[Z],
+        );
+        let other_bounding_box_upper_corner = Vec3::new(
+            other_hor_bounding_box_upper_corner[Dim2::X],
+            other_hor_bounding_box_upper_corner[Dim2::Y],
+            other_upper_bounds[Z],
+        );
+
+        self.contains_bounds(
+            &other_bounding_box_lower_corner,
+            &other_bounding_box_upper_corner,
+        )
     }
 
     /// Tries to find the 3D index of the grid cell containing the given coordinate,
