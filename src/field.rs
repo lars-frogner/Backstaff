@@ -841,6 +841,12 @@ where
                         }
                     }
                 }
+
+                assert_ne!(
+                    accum_weight, 0.0,
+                    "Overlying grid cell is fully outside non-periodic boundary."
+                );
+
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
             },
         );
@@ -1001,6 +1007,12 @@ where
                         accum_weight += weight;
                     }
                 }
+
+                assert_ne!(
+                    accum_weight, 0.0,
+                    "Overlying grid cell is fully outside non-periodic boundary."
+                );
+
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
             },
         );
@@ -1104,6 +1116,12 @@ where
                         }
                     }
                 }
+
+                assert_ne!(
+                    accum_weight, 0.0,
+                    "Overlying grid cell is fully outside non-periodic boundary."
+                );
+
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
             },
         );
@@ -1251,6 +1269,12 @@ where
                         accum_weight += weight;
                     }
                 }
+
+                assert_ne!(
+                    accum_weight, 0.0,
+                    "Overlying grid cell is fully outside non-periodic boundary."
+                );
+
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
             },
         );
@@ -1297,7 +1321,7 @@ where
                 value.write(
                     F::from(
                         interpolator
-                            .interp_extrap_scalar_field(self, &point)
+                            .interp_scalar_field(self, &point)
                             .expect_inside_or_moved(),
                     )
                     .unwrap(),
@@ -1346,7 +1370,7 @@ where
                 value.write(
                     F::from(
                         interpolator
-                            .interp_extrap_scalar_field(self, &transformed_point)
+                            .interp_scalar_field(self, &transformed_point)
                             .expect_inside_or_moved(),
                     )
                     .unwrap(),

@@ -383,6 +383,8 @@ fn resample_to_regular_grid<G, P, I>(
         );
     }
 
+    verify_new_grid_bounds(provider.grid(), &grid);
+
     correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings);
 
     let new_grid = Arc::new(grid);
@@ -483,6 +485,8 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         );
     }
 
+    verify_new_grid_bounds(provider.grid(), &grid);
+
     correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings);
 
     let new_grid = Arc::new(grid);
@@ -518,6 +522,8 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
+    verify_new_transformed_grid_bounds(provider.grid(), &grid, &transformation);
+
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
         arguments,
@@ -530,6 +536,32 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
         verbose,
         interpolator,
         protected_file_types,
+    );
+}
+
+fn verify_new_grid_bounds<GIN, GOUT>(original_grid: &GIN, new_grid: &GOUT)
+where
+    GIN: Grid3<fgr>,
+    GOUT: Grid3<fgr>,
+{
+    exit_on_false!(
+        original_grid.contains_grid(new_grid),
+        "Error: The resampled grid extends outside a non-periodic boundary of the original grid"
+    );
+}
+
+fn verify_new_transformed_grid_bounds<GIN, GOUT, T>(
+    original_grid: &GIN,
+    new_grid: &GOUT,
+    transformation: &T,
+) where
+    GIN: Grid3<fgr>,
+    GOUT: Grid3<fgr>,
+    T: PointTransformation2<fgr>,
+{
+    exit_on_false!(
+        original_grid.contains_transformed_grid(new_grid, transformation),
+        "Error: The resampled grid extends outside a non-periodic boundary of the original grid"
     );
 }
 
@@ -591,19 +623,6 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fgr>, GOUT: Grid3<fgr>>(
                         process::exit(1);
                     }
                 }
-            }
-        } else if new_upper_bound - extent_diff_threshold > original_upper_bound
-            || new_lower_bound + extent_diff_threshold < original_lower_bound
-        {
-            eprintln!(
-                "Warning: Extrapolating beyond {}-bounds of original field:\n\
-                 Before resampling: [{}, {})\n\
-                 After resampling: [{}, {})",
-                dim, original_lower_bound, original_upper_bound, new_lower_bound, new_upper_bound
-            );
-            if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
-                eprintln!("Aborted");
-                process::exit(1);
             }
         }
     }
