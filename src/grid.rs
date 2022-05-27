@@ -660,7 +660,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         )
     }
 
-    /// Like `get_monotonic_grid_cell_edges_between`, but also returns the
+    /// Like `determine_monotonic_grid_cell_edges_between`, but also returns the
     /// indices of the grid cells of the lower edges.
     fn determine_indexed_monotonic_grid_cell_edges_between(
         &self,
