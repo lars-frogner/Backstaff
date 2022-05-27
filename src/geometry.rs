@@ -105,6 +105,19 @@ impl<T> In3D<T> {
         Self([x, y, z])
     }
 
+    /// Creates a new 3D quantity by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim3) -> T,
+    {
+        Self::new(
+            create_component(X),
+            create_component(Y),
+            create_component(Z),
+        )
+    }
+
     /// Converts to a new 3D quantity with a different component type.
     pub fn converted<U>(&self) -> In3D<U>
     where
@@ -198,6 +211,15 @@ impl<T> In2D<T> {
         Self([x, y])
     }
 
+    /// Creates a new 2D quantity by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim2) -> T,
+    {
+        Self::new(create_component(Dim2::X), create_component(Dim2::Y))
+    }
+
     /// Converts to a new 2D quantity with a different component type.
     pub fn converted<U>(&self) -> In2D<U>
     where
@@ -283,6 +305,15 @@ impl<F: BFloat> Vec3<F> {
     /// Creates a new 3D vector given the three components.
     pub fn new(x: F, y: F, z: F) -> Self {
         Self(In3D::new(x, y, z))
+    }
+
+    /// Creates a new 3D vector by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim3) -> F,
+    {
+        Self(In3D::with_each_component(create_component))
     }
 
     /// Converts to a new vector with a different component type.
@@ -545,6 +576,15 @@ impl<F: BFloat> Vec2<F> {
         Self(In2D::new(x, y))
     }
 
+    /// Creates a new 2D vector by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim2) -> F,
+    {
+        Self(In2D::with_each_component(create_component))
+    }
+
     /// Converts to a new vector with a different component type.
     pub fn converted<U>(&self) -> Vec2<U>
     where
@@ -797,6 +837,15 @@ impl<F: BFloat> Point3<F> {
         Self(In3D::new(x, y, z))
     }
 
+    /// Creates a new 3D point by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim3) -> F,
+    {
+        Self(In3D::with_each_component(create_component))
+    }
+
     /// Converts to a new point with a different component type.
     pub fn converted<U>(&self) -> Point3<U>
     where
@@ -1000,6 +1049,15 @@ impl<F: BFloat> Point2<F> {
         Self(In2D::new(x, y))
     }
 
+    /// Creates a new 2D point by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim2) -> F,
+    {
+        Self(In2D::with_each_component(create_component))
+    }
+
     /// Converts to a new point with a different component type.
     pub fn converted<U>(&self) -> Point2<U>
     where
@@ -1194,6 +1252,15 @@ impl<I: num::Integer> Idx3<I> {
         Self(In3D::new(i, j, k))
     }
 
+    /// Creates a new 3D index by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim3) -> I,
+    {
+        Self(In3D::with_each_component(create_component))
+    }
+
     /// Converts to a new 3D index with a different component type.
     pub fn converted<U>(&self) -> Idx3<U>
     where
@@ -1299,6 +1366,15 @@ impl<I: num::Integer> Idx2<I> {
         Self(In2D::new(i, j))
     }
 
+    /// Creates a new 2D index by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim2) -> I,
+    {
+        Self(In2D::with_each_component(create_component))
+    }
+
     /// Converts to a new 2D index with a different component type.
     pub fn converted<U>(&self) -> Idx2<U>
     where
@@ -1400,9 +1476,27 @@ impl<F: BFloat> Coords3<F> {
         Self(In3D::new(x, y, z))
     }
 
+    /// Creates a new 3D set of coordinates by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim3) -> Vec<F>,
+    {
+        Self(In3D::with_each_component(create_component))
+    }
+
     /// Creates a 3D point from the coordinates at the given indices.
     pub fn point(&self, indices: &Idx3<usize>) -> Point3<F> {
         Point3::new(
+            self[X][indices[X]],
+            self[Y][indices[Y]],
+            self[Z][indices[Z]],
+        )
+    }
+
+    /// Creates a 3D vector from the coordinates at the given indices.
+    pub fn vector(&self, indices: &Idx3<usize>) -> Vec3<F> {
+        Vec3::new(
             self[X][indices[X]],
             self[Y][indices[Y]],
             self[Z][indices[Z]],
@@ -1442,6 +1536,15 @@ impl<F: BFloat> Coords2<F> {
     /// Creates a new 2D set of coordinates given the component 1D coordinates.
     pub fn new(x: Vec<F>, y: Vec<F>) -> Self {
         Self(In2D::new(x, y))
+    }
+
+    /// Creates a new 2D set of coordinates by evaluating the given component
+    /// constructor for each dimension.
+    pub fn with_each_component<C>(create_component: C) -> Self
+    where
+        C: Fn(Dim2) -> Vec<F>,
+    {
+        Self(In2D::with_each_component(create_component))
     }
 
     /// Creates a 2D point from the coordinates at the given indices.
