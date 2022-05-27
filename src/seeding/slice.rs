@@ -305,11 +305,9 @@ impl SliceSeeder3 {
         let mut pdf = Vec::with_capacity(slice_shape[Dim2::X] * slice_shape[Dim2::Y]);
         for j in 0..slice_shape[Dim2::Y] {
             for i in 0..slice_shape[Dim2::X] {
-                pdf.push(compute_pdf_value(&Vec3::new(
-                    slice_values[X][[i, j]],
-                    slice_values[Y][[i, j]],
-                    slice_values[Z][[i, j]],
-                )));
+                pdf.push(compute_pdf_value(&Vec3::with_each_component(|dim| {
+                    slice_values[dim][[i, j]]
+                })));
             }
         }
         let indices =

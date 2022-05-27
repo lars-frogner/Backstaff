@@ -1200,35 +1200,17 @@ fn interp_vector_field_in_known_grid_cell_3d<
     variation_threshold_for_linear: F,
 ) -> Vec3<fip> {
     let grid = field.grid();
-    Vec3::new(
+    Vec3::with_each_component(|dim| {
         interp_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
             grid,
-            &field.coords(X),
-            field.locations(X),
-            field.values(X),
+            &field.coords(dim),
+            field.locations(dim),
+            field.values(dim),
             interp_point,
             interp_indices,
             variation_threshold_for_linear,
-        ),
-        interp_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
-            grid,
-            &field.coords(Y),
-            field.locations(Y),
-            field.values(Y),
-            interp_point,
-            interp_indices,
-            variation_threshold_for_linear,
-        ),
-        interp_3d::<_, _, N_POINTS, N_POINTS_SQUARED, N_POINTS_CUBED>(
-            grid,
-            &field.coords(Z),
-            field.locations(Z),
-            field.values(Z),
-            interp_point,
-            interp_indices,
-            variation_threshold_for_linear,
-        ),
-    )
+        )
+    })
 }
 
 fn interp_vector_field_in_known_grid_cell_2d<
@@ -1243,26 +1225,17 @@ fn interp_vector_field_in_known_grid_cell_2d<
     variation_threshold_for_linear: F,
 ) -> Vec2<fip> {
     let grid = field.grid();
-    Vec2::new(
+    Vec2::with_each_component(|dim| {
         interp_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
             grid,
-            &field.coords(X2),
-            field.locations(X2),
-            field.values(X2),
+            &field.coords(dim),
+            field.locations(dim),
+            field.values(dim),
             interp_point,
             interp_indices,
             variation_threshold_for_linear,
-        ),
-        interp_2d::<_, _, N_POINTS, N_POINTS_SQUARED>(
-            grid,
-            &field.coords(Y2),
-            field.locations(Y2),
-            field.values(Y2),
-            interp_point,
-            interp_indices,
-            variation_threshold_for_linear,
-        ),
-    )
+        )
+    })
 }
 
 fn interp_vector_field_from_grid_point_query_3d<

@@ -462,19 +462,11 @@ impl ResampledCoordLocation {
         resampled: In3D<Self>,
         original: &In3D<CoordLocation>,
     ) -> In3D<CoordLocation> {
-        In3D::new(
-            resampled[X].into_location(original[X]),
-            resampled[Y].into_location(original[Y]),
-            resampled[Z].into_location(original[Z]),
-        )
+        In3D::with_each_component(|dim| resampled[dim].into_location(original[dim]))
     }
 
     pub fn from_locations_3d(locations: &In3D<CoordLocation>) -> In3D<Self> {
-        In3D::new(
-            Self::Specific(locations[X]),
-            Self::Specific(locations[Y]),
-            Self::Specific(locations[Z]),
-        )
+        In3D::with_each_component(|dim| Self::Specific(locations[dim]))
     }
 }
 
@@ -803,11 +795,8 @@ where
 
                 // Compute the center points and extents of the "sub grid cells" found
                 // by intersecting the underlying grid with the overlying grid.
-                let overlap_centers_and_lengths = In3D::new(
-                    compute_overlap_centers_and_lengths_along_dim(X),
-                    compute_overlap_centers_and_lengths_along_dim(Y),
-                    compute_overlap_centers_and_lengths_along_dim(Z),
-                );
+                let overlap_centers_and_lengths =
+                    In3D::with_each_component(compute_overlap_centers_and_lengths_along_dim);
 
                 let mut accum_value = 0.0;
                 let mut accum_weight = 0.0;
@@ -1087,11 +1076,7 @@ where
 
                 // Compute the extents of the "sub grid cells" found by intersecting
                 // the underlying grid with the overlying grid
-                let overlap_lengths = In3D::new(
-                    compute_overlap_lengths_along_dim(X),
-                    compute_overlap_lengths_along_dim(Y),
-                    compute_overlap_lengths_along_dim(Z),
-                );
+                let overlap_lengths = In3D::with_each_component(compute_overlap_lengths_along_dim);
 
                 let mut accum_value = 0.0;
                 let mut accum_weight = 0.0;
@@ -1849,7 +1834,7 @@ where
     /// Returns a set of references to the coordinates where the field
     /// values of each component are defined.
     pub fn all_coords(&self) -> In3D<CoordRefs3<fgr>> {
-        In3D::new(self.coords(X), self.coords(Y), self.coords(Z))
+        In3D::with_each_component(|dim| self.coords(dim))
     }
 
     /// Returns a reference to the 3D array of field values for the
@@ -1866,7 +1851,7 @@ where
 
     /// Returns a reference to the 3D array of field values for each component.
     pub fn all_values(&self) -> In3D<&Array3<F>> {
-        In3D::new(self.values(X), self.values(Y), self.values(Z))
+        In3D::with_each_component(|dim| self.values(dim))
     }
 
     /// Returns the field vector at the given 3D index.
@@ -1907,23 +1892,13 @@ where
         H: Grid3<fgr>,
         I: Interpolator3,
     {
-        let components = In3D::new(
-            self.components[X].resampled_to_grid_with_sample_averaging(
+        let components = In3D::with_each_component(|dim| {
+            self.components[dim].resampled_to_grid_with_sample_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
-            ),
-            self.components[Y].resampled_to_grid_with_sample_averaging(
-                Arc::clone(&grid),
-                In3D::same(ResampledCoordLocation::Original),
-                interpolator,
-            ),
-            self.components[Z].resampled_to_grid_with_sample_averaging(
-                Arc::clone(&grid),
-                In3D::same(ResampledCoordLocation::Original),
-                interpolator,
-            ),
-        );
+            )
+        });
         VectorField3::new(self.name.clone(), grid, components)
     }
 
@@ -1938,20 +1913,12 @@ where
         &self,
         grid: Arc<H>,
     ) -> VectorField3<F, H> {
-        let components = In3D::new(
-            self.components[X].resampled_to_grid_with_cell_averaging(
+        let components = In3D::with_each_component(|dim| {
+            self.components[dim].resampled_to_grid_with_cell_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
-            ),
-            self.components[Y].resampled_to_grid_with_cell_averaging(
-                Arc::clone(&grid),
-                In3D::same(ResampledCoordLocation::Original),
-            ),
-            self.components[Z].resampled_to_grid_with_cell_averaging(
-                Arc::clone(&grid),
-                In3D::same(ResampledCoordLocation::Original),
-            ),
-        );
+            )
+        });
         VectorField3::new(self.name.clone(), grid, components)
     }
 
@@ -1971,34 +1938,20 @@ where
         H: Grid3<fgr>,
         I: Interpolator3,
     {
-        let components = In3D::new(
-            self.components[X].resampled_to_grid_with_direct_sampling(
+        let components = In3D::with_each_component(|dim| {
+            self.components[dim].resampled_to_grid_with_direct_sampling(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
-            ),
-            self.components[Y].resampled_to_grid_with_direct_sampling(
-                Arc::clone(&grid),
-                In3D::same(ResampledCoordLocation::Original),
-                interpolator,
-            ),
-            self.components[Z].resampled_to_grid_with_direct_sampling(
-                Arc::clone(&grid),
-                In3D::same(ResampledCoordLocation::Original),
-                interpolator,
-            ),
-        );
+            )
+        });
         VectorField3::new(self.name.clone(), grid, components)
     }
 
     /// Returns a view of the 2D slice located at the given index along the given dimension,
     /// for each component of the field.
     pub fn slice_across_axis_at_idx(&self, axis: Dim3, idx: usize) -> In3D<ArrayView2<F>> {
-        In3D::new(
-            self.components[X].slice_across_axis_at_idx(axis, idx),
-            self.components[Y].slice_across_axis_at_idx(axis, idx),
-            self.components[Z].slice_across_axis_at_idx(axis, idx),
-        )
+        In3D::with_each_component(|dim| self.components[dim].slice_across_axis_at_idx(axis, idx))
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the x-axis at the given coordinate.
@@ -2012,26 +1965,14 @@ where
         I: Interpolator3,
     {
         let slice_grid = Arc::new(self.grid.slice_across_x());
-        let slice_field_components = In3D::new(
-            self.components[X].create_slice_across_x(
+        let slice_field_components = In3D::with_each_component(|dim| {
+            self.components[dim].create_slice_across_x(
                 Arc::clone(&slice_grid),
                 interpolator,
                 x_coord,
                 resampled_location,
-            ),
-            self.components[Y].create_slice_across_x(
-                Arc::clone(&slice_grid),
-                interpolator,
-                x_coord,
-                resampled_location,
-            ),
-            self.components[Z].create_slice_across_x(
-                Arc::clone(&slice_grid),
-                interpolator,
-                x_coord,
-                resampled_location,
-            ),
-        );
+            )
+        });
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_field_components)
     }
 
@@ -2046,26 +1987,14 @@ where
         I: Interpolator3,
     {
         let slice_grid = Arc::new(self.grid.slice_across_y());
-        let slice_field_components = In3D::new(
-            self.components[X].create_slice_across_y(
+        let slice_field_components = In3D::with_each_component(|dim| {
+            self.components[dim].create_slice_across_y(
                 Arc::clone(&slice_grid),
                 interpolator,
                 y_coord,
                 resampled_location,
-            ),
-            self.components[Y].create_slice_across_y(
-                Arc::clone(&slice_grid),
-                interpolator,
-                y_coord,
-                resampled_location,
-            ),
-            self.components[Z].create_slice_across_y(
-                Arc::clone(&slice_grid),
-                interpolator,
-                y_coord,
-                resampled_location,
-            ),
-        );
+            )
+        });
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_field_components)
     }
 
@@ -2080,26 +2009,14 @@ where
         I: Interpolator3,
     {
         let slice_grid = Arc::new(self.grid.slice_across_z());
-        let slice_field_components = In3D::new(
-            self.components[X].create_slice_across_z(
+        let slice_field_components = In3D::with_each_component(|dim| {
+            self.components[dim].create_slice_across_z(
                 Arc::clone(&slice_grid),
                 interpolator,
                 z_coord,
                 resampled_location,
-            ),
-            self.components[Y].create_slice_across_z(
-                Arc::clone(&slice_grid),
-                interpolator,
-                z_coord,
-                resampled_location,
-            ),
-            self.components[Z].create_slice_across_z(
-                Arc::clone(&slice_grid),
-                interpolator,
-                z_coord,
-                resampled_location,
-            ),
-        );
+            )
+        });
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_field_components)
     }
 
@@ -2115,29 +2032,15 @@ where
         I: Interpolator3,
     {
         let slice_grid = Arc::new(self.grid.regular_slice_across_axis(axis));
-        let slice_field_components = In3D::new(
-            self.components[X].create_regular_slice_across_axis(
+        let slice_field_components = In3D::with_each_component(|dim| {
+            self.components[dim].create_regular_slice_across_axis(
                 Arc::clone(&slice_grid),
                 interpolator,
                 axis,
                 coord,
                 location,
-            ),
-            self.components[Y].create_regular_slice_across_axis(
-                Arc::clone(&slice_grid),
-                interpolator,
-                axis,
-                coord,
-                location,
-            ),
-            self.components[Z].create_regular_slice_across_axis(
-                Arc::clone(&slice_grid),
-                interpolator,
-                axis,
-                coord,
-                location,
-            ),
-        );
+            )
+        });
         PlaneVectorField3::new(self.name.to_string(), slice_grid, slice_field_components)
     }
 }
@@ -2382,7 +2285,7 @@ where
     /// Returns a set of references to the coordinates where the field
     /// values of each component are defined.
     pub fn all_coords(&self) -> In2D<CoordRefs2<fgr>> {
-        In2D::new(self.coords(Dim2::X), self.coords(Dim2::Y))
+        In2D::with_each_component(|dim| self.coords(dim))
     }
 
     /// Returns a reference to the 2D array of field values for the
@@ -2398,7 +2301,7 @@ where
 
     /// Returns a reference to the 2D array of field values for each component.
     pub fn all_values(&self) -> In2D<&Array2<F>> {
-        In2D::new(self.values(Dim2::X), self.values(Dim2::Y))
+        In2D::with_each_component(|dim| self.values(dim))
     }
 
     /// Returns the field vector at the given 2D index.
@@ -2481,12 +2384,12 @@ where
     /// Returns a set of references to the coordinates where the field
     /// values of each component are defined.
     pub fn all_coords(&self) -> In3D<CoordRefs2<fgr>> {
-        In3D::new(self.coords(X), self.coords(Y), self.coords(Z))
+        In3D::with_each_component(|dim| self.coords(dim))
     }
 
     /// Returns a reference to the 3D array of field values for each component.
     pub fn all_values(&self) -> In3D<&Array2<F>> {
-        In3D::new(self.values(X), self.values(Y), self.values(Z))
+        In3D::with_each_component(|dim| self.values(dim))
     }
 
     /// Returns the field vector at the given 3D index.

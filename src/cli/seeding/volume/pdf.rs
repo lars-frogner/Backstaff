@@ -4,10 +4,7 @@
 use crate::{
     cli::utils,
     exit_on_error,
-    geometry::{
-        Dim3::{X, Y, Z},
-        In3D, Point3, Vec3,
-    },
+    geometry::{In3D, Point3, Vec3},
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotProvider3},
@@ -91,11 +88,9 @@ where
         utils::get_finite_float_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
     let grid_cell_extents = provider.grid().average_grid_cell_extents();
-    let new_shape = In3D::new(
-        ((upper_bounds[X] - lower_bounds[X]) / grid_cell_extents[X]).round() as usize,
-        ((upper_bounds[Y] - lower_bounds[Y]) / grid_cell_extents[Y]).round() as usize,
-        ((upper_bounds[Z] - lower_bounds[Z]) / grid_cell_extents[Z]).round() as usize,
-    );
+    let new_shape = In3D::with_each_component(|dim| {
+        ((upper_bounds[dim] - lower_bounds[dim]) / grid_cell_extents[dim]).round() as usize
+    });
     let grid = RegularGrid3::from_bounds(new_shape, lower_bounds, upper_bounds, In3D::same(false));
 
     if arguments.is_present("is-vector-quantity") {
