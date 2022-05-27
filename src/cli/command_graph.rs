@@ -15,9 +15,16 @@ use std::{
     sync::Mutex,
 };
 
-pub const CONFIG_COMMANDS: [&str; 17] = [
+pub const CONFIG_COMMANDS: [&str; 24] = [
     "derive",
     "synthesize",
+    "statistics",
+    "regular",
+    "horizontally_regular",
+    "mesh_file",
+    "regular_grid",
+    "rotated_regular_grid",
+    "reshaped_grid",
     "sample_averaging",
     "cell_averaging",
     "direct_sampling",
