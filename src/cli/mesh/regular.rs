@@ -82,29 +82,32 @@ pub fn run_regular_subcommand(
         "Error: Grid size must be larger than zero in every dimension"
     );
 
-    let bounds_x =
-        utils::get_values_from_required_parseable_argument(arguments, "x-bounds", Some(2));
-    exit_on_false!(
-        bounds_x[1] > bounds_x[0],
-        "Error: Upper bound on x must be larger than lower bound"
+    let x_bounds = utils::parse_limits(
+        arguments,
+        "x-bounds",
+        utils::AllowSameValue::No,
+        utils::AllowInfinity::No,
+        None,
     );
-    let bounds_y =
-        utils::get_values_from_required_parseable_argument(arguments, "y-bounds", Some(2));
-    exit_on_false!(
-        bounds_y[1] > bounds_y[0],
-        "Error: Upper bound on y must be larger than lower bound"
+    let y_bounds = utils::parse_limits(
+        arguments,
+        "y-bounds",
+        utils::AllowSameValue::No,
+        utils::AllowInfinity::No,
+        None,
     );
-    let bounds_z =
-        utils::get_values_from_required_parseable_argument(arguments, "z-bounds", Some(2));
-    exit_on_false!(
-        bounds_z[1] > bounds_z[0],
-        "Error: Upper bound on z must be larger than lower bound"
+    let z_bounds = utils::parse_limits(
+        arguments,
+        "z-bounds",
+        utils::AllowSameValue::No,
+        utils::AllowInfinity::No,
+        None,
     );
 
     let grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),
-        Vec3::new(bounds_x[0], bounds_y[0], bounds_z[0]),
-        Vec3::new(bounds_x[1], bounds_y[1], bounds_z[1]),
+        Vec3::new(x_bounds.0, y_bounds.0, z_bounds.0),
+        Vec3::new(x_bounds.1, y_bounds.1, z_bounds.1),
         In3D::same(false),
     );
 

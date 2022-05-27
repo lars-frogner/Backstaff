@@ -87,7 +87,8 @@ where
         .to_lowercase();
 
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
-    let power = utils::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
+    let power =
+        utils::get_finite_float_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
     let grid_cell_extents = provider.grid().average_grid_cell_extents();
     let new_shape = In3D::new(

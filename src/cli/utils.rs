@@ -120,6 +120,27 @@ where
         .collect()
 }
 
+fn verify_finite_float_value<F: BFloat>(argument_name: &str, value: F) {
+    exit_on_false!(value.is_finite(), "Error: {} must be finite", argument_name);
+}
+
+fn verify_argument_value_count<T>(
+    argument_name: &str,
+    values: &[T],
+    required_count: Option<usize>,
+) {
+    if let Some(required_count) = required_count {
+        let count = values.len();
+        exit_on_false!(
+            count == required_count,
+            "Error: {} must have {} values, got {}",
+            argument_name,
+            required_count,
+            count
+        );
+    }
+}
+
 pub fn get_value_from_required_parseable_argument<T>(
     arguments: &ArgMatches,
     argument_name: &str,
@@ -136,21 +157,17 @@ where
     )
 }
 
-pub fn verify_argument_value_count<T>(
+pub fn get_finite_float_value_from_required_parseable_argument<F>(
+    arguments: &ArgMatches,
     argument_name: &str,
-    values: &[T],
-    required_count: Option<usize>,
-) {
-    if let Some(required_count) = required_count {
-        let count = values.len();
-        exit_on_false!(
-            count == required_count,
-            "Error: {} must have {} values, got {}",
-            argument_name,
-            required_count,
-            count
-        );
-    }
+) -> F
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+{
+    let value: F = get_value_from_required_parseable_argument(arguments, argument_name);
+    verify_finite_float_value(argument_name, value);
+    value
 }
 
 pub fn get_values_from_parseable_argument<T>(
@@ -169,6 +186,24 @@ where
     })
 }
 
+pub fn get_finite_float_values_from_parseable_argument<F>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    required_count: Option<usize>,
+) -> Option<Vec<F>>
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+{
+    let values = get_values_from_parseable_argument(arguments, argument_name, required_count);
+    if let Some(values) = values.as_ref() {
+        values
+            .iter()
+            .for_each(|&value| verify_finite_float_value(argument_name, value))
+    };
+    values
+}
+
 pub fn get_values_from_required_parseable_argument<T>(
     arguments: &ArgMatches,
     argument_name: &str,
@@ -185,6 +220,23 @@ where
             .expect("No values for required argument"),
     );
     verify_argument_value_count(argument_name, &values, required_count);
+    values
+}
+
+pub fn get_finite_float_values_from_required_parseable_argument<F>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    required_count: Option<usize>,
+) -> Vec<F>
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+{
+    let values =
+        get_values_from_required_parseable_argument(arguments, argument_name, required_count);
+    values
+        .iter()
+        .for_each(|&value| verify_finite_float_value(argument_name, value));
     values
 }
 
@@ -224,6 +276,29 @@ where
         default_constructor()
     };
     verify_argument_value_count(argument_name, &values, required_count);
+    values
+}
+
+pub fn get_finite_float_values_from_parseable_argument_with_custom_defaults<F, D>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    default_constructor: &D,
+    required_count: Option<usize>,
+) -> Vec<F>
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+    D: Fn() -> Vec<F>,
+{
+    let values = get_values_from_parseable_argument_with_custom_defaults(
+        arguments,
+        argument_name,
+        default_constructor,
+        required_count,
+    );
+    values
+        .iter()
+        .for_each(|&value| verify_finite_float_value(argument_name, value));
     values
 }
 
@@ -372,7 +447,25 @@ where
     )
 }
 
-pub fn parse_limits<F>(arguments: &ArgMatches, argument_name: &str, allow_infinity: bool) -> (F, F)
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AllowSameValue {
+    Yes,
+    No,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AllowInfinity {
+    Yes,
+    No,
+}
+
+pub fn parse_limits<F>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    allow_same_value: AllowSameValue,
+    allow_infinity: AllowInfinity,
+    special_values: Option<&HashMap<&str, F>>,
+) -> (F, F)
 where
     F: BFloat + FromStr,
     <F as FromStr>::Err: std::fmt::Display,
@@ -381,29 +474,97 @@ where
         .values_of(argument_name)
         .expect("No value for argument with default")
         .into_iter()
-        .map(|string| match string {
-            "-inf" if allow_infinity => F::neg_infinity(),
-            "inf" if allow_infinity => F::infinity(),
-            values_str => exit_on_error!(
-                values_str.parse::<F>(),
-                "Error: Could not parse value in {0}: {1}",
-                argument_name
-            ),
-        })
         .collect();
+
+    verify_argument_value_count(argument_name, &limits, Some(2));
+
+    let parse = |string: &str| {
+        special_values
+            .and_then(|special_values| special_values.get(string).cloned())
+            .unwrap_or_else(|| {
+                exit_on_error!(
+                    string.parse::<F>(),
+                    "Error: Could not parse value in {0}: {1}",
+                    argument_name
+                )
+            })
+    };
+
+    let lower_limit = parse(limits[0]);
+    let upper_limit = parse(limits[1]);
+
     exit_on_false!(
-        limits[1] >= limits[0],
-        "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
-        argument_name,
-        limits[1],
-        limits[0]
+        !(lower_limit.is_nan() || upper_limit.is_nan()),
+        "Error: {} contains a NaN value",
+        argument_name
     );
-    (limits[0], limits[1])
+
+    exit_on_false!(
+        allow_infinity == AllowInfinity::Yes
+            || (lower_limit.is_finite() && upper_limit.is_finite()),
+        "Error: {} must be finite",
+        argument_name
+    );
+
+    match allow_same_value {
+        AllowSameValue::Yes => exit_on_false!(
+            upper_limit >= lower_limit,
+            "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
+            argument_name,
+            upper_limit,
+            lower_limit
+        ),
+        AllowSameValue::No => exit_on_false!(
+            upper_limit > lower_limit,
+            "Error: Second value in {} ({}) must be larger than first value ({})",
+            argument_name,
+            upper_limit,
+            lower_limit
+        ),
+    };
+    (lower_limit, upper_limit)
 }
 
-pub fn parse_int_limits<I>(
+pub fn parse_limits_with_min_max<F>(
     arguments: &ArgMatches,
     argument_name: &str,
+    allow_same_value: AllowSameValue,
+    allow_infinity: AllowInfinity,
+    min_value: F,
+    max_value: F,
+) -> (F, F)
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+{
+    match allow_same_value {
+        AllowSameValue::Yes => assert!(
+            max_value >= min_value,
+            "Max value ({}) not larger than or equal to min value ({})",
+            max_value,
+            min_value
+        ),
+        AllowSameValue::No => assert!(
+            max_value > min_value,
+            "Max value ({}) not larger than min value ({})",
+            max_value,
+            min_value
+        ),
+    };
+    let special_values = HashMap::from_iter([("min", min_value), ("max", max_value)].into_iter());
+    parse_limits(
+        arguments,
+        argument_name,
+        allow_same_value,
+        allow_infinity,
+        Some(&special_values),
+    )
+}
+
+pub fn parse_int_limits_with_min_max<I>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    allow_same_value: AllowSameValue,
     min_value: I,
     max_value: I,
 ) -> (I, I)
@@ -411,12 +572,20 @@ where
     I: num::Integer + Copy + FromStr + std::fmt::Display,
     <I as FromStr>::Err: std::fmt::Display,
 {
-    assert!(
-        max_value >= min_value,
-        "Max int value ({}) not larger than or equal to min value ({})",
-        max_value,
-        min_value
-    );
+    match allow_same_value {
+        AllowSameValue::Yes => assert!(
+            max_value >= min_value,
+            "Max value ({}) not larger than or equal to min value ({})",
+            max_value,
+            min_value
+        ),
+        AllowSameValue::No => assert!(
+            max_value > min_value,
+            "Max value ({}) not larger than min value ({})",
+            max_value,
+            min_value
+        ),
+    };
     let limits: Vec<_> = arguments
         .values_of(argument_name)
         .expect("No value for argument with default")
@@ -431,13 +600,24 @@ where
             ),
         })
         .collect();
-    exit_on_false!(
-        limits[1] >= limits[0],
-        "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
-        argument_name,
-        limits[1],
-        limits[0]
-    );
+
+    match allow_same_value {
+        AllowSameValue::Yes => exit_on_false!(
+            limits[1] >= limits[0],
+            "Error: Second value in {} ({}) must be larger than or equal to first value ({})",
+            argument_name,
+            limits[1],
+            limits[0]
+        ),
+        AllowSameValue::No => exit_on_false!(
+            limits[1] > limits[0],
+            "Error: Second value in {} ({}) must be larger than first value ({})",
+            argument_name,
+            limits[1],
+            limits[0]
+        ),
+    };
+
     (limits[0], limits[1])
 }
 

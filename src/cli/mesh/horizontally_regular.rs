@@ -137,25 +137,28 @@ pub fn run_horizontally_regular_subcommand(
         "Error: Grid size must be at least 8 in every dimension"
     );
 
-    let bounds_x =
-        utils::get_values_from_required_parseable_argument(arguments, "x-bounds", Some(2));
-    exit_on_false!(
-        bounds_x[1] > bounds_x[0],
-        "Error: Upper bound on x must be larger than lower bound"
+    let x_bounds = utils::parse_limits(
+        arguments,
+        "x-bounds",
+        utils::AllowSameValue::No,
+        utils::AllowInfinity::No,
+        None,
     );
-    let bounds_y =
-        utils::get_values_from_required_parseable_argument(arguments, "y-bounds", Some(2));
-    exit_on_false!(
-        bounds_y[1] > bounds_y[0],
-        "Error: Upper bound on y must be larger than lower bound"
+    let y_bounds = utils::parse_limits(
+        arguments,
+        "y-bounds",
+        utils::AllowSameValue::No,
+        utils::AllowInfinity::No,
+        None,
     );
-    let bounds_z =
-        utils::get_values_from_required_parseable_argument(arguments, "z-bounds", Some(2));
-    exit_on_false!(
-        bounds_z[1] > bounds_z[0],
-        "Error: Upper bound on z must be larger than lower bound"
+    let z_bounds = utils::parse_limits(
+        arguments,
+        "z-bounds",
+        utils::AllowSameValue::No,
+        utils::AllowInfinity::No,
+        None,
     );
-    let boundary_dz_scales = utils::get_values_from_required_parseable_argument(
+    let boundary_dz_scales = utils::get_finite_float_values_from_required_parseable_argument(
         arguments,
         "boundary-dz-scales",
         Some(2),
@@ -165,15 +168,16 @@ pub fn run_horizontally_regular_subcommand(
         "Error: Boundary dz scales must be larger than zero"
     );
 
-    let interior_z: Vec<fgr> = utils::get_values_from_parseable_argument_with_custom_defaults(
-        arguments,
-        "interior-z",
-        &Vec::new,
-        None,
-    );
+    let interior_z: Vec<fgr> =
+        utils::get_finite_float_values_from_parseable_argument_with_custom_defaults(
+            arguments,
+            "interior-z",
+            &Vec::new,
+            None,
+        );
 
     let interior_dz_scales: Vec<fgr> =
-        utils::get_values_from_parseable_argument_with_custom_defaults(
+        utils::get_finite_float_values_from_parseable_argument_with_custom_defaults(
             arguments,
             "interior-dz-scales",
             &Vec::new,
@@ -186,9 +190,7 @@ pub fn run_horizontally_regular_subcommand(
     );
 
     exit_on_false!(
-        interior_z
-            .iter()
-            .all(|&z| z > bounds_z[0] && z < bounds_z[1]),
+        interior_z.iter().all(|&z| z > z_bounds.0 && z < z_bounds.1),
         "Error: All interior control z-coordinates must be inside z-boundaries"
     );
 
@@ -198,9 +200,9 @@ pub fn run_horizontally_regular_subcommand(
     );
 
     let (centers_x, lower_edges_x) =
-        grid::regular_coords_from_bounds(shape[0], bounds_x[0], bounds_x[1]);
+        grid::regular_coords_from_bounds(shape[0], x_bounds.0, x_bounds.1);
     let (centers_y, lower_edges_y) =
-        grid::regular_coords_from_bounds(shape[1], bounds_y[0], bounds_y[1]);
+        grid::regular_coords_from_bounds(shape[1], y_bounds.0, y_bounds.1);
 
     let mut coords_and_scales: Vec<_> = interior_z
         .into_iter()
@@ -211,9 +213,9 @@ pub fn run_horizontally_regular_subcommand(
         coords_and_scales.into_iter().unzip();
 
     let mut control_z = Vec::with_capacity(2 + interior_z.len());
-    control_z.push(bounds_z[0]);
+    control_z.push(z_bounds.0);
     control_z.append(&mut interior_z);
-    control_z.push(bounds_z[1]);
+    control_z.push(z_bounds.1);
 
     let mut dz_scales = Vec::with_capacity(2 + interior_dz_scales.len());
     dz_scales.push(boundary_dz_scales[0]);
@@ -228,8 +230,8 @@ pub fn run_horizontally_regular_subcommand(
     let (centers_z, lower_edges_z) = exit_on_error!(
         grid::create_new_grid_coords_from_control_extents(
             shape[2],
-            bounds_z[0],
-            bounds_z[1],
+            z_bounds.0,
+            z_bounds.1,
             &control_z,
             &dz_scales,
             &interpolator,

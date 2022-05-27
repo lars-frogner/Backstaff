@@ -162,16 +162,22 @@ pub trait SnapshotParameters: Clone {
         C: Fn(T) -> U,
     {
         let use_default = |_| {
-            println!(
-                "Could not find parameter {}, falling back to default for {}: {}",
+            eprintln!(
+                "Warning: Could not find parameter {}, falling back to default for {}: {}",
                 name_in_param_file, display_name, default_value
             );
             default_value
         };
         self.get_value(name_in_param_file)
             .map_or_else(use_default, |val| {
-                val.try_as_float()
-                    .map_or_else(use_default, |val| conversion_mapping(val.into()))
+                val.try_as_float().map_or_else(use_default, |val| {
+                    exit_on_false!(
+                        val.is_finite(),
+                        "Error: Parameter {} must be finite",
+                        display_name
+                    );
+                    conversion_mapping(val.into())
+                })
             })
     }
 }

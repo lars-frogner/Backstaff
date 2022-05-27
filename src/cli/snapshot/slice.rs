@@ -156,7 +156,9 @@ pub fn run_slice_subcommand<G, P>(
         .value_of("axis")
         .expect("No value for required argument");
 
-    let coord = cli_utils::get_value_from_required_parseable_argument::<fgr>(arguments, "coord");
+    let coord = cli_utils::get_finite_float_value_from_required_parseable_argument::<fgr>(
+        arguments, "coord",
+    );
 
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(

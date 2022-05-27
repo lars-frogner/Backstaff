@@ -13,7 +13,7 @@ use self::{
 };
 use crate::{
     cli::utils as cli_utils,
-    exit_on_false, exit_with_error,
+    exit_with_error,
     geometry::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
@@ -45,9 +45,10 @@ pub fn create_volume_seeder_subcommand(_parent_command_name: &'static str) -> Co
                 .value_names(&["LOWER", "UPPER"])
                 .help(
                     "Limits for the x-coordinates of the volume in which\n\
-                     to generate seed points [default: full snapshot extent]",
+                     to generate seed points",
                 )
-                .takes_value(true),
+                .takes_value(true)
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("y-bounds")
@@ -59,9 +60,10 @@ pub fn create_volume_seeder_subcommand(_parent_command_name: &'static str) -> Co
                 .value_names(&["LOWER", "UPPER"])
                 .help(
                     "Limits for the y-coordinates of the volume in which\n\
-                     to generate seed points [default: full snapshot extent]",
+                     to generate seed points",
                 )
-                .takes_value(true),
+                .takes_value(true)
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("z-bounds")
@@ -73,9 +75,10 @@ pub fn create_volume_seeder_subcommand(_parent_command_name: &'static str) -> Co
                 .value_names(&["LOWER", "UPPER"])
                 .help(
                     "Limits for the z-coordinates of the volume in which\n\
-                     to generate seed points [default: full snapshot extent]",
+                     to generate seed points",
                 )
-                .takes_value(true),
+                .takes_value(true)
+                .default_value("min,max"),
         )
         .subcommand(create_regular_subcommand(command_name))
         .subcommand(create_random_subcommand(command_name))
@@ -99,38 +102,33 @@ where
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let x_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let x_bounds = cli_utils::parse_limits_with_min_max(
         arguments,
         "x-bounds",
-        &|| vec![original_lower_bounds[X], original_upper_bounds[X]],
-        Some(2),
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        original_lower_bounds[X],
+        original_upper_bounds[X],
     );
-    exit_on_false!(
-        x_bounds[1] > x_bounds[0],
-        "Error: Upper bound for x must exceed lower bound"
-    );
-    let y_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let y_bounds = cli_utils::parse_limits_with_min_max(
         arguments,
         "y-bounds",
-        &|| vec![original_lower_bounds[Y], original_upper_bounds[Y]],
-        Some(2),
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        original_lower_bounds[Y],
+        original_upper_bounds[Y],
     );
-    exit_on_false!(
-        y_bounds[1] > y_bounds[0],
-        "Error: Upper bound for y must exceed lower bound"
-    );
-    let z_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let z_bounds = cli_utils::parse_limits_with_min_max(
         arguments,
         "z-bounds",
-        &|| vec![original_lower_bounds[Z], original_upper_bounds[Z]],
-        Some(2),
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        original_lower_bounds[Z],
+        original_upper_bounds[Z],
     );
-    exit_on_false!(
-        z_bounds[1] > z_bounds[0],
-        "Error: Upper bound for z must exceed lower bound"
-    );
-    let lower_bounds = Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]);
-    let upper_bounds = Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]);
+
+    let lower_bounds = Vec3::new(x_bounds.0, y_bounds.0, z_bounds.0);
+    let upper_bounds = Vec3::new(x_bounds.1, y_bounds.1, z_bounds.1);
 
     let satisifes_constraints = |_: &Point3<fgr>| true;
 

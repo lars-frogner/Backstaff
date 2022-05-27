@@ -227,14 +227,20 @@ where
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
-    let max_pitch_angle =
-        utils::get_value_from_required_parseable_argument(arguments, "max-pitch-angle");
+    let max_pitch_angle = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "max-pitch-angle",
+    );
 
-    let max_electric_field_angle =
-        utils::get_value_from_required_parseable_argument(arguments, "max-electric-field-angle");
+    let max_electric_field_angle = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "max-electric-field-angle",
+    );
 
-    let min_temperature =
-        utils::get_value_from_required_parseable_argument(arguments, "min-temperature");
+    let min_temperature = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "min-temperature",
+    );
 
     let max_mass_density = match arguments
         .value_of("max-mass-density")
@@ -247,13 +253,21 @@ where
         ),
     };
 
-    let inclusion_probability =
-        utils::get_value_from_required_parseable_argument(arguments, "inclusion-probability");
+    let inclusion_probability = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "inclusion-probability",
+    );
 
     let initial_cutoff_energy_guess =
-        utils::get_value_from_required_parseable_argument(arguments, "cutoff-energy-guess");
+        utils::get_finite_float_value_from_required_parseable_argument(
+            arguments,
+            "cutoff-energy-guess",
+        );
     let acceptable_root_finding_error =
-        utils::get_value_from_required_parseable_argument(arguments, "root-finding-error");
+        utils::get_finite_float_value_from_required_parseable_argument(
+            arguments,
+            "root-finding-error",
+        );
     let max_root_finding_iterations =
         utils::get_value_from_required_parseable_argument(arguments, "root-finding-iterations");
 

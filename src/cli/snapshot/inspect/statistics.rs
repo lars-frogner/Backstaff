@@ -91,46 +91,46 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .default_value("-inf,inf"),
         )
         .arg(
-            Arg::new("x-range")
+            Arg::new("x-bounds")
                 .short('x')
-                .long("x-range")
+                .long("x-bounds")
                 .require_equals(true)
                 .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
-                .value_names(&["MIN", "MAX"])
+                .value_names(&["LOWER", "UPPER"])
                 .help(
-                    "Range of x-coordinate values that will be included when computing statistics\n",
+                    "Limits for the x-coordinates that will be included when computing statistics\n",
                 )
                 .takes_value(true)
-                .default_value("-inf,inf"),
+                .default_value("min,max"),
         )
         .arg(
-            Arg::new("y-range")
+            Arg::new("y-bounds")
                 .short('y')
-                .long("y-range")
+                .long("y-bounds")
                 .require_equals(true)
                 .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
-                .value_names(&["MIN", "MAX"])
+                .value_names(&["LOWER", "UPPER"])
                 .help(
-                    "Range of y-coordinate values that will be included when computing statistics\n",
+                    "Limits for the y-coordinates that will be included when computing statistics\n",
                 )
                 .takes_value(true)
-                .default_value("-inf,inf"),
+                .default_value("min,max"),
         )
         .arg(
-            Arg::new("z-range")
+            Arg::new("z-bounds")
                 .short('z')
-                .long("z-range")
+                .long("z-bounds")
                 .require_equals(true)
                 .use_value_delimiter(true).require_value_delimiter(true)
                 .allow_hyphen_values(true)
-                .value_names(&["MIN", "MAX"])
+                .value_names(&["LOWER", "UPPER"])
                 .help(
-                    "Range of z-coordinate values that will be included when computing statistics\n",
+                    "Limits for the x-coordinates that will be included when computing statistics\n",
                 )
                 .takes_value(true)
-                .default_value("-inf,inf"),
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("no-global")
@@ -149,16 +149,54 @@ pub fn run_statistics_subcommand<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let value_range = utils::parse_limits(arguments, "value-range", true);
-    let x_range = utils::parse_limits(arguments, "x-range", true);
-    let y_range = utils::parse_limits(arguments, "y-range", true);
-    let z_range = utils::parse_limits(arguments, "z-range", true);
+    let grid = provider.grid();
+    let lower_bounds = grid.lower_bounds();
+    let upper_bounds = grid.upper_bounds();
 
-    let slice_depths =
-        utils::get_values_from_parseable_argument::<fgr>(arguments, "slice-depths", None);
+    let value_range = utils::parse_limits(
+        arguments,
+        "value-range",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::Yes,
+        None,
+    );
 
-    let percentages =
-        utils::get_values_from_parseable_argument::<f64>(arguments, "percentages", None);
+    let x_range = utils::parse_limits_with_min_max(
+        arguments,
+        "x-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::No,
+        lower_bounds[X],
+        upper_bounds[X],
+    );
+    let y_range = utils::parse_limits_with_min_max(
+        arguments,
+        "y-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::No,
+        lower_bounds[Y],
+        upper_bounds[Y],
+    );
+    let z_range = utils::parse_limits_with_min_max(
+        arguments,
+        "z-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::No,
+        lower_bounds[Z],
+        upper_bounds[Z],
+    );
+
+    let slice_depths = utils::get_finite_float_values_from_parseable_argument::<fgr>(
+        arguments,
+        "slice-depths",
+        None,
+    );
+
+    let percentages = utils::get_finite_float_values_from_parseable_argument::<f64>(
+        arguments,
+        "percentages",
+        None,
+    );
 
     let no_global = arguments.is_present("no-global");
 
@@ -242,17 +280,24 @@ fn format_idx(idx: usize) -> String {
     format!("{:iw$}", idx, iw = IDX_WIDTH)
 }
 
-fn format_range<F, S, M>(name: &str, range: &(F, F), precision: usize, mapper: M) -> String
+fn format_range<F, S, M>(
+    name: &str,
+    range: &(F, F),
+    min: F,
+    max: F,
+    precision: usize,
+    mapper: M,
+) -> String
 where
     F: BFloat,
     S: Display,
     M: Fn(F) -> S,
 {
-    if range.0 == F::neg_infinity() && range.1 == F::infinity() {
+    if range.0 <= min && range.1 >= max {
         format!("all {}", name)
-    } else if range.1 == F::infinity() {
+    } else if range.1 >= max {
         format!("{} \u{2265} {:.p$}", name, mapper(range.0), p = precision)
-    } else if range.0 == F::neg_infinity() {
+    } else if range.0 <= min {
         format!("{} \u{2264} {:.p$}", name, mapper(range.1), p = precision)
     } else {
         format!(
@@ -284,6 +329,8 @@ fn print_statistics_report<G, I>(
     let locations = field.locations().clone();
     let grid = field.arc_with_grid();
     let mut values = field.into_values();
+    let lower_bounds = grid.lower_bounds();
+    let upper_bounds = grid.upper_bounds();
 
     print_whole_line('=');
     print_padded_headline(
@@ -301,12 +348,38 @@ fn print_statistics_report<G, I>(
     print_padded_headline(
         &format!(
             "For {}, {}, {}, {}",
-            format_range(&quantity_name, &value_range, VALUE_WIDTH, |v| {
-                PrettyPrintFloat(v as f64)
-            }),
-            format_range("x", &x_range, COORD_PRECISION, |c| c),
-            format_range("y", &y_range, COORD_PRECISION, |c| c),
-            format_range("z", &z_range, COORD_PRECISION, |c| c),
+            format_range(
+                &quantity_name,
+                &value_range,
+                fdt::NEG_INFINITY,
+                fdt::INFINITY,
+                VALUE_WIDTH,
+                |v| { PrettyPrintFloat(v as f64) }
+            ),
+            format_range(
+                "x",
+                &x_range,
+                lower_bounds[X],
+                upper_bounds[X],
+                COORD_PRECISION,
+                |c| c
+            ),
+            format_range(
+                "y",
+                &y_range,
+                lower_bounds[Y],
+                upper_bounds[Y],
+                COORD_PRECISION,
+                |c| c
+            ),
+            format_range(
+                "z",
+                &z_range,
+                lower_bounds[Z],
+                upper_bounds[Z],
+                COORD_PRECISION,
+                |c| c
+            ),
         ),
         ' ',
     );

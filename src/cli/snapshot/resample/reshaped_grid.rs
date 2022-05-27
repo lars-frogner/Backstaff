@@ -100,8 +100,11 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
 {
     let original_shape = provider.grid().shape();
 
-    let scales: Vec<fgr> =
-        utils::get_values_from_required_parseable_argument(root_arguments, "scales", Some(3));
+    let scales: Vec<fgr> = utils::get_finite_float_values_from_required_parseable_argument(
+        root_arguments,
+        "scales",
+        Some(3),
+    );
 
     let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
         utils::get_values_from_parseable_argument_with_custom_defaults(

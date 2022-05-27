@@ -13,7 +13,7 @@ use self::{
 };
 use crate::{
     cli::utils,
-    exit_on_false, exit_with_error,
+    exit_with_error,
     geometry::{Dim2, Dim3, Point2},
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
@@ -61,32 +61,34 @@ pub fn create_slice_seeder_subcommand(_parent_command_name: &'static str) -> Com
                 .takes_value(true),
         )
         .arg(
-            Arg::new("horizontal-limits")
-                .long("horizontal-limits")
+            Arg::new("horizontal-bounds")
+                .long("horizontal-bounds")
                 .require_equals(true)
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
-                .value_names(&["MIN", "MAX"])
+                .value_names(&["LOWER", "UPPER"])
                 .help(
                     "Smallest and largest value of the first slice coordinate for which\n\
-                     generated seed points will be accepted [default: no limits]",
+                     generated seed points will be accepted",
                 )
-                .takes_value(true),
+                .takes_value(true)
+                .default_value("-inf,inf"),
         )
         .arg(
-            Arg::new("vertical-limits")
-                .long("vertical-limits")
+            Arg::new("vertical-bounds")
+                .long("vertical-bounds")
                 .require_equals(true)
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
-                .value_names(&["MIN", "MAX"])
+                .value_names(&["LOWER", "UPPER"])
                 .help(
                     "Smallest and largest value of the second slice coordinate for which\n\
-                     generated seed points will be accepted [default: no limits]",
+                     generated seed points will be accepted",
                 )
-                .takes_value(true),
+                .takes_value(true)
+                .default_value("-inf,inf"),
         )
         .subcommand(create_regular_subcommand(command_name))
         .subcommand(create_random_subcommand(command_name))
@@ -111,36 +113,31 @@ where
         &["x", "y", "z"],
         &Dim3::slice(),
     );
-    let coord = utils::get_value_from_required_parseable_argument::<fgr>(arguments, "coord");
+    let coord =
+        utils::get_finite_float_value_from_required_parseable_argument::<fgr>(arguments, "coord");
 
-    let horizontal_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
+    let horizontal_bounds = utils::parse_limits(
         arguments,
-        "horizontal-limits",
-        &|| vec![fgr::NEG_INFINITY, fgr::INFINITY],
-        Some(2),
+        "horizontal-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::Yes,
+        None,
     );
-    exit_on_false!(
-        horizontal_limits[1] >= horizontal_limits[0],
-        "Error: Upper horizontal limit must be larger than or equal to lower horizontal limit"
-    );
-    let vertical_limits = utils::get_values_from_parseable_argument_with_custom_defaults(
+    let vertical_bounds = utils::parse_limits(
         arguments,
-        "vertical-limits",
-        &|| vec![fgr::NEG_INFINITY, fgr::INFINITY],
-        Some(2),
-    );
-    exit_on_false!(
-        vertical_limits[1] >= vertical_limits[0],
-        "Error: Upper vertical limit must be larger than or equal to lower vertical limit"
+        "vertical-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::Yes,
+        None,
     );
 
     let parameters = CommonSliceSeederParameters { axis, coord };
 
     let satisifes_constraints = |point: &Point2<fgr>| {
-        point[Dim2::X] >= horizontal_limits[0]
-            && point[Dim2::X] < horizontal_limits[1]
-            && point[Dim2::Y] >= vertical_limits[0]
-            && point[Dim2::Y] < vertical_limits[1]
+        point[Dim2::X] >= horizontal_bounds.0
+            && point[Dim2::X] < horizontal_bounds.1
+            && point[Dim2::Y] >= vertical_bounds.0
+            && point[Dim2::Y] < vertical_bounds.1
     };
 
     if let Some(seeder_arguments) = arguments.subcommand_matches("regular") {

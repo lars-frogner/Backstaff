@@ -84,7 +84,8 @@ where
         .to_lowercase();
 
     let n_seeds = utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-points");
-    let power = utils::get_value_from_required_parseable_argument::<fdt>(arguments, "power");
+    let power =
+        utils::get_finite_float_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
     if arguments.is_present("is-vector-quantity") {
         let field = exit_on_error!(

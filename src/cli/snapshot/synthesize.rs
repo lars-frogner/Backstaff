@@ -163,10 +163,20 @@ where
         "n-table-electron-densities",
     );
 
-    let log_temperature_limits =
-        cli_utils::parse_limits(arguments, "table-temperature-limits", false);
-    let log_electron_density_limits =
-        cli_utils::parse_limits(arguments, "table-electron-density-limits", false);
+    let log_temperature_limits = cli_utils::parse_limits(
+        arguments,
+        "table-temperature-limits",
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        None,
+    );
+    let log_electron_density_limits = cli_utils::parse_limits(
+        arguments,
+        "table-electron-density-limits",
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        None,
+    );
 
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbose = arguments.is_present("verbose").into();

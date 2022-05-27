@@ -16,10 +16,9 @@ use crate::{
     },
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::{
-        Dim2,
         Dim3::{X, Y, Z},
-        In3D, Point2, PointTransformation2, RotationAndTranslationTransformation2,
-        RotationTransformation2, SimplePolygon2, TranslationTransformation2, Vec3,
+        In3D, Point2, RotationAndTranslationTransformation2, RotationTransformation2,
+        SimplePolygon2, TranslationTransformation2, Vec3,
     },
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
@@ -102,6 +101,7 @@ pub fn create_rotated_regular_grid_subcommand(
         )
         .arg(
             Arg::new("y-extent")
+                .short('Y')
                 .long("y-extent")
                 .require_equals(true)
                 .value_name("EXTENT")
@@ -119,11 +119,9 @@ pub fn create_rotated_regular_grid_subcommand(
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help(
-                    "Limits for the z-coordinates of the resampled grid\n\
-                     [default: same as original]",
-                )
-                .takes_value(true),
+                .help("Limits for the z-coordinates of the resampled grid")
+                .takes_value(true)
+                .default_value("min,max"),
         )
         .subcommand(create_sample_averaging_subcommand(command_name))
         .subcommand(create_cell_averaging_subcommand(command_name))
@@ -161,8 +159,11 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let scales: Vec<fgr> =
-        cli_utils::get_values_from_required_parseable_argument(root_arguments, "scales", Some(3));
+    let scales: Vec<fgr> = cli_utils::get_finite_float_values_from_required_parseable_argument(
+        root_arguments,
+        "scales",
+        Some(3),
+    );
 
     let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
         cli_utils::get_values_from_parseable_argument_with_custom_defaults(
@@ -180,12 +181,12 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
         "Error: Grid size must be larger than zero in every dimension"
     );
 
-    let x_start = cli_utils::get_values_from_required_parseable_argument::<fgr>(
+    let x_start = cli_utils::get_finite_float_values_from_required_parseable_argument::<fgr>(
         root_arguments,
         "x-start",
         Some(2),
     );
-    let x_end = cli_utils::get_values_from_required_parseable_argument::<fgr>(
+    let x_end = cli_utils::get_finite_float_values_from_required_parseable_argument::<fgr>(
         root_arguments,
         "x-end",
         Some(2),
@@ -201,22 +202,22 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
         "Error: Extent in x-direction must be larger than zero"
     );
 
-    let y_extent =
-        cli_utils::get_value_from_required_parseable_argument::<fgr>(root_arguments, "y-extent");
+    let y_extent = cli_utils::get_finite_float_value_from_required_parseable_argument::<fgr>(
+        root_arguments,
+        "y-extent",
+    );
     exit_on_false!(
         y_extent > 0.0,
         "Error: Extent in y-direction must be larger than zero"
     );
 
-    let z_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let z_bounds = cli_utils::parse_limits_with_min_max(
         root_arguments,
         "z-bounds",
-        &|| vec![original_lower_bounds[Z], original_upper_bounds[Z]],
-        Some(2),
-    );
-    exit_on_false!(
-        z_bounds[1] > z_bounds[0],
-        "Error: Upper bound for z must exceed lower bound"
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        original_lower_bounds[Z],
+        original_upper_bounds[Z],
     );
 
     let transformation = RotationAndTranslationTransformation2::new(
@@ -224,8 +225,8 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
         TranslationTransformation2::new(x_start.to_vec2()),
     );
 
-    let new_lower_bounds = Vec3::new(0.0, 0.0, z_bounds[0]);
-    let new_upper_bounds = Vec3::new(x_extent, y_extent, z_bounds[1]);
+    let new_lower_bounds = Vec3::new(0.0, 0.0, z_bounds.0);
+    let new_upper_bounds = Vec3::new(x_extent, y_extent, z_bounds.1);
 
     if verbose.is_yes() {
         let hor_bound_polygon =

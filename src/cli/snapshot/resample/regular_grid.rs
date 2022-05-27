@@ -78,11 +78,9 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help(
-                    "Limits for the x-coordinates of the regular grid to resample to\n\
-                     [default: same as original]",
-                )
-                .takes_value(true),
+                .help("Limits for the x-coordinates of the regular grid to resample to")
+                .takes_value(true)
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("y-bounds")
@@ -93,11 +91,9 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help(
-                    "Limits for the y-coordinates of the regular grid to resample to\n\
-                     [default: same as original]",
-                )
-                .takes_value(true),
+                .help("Limits for the y-coordinates of the regular grid to resample to")
+                .takes_value(true)
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("z-bounds")
@@ -108,11 +104,9 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help(
-                    "Limits for the z-coordinates of the regular grid to resample to\n\
-                     [default: same as original]",
-                )
-                .takes_value(true),
+                .help("Limits for the z-coordinates of the regular grid to resample to")
+                .takes_value(true)
+                .default_value("min,max"),
         )
         .subcommand(create_sample_averaging_subcommand(command_name))
         .subcommand(create_cell_averaging_subcommand(command_name))
@@ -150,8 +144,11 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let scales: Vec<fgr> =
-        cli_utils::get_values_from_required_parseable_argument(root_arguments, "scales", Some(3));
+    let scales: Vec<fgr> = cli_utils::get_finite_float_values_from_required_parseable_argument(
+        root_arguments,
+        "scales",
+        Some(3),
+    );
 
     let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
         cli_utils::get_values_from_parseable_argument_with_custom_defaults(
@@ -168,38 +165,32 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
         shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
         "Error: Grid size must be larger than zero in every dimension"
     );
-    let x_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let x_bounds = cli_utils::parse_limits_with_min_max(
         root_arguments,
         "x-bounds",
-        &|| vec![original_lower_bounds[X], original_upper_bounds[X]],
-        Some(2),
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        original_lower_bounds[X],
+        original_upper_bounds[X],
     );
-    exit_on_false!(
-        x_bounds[1] > x_bounds[0],
-        "Error: Upper bound for x must exceed lower bound"
-    );
-    let y_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let y_bounds = cli_utils::parse_limits_with_min_max(
         root_arguments,
         "y-bounds",
-        &|| vec![original_lower_bounds[Y], original_upper_bounds[Y]],
-        Some(2),
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        original_lower_bounds[Y],
+        original_upper_bounds[Y],
     );
-    exit_on_false!(
-        y_bounds[1] > y_bounds[0],
-        "Error: Upper bound for y must exceed lower bound"
-    );
-    let z_bounds = cli_utils::get_values_from_parseable_argument_with_custom_defaults(
+    let z_bounds = cli_utils::parse_limits_with_min_max(
         root_arguments,
         "z-bounds",
-        &|| vec![original_lower_bounds[Z], original_upper_bounds[Z]],
-        Some(2),
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
+        original_lower_bounds[Z],
+        original_upper_bounds[Z],
     );
-    exit_on_false!(
-        z_bounds[1] > z_bounds[0],
-        "Error: Upper bound for z must exceed lower bound"
-    );
-    let new_lower_bounds = Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]);
-    let new_upper_bounds = Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]);
+    let new_lower_bounds = Vec3::new(x_bounds.0, y_bounds.0, z_bounds.0);
+    let new_upper_bounds = Vec3::new(x_bounds.1, y_bounds.1, z_bounds.1);
 
     let grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),

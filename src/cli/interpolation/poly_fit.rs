@@ -50,7 +50,10 @@ pub fn construct_poly_fit_interpolator_config_from_options(
 ) -> PolyFitInterpolatorConfig {
     let order = utils::get_value_from_required_parseable_argument(arguments, "order");
     let variation_threshold_for_linear =
-        utils::get_value_from_required_parseable_argument(arguments, "variation-threshold");
+        utils::get_finite_float_value_from_required_parseable_argument(
+            arguments,
+            "variation-threshold",
+        );
     PolyFitInterpolatorConfig {
         order,
         variation_threshold_for_linear,

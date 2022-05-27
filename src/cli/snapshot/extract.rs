@@ -55,7 +55,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Limits for the x-coordinates of the subgrid to extract")
                 .takes_value(true)
-                .default_value("-inf,inf"),
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("y-bounds")
@@ -68,7 +68,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Limits for the y-coordinates of the subgrid to extract")
                 .takes_value(true)
-                .default_value("-inf,inf"),
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("z-bounds")
@@ -81,7 +81,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Limits for the z-coordinates of the subgrid to extract")
                 .takes_value(true)
-                .default_value("-inf,inf"),
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("i-range")
@@ -93,7 +93,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["START", "END"])
                 .help("Range of indices to extract along the x-axis (inclusive)\n")
                 .takes_value(true)
-                .default_value("0,max"),
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("j-range")
@@ -105,7 +105,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["START", "END"])
                 .help("Range of indices to extract along the y-axis (inclusive)\n")
                 .takes_value(true)
-                .default_value("0,max"),
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("k-range")
@@ -117,7 +117,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["START", "END"])
                 .help("Range of indices to extract along the z-axis (inclusive)\n")
                 .takes_value(true)
-                .default_value("0,max"),
+                .default_value("min,max"),
         )
         .arg(
             Arg::new("verbose")
@@ -149,13 +149,52 @@ pub fn run_extract_subcommand<G, P>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let x_bounds = utils::parse_limits(arguments, "x-bounds", true);
-    let y_bounds = utils::parse_limits(arguments, "y-bounds", true);
-    let z_bounds = utils::parse_limits(arguments, "z-bounds", true);
+    let x_bounds = utils::parse_limits_with_min_max(
+        arguments,
+        "x-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::No,
+        original_lower_bounds[X],
+        original_upper_bounds[X],
+    );
+    let y_bounds = utils::parse_limits_with_min_max(
+        arguments,
+        "y-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::No,
+        original_lower_bounds[Y],
+        original_upper_bounds[Y],
+    );
+    let z_bounds = utils::parse_limits_with_min_max(
+        arguments,
+        "z-bounds",
+        utils::AllowSameValue::Yes,
+        utils::AllowInfinity::No,
+        original_lower_bounds[Z],
+        original_upper_bounds[Z],
+    );
 
-    let i_range = utils::parse_int_limits(arguments, "i-range", 0, original_shape[X] - 1);
-    let j_range = utils::parse_int_limits(arguments, "j-range", 0, original_shape[Y] - 1);
-    let k_range = utils::parse_int_limits(arguments, "k-range", 0, original_shape[Z] - 1);
+    let i_range = utils::parse_int_limits_with_min_max(
+        arguments,
+        "i-range",
+        utils::AllowSameValue::Yes,
+        0,
+        original_shape[X] - 1,
+    );
+    let j_range = utils::parse_int_limits_with_min_max(
+        arguments,
+        "j-range",
+        utils::AllowSameValue::Yes,
+        0,
+        original_shape[Y] - 1,
+    );
+    let k_range = utils::parse_int_limits_with_min_max(
+        arguments,
+        "k-range",
+        utils::AllowSameValue::Yes,
+        0,
+        original_shape[Z] - 1,
+    );
 
     let lower_bounds = Point3::new(x_bounds.0, y_bounds.0, z_bounds.0);
     let upper_bounds = Point3::new(x_bounds.1, y_bounds.1, z_bounds.1);

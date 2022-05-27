@@ -139,24 +139,32 @@ pub fn create_rkf_stepper_subcommand(_parent_command_name: &'static str) -> Comm
 pub fn construct_rkf_stepper_config_from_options(
     arguments: &ArgMatches,
 ) -> (RKFStepperType, RKFStepperConfig) {
-    let dense_step_length =
-        utils::get_value_from_required_parseable_argument(arguments, "dense-step-length");
+    let dense_step_length = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "dense-step-length",
+    );
     let max_step_attempts =
         utils::get_value_from_required_parseable_argument(arguments, "max-step-attempts");
-    let absolute_tolerance =
-        utils::get_value_from_required_parseable_argument(arguments, "absolute-tolerance");
-    let relative_tolerance =
-        utils::get_value_from_required_parseable_argument(arguments, "relative-tolerance");
+    let absolute_tolerance = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "absolute-tolerance",
+    );
+    let relative_tolerance = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "relative-tolerance",
+    );
     let safety_factor =
-        utils::get_value_from_required_parseable_argument(arguments, "safety-factor");
+        utils::get_finite_float_value_from_required_parseable_argument(arguments, "safety-factor");
     let min_step_scale =
-        utils::get_value_from_required_parseable_argument(arguments, "min-step-scale");
+        utils::get_finite_float_value_from_required_parseable_argument(arguments, "min-step-scale");
     let max_step_scale =
-        utils::get_value_from_required_parseable_argument(arguments, "max-step-scale");
+        utils::get_finite_float_value_from_required_parseable_argument(arguments, "max-step-scale");
     let initial_error =
-        utils::get_value_from_required_parseable_argument(arguments, "initial-error");
-    let initial_step_length =
-        utils::get_value_from_required_parseable_argument(arguments, "initial-step-length");
+        utils::get_finite_float_value_from_required_parseable_argument(arguments, "initial-error");
+    let initial_step_length = utils::get_finite_float_value_from_required_parseable_argument(
+        arguments,
+        "initial-step-length",
+    );
     let sudden_reversals_for_sink =
         utils::get_value_from_required_parseable_argument(arguments, "sudden-reversals-for-sink");
     let use_pi_control = !arguments.is_present("disable-pi-control");

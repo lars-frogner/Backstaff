@@ -71,8 +71,10 @@ where
         utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(3));
     let n_seeds_per_cell =
         utils::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
-    let randomness =
-        utils::get_value_from_required_parseable_argument::<fgr>(arguments, "randomness");
+    let randomness = utils::get_finite_float_value_from_required_parseable_argument::<fgr>(
+        arguments,
+        "randomness",
+    );
 
     let grid = RegularGrid3::from_bounds(
         In3D::new(shape[0], shape[1], shape[2]),
