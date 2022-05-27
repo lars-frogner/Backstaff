@@ -898,11 +898,12 @@ where
 
                 // Create polygon corresponding to overlying grid cell in the
                 // coordinate system of the underlying grid
-                let hor_overlying_grid_cell_polygon = SimplePolygon2::rectangle_from_bounds(
-                    &lower_overlying_corner.without_z().to_vec2(),
-                    &upper_overlying_corner.without_z().to_vec2(),
-                )
-                .transformed(transformation);
+                let hor_overlying_grid_cell_polygon =
+                    SimplePolygon2::rectangle_from_horizontal_bounds(
+                        &lower_overlying_corner.to_vec3(),
+                        &upper_overlying_corner.to_vec3(),
+                    )
+                    .transformed(transformation);
 
                 // Determine axis-aligned bounding box for the overlying grid cell in the
                 // coordinate system of the underlying grid
@@ -1162,11 +1163,12 @@ where
 
                 // Create polygon corresponding to overlying grid cell in the
                 // coordinate system of the underlying grid
-                let hor_overlying_grid_cell_polygon = SimplePolygon2::rectangle_from_bounds(
-                    &lower_overlying_corner.without_z().to_vec2(),
-                    &upper_overlying_corner.without_z().to_vec2(),
-                )
-                .transformed(transformation);
+                let hor_overlying_grid_cell_polygon =
+                    SimplePolygon2::rectangle_from_horizontal_bounds(
+                        &lower_overlying_corner.to_vec3(),
+                        &upper_overlying_corner.to_vec3(),
+                    )
+                    .transformed(transformation);
 
                 // Determine axis-aligned bounding box for the overlying grid cell in the
                 // coordinate system of the underlying grid

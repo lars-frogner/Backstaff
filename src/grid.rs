@@ -292,9 +292,9 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         let other_lower_bounds = other.lower_bounds();
         let other_upper_bounds = other.upper_bounds();
 
-        let other_hor_bound_polygon = SimplePolygon2::rectangle_from_bounds(
-            &other_lower_bounds.without_z(),
-            &other_upper_bounds.without_z(),
+        let other_hor_bound_polygon = SimplePolygon2::rectangle_from_horizontal_bounds(
+            other_lower_bounds,
+            other_upper_bounds,
         )
         .transformed(transformation);
 

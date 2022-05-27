@@ -1630,6 +1630,15 @@ impl<F: BFloat> SimplePolygon2<F> {
         ])
     }
 
+    /// Creates a rectangle polygon from the horizontal components of the given
+    /// lower and upper bounds.
+    pub fn rectangle_from_horizontal_bounds(
+        lower_bounds: &Vec3<F>,
+        upper_bounds: &Vec3<F>,
+    ) -> Self {
+        Self::rectangle_from_bounds(&lower_bounds.without_z(), &upper_bounds.without_z())
+    }
+
     /// Returns the number of vertices of the polygon.
     pub fn n_vertices(&self) -> usize {
         self.vertices().len()
