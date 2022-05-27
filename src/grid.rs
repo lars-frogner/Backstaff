@@ -184,6 +184,26 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         )
     }
 
+    /// Returns the lower bounds of the grid cell of the given 3D index.
+    fn grid_cell_lower_bounds(&self, indices: &Idx3<usize>) -> Vec3<F> {
+        self.lower_edges().vector(indices)
+    }
+
+    /// Returns the upper bounds of the grid cell of the given 3D index.
+    fn grid_cell_upper_bounds(&self, indices: &Idx3<usize>) -> Vec3<F> {
+        let shape = self.shape();
+        let lower_edges = self.lower_edges();
+        let upper_bounds = self.upper_bounds();
+        Vec3::with_each_component(|dim| {
+            let idx = indices[dim];
+            if idx == shape[dim] - 1 {
+                upper_bounds[dim]
+            } else {
+                lower_edges[dim][idx + 1]
+            }
+        })
+    }
+
     /// Returns the lower corner of the grid cell of the given 3D index.
     fn grid_cell_lower_corner(&self, indices: &Idx3<usize>) -> Point3<F> {
         self.lower_edges().point(indices)
@@ -191,16 +211,26 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 
     /// Returns the upper corner of the grid cell of the given 3D index.
     fn grid_cell_upper_corner(&self, indices: &Idx3<usize>) -> Point3<F> {
-        let grid_cell_extents = self.grid_cell_extents(indices);
-        self.grid_cell_lower_corner(indices) + &grid_cell_extents
+        let shape = self.shape();
+        let lower_edges = self.lower_edges();
+        let upper_bounds = self.upper_bounds();
+        Point3::with_each_component(|dim| {
+            let idx = indices[dim];
+            if idx == shape[dim] - 1 {
+                upper_bounds[dim]
+            } else {
+                lower_edges[dim][idx + 1]
+            }
+            .prev()
+        })
     }
 
     /// Returns the lower and upper corner of the grid cell of the given 3D index.
     fn grid_cell_extremal_corners(&self, indices: &Idx3<usize>) -> (Point3<F>, Point3<F>) {
-        let lower_corner = self.lower_edges().point(indices);
-        let grid_cell_extents = self.grid_cell_extents(indices);
-        let upper_corner = &lower_corner + &grid_cell_extents;
-        (lower_corner, upper_corner)
+        (
+            self.grid_cell_lower_corner(indices),
+            self.grid_cell_upper_corner(indices),
+        )
     }
 
     /// Returns the coordinate extents of the grid cell at the given 3D index.
@@ -298,23 +328,23 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         )
         .transformed(transformation);
 
-        let (other_hor_bounding_box_lower_corner, other_hor_bounding_box_upper_corner) =
+        let (other_hor_bounding_box_lower_bounds, other_hor_bounding_box_upper_bounds) =
             other_hor_bound_polygon.bounds().unwrap();
 
-        let other_bounding_box_lower_corner = Vec3::new(
-            other_hor_bounding_box_lower_corner[Dim2::X],
-            other_hor_bounding_box_lower_corner[Dim2::Y],
+        let other_bounding_box_lower_bounds = Vec3::new(
+            other_hor_bounding_box_lower_bounds[Dim2::X],
+            other_hor_bounding_box_lower_bounds[Dim2::Y],
             other_lower_bounds[Z],
         );
-        let other_bounding_box_upper_corner = Vec3::new(
-            other_hor_bounding_box_upper_corner[Dim2::X],
-            other_hor_bounding_box_upper_corner[Dim2::Y],
+        let other_bounding_box_upper_bounds = Vec3::new(
+            other_hor_bounding_box_upper_bounds[Dim2::X],
+            other_hor_bounding_box_upper_bounds[Dim2::Y],
             other_upper_bounds[Z],
         );
 
         self.contains_bounds(
-            &other_bounding_box_lower_corner,
-            &other_bounding_box_upper_corner,
+            &other_bounding_box_lower_bounds,
+            &other_bounding_box_upper_bounds,
         )
     }
 

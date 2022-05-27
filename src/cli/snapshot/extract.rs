@@ -244,8 +244,8 @@ pub fn run_extract_subcommand<G, P>(
     let verbose: Verbose = arguments.is_present("verbose").into();
 
     if verbose.is_yes() {
-        let new_lower_bounds = original_grid.grid_cell_lower_corner(&lower_indices);
-        let new_upper_bounds = original_grid.grid_cell_upper_corner(&upper_indices);
+        let new_lower_bounds = original_grid.grid_cell_lower_bounds(&lower_indices);
+        let new_upper_bounds = original_grid.grid_cell_upper_bounds(&upper_indices);
         println!(
             "Creating subgrid\n\
              Index ranges: {} -> {}\n\
