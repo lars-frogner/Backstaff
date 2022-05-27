@@ -19,7 +19,7 @@ use crate::{
         Dim2,
         Dim3::{X, Y, Z},
         In3D, Point2, PointTransformation2, RotationAndTranslationTransformation2,
-        RotationTransformation2, TranslationTransformation2, Vec3,
+        RotationTransformation2, SimplePolygon2, TranslationTransformation2, Vec3,
     },
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
@@ -228,27 +228,16 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     let new_upper_bounds = Vec3::new(x_extent, y_extent, z_bounds[1]);
 
     if verbose.is_yes() {
-        let lower_horizontal_bounds = new_lower_bounds.without_z();
-        let upper_horizontal_bounds = new_upper_bounds.without_z();
-        let corner_1 = lower_horizontal_bounds.to_point2();
-        let corner_2 = Point2::new(
-            upper_horizontal_bounds[Dim2::X],
-            lower_horizontal_bounds[Dim2::Y],
-        );
-        let corner_3 = upper_horizontal_bounds.to_point2();
-        let corner_4 = Point2::new(
-            lower_horizontal_bounds[Dim2::X],
-            upper_horizontal_bounds[Dim2::Y],
-        );
+        let hor_bound_polygon =
+            SimplePolygon2::rectangle_from_horizontal_bounds(&new_lower_bounds, &new_upper_bounds)
+                .transformed(&transformation);
+        let corners = hor_bound_polygon.vertices();
         println!(
             "Corners of resampled grid:\n\
              {:5.1} -- {:5.1}\n\
              |                              |\n\
              {:5.1} -- {:5.1}",
-            transformation.transform(&corner_4),
-            transformation.transform(&corner_3),
-            transformation.transform(&corner_1),
-            transformation.transform(&corner_2)
+            corners[0], corners[1], corners[2], corners[3]
         );
     }
 
