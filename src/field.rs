@@ -877,6 +877,8 @@ where
         T: PointTransformation2<fgr>,
         I: Interpolator3,
     {
+        const MIN_INTERSECTION_AREA: fgr = 1e-6;
+
         let overlying_grid = grid;
         let overlying_locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
@@ -939,19 +941,24 @@ where
                             .iter()
                             .zip(sliding_window!(underlying_edges[X].iter()))
                             .filter_map(|(underlying_i, (lower_edge_x, upper_edge_x))| {
-                                match SimplePolygon2::rectangle_from_bounds(
+                                SimplePolygon2::rectangle_from_bounds(
                                     &Vec2::new(*lower_edge_x, *lower_edge_y),
                                     &Vec2::new(*upper_edge_x, *upper_edge_y),
                                 )
                                 .intersection(&hor_overlying_grid_cell_polygon)
-                                {
-                                    Some(intersection_polygon) => intersection_polygon
-                                        .area_and_centroid()
-                                        .map(|(area, centroid)| {
-                                            (*underlying_i, *underlying_j, area, centroid)
-                                        }),
-                                    None => None,
-                                }
+                                .and_then(|intersection_polygon| {
+                                    intersection_polygon.area_and_centroid().and_then(
+                                        |(area, centroid)| {
+                                            // Skip unimportant intersections with very small area,
+                                            // which also avoids using possibly unreliable centroids
+                                            if area >= MIN_INTERSECTION_AREA {
+                                                Some((*underlying_i, *underlying_j, area, centroid))
+                                            } else {
+                                                None
+                                            }
+                                        },
+                                    )
+                                })
                             })
                     })
                     .collect();
@@ -1146,6 +1153,8 @@ where
         H: Grid3<fgr>,
         T: PointTransformation2<fgr>,
     {
+        const MIN_INTERSECTION_AREA: fgr = 1e-6;
+
         let underlying_locations = self.locations();
         let average_underlying_cell_extents = self.grid().average_grid_cell_extents();
 
@@ -1215,17 +1224,21 @@ where
                             .iter()
                             .zip(sliding_window!(underlying_edges[X].iter()))
                             .filter_map(|(underlying_i, (lower_edge_x, upper_edge_x))| {
-                                match SimplePolygon2::rectangle_from_bounds(
+                                SimplePolygon2::rectangle_from_bounds(
                                     &Vec2::new(*lower_edge_x, *lower_edge_y),
                                     &Vec2::new(*upper_edge_x, *upper_edge_y),
                                 )
                                 .intersection(&hor_overlying_grid_cell_polygon)
-                                {
-                                    Some(intersection_polygon) => intersection_polygon
-                                        .area()
-                                        .map(|area| (*underlying_i, *underlying_j, area)),
-                                    None => None,
-                                }
+                                .and_then(|intersection_polygon| {
+                                    intersection_polygon.area().and_then(|area| {
+                                        // Skip unimportant intersections with very small area
+                                        if area >= MIN_INTERSECTION_AREA {
+                                            Some((*underlying_i, *underlying_j, area))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                })
                             })
                     })
                     .collect();

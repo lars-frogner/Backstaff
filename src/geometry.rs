@@ -1804,14 +1804,31 @@ impl<F: BFloat> SimplePolygon2<F> {
                     )
                 },
             );
+        signed_area = signed_area * F::from_f32(0.5).unwrap();
+        let area = <F as num::Float>::abs(signed_area);
+
         if signed_area == F::zero() {
             None
+        // Avoid numerical instability for almost degenerate polygons
+        } else if area < F::from_f32(1e-6).unwrap() {
+            Some((area, self.vertex_centroid().unwrap()))
         } else {
-            signed_area = signed_area * F::from_f32(0.5).unwrap();
             let centroid_norm = F::one() / (F::from_i32(6).unwrap() * signed_area);
             let centroid = Point2::new(centroid_norm * centroid_x, centroid_norm * centroid_y);
-            Some((<F as num::Float>::abs(signed_area), centroid))
+            Some((area, centroid))
         }
+    }
+
+    /// Returns an `Option` with the centroid of the set of polygon vertices,
+    /// or `None` if the polygon is empty.
+    pub fn vertex_centroid(&self) -> Option<Point2<F>> {
+        self.vertices
+            .iter()
+            .map(Point2::to_vec2)
+            .reduce(|summed_vertices, vertex| summed_vertices + vertex)
+            .map(|summed_vertices| {
+                (summed_vertices / F::from_usize(self.n_vertices()).unwrap()).to_point2()
+            })
     }
 
     /// Returns and `Option` with the polygon defined by the intersection between this
