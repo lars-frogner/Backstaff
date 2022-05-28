@@ -55,6 +55,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Limits for the x-coordinates of the subgrid to extract")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -68,6 +69,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Limits for the y-coordinates of the subgrid to extract")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -81,6 +83,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Limits for the z-coordinates of the subgrid to extract")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -93,6 +96,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["START", "END"])
                 .help("Range of indices to extract along the x-axis (inclusive)\n")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -105,6 +109,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["START", "END"])
                 .help("Range of indices to extract along the y-axis (inclusive)\n")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -117,6 +122,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["START", "END"])
                 .help("Range of indices to extract along the z-axis (inclusive)\n")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -152,7 +158,7 @@ pub fn run_extract_subcommand<G, P>(
     let x_bounds = utils::parse_limits_with_min_max(
         arguments,
         "x-bounds",
-        utils::AllowSameValue::Yes,
+        utils::AllowSameValue::No,
         utils::AllowInfinity::No,
         original_lower_bounds[X],
         original_upper_bounds[X],
@@ -160,7 +166,7 @@ pub fn run_extract_subcommand<G, P>(
     let y_bounds = utils::parse_limits_with_min_max(
         arguments,
         "y-bounds",
-        utils::AllowSameValue::Yes,
+        utils::AllowSameValue::No,
         utils::AllowInfinity::No,
         original_lower_bounds[Y],
         original_upper_bounds[Y],
@@ -168,7 +174,7 @@ pub fn run_extract_subcommand<G, P>(
     let z_bounds = utils::parse_limits_with_min_max(
         arguments,
         "z-bounds",
-        utils::AllowSameValue::Yes,
+        utils::AllowSameValue::No,
         utils::AllowInfinity::No,
         original_lower_bounds[Z],
         original_upper_bounds[Z],
@@ -199,25 +205,8 @@ pub fn run_extract_subcommand<G, P>(
     let lower_bounds = Point3::new(x_bounds.0, y_bounds.0, z_bounds.0);
     let upper_bounds = Point3::new(x_bounds.1, y_bounds.1, z_bounds.1);
 
-    exit_on_false!(
-        upper_bounds[X] > lower_bounds[X]
-            && upper_bounds[Y] > lower_bounds[Y]
-            && upper_bounds[Z] > lower_bounds[Z],
-        "Error: Lower bounds ({}) must be smaller than upper bounds ({})",
-        lower_bounds,
-        upper_bounds
-    );
-
     let lower_indices = Idx3::new(i_range.0, j_range.0, k_range.0);
     let upper_indices = Idx3::new(i_range.1, j_range.1, k_range.1);
-
-    exit_on_false!(
-        upper_indices[X] >= lower_indices[X]
-            && upper_indices[Y] >= lower_indices[Y]
-            && upper_indices[Z] >= lower_indices[Z],
-        "Error: Lower indices ({}) are too large compared to upper indices ({}) to include any grid cells",
-        lower_indices, upper_indices
-    );
 
     let lower_indices_from_bounds = exit_on_none!(
         original_grid.find_fist_grid_cell_inside_lower_bounds(&lower_bounds),

@@ -96,7 +96,8 @@ pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command
                     "Inclusive range of snapshot numbers associated with the input\n\
                      snapshot to process [default: only process INPUT_FILE]",
                 )
-                .takes_value(true),
+                .takes_value(true)
+                .number_of_values(2),
         )
         .arg(
             Arg::new("endianness")

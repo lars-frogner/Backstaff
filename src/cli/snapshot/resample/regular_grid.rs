@@ -52,10 +52,10 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .allow_hyphen_values(false)
                 .value_names(&["SX", "SY", "SZ"])
                 .help(
-                    "Scale factors for computing shape of the regular grid based on original shape",
+                    "Scale factors for computing shape of the resampled grid based on original shape",
                 )
                 .takes_value(true)
-                .default_value("1,1,1"),
+                .number_of_values(3),
         )
         .arg(
             Arg::new("shape")
@@ -65,8 +65,10 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Exact shape of the regular grid to resample to [default: same as original]")
+                .help("Shape of the resampled grid (`auto` approximates original cell extent)")
                 .takes_value(true)
+                .number_of_values(3)
+                .default_value("auto,auto,auto")
                 .conflicts_with("scales"),
         )
         .arg(
@@ -78,8 +80,9 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help("Limits for the x-coordinates of the regular grid to resample to")
+                .help("Limits for the x-coordinates of the resampled grid")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -91,8 +94,9 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help("Limits for the y-coordinates of the regular grid to resample to")
+                .help("Limits for the y-coordinates of the resampled grid")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -104,8 +108,9 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
-                .help("Limits for the z-coordinates of the regular grid to resample to")
+                .help("Limits for the z-coordinates of the resampled grid")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .subcommand(create_sample_averaging_subcommand(command_name))
@@ -144,27 +149,8 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let scales: Vec<fgr> = cli_utils::get_finite_float_values_from_required_parseable_argument(
-        root_arguments,
-        "scales",
-        Some(3),
-    );
+    let original_average_grid_cell_extents = original_grid.average_grid_cell_extents();
 
-    let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
-        cli_utils::get_values_from_parseable_argument_with_custom_defaults(
-            root_arguments,
-            "shape",
-            &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
-            Some(3),
-        )
-    } else {
-        super::compute_scaled_grid_shape(original_shape, &scales)
-    };
-
-    exit_on_false!(
-        shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
-        "Error: Grid size must be larger than zero in every dimension"
-    );
     let x_bounds = cli_utils::parse_limits_with_min_max(
         root_arguments,
         "x-bounds",
@@ -191,9 +177,31 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     );
     let new_lower_bounds = Vec3::new(x_bounds.0, y_bounds.0, z_bounds.0);
     let new_upper_bounds = Vec3::new(x_bounds.1, y_bounds.1, z_bounds.1);
+    let new_extents = &new_upper_bounds - &new_lower_bounds;
+
+    let scales: Vec<fgr> =
+        cli_utils::get_finite_float_values_from_parseable_argument_with_custom_defaults(
+            root_arguments,
+            "scales",
+            &|| vec![1.0, 1.0, 1.0],
+        );
+
+    let shape = if scales.iter().all(|&scale| scale == 1.0) {
+        cli_utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
+            match value_string {
+                "same" => Some(original_shape[dim]),
+                "auto" => Some(
+                    fgr::ceil(new_extents[dim] / original_average_grid_cell_extents[dim]) as usize,
+                ),
+                _ => None,
+            }
+        })
+    } else {
+        super::compute_scaled_grid_shape(original_shape, &scales)
+    };
 
     let grid = RegularGrid3::from_bounds(
-        In3D::with_each_component(|dim| shape[dim.num()]),
+        shape,
         new_lower_bounds,
         new_upper_bounds,
         original_grid.periodicity().clone(),

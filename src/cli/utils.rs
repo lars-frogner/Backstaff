@@ -2,6 +2,7 @@
 
 use crate::{
     exit_on_error,
+    geometry::{Dim2, Dim3, In2D, In3D},
     grid::{fgr, Grid3},
     io::{
         snapshot::{fpa, SnapshotParameters, SnapshotProvider3},
@@ -98,7 +99,7 @@ where
 {
     exit_on_error!(
         value_string.parse(),
-        "Error: Could not parse value of {0}: {1}",
+        "Error: Could not parse value for {0}: {1}",
         argument_name
     )
 }
@@ -124,21 +125,15 @@ fn verify_finite_float_value<F: BFloat>(argument_name: &str, value: F) {
     exit_on_false!(value.is_finite(), "Error: {} must be finite", argument_name);
 }
 
-fn verify_argument_value_count<T>(
-    argument_name: &str,
-    values: &[T],
-    required_count: Option<usize>,
-) {
-    if let Some(required_count) = required_count {
-        let count = values.len();
-        exit_on_false!(
-            count == required_count,
-            "Error: {} must have {} values, got {}",
-            argument_name,
-            required_count,
-            count
-        );
-    }
+fn verify_argument_value_count<T>(argument_name: &str, values: &[T], required_count: usize) {
+    let count = values.len();
+    exit_on_false!(
+        count == required_count,
+        "Error: {} must have {} values, got {}",
+        argument_name,
+        required_count,
+        count
+    );
 }
 
 pub fn get_value_from_required_parseable_argument<T>(
@@ -173,29 +168,25 @@ where
 pub fn get_values_from_parseable_argument<T>(
     arguments: &ArgMatches,
     argument_name: &str,
-    required_count: Option<usize>,
 ) -> Option<Vec<T>>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
 {
-    arguments.values_of(argument_name).map(|values| {
-        let values = parse_value_strings(argument_name, values);
-        verify_argument_value_count(argument_name, &values, required_count);
-        values
-    })
+    arguments
+        .values_of(argument_name)
+        .map(|values| parse_value_strings(argument_name, values))
 }
 
 pub fn get_finite_float_values_from_parseable_argument<F>(
     arguments: &ArgMatches,
     argument_name: &str,
-    required_count: Option<usize>,
 ) -> Option<Vec<F>>
 where
     F: BFloat + FromStr,
     <F as FromStr>::Err: std::fmt::Display,
 {
-    let values = get_values_from_parseable_argument(arguments, argument_name, required_count);
+    let values = get_values_from_parseable_argument(arguments, argument_name);
     if let Some(values) = values.as_ref() {
         values
             .iter()
@@ -207,33 +198,28 @@ where
 pub fn get_values_from_required_parseable_argument<T>(
     arguments: &ArgMatches,
     argument_name: &str,
-    required_count: Option<usize>,
 ) -> Vec<T>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
 {
-    let values = parse_value_strings(
+    parse_value_strings(
         argument_name,
         arguments
             .values_of(argument_name)
             .expect("No values for required argument"),
-    );
-    verify_argument_value_count(argument_name, &values, required_count);
-    values
+    )
 }
 
 pub fn get_finite_float_values_from_required_parseable_argument<F>(
     arguments: &ArgMatches,
     argument_name: &str,
-    required_count: Option<usize>,
 ) -> Vec<F>
 where
     F: BFloat + FromStr,
     <F as FromStr>::Err: std::fmt::Display,
 {
-    let values =
-        get_values_from_required_parseable_argument(arguments, argument_name, required_count);
+    let values = get_values_from_required_parseable_argument(arguments, argument_name);
     values
         .iter()
         .for_each(|&value| verify_finite_float_value(argument_name, value));
@@ -261,29 +247,25 @@ pub fn get_values_from_parseable_argument_with_custom_defaults<T, D>(
     arguments: &ArgMatches,
     argument_name: &str,
     default_constructor: &D,
-    required_count: Option<usize>,
 ) -> Vec<T>
 where
     T: FromStr,
     <T as FromStr>::Err: std::fmt::Display,
     D: Fn() -> Vec<T>,
 {
-    let values = if let Some(value_strings) = arguments.values_of(argument_name) {
+    if let Some(value_strings) = arguments.values_of(argument_name) {
         value_strings
             .map(|value_string| parse_value_string(argument_name, value_string))
             .collect()
     } else {
         default_constructor()
-    };
-    verify_argument_value_count(argument_name, &values, required_count);
-    values
+    }
 }
 
 pub fn get_finite_float_values_from_parseable_argument_with_custom_defaults<F, D>(
     arguments: &ArgMatches,
     argument_name: &str,
     default_constructor: &D,
-    required_count: Option<usize>,
 ) -> Vec<F>
 where
     F: BFloat + FromStr,
@@ -294,7 +276,6 @@ where
         arguments,
         argument_name,
         default_constructor,
-        required_count,
     );
     values
         .iter()
@@ -415,7 +396,6 @@ pub fn get_values_from_param_file_argument_with_defaults<G, P, T, C>(
     param_file_argument_names: &[&str],
     conversion_mapping: &C,
     default_values: &[T],
-    required_count: Option<usize>,
 ) -> Vec<T>
 where
     G: Grid3<fgr>,
@@ -424,27 +404,22 @@ where
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,
 {
-    get_values_from_parseable_argument_with_custom_defaults(
-        arguments,
-        argument_name,
-        &|| {
-            param_file_argument_names
-                .iter()
-                .zip(default_values)
-                .map(|(&param_file_argument_name, &default_value)| {
-                    reader
-                        .parameters()
-                        .get_converted_numerical_param_or_fallback_to_default_with_warning(
-                            argument_name,
-                            param_file_argument_name,
-                            conversion_mapping,
-                            default_value,
-                        )
-                })
-                .collect()
-        },
-        required_count,
-    )
+    get_values_from_parseable_argument_with_custom_defaults(arguments, argument_name, &|| {
+        param_file_argument_names
+            .iter()
+            .zip(default_values)
+            .map(|(&param_file_argument_name, &default_value)| {
+                reader
+                    .parameters()
+                    .get_converted_numerical_param_or_fallback_to_default_with_warning(
+                        argument_name,
+                        param_file_argument_name,
+                        conversion_mapping,
+                        default_value,
+                    )
+            })
+            .collect()
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -476,7 +451,7 @@ where
         .into_iter()
         .collect();
 
-    verify_argument_value_count(argument_name, &limits, Some(2));
+    verify_argument_value_count(argument_name, &limits, 2);
 
     let parse = |string: &str| {
         special_values
@@ -619,6 +594,102 @@ where
     };
 
     (limits[0], limits[1])
+}
+
+pub fn parse_3d_values<T, P>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    min_value: Option<T>,
+    convert_special_value_for_dim: P,
+) -> In3D<T>
+where
+    T: FromStr + PartialOrd + std::fmt::Display,
+    <T as FromStr>::Err: std::fmt::Display,
+    P: Fn(Dim3, &str) -> Option<T>,
+{
+    let value_strings: Vec<_> = arguments
+        .values_of(argument_name)
+        .expect("No values for required argument")
+        .collect();
+
+    verify_argument_value_count(argument_name, &value_strings, 3);
+
+    let values = In3D::with_each_component(|dim| {
+        let value_string = value_strings[dim.num()];
+        convert_special_value_for_dim(dim, value_string)
+            .unwrap_or_else(|| parse_value_string(argument_name, value_string))
+    });
+
+    if let Some(min_value) = min_value {
+        exit_on_false!(
+            Dim3::slice().iter().all(|&dim| values[dim] >= min_value),
+            "Error: All values in {} must be at least {}",
+            argument_name,
+            min_value
+        );
+    }
+
+    values
+}
+
+pub fn parse_3d_values_no_special<T>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    min_value: Option<T>,
+) -> In3D<T>
+where
+    T: FromStr + PartialOrd + std::fmt::Display,
+    <T as FromStr>::Err: std::fmt::Display,
+{
+    parse_3d_values(arguments, argument_name, min_value, |_, _| None)
+}
+
+pub fn parse_2d_values<T, P>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    min_value: Option<T>,
+    convert_special_value_for_dim: P,
+) -> In2D<T>
+where
+    T: FromStr + PartialOrd + std::fmt::Display,
+    <T as FromStr>::Err: std::fmt::Display,
+    P: Fn(Dim2, &str) -> Option<T>,
+{
+    let value_strings: Vec<_> = arguments
+        .values_of(argument_name)
+        .expect("No values for required argument")
+        .collect();
+
+    verify_argument_value_count(argument_name, &value_strings, 2);
+
+    let values = In2D::with_each_component(|dim| {
+        let value_string = value_strings[dim.num()];
+        convert_special_value_for_dim(dim, value_string)
+            .unwrap_or_else(|| parse_value_string(argument_name, value_string))
+    });
+
+    if let Some(min_value) = min_value {
+        exit_on_false!(
+            Dim2::slice().iter().all(|&dim| values[dim] >= min_value),
+            "Error: All values in {} must be at least {}",
+            argument_name,
+            min_value
+        );
+    }
+
+    values
+}
+
+pub fn parse_2d_values_no_special<T>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    min_value: Option<T>,
+) -> In2D<T>
+where
+    T: FromStr + PartialOrd + std::fmt::Display,
+    <T as FromStr>::Err: std::fmt::Display,
+{
+    parse_2d_values(arguments, argument_name, min_value, |_, _| None)
 }
 
 pub fn overwrite_mode_from_arguments(arguments: &ArgMatches) -> OverwriteMode {

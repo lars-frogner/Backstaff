@@ -88,6 +88,7 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                     "Range of quantity values that will be included when computing statistics\n",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("-inf,inf"),
         )
         .arg(
@@ -102,6 +103,7 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                     "Limits for the x-coordinates that will be included when computing statistics\n",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -116,6 +118,7 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                     "Limits for the y-coordinates that will be included when computing statistics\n",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -130,6 +133,7 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                     "Limits for the x-coordinates that will be included when computing statistics\n",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -186,17 +190,11 @@ pub fn run_statistics_subcommand<G, P>(
         upper_bounds[Z],
     );
 
-    let slice_depths = utils::get_finite_float_values_from_parseable_argument::<fgr>(
-        arguments,
-        "slice-depths",
-        None,
-    );
+    let slice_depths =
+        utils::get_finite_float_values_from_parseable_argument::<fgr>(arguments, "slice-depths");
 
-    let percentages = utils::get_finite_float_values_from_parseable_argument::<f64>(
-        arguments,
-        "percentages",
-        None,
-    );
+    let percentages =
+        utils::get_finite_float_values_from_parseable_argument::<f64>(arguments, "percentages");
 
     let no_global = arguments.is_present("no-global");
 

@@ -630,12 +630,13 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fgr>, GOUT: Grid3<fgr>>(
     new_grid.set_periodicity(is_periodic);
 }
 
-fn compute_scaled_grid_shape(original_shape: &In3D<usize>, scales: &[fgr]) -> Vec<usize> {
-    original_shape
+fn compute_scaled_grid_shape(original_shape: &In3D<usize>, scales: &[fgr]) -> In3D<usize> {
+    let shape: Vec<_> = original_shape
         .into_iter()
         .zip(scales.iter())
         .map(|(&n, &scale)| usize::max(1, fgr::round(scale * (n as fgr)) as usize))
-        .collect()
+        .collect();
+    In3D::with_each_component(|dim| shape[dim.num()])
 }
 
 fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(

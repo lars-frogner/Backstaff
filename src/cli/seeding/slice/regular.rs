@@ -3,7 +3,7 @@
 use super::CommonSliceSeederParameters;
 use crate::{
     cli::utils,
-    geometry::{In2D, Point2},
+    geometry::Point2,
     grid::{fgr, Grid3},
     seeding::slice::SliceSeeder3,
     update_command_graph,
@@ -49,14 +49,13 @@ where
     G: Grid3<fgr>,
     S: Fn(&Point2<fgr>) -> bool + Sync,
 {
-    let shape =
-        utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(2));
+    let shape = utils::parse_2d_values_no_special(arguments, "shape", Some(1));
 
     SliceSeeder3::regular(
         grid,
         parameters.axis,
         parameters.coord,
-        In2D::with_each_component(|dim| shape[dim.num()]),
+        shape,
         satisfies_constraints,
     )
 }

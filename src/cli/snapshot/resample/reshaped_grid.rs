@@ -15,7 +15,6 @@ use crate::{
         },
         utils,
     },
-    exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Dim3::{X, Y, Z},
@@ -55,7 +54,7 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
                 .value_names(&["SX", "SY", "SZ"])
                 .help("Scale factors for computing shape of the new grid based on original shape")
                 .takes_value(true)
-                .default_value("1,1,1"),
+                .number_of_values(3),
         )
         .arg(
             Arg::new("shape")
@@ -65,8 +64,10 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the grid to resample to [default: same as original]")
+                .help("Shape of the resampled grid (`same` is original size)")
                 .takes_value(true)
+                .number_of_values(3)
+                .default_value("same,same,same")
                 .conflicts_with("scales"),
         )
         .subcommand(create_sample_averaging_subcommand(command_name))
@@ -100,28 +101,32 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
 {
     let original_shape = provider.grid().shape();
 
-    let scales: Vec<fgr> = utils::get_finite_float_values_from_required_parseable_argument(
-        root_arguments,
-        "scales",
-        Some(3),
-    );
-
-    let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
-        utils::get_values_from_parseable_argument_with_custom_defaults(
+    let scales: Vec<fgr> =
+        utils::get_finite_float_values_from_parseable_argument_with_custom_defaults(
             root_arguments,
-            "shape",
-            &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
-            Some(3),
-        )
+            "scales",
+            &|| vec![1.0, 1.0, 1.0],
+        );
+
+    let shape = if scales.iter().all(|&scale| scale == 1.0) {
+        utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
+            match value_string {
+                "same" => Some(original_shape[dim]),
+                _ => None,
+            }
+        })
     } else {
         super::compute_scaled_grid_shape(original_shape, &scales)
     };
 
-    exit_on_false!(
-        shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
-        "Error: Grid size must be larger than zero in every dimension"
-    );
-    let new_shape = Some(In3D::with_each_component(|dim| shape[dim.num()]));
+    let new_shape = if shape[X] == original_shape[X]
+        && shape[Y] == original_shape[Y]
+        && shape[Z] == original_shape[Z]
+    {
+        None
+    } else {
+        Some(shape)
+    };
 
     super::resample_to_reshaped_grid(
         arguments,

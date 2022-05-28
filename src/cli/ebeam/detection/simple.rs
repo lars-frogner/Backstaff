@@ -49,7 +49,8 @@ pub fn create_simple_reconnection_site_detector_subcommand(
                     "Smallest and largest depth at which reconnection sites will be \n\
                      detected [Mm] [default: from param file]",
                 )
-                .takes_value(true),
+                .takes_value(true)
+                .number_of_values(2),
         )
         .subcommand(create_power_law_distribution_subcommand(command_name))
 }
@@ -82,7 +83,6 @@ where
             SimpleReconnectionSiteDetectorConfig::DEFAULT_MIN_DETECTION_DEPTH,
             SimpleReconnectionSiteDetectorConfig::DEFAULT_MAX_DETECTION_DEPTH,
         ],
-        Some(2),
     );
     SimpleReconnectionSiteDetectorConfig {
         reconnection_factor_threshold,

@@ -63,8 +63,10 @@ pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Comman
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Shape of the grid to resample to [default: same as in mesh file]")
-                .takes_value(true),
+                .help("Shape of the resampled grid (`file` is size from mesh file)")
+                .takes_value(true)
+                .number_of_values(3)
+                .default_value("file,file,file"),
         )
         .subcommand(create_sample_averaging_subcommand(command_name))
         .subcommand(create_cell_averaging_subcommand(command_name))
@@ -103,30 +105,32 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         ),
         "Error: Could not interpret path to mesh file: {}"
     );
-    let original_shape = provider.grid().shape();
-    let shape: Vec<usize> = utils::get_values_from_parseable_argument_with_custom_defaults(
-        root_arguments,
-        "shape",
-        &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
-        Some(3),
-    );
-    let new_shape = if shape[0] == original_shape[X]
-        && shape[1] == original_shape[Y]
-        && shape[2] == original_shape[Z]
-    {
-        None
-    } else {
-        exit_on_false!(
-            shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
-            "Error: Grid size must be larger than zero in every dimension"
-        );
-        Some(In3D::with_each_component(|dim| shape[dim.num()]))
-    };
 
     let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(
         native::parse_mesh_file(mesh_file_path, verbose),
         "Error: Could not parse mesh file: {}"
     );
+
+    let mesh_file_shape = center_coords.shape();
+    let original_shape = provider.grid().shape();
+
+    let shape = utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
+        match value_string {
+            "file" => Some(mesh_file_shape[dim]),
+            "same" => Some(original_shape[dim]),
+            _ => None,
+        }
+    });
+
+    let new_shape = if shape[X] == mesh_file_shape[X]
+        && shape[Y] == mesh_file_shape[Y]
+        && shape[Z] == mesh_file_shape[Z]
+    {
+        None
+    } else {
+        Some(shape)
+    };
+
     match detected_grid_type {
         GridType::Regular => {
             let grid = RegularGrid3::from_coords(

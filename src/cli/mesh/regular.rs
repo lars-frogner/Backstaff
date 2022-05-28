@@ -2,7 +2,6 @@
 
 use crate::{
     cli::utils,
-    exit_on_false,
     geometry::{In3D, Vec3},
     grid::regular::RegularGrid3,
     update_command_graph,
@@ -27,6 +26,7 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the mesh")
                 .takes_value(true)
+                .number_of_values(3)
                 .required(true),
         )
         .arg(
@@ -40,6 +40,7 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the x-coordinates")
                 .takes_value(true)
+                .number_of_values(2)
                 .required(true),
         )
         .arg(
@@ -53,6 +54,7 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the y-coordinates")
                 .takes_value(true)
+                .number_of_values(2)
                 .required(true),
         )
         .arg(
@@ -66,6 +68,7 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the z-coordinates")
                 .takes_value(true)
+                .number_of_values(2)
                 .required(true),
         )
 }
@@ -76,11 +79,7 @@ pub fn run_regular_subcommand(
     arguments: &ArgMatches,
     protected_file_types: &[&str],
 ) {
-    let shape = utils::get_values_from_required_parseable_argument(arguments, "shape", Some(3));
-    exit_on_false!(
-        shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
-        "Error: Grid size must be larger than zero in every dimension"
-    );
+    let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
 
     let x_bounds = utils::parse_limits(
         arguments,
@@ -105,7 +104,7 @@ pub fn run_regular_subcommand(
     );
 
     let grid = RegularGrid3::from_bounds(
-        In3D::with_each_component(|dim| shape[dim.num()]),
+        shape,
         Vec3::new(x_bounds.0, y_bounds.0, z_bounds.0),
         Vec3::new(x_bounds.1, y_bounds.1, z_bounds.1),
         In3D::same(false),

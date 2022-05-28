@@ -28,7 +28,7 @@ pub fn create_stratified_subcommand(_parent_command_name: &'static str) -> Comma
                 .require_equals(true)
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
-                .value_names(&["X", "Y", "Z"])
+                .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the regular 3D grid to seed in")
                 .required(true)
                 .takes_value(true)
@@ -67,8 +67,7 @@ pub fn create_stratified_volume_seeder_from_arguments<S>(
 where
     S: Fn(&Point3<fgr>) -> bool + Sync,
 {
-    let shape =
-        utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(3));
+    let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
     let n_seeds_per_cell =
         utils::get_value_from_required_parseable_argument::<usize>(arguments, "points-per-cell");
     let randomness = utils::get_finite_float_value_from_required_parseable_argument::<fgr>(
@@ -76,12 +75,7 @@ where
         "randomness",
     );
 
-    let grid = RegularGrid3::from_bounds(
-        In3D::with_each_component(|dim| shape[dim.num()]),
-        lower_bounds,
-        upper_bounds,
-        In3D::same(false),
-    );
+    let grid = RegularGrid3::from_bounds(shape, lower_bounds, upper_bounds, In3D::same(false));
 
     VolumeSeeder3::stratified(&grid, n_seeds_per_cell, randomness, satisfies_constraints)
 }

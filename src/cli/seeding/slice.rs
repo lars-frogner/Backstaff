@@ -73,6 +73,7 @@ pub fn create_slice_seeder_subcommand(_parent_command_name: &'static str) -> Com
                      generated seed points will be accepted",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("-inf,inf"),
         )
         .arg(
@@ -88,6 +89,7 @@ pub fn create_slice_seeder_subcommand(_parent_command_name: &'static str) -> Com
                      generated seed points will be accepted",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("-inf,inf"),
         )
         .subcommand(create_regular_subcommand(command_name))

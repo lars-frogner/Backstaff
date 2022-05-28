@@ -3,7 +3,11 @@
 use crate::{
     cli::utils,
     exit_on_false,
-    geometry::{Coords3, In3D},
+    geometry::{
+        Coords3,
+        Dim3::{X, Y, Z},
+        In3D,
+    },
     grid::{self, fgr, hor_regular::HorRegularGrid3, Grid3},
     interpolation::cubic_hermite_spline::{
         BoundaryTangents, CubicHermiteSplineInterpolator, CubicHermiteSplineInterpolatorConfig,
@@ -40,6 +44,7 @@ pub fn create_horizontally_regular_subcommand(
                 .value_names(&["NX", "NY", "NZ"])
                 .help("Shape of the mesh")
                 .takes_value(true)
+                .number_of_values(3)
                 .required(true),
         )
         .arg(
@@ -53,6 +58,7 @@ pub fn create_horizontally_regular_subcommand(
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the x-coordinates")
                 .takes_value(true)
+                .number_of_values(2)
                 .required(true),
         )
         .arg(
@@ -66,6 +72,7 @@ pub fn create_horizontally_regular_subcommand(
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the y-coordinates")
                 .takes_value(true)
+                .number_of_values(2)
                 .required(true),
         )
         .arg(
@@ -79,6 +86,7 @@ pub fn create_horizontally_regular_subcommand(
                 .value_names(&["LOWER", "UPPER"])
                 .help("Lower and upper bound for the z-coordinates")
                 .takes_value(true)
+                .number_of_values(2)
                 .required(true),
         )
         .arg(
@@ -91,6 +99,7 @@ pub fn create_horizontally_regular_subcommand(
                 .value_names(&["LOWER", "UPPER"])
                 .help("Relative magnitudes of dz at the lower and upper z-boundaries\n")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("1.0,1.0"),
         )
         .arg(
@@ -131,11 +140,7 @@ pub fn run_horizontally_regular_subcommand(
     arguments: &ArgMatches,
     protected_file_types: &[&str],
 ) {
-    let shape = utils::get_values_from_required_parseable_argument(arguments, "shape", Some(3));
-    exit_on_false!(
-        shape[0] >= 8 && shape[1] >= 8 && shape[2] >= 8,
-        "Error: Grid size must be at least 8 in every dimension"
-    );
+    let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(8));
 
     let x_bounds = utils::parse_limits(
         arguments,
@@ -161,7 +166,6 @@ pub fn run_horizontally_regular_subcommand(
     let boundary_dz_scales = utils::get_finite_float_values_from_required_parseable_argument(
         arguments,
         "boundary-dz-scales",
-        Some(2),
     );
     exit_on_false!(
         boundary_dz_scales[0] > 0.0 && boundary_dz_scales[1] > 0.0,
@@ -173,7 +177,6 @@ pub fn run_horizontally_regular_subcommand(
             arguments,
             "interior-z",
             &Vec::new,
-            None,
         );
 
     let interior_dz_scales: Vec<fgr> =
@@ -181,7 +184,6 @@ pub fn run_horizontally_regular_subcommand(
             arguments,
             "interior-dz-scales",
             &Vec::new,
-            None,
         );
 
     exit_on_false!(
@@ -200,9 +202,9 @@ pub fn run_horizontally_regular_subcommand(
     );
 
     let (centers_x, lower_edges_x) =
-        grid::regular_coords_from_bounds(shape[0], x_bounds.0, x_bounds.1);
+        grid::regular_coords_from_bounds(shape[X], x_bounds.0, x_bounds.1);
     let (centers_y, lower_edges_y) =
-        grid::regular_coords_from_bounds(shape[1], y_bounds.0, y_bounds.1);
+        grid::regular_coords_from_bounds(shape[Y], y_bounds.0, y_bounds.1);
 
     let mut coords_and_scales: Vec<_> = interior_z
         .into_iter()
@@ -229,7 +231,7 @@ pub fn run_horizontally_regular_subcommand(
 
     let (centers_z, lower_edges_z) = exit_on_error!(
         grid::create_new_grid_coords_from_control_extents(
-            shape[2],
+            shape[Z],
             z_bounds.0,
             z_bounds.1,
             &control_z,

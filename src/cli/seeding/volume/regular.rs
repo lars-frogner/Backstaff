@@ -28,7 +28,7 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
                 .require_equals(true)
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
-                .value_names(&["X", "Y", "Z"])
+                .value_names(&["NX", "NY", "NZ"])
                 .help("Number of seed points to generate in each dimension")
                 .required(true)
                 .takes_value(true)
@@ -46,15 +46,9 @@ pub fn create_regular_volume_seeder_from_arguments<S>(
 where
     S: Fn(&Point3<fgr>) -> bool + Sync,
 {
-    let shape =
-        utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(3));
+    let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
 
-    let grid = RegularGrid3::from_bounds(
-        In3D::with_each_component(|dim| shape[dim.num()]),
-        lower_bounds,
-        upper_bounds,
-        In3D::same(false),
-    );
+    let grid = RegularGrid3::from_bounds(shape, lower_bounds, upper_bounds, In3D::same(false));
 
     VolumeSeeder3::regular(&grid, satisfies_constraints)
 }

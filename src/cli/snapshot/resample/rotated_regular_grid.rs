@@ -61,7 +61,7 @@ pub fn create_rotated_regular_grid_subcommand(
                     "Scale factors for computing shape of the resampled grid based on original shape",
                 )
                 .takes_value(true)
-                .default_value("1,1,1"),
+                .number_of_values(3),
         )
         .arg(
             Arg::new("shape")
@@ -71,8 +71,10 @@ pub fn create_rotated_regular_grid_subcommand(
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_names(&["NX", "NY", "NZ"])
-                .help("Exact shape of the grid to resample to [default: same as original]")
+                .help("Shape of the resampled grid (`auto` approximates original cell extent)")
                 .takes_value(true)
+                .number_of_values(3)
+                .default_value("auto,auto,auto")
                 .conflicts_with("scales"),
         )
         .arg(
@@ -85,7 +87,8 @@ pub fn create_rotated_regular_grid_subcommand(
                 .value_names(&["X", "Y"])
                 .help("Point where the x-axis of the resampled grid should start")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .number_of_values(2),
         )
         .arg(
             Arg::new("x-end")
@@ -97,7 +100,8 @@ pub fn create_rotated_regular_grid_subcommand(
                 .value_names(&["X", "Y"])
                 .help("Point where the x-axis of the resampled grid should end")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .number_of_values(2),
         )
         .arg(
             Arg::new("y-extent")
@@ -121,6 +125,7 @@ pub fn create_rotated_regular_grid_subcommand(
                 .value_names(&["LOWER", "UPPER"])
                 .help("Limits for the z-coordinates of the resampled grid")
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .subcommand(create_sample_averaging_subcommand(command_name))
@@ -159,41 +164,23 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let scales: Vec<fgr> = cli_utils::get_finite_float_values_from_required_parseable_argument(
-        root_arguments,
-        "scales",
-        Some(3),
-    );
-
-    let shape: Vec<usize> = if scales.iter().all(|&scale| scale == 1.0) {
-        cli_utils::get_values_from_parseable_argument_with_custom_defaults(
-            root_arguments,
-            "shape",
-            &|| vec![original_shape[X], original_shape[Y], original_shape[Z]],
-            Some(3),
-        )
-    } else {
-        super::compute_scaled_grid_shape(original_shape, &scales)
-    };
-
-    exit_on_false!(
-        shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
-        "Error: Grid size must be larger than zero in every dimension"
-    );
+    let mut original_average_grid_cell_extents = original_grid.average_grid_cell_extents();
+    let original_average_hor_grid_cell_extent =
+        0.5 * (original_average_grid_cell_extents[X] + original_average_grid_cell_extents[Y]);
+    original_average_grid_cell_extents[X] = original_average_hor_grid_cell_extent;
+    original_average_grid_cell_extents[Y] = original_average_hor_grid_cell_extent;
 
     let x_start = cli_utils::get_finite_float_values_from_required_parseable_argument::<fgr>(
         root_arguments,
         "x-start",
-        Some(2),
     );
     let x_end = cli_utils::get_finite_float_values_from_required_parseable_argument::<fgr>(
         root_arguments,
         "x-end",
-        Some(2),
     );
 
-    let x_start = Point2::new(x_start[0], x_start[1]);
-    let x_end = Point2::new(x_end[0], x_end[1]);
+    let x_start = Point2::with_each_component(|dim| x_start[dim.num()]);
+    let x_end = Point2::with_each_component(|dim| x_end[dim.num()]);
 
     let x_axis = x_end - &x_start;
     let x_extent = x_axis.length();
@@ -227,6 +214,28 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
 
     let new_lower_bounds = Vec3::new(0.0, 0.0, z_bounds.0);
     let new_upper_bounds = Vec3::new(x_extent, y_extent, z_bounds.1);
+    let new_extents = &new_upper_bounds - &new_lower_bounds;
+
+    let scales: Vec<fgr> =
+        cli_utils::get_finite_float_values_from_parseable_argument_with_custom_defaults(
+            root_arguments,
+            "scales",
+            &|| vec![1.0, 1.0, 1.0],
+        );
+
+    let shape = if scales.iter().all(|&scale| scale == 1.0) {
+        cli_utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
+            match value_string {
+                "same" => Some(original_shape[dim]),
+                "auto" => Some(
+                    fgr::ceil(new_extents[dim] / original_average_grid_cell_extents[dim]) as usize,
+                ),
+                _ => None,
+            }
+        })
+    } else {
+        super::compute_scaled_grid_shape(original_shape, &scales)
+    };
 
     if verbose.is_yes() {
         let hor_bound_polygon =
@@ -243,7 +252,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     }
 
     let grid = RegularGrid3::from_bounds(
-        In3D::with_each_component(|dim| shape[dim.num()]),
+        shape,
         new_lower_bounds,
         new_upper_bounds,
         In3D::same(false), // Discard periodicity information

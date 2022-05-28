@@ -94,6 +94,7 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                      (in log₁₀ of K)",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("4,7"),
         )
         .arg(
@@ -111,6 +112,7 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                      (in log₁₀ of cm⁻³)",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("6,13"),
         )
         .arg(

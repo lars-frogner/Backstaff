@@ -48,6 +48,7 @@ pub fn create_volume_seeder_subcommand(_parent_command_name: &'static str) -> Co
                      to generate seed points",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -63,6 +64,7 @@ pub fn create_volume_seeder_subcommand(_parent_command_name: &'static str) -> Co
                      to generate seed points",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .arg(
@@ -78,6 +80,7 @@ pub fn create_volume_seeder_subcommand(_parent_command_name: &'static str) -> Co
                      to generate seed points",
                 )
                 .takes_value(true)
+                .number_of_values(2)
                 .default_value("min,max"),
         )
         .subcommand(create_regular_subcommand(command_name))
