@@ -1495,6 +1495,11 @@ impl<F: BFloat> Coords3<F> {
         Self(In3D::with_each_component(create_component))
     }
 
+    /// Returns the shape of the 3D set of coordinates.
+    pub fn shape(&self) -> In3D<usize> {
+        In3D::with_each_component(|dim| self[dim].len())
+    }
+
     /// Creates a 3D point from the coordinates at the given indices.
     pub fn point(&self, indices: &Idx3<usize>) -> Point3<F> {
         Point3::new(
@@ -1555,6 +1560,11 @@ impl<F: BFloat> Coords2<F> {
         C: Fn(Dim2) -> Vec<F>,
     {
         Self(In2D::with_each_component(create_component))
+    }
+
+    /// Returns the shape of the 2D set of coordinates.
+    pub fn shape(&self) -> In2D<usize> {
+        In2D::with_each_component(|dim| self[dim].len())
     }
 
     /// Creates a 2D point from the coordinates at the given indices.
