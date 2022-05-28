@@ -818,11 +818,16 @@ where
                                 .zip(overlap_centers_and_lengths[X].iter())
                         {
                             let weight = overlap_length_x * overlap_length_y * overlap_length_z;
+                            let point =
+                                Point3::new(overlap_center_x, overlap_center_y, overlap_center_z);
+                            let indices = Idx3::new(underlying_i, underlying_j, underlying_k);
+
+                            let wrapped_point = self.grid().wrap_point(&point).unwrap();
 
                             accum_value += interpolator.interp_scalar_field_known_cell(
                                 self,
-                                &Point3::new(overlap_center_x, overlap_center_y, overlap_center_z),
-                                &Idx3::new(underlying_i, underlying_j, underlying_k),
+                                &wrapped_point,
+                                &indices,
                             ) as fgr
                                 * weight;
 
@@ -981,15 +986,19 @@ where
                         &hor_overlap_indices_areas_and_centers
                     {
                         let weight = *hor_overlap_area * overlap_z_length;
+                        let point = Point3::new(
+                            hor_overlap_center[Dim2::X],
+                            hor_overlap_center[Dim2::Y],
+                            overlap_z_center,
+                        );
+                        let indices = Idx3::new(*underlying_i, *underlying_j, *underlying_k);
+
+                        let wrapped_point = self.grid().wrap_point(&point).unwrap();
 
                         accum_value += interpolator.interp_scalar_field_known_cell(
                             self,
-                            &Point3::new(
-                                hor_overlap_center[Dim2::X],
-                                hor_overlap_center[Dim2::Y],
-                                overlap_z_center,
-                            ),
-                            &Idx3::new(*underlying_i, *underlying_j, *underlying_k),
+                            &wrapped_point,
+                            &indices,
                         ) as fgr
                             * weight;
 
@@ -1093,10 +1102,9 @@ where
                             underlying_indices[X].iter().zip(overlap_lengths[X].iter())
                         {
                             let weight = overlap_length_x * overlap_length_y * overlap_length_z;
-                            accum_value += self
-                                .value(&Idx3::new(underlying_i, underlying_j, underlying_k))
-                                .into()
-                                * weight;
+                            let indices = Idx3::new(underlying_i, underlying_j, underlying_k);
+
+                            accum_value += self.value(&indices).into() * weight;
                             accum_weight += weight;
                         }
                     }
@@ -1247,10 +1255,9 @@ where
                         &hor_overlap_indices_and_areas
                     {
                         let weight = *hor_overlap_area * overlap_length_z;
-                        accum_value += self
-                            .value(&Idx3::new(*underlying_i, *underlying_j, *underlying_k))
-                            .into()
-                            * weight;
+                        let indices = Idx3::new(*underlying_i, *underlying_j, *underlying_k);
+
+                        accum_value += self.value(&indices).into() * weight;
                         accum_weight += weight;
                     }
                 }
