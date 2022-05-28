@@ -120,7 +120,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
             shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
             "Error: Grid size must be larger than zero in every dimension"
         );
-        Some(In3D::new(shape[0], shape[1], shape[2]))
+        Some(In3D::with_each_component(|dim| shape[dim.num()]))
     };
 
     let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(

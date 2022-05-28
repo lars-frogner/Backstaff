@@ -121,7 +121,7 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
         shape[0] > 0 && shape[1] > 0 && shape[2] > 0,
         "Error: Grid size must be larger than zero in every dimension"
     );
-    let new_shape = Some(In3D::new(shape[0], shape[1], shape[2]));
+    let new_shape = Some(In3D::with_each_component(|dim| shape[dim.num()]));
 
     super::resample_to_reshaped_grid(
         arguments,

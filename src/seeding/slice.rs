@@ -342,11 +342,7 @@ impl SliceSeeder3 {
                 .into_par_iter()
                 .filter_map(|point| {
                     if satisfies_constraints(&point) {
-                        Some(Point3::from_components(
-                            coord,
-                            point[Dim2::X],
-                            point[Dim2::Y],
-                        ))
+                        Some(Point3::new(coord, point[Dim2::X], point[Dim2::Y]))
                     } else {
                         None
                     }
@@ -356,11 +352,7 @@ impl SliceSeeder3 {
                 .into_par_iter()
                 .filter_map(|point| {
                     if satisfies_constraints(&point) {
-                        Some(Point3::from_components(
-                            point[Dim2::X],
-                            coord,
-                            point[Dim2::Y],
-                        ))
+                        Some(Point3::new(point[Dim2::X], coord, point[Dim2::Y]))
                     } else {
                         None
                     }
@@ -370,11 +362,7 @@ impl SliceSeeder3 {
                 .into_par_iter()
                 .filter_map(|point| {
                     if satisfies_constraints(&point) {
-                        Some(Point3::from_components(
-                            point[Dim2::X],
-                            point[Dim2::Y],
-                            coord,
-                        ))
+                        Some(Point3::new(point[Dim2::X], point[Dim2::Y], coord))
                     } else {
                         None
                     }

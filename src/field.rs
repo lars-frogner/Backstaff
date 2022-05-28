@@ -1675,8 +1675,10 @@ where
 
     fn compute_slice_indices_from_flat_idx(&self, axes: [Dim3; 2], idx: usize) -> [usize; 2] {
         let shape = self.shape();
-        let indices =
-            compute_2d_array_indices_from_flat_idx(&In2D::new(shape[axes[0]], shape[axes[1]]), idx);
+        let indices = compute_2d_array_indices_from_flat_idx(
+            &In2D::with_each_component(|dim| shape[axes[dim.num()]]),
+            idx,
+        );
         [indices[Dim2::X], indices[Dim2::Y]]
     }
 
@@ -1687,7 +1689,7 @@ where
     ) -> In2D<CoordLocation> {
         match resampled_location {
             ResampledCoordLocation::Original => {
-                In2D::new(self.locations[axes[0]], self.locations[axes[1]])
+                In2D::with_each_component(|dim| self.locations[axes[dim.num()]])
             }
             ResampledCoordLocation::Specific(location) => In2D::same(location),
         }

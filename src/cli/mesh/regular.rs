@@ -105,7 +105,7 @@ pub fn run_regular_subcommand(
     );
 
     let grid = RegularGrid3::from_bounds(
-        In3D::new(shape[0], shape[1], shape[2]),
+        In3D::with_each_component(|dim| shape[dim.num()]),
         Vec3::new(x_bounds.0, y_bounds.0, z_bounds.0),
         Vec3::new(x_bounds.1, y_bounds.1, z_bounds.1),
         In3D::same(false),

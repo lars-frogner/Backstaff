@@ -243,7 +243,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     }
 
     let grid = RegularGrid3::from_bounds(
-        In3D::new(shape[0], shape[1], shape[2]),
+        In3D::with_each_component(|dim| shape[dim.num()]),
         new_lower_bounds,
         new_upper_bounds,
         In3D::same(false), // Discard periodicity information

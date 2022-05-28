@@ -69,7 +69,7 @@ impl ManualSeeder3 {
                                     .collect::<io::Result<Vec<fgr>>>()
                                     .map(|coords| {
                                         if coords.len() >= 3 {
-                                            Ok(Point3::new(coords[0], coords[1], coords[2]))
+                                            Ok(Point3::with_each_component(|dim| coords[dim.num()]))
                                         } else {
                                             Err(io::Error::new(
                                                 io::ErrorKind::InvalidData,

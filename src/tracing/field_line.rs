@@ -219,7 +219,7 @@ impl FieldLineSet3 {
             .zip(initial_coords_z)
             .map(|((&field_line_x0, &field_line_y0), &field_line_z0)| {
                 let acceleration_position =
-                    Point3::from_components(field_line_x0, field_line_y0, field_line_z0);
+                    Point3::new(field_line_x0, field_line_y0, field_line_z0);
                 let value = interpolator
                     .interp_scalar_field(field, &acceleration_position)
                     .expect_inside();
@@ -250,7 +250,7 @@ impl FieldLineSet3 {
             .zip(initial_coords_z)
             .map(|((&field_line_x0, &field_line_y0), &field_line_z0)| {
                 let acceleration_position =
-                    Point3::from_components(field_line_x0, field_line_y0, field_line_z0);
+                    Point3::new(field_line_x0, field_line_y0, field_line_z0);
                 let vector = interpolator
                     .interp_vector_field(field, &acceleration_position)
                     .expect_inside();
@@ -286,8 +286,7 @@ impl FieldLineSet3 {
                         .zip(field_line_coords_y)
                         .zip(field_line_coords_z)
                         .map(|((&field_line_x, &field_line_y), &field_line_z)| {
-                            let position =
-                                Point3::from_components(field_line_x, field_line_y, field_line_z);
+                            let position = Point3::new(field_line_x, field_line_y, field_line_z);
                             let value = interpolator
                                 .interp_scalar_field(field, &position)
                                 .expect_inside();
@@ -326,8 +325,7 @@ impl FieldLineSet3 {
                         .zip(field_line_coords_y)
                         .zip(field_line_coords_z)
                         .map(|((&field_line_x, &field_line_y), &field_line_z)| {
-                            let position =
-                                Point3::from_components(field_line_x, field_line_y, field_line_z);
+                            let position = Point3::new(field_line_x, field_line_y, field_line_z);
                             let vector = interpolator
                                 .interp_vector_field(field, &position)
                                 .expect_inside();

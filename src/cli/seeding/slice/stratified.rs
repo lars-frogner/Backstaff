@@ -83,7 +83,7 @@ where
         grid,
         parameters.axis,
         parameters.coord,
-        In2D::new(shape[0], shape[1]),
+        In2D::with_each_component(|dim| shape[dim.num()]),
         n_seeds_per_cell,
         randomness,
         satisfies_constraints,

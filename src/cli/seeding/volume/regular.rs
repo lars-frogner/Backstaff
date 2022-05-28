@@ -50,7 +50,7 @@ where
         utils::get_values_from_required_parseable_argument::<usize>(arguments, "shape", Some(3));
 
     let grid = RegularGrid3::from_bounds(
-        In3D::new(shape[0], shape[1], shape[2]),
+        In3D::with_each_component(|dim| shape[dim.num()]),
         lower_bounds,
         upper_bounds,
         In3D::same(false),

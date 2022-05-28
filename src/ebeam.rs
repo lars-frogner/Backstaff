@@ -482,7 +482,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&beam_x0, &beam_y0), &beam_z0)| {
-                let acceleration_position = Point3::from_components(beam_x0, beam_y0, beam_z0);
+                let acceleration_position = Point3::new(beam_x0, beam_y0, beam_z0);
                 let value = interpolator
                     .interp_scalar_field(field, &acceleration_position)
                     .expect_inside();
@@ -512,7 +512,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&beam_x0, &beam_y0), &beam_z0)| {
-                let acceleration_position = Point3::from_components(beam_x0, beam_y0, beam_z0);
+                let acceleration_position = Point3::new(beam_x0, beam_y0, beam_z0);
                 let vector = interpolator
                     .interp_vector_field(field, &acceleration_position)
                     .expect_inside();
@@ -547,7 +547,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                     .zip(beam_coords_y)
                     .zip(beam_coords_z)
                     .map(|((&beam_x, &beam_y), &beam_z)| {
-                        let position = Point3::from_components(beam_x, beam_y, beam_z);
+                        let position = Point3::new(beam_x, beam_y, beam_z);
                         let value = interpolator
                             .interp_scalar_field(field, &position)
                             .expect_inside();
@@ -584,7 +584,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                     .zip(beam_coords_y)
                     .zip(beam_coords_z)
                     .map(|((&beam_x, &beam_y), &beam_z)| {
-                        let position = Point3::from_components(beam_x, beam_y, beam_z);
+                        let position = Point3::new(beam_x, beam_y, beam_z);
                         let vector = interpolator
                             .interp_vector_field(field, &position)
                             .expect_inside();

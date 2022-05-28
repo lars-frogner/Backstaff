@@ -39,6 +39,11 @@ impl Dim3 {
             Self::Z => [Self::X, Self::Y],
         }
     }
+
+    /// Returns the number of the dimension.
+    pub fn num(self) -> usize {
+        self as usize
+    }
 }
 
 impl fmt::Display for Dim3 {
@@ -78,6 +83,11 @@ impl Dim2 {
             Y => Some(Self::Y),
             _ => None,
         }
+    }
+
+    /// Returns the number of the dimension.
+    pub fn num(self) -> usize {
+        self as usize
     }
 }
 
@@ -358,7 +368,7 @@ impl<F: BFloat> Vec3<F> {
 
     /// Constructs a new point from the vector components.
     pub fn to_point3(&self) -> Point3<F> {
-        Point3::new(self[X], self[Y], self[Z])
+        Point3::with_each_component(|dim| self[dim])
     }
 
     /// Constructs a new vector from the absolute values of the vector components.
@@ -625,7 +635,7 @@ impl<F: BFloat> Vec2<F> {
 
     /// Constructs a new point from the vector components.
     pub fn to_point2(&self) -> Point2<F> {
-        Point2::new(self[Dim2::X], self[Dim2::Y])
+        Point2::with_each_component(|dim| self[dim])
     }
 
     /// Constructs a new vector from the absolute values of the vector components.
@@ -893,7 +903,7 @@ impl<F: BFloat> Point3<F> {
 
     /// Constructs a new vector from the point components.
     pub fn to_vec3(&self) -> Vec3<F> {
-        Vec3::new(self[X], self[Y], self[Z])
+        Vec3::with_each_component(|dim| self[dim])
     }
 
     /// Constructs a 2D point by discarding the z-component.
@@ -1103,7 +1113,7 @@ impl<F: BFloat> Point2<F> {
 
     /// Constructs a new vector from the point components.
     pub fn to_vec2(&self) -> Vec2<F> {
-        Vec2::new(self[Dim2::X], self[Dim2::Y])
+        Vec2::with_each_component(|dim| self[dim])
     }
 }
 
@@ -1581,7 +1591,7 @@ impl<'a, F: BFloat> CoordRefs3<'a, F> {
 
     /// Clones the coordinate references to produce a set of owned coordinate arrays.
     pub fn into_owned(self) -> Coords3<F> {
-        Coords3::new(self[X].to_vec(), self[Y].to_vec(), self[Z].to_vec())
+        Coords3::with_each_component(|dim| self[dim].to_vec())
     }
 
     /// Creates a 3D point from the coordinates at the given indices.
@@ -1613,7 +1623,7 @@ impl<'a, F: BFloat> CoordRefs2<'a, F> {
 
     /// Clones the coordinate references to produce a set of owned coordinate arrays.
     pub fn into_owned(self) -> Coords2<F> {
-        Coords2::new(self[Dim2::X].to_vec(), self[Dim2::Y].to_vec())
+        Coords2::with_each_component(|dim| self[dim].to_vec())
     }
 
     /// Creates a 2D point from the coordinates at the given indices.
