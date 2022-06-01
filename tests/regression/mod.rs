@@ -8,6 +8,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// If this environment variable is `1`, the output files generated
+/// by the tests are written into the `expected_output` folder and
+/// the regression comparisons are skipped. Otherwise, the files
+/// are written into the `actual_output` folder and are compared
+/// with the corresponding data in the `expected_output` folder.
+const GENERATE_ENV_VAR: &str = "BACKSTAFF_REGRESSION_GENERATE";
+
 pub fn in_output_dir<P: AsRef<Path>>(file_name: P) -> PathBuf {
     OUTPUT_DIR.join(file_name)
 }
@@ -31,8 +38,6 @@ pub fn assert_file_identical<P: AsRef<Path>>(output_file: P) {
         assert!(identical);
     }
 }
-
-const GENERATE_ENV_VAR: &str = "BACKSTAFF_REGRESSION_GENERATE";
 
 lazy_static! {
     static ref EXPECTED_OUTPUT_DIR: PathBuf = ["tests", "data", "expected_output"].iter().collect();
