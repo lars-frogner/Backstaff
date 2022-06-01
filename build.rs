@@ -142,6 +142,9 @@ fn setup_python() {
 }
 
 fn main() {
+    #[cfg(not(feature = "python"))]
+    println!("cargo:rerun-if-changed=build.rs");
+
     setup_hdf5();
     setup_python();
 }
