@@ -64,10 +64,10 @@ serde_json = { version = "*", optional = true }
 serde-pickle = { version = "*", optional = true }
 
 # Dependencies for netcdf
-netcdf-rs = { package = "netcdf", version = "*", optional = true}
+netcdf-rs = { package = "netcdf", version = "*", optional = true }
 
 # Dependencies for hdf5
-hdf5-rs = { package = "hdf5", version = "*", optional = true}
+hdf5-rs = { package = "hdf5", version = "*", optional = true }
 
 # Dependencies for ebeam
 special = { version = "*", optional = true }
@@ -76,7 +76,7 @@ special = { version = "*", optional = true }
 rand = { version = "*", optional = true }
 
 # Dependencies for synthesis
-roman = { version = "*", optional = true}
+roman = { version = "*", optional = true }
 
 [build-dependencies]
 regex = { version = "*", optional = true }
