@@ -4,14 +4,17 @@ use super::{
     build, completions::run_completions_subcommand, mesh::run_create_mesh_subcommand,
     snapshot::run_snapshot_subcommand,
 };
+use clap::ArgMatches;
 use std::time::Instant;
 
 /// Runs the `backstaff` command line program.
 pub fn run() {
     let command = build::build();
+    run_with_args(command.get_matches());
+}
 
-    let arguments = command.get_matches();
-
+/// Runs the `backstaff` command line program with the given arguments.
+pub fn run_with_args(arguments: ArgMatches) {
     let protected_file_types: Vec<_> = if arguments.is_present("no-protected-files") {
         Vec::new()
     } else {
