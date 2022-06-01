@@ -314,7 +314,12 @@ pub struct Vec3<F>(In3D<F>);
 impl<F: BFloat> Vec3<F> {
     /// Creates a new 3D vector given the three components.
     pub fn new(x: F, y: F, z: F) -> Self {
-        Self(In3D::new(x, y, z))
+        Self::from_in3d(In3D::new(x, y, z))
+    }
+
+    /// Creates a new 3D vector given an `In3D` object of components.
+    pub fn from_in3d(components: In3D<F>) -> Self {
+        Self(components)
     }
 
     /// Creates a new 3D vector by evaluating the given component
@@ -583,7 +588,12 @@ pub struct Vec2<F>(In2D<F>);
 impl<F: BFloat> Vec2<F> {
     /// Creates a new 2D vector given the three components.
     pub fn new(x: F, y: F) -> Self {
-        Self(In2D::new(x, y))
+        Self::from_in2d(In2D::new(x, y))
+    }
+
+    /// Creates a new 3D vector given an `In2D` object of components.
+    pub fn from_in2d(components: In2D<F>) -> Self {
+        Self(components)
     }
 
     /// Creates a new 2D vector by evaluating the given component
