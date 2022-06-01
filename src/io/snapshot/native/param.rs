@@ -267,7 +267,7 @@ mod tests {
     fn reading_works() {
         let reader =
             NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
-                "data/en024031_emer3.0sml_ebeam_631.idl",
+                "data/test_snapshot.idl",
                 Endianness::Little,
                 Verbose::No,
             ))

@@ -605,14 +605,14 @@ mod tests {
     fn snapshot_writing_works() {
         let mut reader =
             NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
-                "data/cb24ni_ebeam_offline/cb24ni_ebeam_offline_462.idl",
+                "data/test_snapshot.idl",
                 Endianness::Little,
                 Verbose::No,
             ))
             .unwrap();
         write_identical_snapshot(
             &mut reader,
-            "test.nc",
+            "data/test_snapshot.nc",
             false,
             OverwriteMode::Always,
             &[],
