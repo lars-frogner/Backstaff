@@ -432,7 +432,6 @@ impl CorkSet {
         if self.verbose().is_yes() {
             println!("Sampling field values");
         }
-        #[allow(clippy::unnecessary_to_owned)]
         for (quantity_idx, name) in self
             .scalar_quantity_names()
             .to_vec()
@@ -444,7 +443,6 @@ impl CorkSet {
                 cork.add_scalar_quantity_value(quantity_idx, field.as_ref(), interpolator)
             });
         }
-        #[allow(clippy::unnecessary_to_owned)]
         for (quantity_idx, name) in self
             .vector_quantity_names()
             .to_vec()
