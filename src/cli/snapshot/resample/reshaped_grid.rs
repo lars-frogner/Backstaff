@@ -44,19 +44,6 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
              sample averaging with the default prameters is used.",
         )
         .arg(
-            Arg::new("scales")
-                .short('S')
-                .long("scales")
-                .require_equals(true)
-                .use_value_delimiter(true)
-                .require_value_delimiter(true)
-                .allow_hyphen_values(false)
-                .value_names(&["SX", "SY", "SZ"])
-                .help("Scale factors for computing shape of the new grid based on original shape")
-                .takes_value(true)
-                .number_of_values(3),
-        )
-        .arg(
             Arg::new("shape")
                 .short('s')
                 .long("shape")
@@ -67,8 +54,21 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
                 .help("Shape of the resampled grid (`same` is original size)")
                 .takes_value(true)
                 .number_of_values(3)
-                .default_value("same,same,same")
-                .conflicts_with("scales"),
+                .default_value("same,same,same"),
+        )
+        .arg(
+            Arg::new("scales")
+                .short('c')
+                .long("scales")
+                .require_equals(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
+                .allow_hyphen_values(false)
+                .value_names(&["SX", "SY", "SZ"])
+                .help("Factors for scaling the dimensions specified in the `shape` argument")
+                .takes_value(true)
+                .number_of_values(3)
+                .default_value("1,1,1"),
         )
         .subcommand(create_sample_averaging_subcommand(command_name))
         .subcommand(create_cell_averaging_subcommand(command_name))
@@ -101,23 +101,22 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
 {
     let original_shape = provider.grid().shape();
 
-    let scales: Vec<fgr> =
-        utils::get_finite_float_values_from_parseable_argument_with_custom_defaults(
-            root_arguments,
-            "scales",
-            &|| vec![1.0, 1.0, 1.0],
-        );
-
-    let shape = if scales.iter().all(|&scale| scale == 1.0) {
+    let unscaled_shape =
         utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
             match value_string {
                 "same" => Some(original_shape[dim]),
                 _ => None,
             }
-        })
-    } else {
-        super::compute_scaled_grid_shape(original_shape, &scales)
-    };
+        });
+
+    let scales = utils::parse_3d_float_values(
+        root_arguments,
+        "scales",
+        utils::AllowInfinity::No,
+        utils::AllowZero::No,
+    );
+
+    let shape = super::compute_scaled_grid_shape(&unscaled_shape, &scales);
 
     let new_shape = if shape[X] == original_shape[X]
         && shape[Y] == original_shape[Y]

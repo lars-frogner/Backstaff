@@ -68,6 +68,20 @@ pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Comman
                 .number_of_values(3)
                 .default_value("file,file,file"),
         )
+        .arg(
+            Arg::new("scales")
+                .short('c')
+                .long("scales")
+                .require_equals(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
+                .allow_hyphen_values(false)
+                .value_names(&["SX", "SY", "SZ"])
+                .help("Factors for scaling the dimensions specified in the `shape` argument")
+                .takes_value(true)
+                .number_of_values(3)
+                .default_value("1,1,1"),
+        )
         .subcommand(create_sample_averaging_subcommand(command_name))
         .subcommand(create_cell_averaging_subcommand(command_name))
         .subcommand(create_direct_sampling_subcommand(command_name));
@@ -114,13 +128,23 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     let mesh_file_shape = center_coords.shape();
     let original_shape = provider.grid().shape();
 
-    let shape = utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
-        match value_string {
-            "file" => Some(mesh_file_shape[dim]),
-            "same" => Some(original_shape[dim]),
-            _ => None,
-        }
-    });
+    let unscaled_shape =
+        utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
+            match value_string {
+                "file" => Some(mesh_file_shape[dim]),
+                "same" => Some(original_shape[dim]),
+                _ => None,
+            }
+        });
+
+    let scales = utils::parse_3d_float_values(
+        root_arguments,
+        "scales",
+        utils::AllowInfinity::No,
+        utils::AllowZero::No,
+    );
+
+    let shape = super::compute_scaled_grid_shape(&unscaled_shape, &scales);
 
     let new_shape = if shape[X] == mesh_file_shape[X]
         && shape[Y] == mesh_file_shape[Y]

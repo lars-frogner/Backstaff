@@ -43,21 +43,6 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
              sample averaging with the default prameters is used.",
         )
         .arg(
-            Arg::new("scales")
-                .short('S')
-                .long("scales")
-                .require_equals(true)
-                .use_value_delimiter(true)
-                .require_value_delimiter(true)
-                .allow_hyphen_values(false)
-                .value_names(&["SX", "SY", "SZ"])
-                .help(
-                    "Scale factors for computing shape of the resampled grid based on original shape",
-                )
-                .takes_value(true)
-                .number_of_values(3),
-        )
-        .arg(
             Arg::new("shape")
                 .short('s')
                 .long("shape")
@@ -68,8 +53,21 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
                 .help("Shape of the resampled grid (`auto` approximates original cell extent)")
                 .takes_value(true)
                 .number_of_values(3)
-                .default_value("auto,auto,auto")
-                .conflicts_with("scales"),
+                .default_value("auto,auto,auto"),
+        )
+        .arg(
+            Arg::new("scales")
+                .short('c')
+                .long("scales")
+                .require_equals(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
+                .allow_hyphen_values(false)
+                .value_names(&["SX", "SY", "SZ"])
+                .help("Factors for scaling the dimensions specified in the `shape` argument")
+                .takes_value(true)
+                .number_of_values(3)
+                .default_value("1,1,1"),
         )
         .arg(
             Arg::new("x-bounds")
@@ -179,14 +177,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     let new_upper_bounds = Vec3::new(x_bounds.1, y_bounds.1, z_bounds.1);
     let new_extents = &new_upper_bounds - &new_lower_bounds;
 
-    let scales: Vec<fgr> =
-        cli_utils::get_finite_float_values_from_parseable_argument_with_custom_defaults(
-            root_arguments,
-            "scales",
-            &|| vec![1.0, 1.0, 1.0],
-        );
-
-    let shape = if scales.iter().all(|&scale| scale == 1.0) {
+    let unscaled_shape =
         cli_utils::parse_3d_values(root_arguments, "shape", Some(1), |dim, value_string| {
             match value_string {
                 "same" => Some(original_shape[dim]),
@@ -195,10 +186,16 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
                 ),
                 _ => None,
             }
-        })
-    } else {
-        super::compute_scaled_grid_shape(original_shape, &scales)
-    };
+        });
+
+    let scales = cli_utils::parse_3d_float_values(
+        root_arguments,
+        "scales",
+        cli_utils::AllowInfinity::No,
+        cli_utils::AllowZero::No,
+    );
+
+    let shape = super::compute_scaled_grid_shape(&unscaled_shape, &scales);
 
     let grid = RegularGrid3::from_bounds(
         shape,

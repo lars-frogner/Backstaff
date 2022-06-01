@@ -434,6 +434,12 @@ pub enum AllowInfinity {
     No,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AllowZero {
+    Yes,
+    No,
+}
+
 pub fn parse_limits<F>(
     arguments: &ArgMatches,
     argument_name: &str,
@@ -676,6 +682,43 @@ where
             min_value
         );
     }
+
+    values
+}
+
+pub fn parse_3d_float_values<F>(
+    arguments: &ArgMatches,
+    argument_name: &str,
+    allow_infinity: AllowInfinity,
+    allow_zero: AllowZero,
+) -> In3D<F>
+where
+    F: BFloat + FromStr,
+    <F as FromStr>::Err: std::fmt::Display,
+{
+    let values: In3D<F> = parse_3d_values_no_special(arguments, argument_name, None);
+
+    exit_on_false!(
+        Dim3::slice().into_iter().all(|dim| !values[dim].is_nan()),
+        "Error: {} contains a NaN value",
+        argument_name
+    );
+
+    exit_on_false!(
+        allow_infinity == AllowInfinity::Yes
+            || Dim3::slice().into_iter().all(|dim| values[dim].is_finite()),
+        "Error: {} must be finite",
+        argument_name
+    );
+
+    exit_on_false!(
+        allow_zero == AllowZero::Yes
+            || Dim3::slice()
+                .into_iter()
+                .all(|dim| values[dim] != F::zero()),
+        "Error: {} must be non-zero",
+        argument_name
+    );
 
     values
 }
