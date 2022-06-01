@@ -8,8 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub fn in_output_dir<S: AsRef<str>>(file_name: S) -> PathBuf {
-    OUTPUT_DIR.join(file_name.as_ref())
+pub fn in_output_dir<P: AsRef<Path>>(file_name: P) -> PathBuf {
+    OUTPUT_DIR.join(file_name)
 }
 
 pub fn run<I, T>(args: I)
@@ -55,11 +55,11 @@ fn determine_output_dir() -> PathBuf {
 }
 
 fn in_expected_output_dir<P: AsRef<Path>>(file_name: P) -> PathBuf {
-    EXPECTED_OUTPUT_DIR.join(file_name.as_ref())
+    EXPECTED_OUTPUT_DIR.join(file_name)
 }
 
 fn in_actual_output_dir<P: AsRef<Path>>(file_name: P) -> PathBuf {
-    ACTUAL_OUTPUT_DIR.join(file_name.as_ref())
+    ACTUAL_OUTPUT_DIR.join(file_name)
 }
 
 fn expected_output_file_from_actual<P: AsRef<Path>>(actual_output_file: P) -> PathBuf {
