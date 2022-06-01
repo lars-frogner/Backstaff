@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const GENERATE_ENV_VAR: &str = "BACKSTAFF_TEST_GENERATE";
+const GENERATE_ENV_VAR: &str = "BACKSTAFF_REGRESSION_GENERATE";
 
 lazy_static! {
     static ref EXPECTED_OUTPUT_DIR: PathBuf = ["tests", "data", "expected_output"].iter().collect();
