@@ -8,16 +8,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const GENERATE_ENV_VAR: &str = "BACKSTAFF_REGRESSION_GENERATE";
-
-lazy_static! {
-    static ref EXPECTED_OUTPUT_DIR: PathBuf = ["tests", "data", "expected_output"].iter().collect();
-    static ref ACTUAL_OUTPUT_DIR: PathBuf = ["tests", "data", "actual_output"].iter().collect();
-    static ref GENERATE_EXPECTED: bool = shoud_generate_expected();
-    static ref OUTPUT_DIR: PathBuf = determine_output_dir();
-    static ref COMMAND: Command<'static> = cli::build::build().no_binary_name(true);
-}
-
 pub fn in_output_dir<S: AsRef<str>>(file_name: S) -> PathBuf {
     OUTPUT_DIR.join(file_name.as_ref())
 }
@@ -40,6 +30,16 @@ pub fn assert_file_identical<P: AsRef<Path>>(output_file: P) {
         );
         assert!(identical);
     }
+}
+
+const GENERATE_ENV_VAR: &str = "BACKSTAFF_REGRESSION_GENERATE";
+
+lazy_static! {
+    static ref EXPECTED_OUTPUT_DIR: PathBuf = ["tests", "data", "expected_output"].iter().collect();
+    static ref ACTUAL_OUTPUT_DIR: PathBuf = ["tests", "data", "actual_output"].iter().collect();
+    static ref GENERATE_EXPECTED: bool = shoud_generate_expected();
+    static ref OUTPUT_DIR: PathBuf = determine_output_dir();
+    static ref COMMAND: Command<'static> = cli::build::build().no_binary_name(true);
 }
 
 fn shoud_generate_expected() -> bool {
