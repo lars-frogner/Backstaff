@@ -72,8 +72,11 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
-pub fn run_inspect_subcommand<G, P>(arguments: &ArgMatches, provider: P)
-where
+pub fn run_inspect_subcommand<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    protected_file_types: &[&str],
+) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -88,7 +91,12 @@ where
 
     #[cfg(feature = "statistics")]
     if let Some(statistics_arguments) = arguments.subcommand_matches("statistics") {
-        run_statistics_subcommand(statistics_arguments, provider, quantity_names);
+        run_statistics_subcommand(
+            statistics_arguments,
+            provider,
+            quantity_names,
+            protected_file_types,
+        );
     }
     #[cfg(not(feature = "statistics"))]
     exit_with_error!(

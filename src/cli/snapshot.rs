@@ -460,7 +460,7 @@ fn run_snapshot_subcommand_for_provider<G, P>(
     P: SnapshotProvider3<G>,
 {
     if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-        inspect::run_inspect_subcommand(inspect_arguments, provider);
+        inspect::run_inspect_subcommand(inspect_arguments, provider, protected_file_types);
     } else if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
         slice::run_slice_subcommand(
             slice_arguments,

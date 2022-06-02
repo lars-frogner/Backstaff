@@ -21,7 +21,10 @@ use crate::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::{
+        snapshot::{fdt, SnapshotProvider3},
+        utils::AtomicOutputPath,
+    },
     num::BFloat,
     update_command_graph,
 };
@@ -32,7 +35,13 @@ use ndarray_stats::{interpolate::Linear, QuantileExt};
 use noisy_float::types::n64;
 use pad::{Alignment, PadStr};
 use rayon::prelude::*;
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{self, Write},
+    path::PathBuf,
+    str::FromStr,
+};
 
 const TABLE_WIDTH: usize = 80;
 const NAME_WIDTH: usize = 20;
@@ -141,14 +150,36 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .long("no-global")
                 .help("Skip computation of global statistics"),
         )
+        .arg(
+            Arg::new("output-file")
+                .short('o')
+                .long("output-file")
+                .require_equals(true)
+                .value_name("FILE")
+                .help("Optional file path to write the statistics report to instead of stdout")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("overwrite")
+                .long("overwrite")
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
+        )
+        .arg(
+            Arg::new("no-overwrite")
+                .long("no-overwrite")
+                .help("Do not overwrite any existing files")
+                .conflicts_with("overwrite"),
+        )
         .subcommand(create_poly_fit_interpolator_subcommand(command_name))
 }
 
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
 pub fn run_statistics_subcommand<G, P>(
     arguments: &ArgMatches,
-    mut provider: P,
+    provider: P,
     quantity_names: Vec<String>,
+    protected_file_types: &[&str],
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -219,7 +250,94 @@ pub fn run_statistics_subcommand<G, P>(
     };
     let interpolator = PolyFitInterpolator3::new(interpolator_config);
 
-    for name in &quantity_names {
+    match arguments.value_of("output-file") {
+        Some(output_file_path) => {
+            let output_file_path = exit_on_error!(
+                PathBuf::from_str(output_file_path),
+                "Error: Could not interpret path to input file: {}"
+            );
+
+            let overwrite_mode = utils::overwrite_mode_from_arguments(arguments);
+
+            let atomic_output_path = exit_on_error!(
+                AtomicOutputPath::new(output_file_path),
+                "Error: Could not create temporary output file: {}"
+            );
+
+            if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+                return;
+            }
+
+            let mut writer = exit_on_error!(
+                File::create(atomic_output_path.temporary_path()),
+                "Error: Could not create output file: {}"
+            );
+
+            exit_on_error!(
+                print_statistics_reports(
+                    provider,
+                    &quantity_names,
+                    value_range,
+                    x_range,
+                    y_range,
+                    z_range,
+                    slice_depths.as_deref(),
+                    quantile_p_values.as_deref(),
+                    no_global,
+                    &interpolator,
+                    &mut writer,
+                ),
+                "Error: Could not write statistics report: {}"
+            );
+
+            exit_on_error!(
+                atomic_output_path.perform_replace(),
+                "Error: Could not move temporary output file to target path: {}"
+            );
+        }
+        None => {
+            let mut writer = io::stdout();
+
+            exit_on_error!(
+                print_statistics_reports(
+                    provider,
+                    &quantity_names,
+                    value_range,
+                    x_range,
+                    y_range,
+                    z_range,
+                    slice_depths.as_deref(),
+                    quantile_p_values.as_deref(),
+                    no_global,
+                    &interpolator,
+                    &mut writer,
+                ),
+                "Error: Could not write statistics report: {}"
+            );
+        }
+    }
+}
+
+fn print_statistics_reports<G, P, I, W>(
+    mut provider: P,
+    quantity_names: &[String],
+    value_range: (fdt, fdt),
+    x_range: (fgr, fgr),
+    y_range: (fgr, fgr),
+    z_range: (fgr, fgr),
+    slice_depths: Option<&[fgr]>,
+    quantile_p_values: Option<&[f64]>,
+    no_global: bool,
+    interpolator: &I,
+    writer: &mut W,
+) -> io::Result<()>
+where
+    G: Grid3<fgr>,
+    P: SnapshotProvider3<G>,
+    I: Interpolator3,
+    W: Write,
+{
+    for name in quantity_names {
         let field = exit_on_error!(
             provider.produce_scalar_field(name),
             "Error: Could not obtain quantity {0}: {1}",
@@ -232,32 +350,43 @@ pub fn run_statistics_subcommand<G, P>(
             x_range,
             y_range,
             z_range,
-            slice_depths.as_deref(),
-            quantile_p_values.as_deref(),
+            slice_depths,
+            quantile_p_values,
             no_global,
-            &interpolator,
-        );
+            interpolator,
+            writer,
+        )?;
     }
-    print_whole_line('-');
+    print_whole_line(writer, '-')
 }
 
-fn print_padded_headline(text: &str, pad_char: char) {
-    println!(
+fn print_padded_headline<W: Write>(writer: &mut W, text: &str, pad_char: char) -> io::Result<()> {
+    writeln!(
+        writer,
         "{}",
         format!(" {} ", text).pad(TABLE_WIDTH, pad_char, Alignment::Middle, false)
-    );
+    )
 }
 
-fn print_whole_line(line_type: char) {
-    println!("{}", "".pad_to_width_with_char(TABLE_WIDTH, line_type));
+fn print_whole_line<W: Write>(writer: &mut W, line_type: char) -> io::Result<()> {
+    writeln!(
+        writer,
+        "{}",
+        "".pad_to_width_with_char(TABLE_WIDTH, line_type)
+    )
 }
 
-fn print_name_value_pair<S: Display>(name: &str, value: S) {
-    println!(
+fn print_name_value_pair<W, S>(writer: &mut W, name: &str, value: S) -> io::Result<()>
+where
+    W: Write,
+    S: Display,
+{
+    writeln!(
+        writer,
         "{} {}",
         format!("{}:", name).pad_to_width(NAME_WIDTH),
         value
-    );
+    )
 }
 
 fn format_value(value: fdt) -> String {
@@ -308,7 +437,7 @@ where
     }
 }
 
-fn print_statistics_report<G, I>(
+fn print_statistics_report<G, I, W>(
     field: ScalarField3<fdt, G>,
     snap_name_and_num: (String, Option<u32>),
     value_range: (fdt, fdt),
@@ -319,9 +448,12 @@ fn print_statistics_report<G, I>(
     quantile_p_values: Option<&[f64]>,
     no_global: bool,
     interpolator: &I,
-) where
+    writer: &mut W,
+) -> io::Result<()>
+where
     G: Grid3<fgr>,
     I: Interpolator3,
+    W: Write,
 {
     let quantity_name = field.name().to_string();
     let locations = field.locations().clone();
@@ -330,8 +462,9 @@ fn print_statistics_report<G, I>(
     let lower_bounds = grid.lower_bounds();
     let upper_bounds = grid.upper_bounds();
 
-    print_whole_line('=');
+    print_whole_line(writer, '=')?;
     print_padded_headline(
+        writer,
         &format!(
             "Statistics for {} from {}",
             &quantity_name,
@@ -341,9 +474,10 @@ fn print_statistics_report<G, I>(
             }
         ),
         ' ',
-    );
-    print_whole_line('-');
+    )?;
+    print_whole_line(writer, '-')?;
     print_padded_headline(
+        writer,
         &format!(
             "For {}, {}, {}, {}",
             format_range(
@@ -380,8 +514,8 @@ fn print_statistics_report<G, I>(
             ),
         ),
         ' ',
-    );
-    print_whole_line('=');
+    )?;
+    print_whole_line(writer, '=')?;
 
     let number_of_nans = values.par_iter().filter(|value| value.is_nan()).count();
     if number_of_nans > 0 {
@@ -430,12 +564,13 @@ fn print_statistics_report<G, I>(
             .par_iter()
             .filter(|value| !value.is_nan())
             .count();
-        print_name_value_pair("Number of values", number_of_values);
+        print_name_value_pair(writer, "Number of values", number_of_values)?;
 
         let min_value = match filtered_field.find_minimum() {
             Some((min_indices, min_value)) => {
                 let min_point = coords.point(&min_indices);
                 print_name_value_pair(
+                    writer,
                     "Minimum value",
                     format!(
                         "{} at ({}, {}, {}) [{}, {}, {}]",
@@ -447,11 +582,11 @@ fn print_statistics_report<G, I>(
                         format_idx(min_indices[Y]),
                         format_idx(min_indices[Z]),
                     ),
-                );
+                )?;
                 min_value
             }
             None => {
-                print_name_value_pair("Minimum value", "N/A");
+                print_name_value_pair(writer, "Minimum value", "N/A")?;
                 fdt::NAN
             }
         };
@@ -460,6 +595,7 @@ fn print_statistics_report<G, I>(
             Some((max_indices, max_value)) => {
                 let max_point = coords.point(&max_indices);
                 print_name_value_pair(
+                    writer,
                     "Maximum value",
                     format!(
                         "{} at ({}, {}, {}) [{}, {}, {}]",
@@ -471,11 +607,11 @@ fn print_statistics_report<G, I>(
                         format_idx(max_indices[Y]),
                         format_idx(max_indices[Z]),
                     ),
-                );
+                )?;
                 max_value
             }
             None => {
-                print_name_value_pair("Maximum value", "N/A");
+                print_name_value_pair(writer, "Maximum value", "N/A")?;
                 fdt::NAN
             }
         };
@@ -486,9 +622,9 @@ fn print_statistics_report<G, I>(
                 .filter(|value| !value.is_nan())
                 .sum();
             let mean = sum / (number_of_values as fdt);
-            print_name_value_pair("Average value", format_value(mean));
+            print_name_value_pair(writer, "Average value", format_value(mean))?;
         } else {
-            print_name_value_pair("Average value", "N/A");
+            print_name_value_pair(writer, "Average value", "N/A")?;
         }
 
         match quantile_p_values {
@@ -510,12 +646,13 @@ fn print_statistics_report<G, I>(
                         .collect();
                     for (p, percentile) in quantile_p_values.iter().zip(percentiles) {
                         print_name_value_pair(
+                            writer,
                             &format!("{}th percentile", p * 100.0),
                             format_value(percentile),
-                        );
+                        )?;
                     }
                 } else {
-                    print_name_value_pair("Percentiles", "N/A");
+                    print_name_value_pair(writer, "Percentiles", "N/A")?;
                 }
             }
             _ => {}
@@ -536,23 +673,31 @@ fn print_statistics_report<G, I>(
                         z_coord,
                         quantile_p_values,
                         interpolator,
-                    );
+                        writer,
+                    )?;
                 }
             }
         }
         _ => {}
     }
+    Ok(())
 }
 
-fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
+fn print_slice_statistics_report<G, I, W>(
     field: &ScalarField3<fdt, G>,
     z_coord: fgr,
     quantile_p_values: Option<&[f64]>,
     interpolator: &I,
-) {
-    print_whole_line('-');
-    print_padded_headline(&format!("In slice at z = {}", z_coord), ' ');
-    print_whole_line('-');
+    writer: &mut W,
+) -> io::Result<()>
+where
+    G: Grid3<fgr>,
+    I: Interpolator3,
+    W: Write,
+{
+    print_whole_line(writer, '-')?;
+    print_padded_headline(writer, &format!("In slice at z = {}", z_coord), ' ')?;
+    print_whole_line(writer, '-')?;
 
     let sliced_field =
         field.slice_across_z(interpolator, z_coord, ResampledCoordLocation::Original);
@@ -566,7 +711,7 @@ fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
         .par_iter()
         .filter(|value| !value.is_nan())
         .count();
-    print_name_value_pair("Number of values", number_of_values);
+    print_name_value_pair(writer, "Number of values", number_of_values)?;
 
     let min_value = match sliced_field.find_minimum() {
         Some((min_indices, min_value)) => {
@@ -576,6 +721,7 @@ fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
                 .find_grid_cell(&Point3::new(min_point[X2], min_point[Y2], z_coord))
                 .expect_inside()[Z];
             print_name_value_pair(
+                writer,
                 "Minimum value",
                 format!(
                     "{} at ({}, {}, {}) [{}, {}, {}]",
@@ -587,11 +733,11 @@ fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
                     format_idx(min_indices[Y2]),
                     format_idx(z_idx),
                 ),
-            );
+            )?;
             min_value
         }
         None => {
-            print_name_value_pair("Minimum value", "N/A");
+            print_name_value_pair(writer, "Minimum value", "N/A")?;
             fdt::NAN
         }
     };
@@ -604,6 +750,7 @@ fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
                 .find_grid_cell(&Point3::new(max_point[X2], max_point[Y2], z_coord))
                 .expect_inside()[Z];
             print_name_value_pair(
+                writer,
                 "Maximum value",
                 format!(
                     "{} at ({}, {}, {}) [{}, {}, {}]",
@@ -615,11 +762,11 @@ fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
                     format_idx(max_indices[Y2]),
                     format_idx(z_idx),
                 ),
-            );
+            )?;
             max_value
         }
         None => {
-            print_name_value_pair("Maximum value", "N/A");
+            print_name_value_pair(writer, "Maximum value", "N/A")?;
             fdt::NAN
         }
     };
@@ -630,9 +777,9 @@ fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
             .filter(|value| !value.is_nan())
             .sum();
         let mean = sum / (number_of_values as fdt);
-        print_name_value_pair("Average value", format_value(mean));
+        print_name_value_pair(writer, "Average value", format_value(mean))?;
     } else {
-        print_name_value_pair("Average value", "N/A");
+        print_name_value_pair(writer, "Average value", "N/A")?;
     }
 
     match quantile_p_values {
@@ -654,14 +801,16 @@ fn print_slice_statistics_report<G: Grid3<fgr>, I: Interpolator3>(
                     .collect();
                 for (p, percentile) in quantile_p_values.iter().zip(percentiles) {
                     print_name_value_pair(
+                        writer,
                         &format!("{}th percentile", p * 100.0),
                         format_value(percentile),
-                    );
+                    )?;
                 }
             } else {
-                print_name_value_pair("Percentiles", "N/A");
+                print_name_value_pair(writer, "Percentiles", "N/A")?;
             }
         }
         _ => {}
     }
+    Ok(())
 }

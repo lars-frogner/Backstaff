@@ -784,6 +784,6 @@ fn run_snapshot_resampling_for_provider<G, P>(
             protected_file_types,
         );
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-        run_inspect_subcommand(inspect_arguments, provider);
+        run_inspect_subcommand(inspect_arguments, provider, protected_file_types);
     }
 }
