@@ -3,20 +3,77 @@ use clap::Command;
 use lazy_static::lazy_static;
 use std::{
     env,
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     io::{self, Read},
     path::{Path, PathBuf},
 };
 
-/// If this environment variable is `1`, the output files generated
-/// by the tests are written into the `expected_output` folder and
-/// the regression comparisons are skipped. Otherwise, the files
-/// are written into the `actual_output` folder and are compared
-/// with the corresponding data in the `expected_output` folder.
-const GENERATE_ENV_VAR: &str = "BACKSTAFF_REGRESSION_GENERATE";
+#[derive(Debug, Clone)]
+pub struct RegressionTest {
+    expected_output_path: PathBuf,
+    actual_output_path: PathBuf,
+    output_path: String,
+}
 
-pub fn in_output_dir<P: AsRef<Path>>(file_name: P) -> PathBuf {
-    OUTPUT_DIR.join(file_name)
+pub struct Actual<S>(S);
+pub struct Expected<S>(S);
+
+impl RegressionTest {
+    pub fn for_output_file<S: AsRef<str>>(output_file_name: S) -> Self {
+        let output_file_name = output_file_name.as_ref();
+        Self::for_output_files(Actual(output_file_name), Expected(output_file_name))
+    }
+
+    pub fn for_output_files<S1, S2>(
+        actual_output_file_name: Actual<S1>,
+        expected_output_file_name: Expected<S2>,
+    ) -> Self
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+    {
+        let expected_output_path = CONTEXT
+            .expected_output_dir()
+            .join(expected_output_file_name.0.as_ref());
+        let actual_output_path = CONTEXT
+            .actual_output_dir()
+            .join(actual_output_file_name.0.as_ref());
+
+        let output_path = match CONTEXT.action {
+            RegressionTestAction::GenerateExpected => &expected_output_path,
+            RegressionTestAction::Compare => &actual_output_path,
+        }
+        .to_string_lossy()
+        .to_string();
+
+        Self {
+            expected_output_path,
+            actual_output_path,
+            output_path,
+        }
+    }
+
+    pub fn output_path(&self) -> &str {
+        &self.output_path
+    }
+
+    pub fn assert_files_identical(&self) {
+        if let RegressionTestAction::Compare = CONTEXT.action {
+            let identical = exit_on_error!(
+                file_content_is_identical(self.actual_output_path(), self.expected_output_path()),
+                "Error: Could not read files for comparison: {}"
+            );
+            assert!(identical);
+        }
+    }
+
+    fn expected_output_path(&self) -> &Path {
+        &self.expected_output_path
+    }
+
+    fn actual_output_path(&self) -> &Path {
+        &self.actual_output_path
+    }
 }
 
 pub fn run<I, T>(args: I)
@@ -27,71 +84,63 @@ where
     cli::run::run_with_args(COMMAND.clone().get_matches_from(args));
 }
 
-pub fn assert_file_identical<P: AsRef<Path>>(
-    output_path: P,
-    different_expected_file_name: Option<&str>,
-) {
-    if !*GENERATE_EXPECTED {
-        let actual_output_path = output_path.as_ref();
-        let expected_output_path = expected_output_path_from_actual_or_given(
-            actual_output_path,
-            different_expected_file_name,
-        );
-        let identical = exit_on_error!(
-            file_content_is_identical(actual_output_path, expected_output_path),
-            "Error: Could not read files for comparison: {}"
-        );
-        assert!(identical);
-    }
-}
-
 lazy_static! {
-    static ref EXPECTED_OUTPUT_DIR: PathBuf = ["tests", "data", "expected_output"].iter().collect();
-    static ref ACTUAL_OUTPUT_DIR: PathBuf = ["tests", "data", "actual_output"].iter().collect();
-    static ref GENERATE_EXPECTED: bool = shoud_generate_expected();
-    static ref OUTPUT_DIR: PathBuf = determine_output_dir();
+    static ref CONTEXT: RegressionTestContext = RegressionTestContext::new();
     static ref COMMAND: Command<'static> = cli::build::build().no_binary_name(true);
 }
 
-fn shoud_generate_expected() -> bool {
-    matches!(env::var_os(GENERATE_ENV_VAR), Some(value) if (value.to_string_lossy() == "1"))
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum RegressionTestAction {
+    GenerateExpected,
+    Compare,
 }
 
-fn determine_output_dir() -> PathBuf {
-    if *GENERATE_EXPECTED {
-        EXPECTED_OUTPUT_DIR.clone()
-    } else {
-        ACTUAL_OUTPUT_DIR.clone()
+impl RegressionTestAction {
+    /// If this environment variable is `1`, the output files generated
+    /// by the tests are written into the `expected_output` folder and
+    /// the regression comparisons are skipped. Otherwise, the files
+    /// are written into the `actual_output` folder and are compared
+    /// with the corresponding data in the `expected_output` folder.
+    const ENV_VAR: &'static str = "BACKSTAFF_REGRESSION_GENERATE";
+
+    fn from_env() -> Self {
+        match env::var_os(Self::ENV_VAR) {
+            Some(value) if (value.to_string_lossy() == "1") => Self::GenerateExpected,
+            _ => Self::Compare,
+        }
     }
 }
 
-fn in_expected_output_dir<S: AsRef<OsStr>>(file_name: S) -> PathBuf {
-    EXPECTED_OUTPUT_DIR.join(file_name.as_ref())
+#[derive(Debug, Clone)]
+struct RegressionTestContext {
+    action: RegressionTestAction,
+    expected_output_dir: PathBuf,
+    actual_output_dir: PathBuf,
 }
 
-fn in_actual_output_dir<S: AsRef<OsStr>>(file_name: S) -> PathBuf {
-    ACTUAL_OUTPUT_DIR.join(file_name.as_ref())
-}
+impl RegressionTestContext {
+    const EXPECTED_DIR_PATH_COMPONENTS: [&'static str; 3] = ["tests", "data", "expected_output"];
+    const ACTUAL_DIR_PATH_COMPONENTS: [&'static str; 3] = ["tests", "data", "expected_output"];
 
-fn expected_output_path_from_actual<P: AsRef<Path>>(actual_output_path: P) -> PathBuf {
-    let file_name = actual_output_path
-        .as_ref()
-        .file_name()
-        .expect("Missing file name");
-    in_expected_output_dir(file_name)
-}
+    fn new() -> Self {
+        let action = RegressionTestAction::from_env();
 
-fn expected_output_path_from_actual_or_given<P, S>(
-    actual_output_path: P,
-    different_expected_file_name: Option<S>,
-) -> PathBuf
-where
-    P: AsRef<Path>,
-    S: AsRef<OsStr>,
-{
-    match different_expected_file_name {
-        Some(file_name) => in_expected_output_dir(file_name),
-        None => expected_output_path_from_actual(actual_output_path),
+        let expected_output_dir: PathBuf = Self::EXPECTED_DIR_PATH_COMPONENTS.iter().collect();
+        let actual_output_dir: PathBuf = Self::ACTUAL_DIR_PATH_COMPONENTS.iter().collect();
+
+        Self {
+            action,
+            expected_output_dir,
+            actual_output_dir,
+        }
+    }
+
+    fn expected_output_dir(&self) -> &Path {
+        &self.expected_output_dir
+    }
+
+    fn actual_output_dir(&self) -> &Path {
+        &self.actual_output_dir
     }
 }
 
