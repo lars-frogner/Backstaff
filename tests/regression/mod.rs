@@ -3,7 +3,7 @@ use clap::Command;
 use lazy_static::lazy_static;
 use std::{
     env,
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     io::{self, Read},
     path::{Path, PathBuf},
 };
@@ -27,12 +27,18 @@ where
     cli::run::run_with_args(COMMAND.clone().get_matches_from(args));
 }
 
-pub fn assert_file_identical<P: AsRef<Path>>(output_file: P) {
+pub fn assert_file_identical<P: AsRef<Path>>(
+    output_path: P,
+    different_expected_file_name: Option<&str>,
+) {
     if !*GENERATE_EXPECTED {
-        let actual_output_file = output_file.as_ref();
-        let expected_output_file = expected_output_file_from_actual(actual_output_file);
+        let actual_output_path = output_path.as_ref();
+        let expected_output_path = expected_output_path_from_actual_or_given(
+            actual_output_path,
+            different_expected_file_name,
+        );
         let identical = exit_on_error!(
-            file_content_is_identical(actual_output_file, expected_output_file),
+            file_content_is_identical(actual_output_path, expected_output_path),
             "Error: Could not read files for comparison: {}"
         );
         assert!(identical);
@@ -59,20 +65,34 @@ fn determine_output_dir() -> PathBuf {
     }
 }
 
-fn in_expected_output_dir<P: AsRef<Path>>(file_name: P) -> PathBuf {
-    EXPECTED_OUTPUT_DIR.join(file_name)
+fn in_expected_output_dir<S: AsRef<OsStr>>(file_name: S) -> PathBuf {
+    EXPECTED_OUTPUT_DIR.join(file_name.as_ref())
 }
 
-fn in_actual_output_dir<P: AsRef<Path>>(file_name: P) -> PathBuf {
-    ACTUAL_OUTPUT_DIR.join(file_name)
+fn in_actual_output_dir<S: AsRef<OsStr>>(file_name: S) -> PathBuf {
+    ACTUAL_OUTPUT_DIR.join(file_name.as_ref())
 }
 
-fn expected_output_file_from_actual<P: AsRef<Path>>(actual_output_file: P) -> PathBuf {
-    let file_name = actual_output_file
+fn expected_output_path_from_actual<P: AsRef<Path>>(actual_output_path: P) -> PathBuf {
+    let file_name = actual_output_path
         .as_ref()
         .file_name()
         .expect("Missing file name");
     in_expected_output_dir(file_name)
+}
+
+fn expected_output_path_from_actual_or_given<P, S>(
+    actual_output_path: P,
+    different_expected_file_name: Option<S>,
+) -> PathBuf
+where
+    P: AsRef<Path>,
+    S: AsRef<OsStr>,
+{
+    match different_expected_file_name {
+        Some(file_name) => in_expected_output_dir(file_name),
+        None => expected_output_path_from_actual(actual_output_path),
+    }
 }
 
 fn file_content_is_identical<P1, P2>(file_path_1: P1, file_path_2: P2) -> io::Result<bool>

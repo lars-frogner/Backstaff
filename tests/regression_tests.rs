@@ -4,10 +4,10 @@ use regression::{assert_file_identical, in_output_dir, run};
 
 #[test]
 fn regular_mesh_is_correct() {
-    let output_file = in_output_dir("regular.mesh");
+    let output_path = in_output_dir("regular.mesh");
     run([
         "create_mesh",
-        &output_file.to_string_lossy(),
+        &output_path.to_string_lossy(),
         "--overwrite",
         "regular",
         "--shape=3,4,5",
@@ -15,5 +15,5 @@ fn regular_mesh_is_correct() {
         "--y-bounds=-1,2",
         "--z-bounds=1,1.5",
     ]);
-    assert_file_identical(output_file);
+    assert_file_identical(output_path, None);
 }
