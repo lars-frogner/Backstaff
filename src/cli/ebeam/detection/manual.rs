@@ -4,7 +4,7 @@ use super::super::distribution::power_law::create_power_law_distribution_subcomm
 use crate::{
     ebeam::detection::manual::ManualReconnectionSiteDetector, exit_on_error, update_command_graph,
 };
-use clap::{Arg, ArgMatches, Command};
+use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for using the manual reconnection site detector.
@@ -30,7 +30,8 @@ pub fn create_manual_reconnection_site_detector_subcommand(
                 .value_name("FILE")
                 .help("Path to the text file containing the reconnection site positions")
                 .required(true)
-                .takes_value(true),
+                .takes_value(true)
+                .value_hint(ValueHint::FilePath),
         )
         .subcommand(create_power_law_distribution_subcommand(command_name))
 }
