@@ -222,21 +222,18 @@ where
     }
 
     fn least_requested_cached_variable(&self) -> Option<(String, u64)> {
-        self.request_counts
-            .iter()
-            .filter_map(|(name, &count)| {
-                if let Some(entry) = self.scalar_fields.get(name) {
-                    if entry.was_automatically_cached() {
-                        Some(KeyValueOrderableByValue(name, count))
-                    } else {
-                        None
-                    }
+        Iterator::min(self.request_counts.iter().filter_map(|(name, &count)| {
+            if let Some(entry) = self.scalar_fields.get(name) {
+                if entry.was_automatically_cached() {
+                    Some(KeyValueOrderableByValue(name, count))
                 } else {
                     None
                 }
-            })
-            .min()
-            .map(|KeyValueOrderableByValue(name, count)| (name.clone(), count))
+            } else {
+                None
+            }
+        }))
+        .map(|KeyValueOrderableByValue(name, count)| (name.clone(), count))
     }
 }
 
