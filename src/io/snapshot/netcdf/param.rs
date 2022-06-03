@@ -38,6 +38,10 @@ impl NetCDFSnapshotParameters {
 }
 
 impl SnapshotParameters for NetCDFSnapshotParameters {
+    fn n_values(&self) -> usize {
+        self.parameters.len()
+    }
+
     fn names(&self) -> Vec<&str> {
         self.parameters.keys().map(|s| s.as_str()).collect()
     }

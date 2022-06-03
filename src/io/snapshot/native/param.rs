@@ -101,6 +101,10 @@ impl NativeSnapshotParameters {
 }
 
 impl SnapshotParameters for NativeSnapshotParameters {
+    fn n_values(&self) -> usize {
+        self.parameter_set.n_values()
+    }
+
     fn names(&self) -> Vec<&str> {
         self.parameter_set.parameter_names()
     }
@@ -179,6 +183,11 @@ struct ParameterSet {
 }
 
 impl ParameterSet {
+    /// Returns the number of parameters in the parameter set.
+    fn n_values(&self) -> usize {
+        self.values.len()
+    }
+
     /// Returns a list of all parameter names in the parameter set.
     fn parameter_names(&self) -> Vec<&str> {
         self.values.keys().map(|s| s.as_str()).collect()

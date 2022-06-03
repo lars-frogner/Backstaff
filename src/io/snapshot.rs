@@ -134,6 +134,9 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
 
 /// Parameters associated with a snapshot.
 pub trait SnapshotParameters: Clone {
+    /// Returns the number of parameters associated with the snapshot.
+    fn n_values(&self) -> usize;
+
     /// Returns a list of all parameter names associated with the snapshot.
     fn names(&self) -> Vec<&str>;
 
