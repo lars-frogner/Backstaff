@@ -13,20 +13,30 @@ use crate::{
 use netcdf_rs::{self, File, GroupMut};
 use std::io;
 
+/// Data for a grid represented in a NetCDF file.
+pub struct NetCDFGridData {
+    pub detected_grid_type: GridType,
+    pub center_coords: Coords3<fgr>,
+    pub lower_edge_coords: Coords3<fgr>,
+    pub up_derivatives: Option<Coords3<fgr>>,
+    pub down_derivatives: Option<Coords3<fgr>>,
+    pub endianness: Endianness,
+}
+
 /// Tries to construct a grid from the data in the given NetCDF group.
 pub fn read_grid<G: Grid3<fgr>>(
     file: &File,
     is_periodic: In3D<bool>,
     verbose: Verbose,
 ) -> io::Result<(G, Endianness)> {
-    let (
+    let NetCDFGridData {
         detected_grid_type,
         center_coords,
         lower_edge_coords,
         up_derivatives,
         down_derivatives,
         endianness,
-    ) = read_grid_data(file, verbose)?;
+    } = read_grid_data(file, verbose)?;
 
     if detected_grid_type != G::TYPE {
         return Err(io::Error::new(
@@ -46,15 +56,6 @@ pub fn read_grid<G: Grid3<fgr>>(
         endianness,
     ))
 }
-
-type NetCDFGridData = (
-    GridType,
-    Coords3<fgr>,
-    Coords3<fgr>,
-    Option<Coords3<fgr>>,
-    Option<Coords3<fgr>>,
-    Endianness,
-);
 
 /// Reads the data required to construct a grid from the given NetCDF group.
 pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridData> {
@@ -103,10 +104,10 @@ pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridDat
     }?;
 
     let center_coords = Coords3::new(xm, ym, zm);
-    let lower_coords = Coords3::new(xmdn, ymdn, zmdn);
+    let lower_edge_coords = Coords3::new(xmdn, ymdn, zmdn);
 
     let detected_grid_type =
-        grid::verify_coordinate_arrays(&center_coords, &lower_coords, verbose.is_yes())?;
+        grid::verify_coordinate_arrays(&center_coords, &lower_edge_coords, verbose.is_yes())?;
 
     let derivative_count = group
         .variables()
@@ -174,14 +175,14 @@ pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridDat
         ));
     };
 
-    Ok((
+    Ok(NetCDFGridData {
         detected_grid_type,
         center_coords,
-        lower_coords,
+        lower_edge_coords,
         up_derivatives,
         down_derivatives,
         endianness,
-    ))
+    })
 }
 
 /// Writes a representation of the given grid to the given NetCDF group.

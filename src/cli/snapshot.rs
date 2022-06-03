@@ -60,7 +60,8 @@ use self::synthesize::create_synthesize_subcommand;
 
 #[cfg(feature = "netcdf")]
 use crate::io::snapshot::netcdf::{
-    self, NetCDFSnapshotParameters, NetCDFSnapshotReader3, NetCDFSnapshotReaderConfig,
+    self, NetCDFGridData, NetCDFSnapshotParameters, NetCDFSnapshotReader3,
+    NetCDFSnapshotReaderConfig,
 };
 
 /// Builds a representation of the `snapshot` command line subcommand.
@@ -318,14 +319,14 @@ fn create_netcdf_reader_and_run(
         NetCDFSnapshotParameters::new(&file, config.verbose()),
         "Error: Could not read snapshot parameters from NetCDF file: {}"
     );
-    let (
+    let NetCDFGridData {
         detected_grid_type,
         center_coords,
         lower_edge_coords,
         up_derivatives,
         down_derivatives,
         endianness,
-    ) = exit_on_error!(
+    } = exit_on_error!(
         netcdf::read_grid_data(&file, config.verbose()),
         "Error: Could not read grid data from NetCDF file: {}"
     );

@@ -30,7 +30,7 @@ use std::{
     sync::Arc,
 };
 
-pub use mesh::read_grid_data;
+pub use mesh::{read_grid_data, NetCDFGridData};
 pub use param::NetCDFSnapshotParameters;
 
 #[cfg(feature = "comparison")]
