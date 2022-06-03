@@ -20,8 +20,9 @@ use crate::{
     grid::{
         fgr,
         CoordLocation::{self, Center, LowerEdge},
-        Grid3,
+        Grid3, GridType,
     },
+    with_io_err_msg,
 };
 use ndarray::prelude::*;
 use std::{
@@ -417,6 +418,81 @@ impl NativeSnapshotReaderConfig {
 
     pub fn param_file_path(&self) -> &Path {
         self.param_file_path.as_path()
+    }
+}
+
+/// Helper object for interpreting native snapshot metadata and creating
+/// the corresponding reader object.
+#[derive(Debug, Clone)]
+pub struct NativeSnapshotMetadata {
+    reader_config: NativeSnapshotReaderConfig,
+    parameters: NativeSnapshotParameters,
+    is_periodic: In3D<bool>,
+    grid_data: NativeGridData,
+}
+
+impl NativeSnapshotMetadata {
+    /// Gathers the metadata for the snapshot specified in the given
+    /// reader configuration and creates a new metadata object.
+    pub fn new(reader_config: NativeSnapshotReaderConfig) -> io::Result<Self> {
+        let parameters = with_io_err_msg!(
+            NativeSnapshotParameters::new(reader_config.param_file_path(), reader_config.verbose()),
+            "Could not read parameter file: {}"
+        )?;
+        let mesh_path = with_io_err_msg!(
+            parameters.determine_mesh_path(),
+            "Could not obtain path to mesh file: {}"
+        )?;
+        let is_periodic = with_io_err_msg!(
+            parameters.determine_grid_periodicity(),
+            "Could not determine grid periodicity: {}"
+        )?;
+        let grid_data = with_io_err_msg!(
+            parse_mesh_file(mesh_path, reader_config.verbose()),
+            "Could not parse mesh file: {}"
+        )?;
+        Ok(Self {
+            reader_config,
+            parameters,
+            is_periodic,
+            grid_data,
+        })
+    }
+
+    /// Returns the type of the grid used by this snapshot.
+    pub fn grid_type(&self) -> GridType {
+        self.grid_data.detected_grid_type
+    }
+
+    /// Creates a new snapshot reader from this metadata.
+    pub fn into_reader<G: Grid3<fgr>>(self) -> io::Result<NativeSnapshotReader3<G>> {
+        let Self {
+            reader_config,
+            parameters,
+            is_periodic,
+            grid_data,
+        } = self;
+
+        let NativeGridData {
+            detected_grid_type: _,
+            center_coords,
+            lower_edge_coords,
+            up_derivatives,
+            down_derivatives,
+        } = grid_data;
+
+        let grid = G::from_coords(
+            center_coords,
+            lower_edge_coords,
+            is_periodic,
+            Some(up_derivatives),
+            Some(down_derivatives),
+        );
+
+        with_io_err_msg!(
+            NativeSnapshotReader3::new_from_parameters_and_grid(reader_config, parameters, grid,),
+            "Could not create snapshot reader: {}"
+        )
     }
 }
 

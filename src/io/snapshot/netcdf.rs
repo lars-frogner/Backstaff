@@ -17,9 +17,10 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{fgr, CoordLocation, Grid3},
+    grid::{fgr, CoordLocation, Grid3, GridType},
     io_result,
     num::BFloat,
+    with_io_err_msg,
 };
 use ndarray::prelude::*;
 use netcdf_rs::{self as nc, File, Group, GroupMut, MutableFile, Numeric};
@@ -240,6 +241,87 @@ impl<G: Grid3<fgr>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
             Arc::clone(&self.grid),
             locations,
             values,
+        ))
+    }
+}
+
+/// Helper object for interpreting NetCDF snapshot metadata and creating
+/// the corresponding reader object.
+#[derive(Debug)]
+pub struct NetCDFSnapshotMetadata {
+    reader_config: NetCDFSnapshotReaderConfig,
+    file: File,
+    parameters: NetCDFSnapshotParameters,
+    is_periodic: In3D<bool>,
+    grid_data: NetCDFGridData,
+}
+
+impl NetCDFSnapshotMetadata {
+    /// Gathers the metadata for the snapshot specified in the given
+    /// reader configuration and creates a new metadata object.
+    pub fn new(reader_config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
+        let file = with_io_err_msg!(
+            open_file(reader_config.file_path()),
+            "Could not open NetCDF file: {}"
+        )?;
+        let parameters = with_io_err_msg!(
+            NetCDFSnapshotParameters::new(&file, reader_config.verbose()),
+            "Could not read snapshot parameters from NetCDF file: {}"
+        )?;
+        let grid_data = with_io_err_msg!(
+            read_grid_data(&file, reader_config.verbose()),
+            "Could not read grid data from NetCDF file: {}"
+        )?;
+        let is_periodic = with_io_err_msg!(
+            parameters.determine_grid_periodicity(),
+            "Could not determine grid periodicity: {}"
+        )?;
+        Ok(Self {
+            reader_config,
+            file,
+            parameters,
+            is_periodic,
+            grid_data,
+        })
+    }
+
+    /// Returns the type of the grid used by this snapshot.
+    pub fn grid_type(&self) -> GridType {
+        self.grid_data.detected_grid_type
+    }
+
+    /// Creates a new snapshot reader from this metadata.
+    pub fn into_reader<G: Grid3<fgr>>(self) -> io::Result<NetCDFSnapshotReader3<G>> {
+        let Self {
+            reader_config,
+            file,
+            parameters,
+            is_periodic,
+            grid_data,
+        } = self;
+
+        let NetCDFGridData {
+            detected_grid_type: _,
+            center_coords,
+            lower_edge_coords,
+            up_derivatives,
+            down_derivatives,
+            endianness,
+        } = grid_data;
+
+        let grid = G::from_coords(
+            center_coords,
+            lower_edge_coords,
+            is_periodic,
+            up_derivatives,
+            down_derivatives,
+        );
+        Ok(NetCDFSnapshotReader3::new_from_parameters_and_grid(
+            reader_config,
+            file,
+            parameters,
+            grid,
+            endianness,
         ))
     }
 }

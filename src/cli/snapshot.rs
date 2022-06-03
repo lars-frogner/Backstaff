@@ -26,10 +26,7 @@ use crate::{
     io::{
         snapshot::{
             self,
-            native::{
-                self, NativeGridData, NativeSnapshotParameters, NativeSnapshotReader3,
-                NativeSnapshotReaderConfig,
-            },
+            native::{NativeSnapshotMetadata, NativeSnapshotReaderConfig},
             CachingSnapshotProvider3, SnapshotProvider3,
         },
         utils as io_utils, Endianness,
@@ -59,10 +56,7 @@ use super::ebeam::create_ebeam_subcommand;
 use self::synthesize::create_synthesize_subcommand;
 
 #[cfg(feature = "netcdf")]
-use crate::io::snapshot::netcdf::{
-    self, NetCDFGridData, NetCDFSnapshotParameters, NetCDFSnapshotReader3,
-    NetCDFSnapshotReaderConfig,
-};
+use crate::io::snapshot::netcdf::{NetCDFSnapshotMetadata, NetCDFSnapshotReaderConfig};
 
 /// Builds a representation of the `snapshot` command line subcommand.
 #[allow(clippy::let_and_return)]
@@ -236,41 +230,15 @@ fn create_native_reader_and_run(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) {
-    let parameters = exit_on_error!(
-        NativeSnapshotParameters::new(config.param_file_path(), config.verbose()),
-        "Error: Could not read parameter file: {}"
+    let metadata = exit_on_error!(
+        NativeSnapshotMetadata::new(config),
+        "Error: Could not interpret snapshot metadata: {}"
     );
-    let mesh_path = exit_on_error!(
-        parameters.determine_mesh_path(),
-        "Error: Could not obtain path to mesh file: {}"
-    );
-    let NativeGridData {
-        detected_grid_type,
-        center_coords,
-        lower_edge_coords,
-        up_derivatives,
-        down_derivatives,
-    } = exit_on_error!(
-        native::parse_mesh_file(mesh_path, config.verbose()),
-        "Error: Could not parse mesh file: {}"
-    );
-    let is_periodic = exit_on_error!(
-        parameters.determine_grid_periodicity(),
-        "Error: Could not determine grid periodicity: {}"
-    );
-    match detected_grid_type {
+
+    match metadata.grid_type() {
         GridType::Regular => {
-            let grid = RegularGrid3::from_coords(
-                center_coords,
-                lower_edge_coords,
-                is_periodic,
-                Some(up_derivatives),
-                Some(down_derivatives),
-            );
             let reader = exit_on_error!(
-                NativeSnapshotReader3::<RegularGrid3<fgr>>::new_from_parameters_and_grid(
-                    config, parameters, grid,
-                ),
+                metadata.into_reader::<RegularGrid3<_>>(),
                 "Error: Could not create snapshot reader: {}"
             );
             run_snapshot_subcommand_with_derive(
@@ -281,17 +249,8 @@ fn create_native_reader_and_run(
             );
         }
         GridType::HorRegular => {
-            let grid = HorRegularGrid3::from_coords(
-                center_coords,
-                lower_edge_coords,
-                is_periodic,
-                Some(up_derivatives),
-                Some(down_derivatives),
-            );
             let reader = exit_on_error!(
-                NativeSnapshotReader3::<HorRegularGrid3<fgr>>::new_from_parameters_and_grid(
-                    config, parameters, grid,
-                ),
+                metadata.into_reader::<HorRegularGrid3<_>>(),
                 "Error: Could not create snapshot reader: {}"
             );
             run_snapshot_subcommand_with_derive(
@@ -311,40 +270,16 @@ fn create_netcdf_reader_and_run(
     snap_num_in_range: &Option<SnapNumInRange>,
     protected_file_types: &[&str],
 ) {
-    let file = exit_on_error!(
-        netcdf::open_file(config.file_path()),
-        "Error: Could not open NetCDF file: {}"
+    let metadata = exit_on_error!(
+        NetCDFSnapshotMetadata::new(config),
+        "Error: Could not interpret snapshot metadata: {}"
     );
-    let parameters = exit_on_error!(
-        NetCDFSnapshotParameters::new(&file, config.verbose()),
-        "Error: Could not read snapshot parameters from NetCDF file: {}"
-    );
-    let NetCDFGridData {
-        detected_grid_type,
-        center_coords,
-        lower_edge_coords,
-        up_derivatives,
-        down_derivatives,
-        endianness,
-    } = exit_on_error!(
-        netcdf::read_grid_data(&file, config.verbose()),
-        "Error: Could not read grid data from NetCDF file: {}"
-    );
-    let is_periodic = exit_on_error!(
-        parameters.determine_grid_periodicity(),
-        "Error: Could not determine grid periodicity: {}"
-    );
-    match detected_grid_type {
+
+    match metadata.grid_type() {
         GridType::Regular => {
-            let grid = RegularGrid3::from_coords(
-                center_coords,
-                lower_edge_coords,
-                is_periodic,
-                up_derivatives,
-                down_derivatives,
-            );
-            let reader = NetCDFSnapshotReader3::<RegularGrid3<fgr>>::new_from_parameters_and_grid(
-                config, file, parameters, grid, endianness,
+            let reader = exit_on_error!(
+                metadata.into_reader::<RegularGrid3<_>>(),
+                "Error: Could not create snapshot reader: {}"
             );
             run_snapshot_subcommand_with_derive(
                 arguments,
@@ -354,17 +289,10 @@ fn create_netcdf_reader_and_run(
             )
         }
         GridType::HorRegular => {
-            let grid = HorRegularGrid3::from_coords(
-                center_coords,
-                lower_edge_coords,
-                is_periodic,
-                up_derivatives,
-                down_derivatives,
+            let reader = exit_on_error!(
+                metadata.into_reader::<HorRegularGrid3<_>>(),
+                "Error: Could not create snapshot reader: {}"
             );
-            let reader =
-                NetCDFSnapshotReader3::<HorRegularGrid3<fgr>>::new_from_parameters_and_grid(
-                    config, file, parameters, grid, endianness,
-                );
             run_snapshot_subcommand_with_derive(
                 arguments,
                 reader,
