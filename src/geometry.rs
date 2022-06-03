@@ -12,6 +12,12 @@ use std::{
 #[cfg(feature = "serialization")]
 use serde::Serialize;
 
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
+#[cfg(feature = "comparison")]
+use crate::num::ComparableSlice;
+
 /// Denotes the x-, y- or z-dimension.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Dim3 {
@@ -210,6 +216,120 @@ impl<T: fmt::Display> fmt::Display for In3D<T> {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl<T> AbsDiffEq for In3D<T>
+where
+    T: AbsDiffEq,
+    T::Epsilon: Copy,
+{
+    type Epsilon = <T as AbsDiffEq>::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon {
+        T::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        T::abs_diff_eq(&self[X], &other[X], epsilon)
+            && T::abs_diff_eq(&self[Y], &other[Y], epsilon)
+            && T::abs_diff_eq(&self[Z], &other[Z], epsilon)
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl<T> RelativeEq for In3D<T>
+where
+    T: RelativeEq,
+    T::Epsilon: Copy,
+{
+    fn default_max_relative() -> Self::Epsilon {
+        T::default_max_relative()
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        T::relative_eq(&self[X], &other[X], epsilon, max_relative)
+            && T::relative_eq(&self[Y], &other[Y], epsilon, max_relative)
+            && T::relative_eq(&self[Z], &other[Z], epsilon, max_relative)
+    }
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_abs_diff_eq {
+    ($T:ident <$F:ident>, $SUBT:ident) => {
+        impl<$F> AbsDiffEq for $T<$F>
+        where
+            $F: BFloat + AbsDiffEq,
+            $F::Epsilon: Copy,
+        {
+            type Epsilon = <$SUBT<$F> as AbsDiffEq>::Epsilon;
+
+            fn default_epsilon() -> Self::Epsilon {
+                $SUBT::<$F>::default_epsilon()
+            }
+
+            fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+                $SUBT::<$F>::abs_diff_eq(&self.0, &other.0, epsilon)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_relative_eq {
+    ($T:ident <$F:ident>, $SUBT:ident) => {
+        impl<$F> RelativeEq for $T<$F>
+        where
+            $F: BFloat + RelativeEq,
+            $F::Epsilon: Copy,
+        {
+            fn default_max_relative() -> Self::Epsilon {
+                $SUBT::<$F>::default_max_relative()
+            }
+
+            fn relative_eq(
+                &self,
+                other: &Self,
+                epsilon: Self::Epsilon,
+                max_relative: Self::Epsilon,
+            ) -> bool {
+                $SUBT::<$F>::relative_eq(&self.0, &other.0, epsilon, max_relative)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_abs_diff_eq_3d {
+    ($T:ident <$F:ident>) => {
+        impl_abs_diff_eq!($T<$F>, In3D);
+    };
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_relative_eq_3d {
+    ($T:ident <$F:ident>) => {
+        impl_relative_eq!($T<$F>, In3D);
+    };
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_abs_diff_eq_2d {
+    ($T:ident <$F:ident>) => {
+        impl_abs_diff_eq!($T<$F>, In2D);
+    };
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_relative_eq_2d {
+    ($T:ident <$F:ident>) => {
+        impl_relative_eq!($T<$F>, In2D);
+    };
+}
+
 /// Represents any quantity with two dimensional components.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
@@ -303,6 +423,45 @@ impl<T: fmt::Display> fmt::Display for In2D<T> {
         f.write_str(", ")?;
         fmt::Display::fmt(&self[Dim2::Y], f)?;
         f.write_str("]")
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl<T> AbsDiffEq for In2D<T>
+where
+    T: AbsDiffEq,
+    T::Epsilon: Copy,
+{
+    type Epsilon = <T as AbsDiffEq>::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon {
+        T::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        T::abs_diff_eq(&self[Dim2::X], &other[Dim2::X], epsilon)
+            && T::abs_diff_eq(&self[Dim2::Y], &other[Dim2::Y], epsilon)
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl<T> RelativeEq for In2D<T>
+where
+    T: RelativeEq,
+    T::Epsilon: Copy,
+{
+    fn default_max_relative() -> Self::Epsilon {
+        T::default_max_relative()
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        T::relative_eq(&self[Dim2::X], &other[Dim2::X], epsilon, max_relative)
+            && T::relative_eq(&self[Dim2::Y], &other[Dim2::Y], epsilon, max_relative)
     }
 }
 
@@ -580,6 +739,12 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec3<F> {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_3d!(Vec3<F>);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_3d!(Vec3<F>);
+
 /// A 2D vector.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
@@ -846,6 +1011,12 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec2<F> {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_2d!(Vec2<F>);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_2d!(Vec2<F>);
+
 /// A 3D spatial coordinate.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
@@ -1058,6 +1229,12 @@ impl<F: BFloat + fmt::Display> fmt::Display for Point3<F> {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_3d!(Point3<F>);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_3d!(Point3<F>);
+
 /// A 2D spatial coordinate.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
@@ -1261,6 +1438,12 @@ impl<F: BFloat + fmt::Display> fmt::Display for Point2<F> {
         f.write_str(")")
     }
 }
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_2d!(Point2<F>);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_2d!(Point2<F>);
 
 /// A 3D index.
 #[derive(Clone, Debug, PartialEq)]
@@ -1486,7 +1669,7 @@ impl<I: num::Integer + fmt::Display> fmt::Display for Idx2<I> {
 }
 
 /// 3D spatial coordinate arrays.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Coords3<F>(In3D<Vec<F>>);
 
@@ -1552,8 +1735,55 @@ impl<F: BFloat> IndexMut<Dim3> for Coords3<F> {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl<F> AbsDiffEq for Coords3<F>
+where
+    F: AbsDiffEq,
+    F::Epsilon: Copy,
+{
+    type Epsilon = <F as AbsDiffEq>::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon {
+        F::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        let x = ComparableSlice(&self.0[X]);
+        let y = ComparableSlice(&self.0[Y]);
+        let z = ComparableSlice(&self.0[Z]);
+        x.abs_diff_eq(&ComparableSlice(&other.0[X]), epsilon)
+            && y.abs_diff_eq(&ComparableSlice(&other.0[Y]), epsilon)
+            && z.abs_diff_eq(&ComparableSlice(&other.0[Z]), epsilon)
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl<F> RelativeEq for Coords3<F>
+where
+    F: RelativeEq,
+    F::Epsilon: Copy,
+{
+    fn default_max_relative() -> Self::Epsilon {
+        F::default_max_relative()
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        let x = ComparableSlice(&self.0[X]);
+        let y = ComparableSlice(&self.0[Y]);
+        let z = ComparableSlice(&self.0[Z]);
+        x.relative_eq(&ComparableSlice(&other.0[X]), epsilon, max_relative)
+            && y.relative_eq(&ComparableSlice(&other.0[Y]), epsilon, max_relative)
+            && z.relative_eq(&ComparableSlice(&other.0[Z]), epsilon, max_relative)
+    }
+}
+
 /// 2D spatial coordinate arrays.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serialization", derive(Serialize))]
 pub struct Coords2<F>(In2D<Vec<F>>);
 
@@ -1596,6 +1826,49 @@ impl<F: BFloat> Index<Dim2> for Coords2<F> {
 impl<F: BFloat> IndexMut<Dim2> for Coords2<F> {
     fn index_mut(&mut self, dim: Dim2) -> &mut Self::Output {
         &mut self.0[dim]
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl<F> AbsDiffEq for Coords2<F>
+where
+    F: AbsDiffEq,
+    F::Epsilon: Copy,
+{
+    type Epsilon = <F as AbsDiffEq>::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon {
+        F::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        let x = ComparableSlice(&self.0[Dim2::X]);
+        let y = ComparableSlice(&self.0[Dim2::Y]);
+        x.abs_diff_eq(&ComparableSlice(&other.0[Dim2::X]), epsilon)
+            && y.abs_diff_eq(&ComparableSlice(&other.0[Dim2::Y]), epsilon)
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl<F> RelativeEq for Coords2<F>
+where
+    F: RelativeEq,
+    F::Epsilon: Copy,
+{
+    fn default_max_relative() -> Self::Epsilon {
+        F::default_max_relative()
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        let x = ComparableSlice(&self.0[Dim2::X]);
+        let y = ComparableSlice(&self.0[Dim2::Y]);
+        x.relative_eq(&ComparableSlice(&other.0[Dim2::X]), epsilon, max_relative)
+            && y.relative_eq(&ComparableSlice(&other.0[Dim2::Y]), epsilon, max_relative)
     }
 }
 

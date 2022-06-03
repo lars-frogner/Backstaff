@@ -729,6 +729,107 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
             In2D::new(self.is_periodic(axis_0), self.is_periodic(axis_1)),
         )
     }
+
+    #[cfg(feature = "comparison")]
+    fn derivatives_equal<H, C>(&self, other: &H, coords_equal: C) -> bool
+    where
+        H: Grid3<F>,
+        C: Fn(&Coords3<F>, &Coords3<F>) -> bool,
+    {
+        (match (self.up_derivatives(), other.up_derivatives()) {
+            (None, None) => true,
+            (None, _) => false,
+            (_, None) => false,
+            (Some(a), Some(b)) => coords_equal(a, b),
+        } && match (self.down_derivatives(), other.down_derivatives()) {
+            (None, None) => true,
+            (None, _) => false,
+            (_, None) => false,
+            (Some(a), Some(b)) => coords_equal(a, b),
+        })
+    }
+}
+
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_partial_eq_for_grid {
+    ($T:ident <$F:ident>, $GT:ident) => {
+        impl<$F, G> PartialEq<G> for $T<$F>
+        where
+            $F: BFloat,
+            G: $GT<$F>,
+        {
+            fn eq(&self, other: &G) -> bool {
+                self.shape() == other.shape()
+                    && self.periodicity() == other.periodicity()
+                    && self.lower_edges() == other.lower_edges()
+                    && self.centers() == other.centers()
+                    && self.up_derivatives() == other.up_derivatives()
+                    && self.down_derivatives() == other.down_derivatives()
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_abs_diff_eq_for_grid {
+    ($T:ident <$F:ident>, $GT:ident) => {
+        impl<$F, G> AbsDiffEq<G> for $T<$F>
+        where
+            $F: BFloat + AbsDiffEq,
+            $F::Epsilon: Copy,
+            G: $GT<$F>,
+        {
+            type Epsilon = <$F as AbsDiffEq>::Epsilon;
+
+            fn default_epsilon() -> Self::Epsilon {
+                $F::default_epsilon()
+            }
+
+            fn abs_diff_eq(&self, other: &G, epsilon: Self::Epsilon) -> bool {
+                self.shape() == other.shape()
+                    && self.periodicity() == other.periodicity()
+                    && self.lower_edges().abs_diff_eq(other.lower_edges(), epsilon)
+                    && self.centers().abs_diff_eq(other.centers(), epsilon)
+                    && self.derivatives_equal(other, |a, b| a.abs_diff_eq(b, epsilon))
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_relative_eq_for_grid {
+    ($T:ident <$F:ident>, $GT:ident) => {
+        impl<$F, G> RelativeEq<G> for $T<$F>
+        where
+            $F: BFloat + RelativeEq,
+            $F::Epsilon: Copy,
+            G: $GT<$F>,
+        {
+            fn default_max_relative() -> Self::Epsilon {
+                $F::default_max_relative()
+            }
+
+            fn relative_eq(
+                &self,
+                other: &G,
+                epsilon: Self::Epsilon,
+                max_relative: Self::Epsilon,
+            ) -> bool {
+                self.shape() == other.shape()
+                    && self.periodicity() == other.periodicity()
+                    && self
+                        .lower_edges()
+                        .relative_eq(other.lower_edges(), epsilon, max_relative)
+                    && self
+                        .centers()
+                        .relative_eq(other.centers(), epsilon, max_relative)
+                    && self.derivatives_equal(other, |a, b| a.relative_eq(b, epsilon, max_relative))
+            }
+        }
+    };
 }
 
 /// Defines the properties of a 2D grid.
@@ -747,6 +848,9 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
     /// Returns the 2D shape of the grid.
     fn shape(&self) -> &In2D<usize>;
 
+    /// Returns a reference to the grid periodicity object.
+    fn periodicity(&self) -> &In2D<bool>;
+
     /// Whether the grid is periodic along the given dimension.
     fn is_periodic(&self, dim: Dim2) -> bool;
 
@@ -761,6 +865,18 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
     /// Returns a reference to the lower coordinates.
     fn lower_edges(&self) -> &Coords2<F> {
         self.coords_by_type(CoordLocation::LowerEdge)
+    }
+
+    /// Returns a reference to the upward derivatives of the grid coordinates,
+    /// if they are available.
+    fn up_derivatives(&self) -> Option<&Coords2<F>> {
+        None
+    }
+
+    /// Returns a reference to the downward derivatives of the grid coordinates,
+    /// if they are available.
+    fn down_derivatives(&self) -> Option<&Coords2<F>> {
+        None
     }
 
     /// Returns a reference to the central coordinates in a regular version of the grid.
@@ -941,6 +1057,25 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
             "Wrapped to outside of bounds."
         );
         Some(wrapped_point)
+    }
+
+    #[cfg(feature = "comparison")]
+    fn derivatives_equal<H, C>(&self, other: &H, coords_equal: C) -> bool
+    where
+        H: Grid2<F>,
+        C: Fn(&Coords2<F>, &Coords2<F>) -> bool,
+    {
+        (match (self.up_derivatives(), other.up_derivatives()) {
+            (None, None) => true,
+            (None, _) => false,
+            (_, None) => false,
+            (Some(a), Some(b)) => coords_equal(a, b),
+        } && match (self.down_derivatives(), other.down_derivatives()) {
+            (None, None) => true,
+            (None, _) => false,
+            (_, None) => false,
+            (Some(a), Some(b)) => coords_equal(a, b),
+        })
     }
 }
 

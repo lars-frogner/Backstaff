@@ -8,8 +8,8 @@ use super::{
         utils::{self, AtomicOutputPath},
         Endianness, OverwriteMode, Verbose,
     },
-    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, FALLBACK_SNAP_NUM,
-    PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
+    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, SnapshotReader3,
+    FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
     field::{ScalarField3, ScalarFieldProvider3},
@@ -35,6 +35,15 @@ use std::{
 
 pub use mesh::{create_grid_from_mesh_file, parse_mesh_file, write_mesh_file_from_grid};
 pub use param::NativeSnapshotParameters;
+
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
+#[cfg(feature = "comparison")]
+use crate::{
+    impl_abs_diff_eq_for_snapshot_reader, impl_partial_eq_for_snapshot_reader,
+    impl_relative_eq_for_snapshot_reader,
+};
 
 /// Configuration parameters for native snapshot reader.
 #[derive(Clone, Debug)]
@@ -408,6 +417,15 @@ impl NativeSnapshotReaderConfig {
         self.param_file_path.as_path()
     }
 }
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_snapshot_reader!(NativeSnapshotReader3<G>, H);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_snapshot_reader!(NativeSnapshotReader3<G>, H);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_snapshot_reader!(NativeSnapshotReader3<G>, H);
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
 pub fn write_modified_snapshot<Pa, G, P>(

@@ -5,6 +5,15 @@ use crate::{geometry::In3D, io_result};
 use netcdf_rs::{AttrValue, File, Group, GroupMut};
 use std::{collections::HashMap, io};
 
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
+#[cfg(feature = "comparison")]
+use crate::{
+    impl_abs_diff_eq_for_parameters, impl_partial_eq_for_parameters,
+    impl_relative_eq_for_parameters,
+};
+
 #[derive(Clone, Debug)]
 /// Representation of parameters for NetCDF snapshots.
 pub struct NetCDFSnapshotParameters {
@@ -71,6 +80,15 @@ impl SnapshotParameters for NetCDFSnapshotParameters {
         text
     }
 }
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_parameters!(NetCDFSnapshotParameters);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_parameters!(NetCDFSnapshotParameters);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_parameters!(NetCDFSnapshotParameters);
 
 /// Returns a list of all parameters in the given NetCDF group.
 fn read_all_parameter_names(group: &Group) -> Vec<String> {

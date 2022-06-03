@@ -11,6 +11,12 @@ use crate::{
 };
 use std::iter;
 
+#[cfg(feature = "comparison")]
+use crate::{impl_abs_diff_eq_for_grid, impl_partial_eq_for_grid, impl_relative_eq_for_grid};
+
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
 /// A regular 3D grid.
 #[derive(Clone, Debug)]
 pub struct RegularGrid3<F> {
@@ -277,6 +283,15 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_grid!(RegularGrid3<F>, Grid3);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_grid!(RegularGrid3<F>, Grid3);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_grid!(RegularGrid3<F>, Grid3);
+
 /// A regular 2D grid.
 #[derive(Clone, Debug)]
 pub struct RegularGrid2<F> {
@@ -399,6 +414,11 @@ impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
     fn shape(&self) -> &In2D<usize> {
         &self.shape
     }
+
+    fn periodicity(&self) -> &In2D<bool> {
+        &self.is_periodic
+    }
+
     fn is_periodic(&self, dim: Dim2) -> bool {
         self.is_periodic[dim]
     }
@@ -426,6 +446,15 @@ impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
         &self.extents
     }
 }
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_grid!(RegularGrid2<F>, Grid2);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_grid!(RegularGrid2<F>, Grid2);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_grid!(RegularGrid2<F>, Grid2);
 
 /// A regular 1D grid.
 #[derive(Clone, Debug)]

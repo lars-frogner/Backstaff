@@ -11,6 +11,12 @@ use crate::{
 };
 use std::iter;
 
+#[cfg(feature = "comparison")]
+use crate::{impl_abs_diff_eq_for_grid, impl_partial_eq_for_grid, impl_relative_eq_for_grid};
+
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Clone, Debug)]
 pub struct HorRegularGrid3<F> {
@@ -225,6 +231,15 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_grid!(HorRegularGrid3<F>, Grid3);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_grid!(HorRegularGrid3<F>, Grid3);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_grid!(HorRegularGrid3<F>, Grid3);
+
 /// A 2D grid which is regular in x but non-uniform in y.
 #[derive(Clone, Debug)]
 pub struct HorRegularGrid2<F> {
@@ -274,6 +289,11 @@ impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
     fn shape(&self) -> &In2D<usize> {
         &self.shape
     }
+
+    fn periodicity(&self) -> &In2D<bool> {
+        &self.is_periodic
+    }
+
     fn is_periodic(&self, dim: Dim2) -> bool {
         self.is_periodic[dim]
     }
@@ -301,6 +321,15 @@ impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
         &self.extents
     }
 }
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_grid!(HorRegularGrid2<F>, Grid2);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_grid!(HorRegularGrid2<F>, Grid2);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_grid!(HorRegularGrid2<F>, Grid2);
 
 /// A 1D non-uniform grid.
 #[derive(Clone, Debug)]

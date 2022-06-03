@@ -32,6 +32,12 @@ use serde::Serialize;
 #[cfg(feature = "pickle")]
 use crate::io::utils::save_data_as_pickle;
 
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
+#[cfg(feature = "comparison")]
+use crate::num::ComparableSlice;
+
 /// Defines the properties of a provider of 3D scalar fields.
 pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<fgr>>: Sync {
     /// Returns a reference to the grid.
@@ -1793,6 +1799,98 @@ where
     }
 }
 
+#[cfg(feature = "comparison")]
+macro_rules! impl_partial_eq_for_field {
+    ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
+        impl<$F, $G, $H> PartialEq<$T<$F, $H>> for $T<$F, $G>
+        where
+            $F: BFloat,
+            $G: $GT<$GTF> + PartialEq<$H>,
+            $H: $GT<$GTF> + PartialEq<$G>,
+        {
+            fn eq(&self, other: &$T<$F, $H>) -> bool {
+                self.locations() == other.locations()
+                    && self.grid() == other.grid()
+                    && self.values() == other.values()
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_abs_diff_eq_for_field {
+    ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
+        impl<$F, $G, $H> AbsDiffEq<$T<$F, $H>> for $T<$F, $G>
+        where
+            $F: BFloat + AbsDiffEq,
+            $F::Epsilon: Copy,
+            $G: $GT<$GTF> + AbsDiffEq<$H>,
+            $H: $GT<$GTF> + AbsDiffEq<$G>,
+            <$G as AbsDiffEq<$H>>::Epsilon: std::convert::From<<$F as AbsDiffEq>::Epsilon>,
+        {
+            type Epsilon = <$F as AbsDiffEq>::Epsilon;
+
+            fn default_epsilon() -> Self::Epsilon {
+                $F::default_epsilon()
+            }
+
+            fn abs_diff_eq(&self, other: &$T<$F, $H>, epsilon: Self::Epsilon) -> bool {
+                let self_values = ComparableSlice(self.values().as_slice_memory_order().unwrap());
+                let other_values = ComparableSlice(other.values().as_slice_memory_order().unwrap());
+                self.locations() == other.locations()
+                    && self
+                        .grid()
+                        .abs_diff_eq(other.grid(), <$G as AbsDiffEq<$H>>::Epsilon::from(epsilon))
+                    && self_values.abs_diff_eq(&other_values, epsilon)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+macro_rules! impl_relative_eq_for_field {
+    ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
+        impl<$F, $G, $H> RelativeEq<$T<$F, $H>> for $T<$F, $G>
+        where
+            $F: BFloat + RelativeEq,
+            $F::Epsilon: Copy,
+            $G: $GT<$GTF> + RelativeEq<$H>,
+            $H: $GT<$GTF> + RelativeEq<$G>,
+            <$G as AbsDiffEq<$H>>::Epsilon: std::convert::From<<$F as AbsDiffEq>::Epsilon>,
+        {
+            fn default_max_relative() -> Self::Epsilon {
+                $F::default_max_relative()
+            }
+
+            fn relative_eq(
+                &self,
+                other: &$T<$F, $H>,
+                epsilon: Self::Epsilon,
+                max_relative: Self::Epsilon,
+            ) -> bool {
+                let self_values = ComparableSlice(self.values().as_slice_memory_order().unwrap());
+                let other_values = ComparableSlice(other.values().as_slice_memory_order().unwrap());
+                self.locations() == other.locations()
+                    && self.grid().relative_eq(
+                        other.grid(),
+                        <$G as AbsDiffEq<$H>>::Epsilon::from(epsilon),
+                        <$G as AbsDiffEq<$H>>::Epsilon::from(max_relative),
+                    )
+                    && self_values.relative_eq(&other_values, epsilon, max_relative)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
+
 /// A 3D vector field.
 ///
 /// Holds the grid and values of the three components of a 3D vector field,
@@ -2244,6 +2342,15 @@ where
         self.grid = new_grid;
     }
 }
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
 
 /// A 2D vector field.
 ///

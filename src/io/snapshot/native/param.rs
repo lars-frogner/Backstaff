@@ -15,6 +15,15 @@ use std::{
     str, string,
 };
 
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
+#[cfg(feature = "comparison")]
+use crate::{
+    impl_abs_diff_eq_for_parameters, impl_partial_eq_for_parameters,
+    impl_relative_eq_for_parameters,
+};
+
 #[derive(Clone, Debug)]
 /// Representation of parameters for native snapshots.
 pub struct NativeSnapshotParameters {
@@ -131,6 +140,15 @@ impl SnapshotParameters for NativeSnapshotParameters {
     }
 }
 
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_parameters!(NativeSnapshotParameters);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_parameters!(NativeSnapshotParameters);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_parameters!(NativeSnapshotParameters);
+
 /// Representation of a parameter file.
 #[derive(Clone, Debug)]
 struct ParameterFile {
@@ -239,7 +257,10 @@ mod tests {
 
     use super::{
         super::{
-            super::super::{Endianness, Verbose},
+            super::{
+                super::{Endianness, Verbose},
+                SnapshotReader3,
+            },
             NativeSnapshotReader3, NativeSnapshotReaderConfig,
         },
         *,

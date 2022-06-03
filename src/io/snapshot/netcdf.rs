@@ -8,8 +8,8 @@ use super::{
         utils::{self, AtomicOutputPath},
         Endianness, OverwriteMode, Verbose,
     },
-    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, COORDINATE_NAMES,
-    FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
+    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, SnapshotReader3,
+    COORDINATE_NAMES, FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
     field::{ScalarField3, ScalarFieldProvider3},
@@ -32,6 +32,15 @@ use std::{
 
 pub use mesh::read_grid_data;
 pub use param::NetCDFSnapshotParameters;
+
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
+#[cfg(feature = "comparison")]
+use crate::{
+    impl_abs_diff_eq_for_snapshot_reader, impl_partial_eq_for_snapshot_reader,
+    impl_relative_eq_for_snapshot_reader,
+};
 
 /// Configuration parameters for NetCDF snapshot reader.
 #[derive(Clone, Debug)]
@@ -234,6 +243,15 @@ impl<G: Grid3<fgr>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
         ))
     }
 }
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_snapshot_reader!(NetCDFSnapshotReader3<G>, H);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_snapshot_reader!(NetCDFSnapshotReader3<G>, H);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_snapshot_reader!(NetCDFSnapshotReader3<G>, H);
 
 impl NetCDFSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.

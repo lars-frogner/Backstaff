@@ -18,6 +18,9 @@ use crate::{
 use regex::Regex;
 use std::{collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
 
+#[cfg(feature = "comparison")]
+use approx::{AbsDiffEq, RelativeEq};
+
 /// Floating-point precision assumed for snapshot data.
 #[allow(non_camel_case_types)]
 pub type fdt = f32;
@@ -140,6 +143,107 @@ pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
     ) -> io::Result<ScalarField3<fdt, G>>;
 }
 
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_partial_eq_for_snapshot_reader {
+    ($T:ident <$G:ident>, $H:ident) => {
+        impl<$G, $H> PartialEq<$T<$H>> for $T<$G>
+        where
+            $G: Grid3<fgr>,
+            $H: Grid3<fgr>,
+            ScalarField3<fdt, $G>: PartialEq<ScalarField3<fdt, $H>>,
+            ScalarField3<fdt, $H>: PartialEq<ScalarField3<fdt, $G>>,
+        {
+            fn eq(&self, other: &$T<$H>) -> bool {
+                let all_variable_names_self = self.all_variable_names();
+                let all_variable_names_other = other.all_variable_names();
+                if all_variable_names_self.len() != all_variable_names_other.len() {
+                    return false;
+                }
+                all_variable_names_self.iter().all(|name| {
+                    match (self.read_scalar_field(name), other.read_scalar_field(name)) {
+                        (Ok(a), Ok(b)) => a == b,
+                        _ => false,
+                    }
+                })
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_abs_diff_eq_for_snapshot_reader {
+    ($T:ident <$G:ident>, $H:ident) => {
+        impl<$G, $H> AbsDiffEq<$T<$H>> for $T<$G>
+        where
+            $G: Grid3<fgr>,
+            $H: Grid3<fgr>,
+            ScalarField3<fdt, $G>: AbsDiffEq<ScalarField3<fdt, $H>>,
+            ScalarField3<fdt, $H>: AbsDiffEq<ScalarField3<fdt, $G>>,
+            <ScalarField3<fdt, $G> as AbsDiffEq<ScalarField3<fdt, $H>>>::Epsilon: Copy,
+        {
+            type Epsilon = <ScalarField3<fdt, $G> as AbsDiffEq<ScalarField3<fdt, $H>>>::Epsilon;
+
+            fn default_epsilon() -> Self::Epsilon {
+                <ScalarField3<fdt, $G> as AbsDiffEq<ScalarField3<fdt, $H>>>::default_epsilon()
+            }
+
+            fn abs_diff_eq(&self, other: &$T<$H>, epsilon: Self::Epsilon) -> bool {
+                let all_variable_names_self = self.all_variable_names();
+                let all_variable_names_other = other.all_variable_names();
+                if all_variable_names_self.len() != all_variable_names_other.len() {
+                    return false;
+                }
+                all_variable_names_self.iter().all(|name| {
+                    match (self.read_scalar_field(name), other.read_scalar_field(name)) {
+                        (Ok(a), Ok(b)) => a.abs_diff_eq(&b, epsilon),
+                        _ => false,
+                    }
+                })
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_relative_eq_for_snapshot_reader {
+    ($T:ident <$G:ident>, $H:ident) => {
+        impl<$G, $H> RelativeEq<$T<$H>> for $T<$G>
+        where
+            $G: Grid3<fgr>,
+            $H: Grid3<fgr>,
+            ScalarField3<fdt, $G>: RelativeEq<ScalarField3<fdt, $H>>,
+            ScalarField3<fdt, $H>: RelativeEq<ScalarField3<fdt, $G>>,
+            <ScalarField3<fdt, $G> as AbsDiffEq<ScalarField3<fdt, $H>>>::Epsilon: Copy,
+        {
+            fn default_max_relative() -> Self::Epsilon {
+                <ScalarField3<fdt, $G> as RelativeEq<ScalarField3<fdt, $H>>>::default_max_relative()
+            }
+
+            fn relative_eq(
+                &self,
+                other: &$T<$H>,
+                epsilon: Self::Epsilon,
+                max_relative: Self::Epsilon,
+            ) -> bool {
+                let all_variable_names_self = self.all_variable_names();
+                let all_variable_names_other = other.all_variable_names();
+                if all_variable_names_self.len() != all_variable_names_other.len() {
+                    return false;
+                }
+                all_variable_names_self.iter().all(|name| {
+                    match (self.read_scalar_field(name), other.read_scalar_field(name)) {
+                        (Ok(a), Ok(b)) => a.relative_eq(&b, epsilon, max_relative),
+                        _ => false,
+                    }
+                })
+            }
+        }
+    };
+}
+
 /// Parameters associated with a snapshot.
 pub trait SnapshotParameters: Clone {
     /// Returns the number of parameters associated with the snapshot.
@@ -193,6 +297,81 @@ pub trait SnapshotParameters: Clone {
     }
 }
 
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_partial_eq_for_parameters {
+    ($T:ty) => {
+        impl PartialEq for $T {
+            fn eq(&self, other: &Self) -> bool {
+                if self.n_values() != other.n_values() {
+                    return false;
+                }
+                self.names().into_iter().all(|name| {
+                    match (self.get_value(name), other.get_value(name)) {
+                        (Ok(a), Ok(b)) => a == b,
+                        _ => false,
+                    }
+                })
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_abs_diff_eq_for_parameters {
+    ($T:ty) => {
+        impl AbsDiffEq for $T {
+            type Epsilon = <ParameterValue as AbsDiffEq>::Epsilon;
+
+            fn default_epsilon() -> Self::Epsilon {
+                ParameterValue::default_epsilon()
+            }
+
+            fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+                if self.n_values() != other.n_values() {
+                    return false;
+                }
+                self.names().into_iter().all(|name| {
+                    match (self.get_value(name), other.get_value(name)) {
+                        (Ok(a), Ok(b)) => a.abs_diff_eq(&b, epsilon),
+                        _ => false,
+                    }
+                })
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
+#[macro_export]
+macro_rules! impl_relative_eq_for_parameters {
+    ($T:ty) => {
+        impl RelativeEq for $T {
+            fn default_max_relative() -> Self::Epsilon {
+                ParameterValue::default_max_relative()
+            }
+
+            fn relative_eq(
+                &self,
+                other: &Self,
+                epsilon: Self::Epsilon,
+                max_relative: Self::Epsilon,
+            ) -> bool {
+                if self.n_values() != other.n_values() {
+                    return false;
+                }
+                self.names().into_iter().all(|name| {
+                    match (self.get_value(name), other.get_value(name)) {
+                        (Ok(a), Ok(b)) => a.relative_eq(&b, epsilon, max_relative),
+                        _ => false,
+                    }
+                })
+            }
+        }
+    };
+}
+
 #[derive(Clone, Debug)]
 /// Value of a snapshot parameter.
 pub enum ParameterValue {
@@ -241,6 +420,52 @@ impl ParameterValue {
             },
             Self::Int(i) => Ok(i as fpa),
             Self::Float(f) => Ok(f),
+        }
+    }
+}
+
+impl PartialEq for ParameterValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Str(a), Self::Str(b)) => a == b,
+            (Self::Int(a), Self::Int(b)) => a == b,
+            (Self::Float(a), Self::Float(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl AbsDiffEq for ParameterValue {
+    type Epsilon = <fpa as AbsDiffEq>::Epsilon;
+
+    fn default_epsilon() -> Self::Epsilon {
+        fpa::default_epsilon()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        match (self, other) {
+            (Self::Float(a), Self::Float(b)) => a.abs_diff_eq(b, epsilon),
+            (a, b) => a == b,
+        }
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl RelativeEq for ParameterValue {
+    fn default_max_relative() -> Self::Epsilon {
+        fpa::default_max_relative()
+    }
+
+    fn relative_eq(
+        &self,
+        other: &Self,
+        epsilon: Self::Epsilon,
+        max_relative: Self::Epsilon,
+    ) -> bool {
+        match (self, other) {
+            (Self::Float(a), Self::Float(b)) => a.relative_eq(b, epsilon, max_relative),
+            (a, b) => a == b,
         }
     }
 }

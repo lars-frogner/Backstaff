@@ -22,6 +22,7 @@ corks = ["seeding"]
 tracing = ["seeding"]
 ebeam = ["tracing", "rand", "special"]
 synthesis = ["python", "roman"]
+comparison = ["approx"]
 
 [dependencies]
 # Dependencies for core
@@ -77,6 +78,9 @@ rand = { version = "*", optional = true }
 
 # Dependencies for synthesis
 roman = { version = "*", optional = true }
+
+# Dependencies for comparison
+approx = { version = "*", optional = true }
 
 [build-dependencies]
 regex = { version = "*", optional = true }
