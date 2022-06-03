@@ -27,7 +27,8 @@ use crate::{
         snapshot::{
             self,
             native::{
-                self, NativeSnapshotParameters, NativeSnapshotReader3, NativeSnapshotReaderConfig,
+                self, NativeGridData, NativeSnapshotParameters, NativeSnapshotReader3,
+                NativeSnapshotReaderConfig,
             },
             CachingSnapshotProvider3, SnapshotProvider3,
         },
@@ -242,7 +243,13 @@ fn create_native_reader_and_run(
         parameters.determine_mesh_path(),
         "Error: Could not obtain path to mesh file: {}"
     );
-    let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(
+    let NativeGridData {
+        detected_grid_type,
+        center_coords,
+        lower_edge_coords,
+        up_derivatives,
+        down_derivatives,
+    } = exit_on_error!(
         native::parse_mesh_file(mesh_path, config.verbose()),
         "Error: Could not parse mesh file: {}"
     );

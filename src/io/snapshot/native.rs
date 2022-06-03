@@ -33,7 +33,9 @@ use std::{
     sync::Arc,
 };
 
-pub use mesh::{create_grid_from_mesh_file, parse_mesh_file, write_mesh_file_from_grid};
+pub use mesh::{
+    create_grid_from_mesh_file, parse_mesh_file, write_mesh_file_from_grid, NativeGridData,
+};
 pub use param::NativeSnapshotParameters;
 
 #[cfg(feature = "comparison")]

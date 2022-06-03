@@ -23,7 +23,10 @@ use crate::{
     grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
     interpolation::Interpolator3,
     io::{
-        snapshot::{native, SnapshotProvider3},
+        snapshot::{
+            native::{self, NativeGridData},
+            SnapshotProvider3,
+        },
         Verbose,
     },
     update_command_graph,
@@ -120,7 +123,13 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         "Error: Could not interpret path to mesh file: {}"
     );
 
-    let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) = exit_on_error!(
+    let NativeGridData {
+        detected_grid_type,
+        center_coords,
+        lower_edge_coords,
+        up_derivatives,
+        down_derivatives,
+    } = exit_on_error!(
         native::parse_mesh_file(mesh_file_path, verbose),
         "Error: Could not parse mesh file: {}"
     );

@@ -39,8 +39,13 @@ where
     P: AsRef<Path>,
     G: Grid3<fgr>,
 {
-    let (detected_grid_type, center_coords, lower_edge_coords, up_derivatives, down_derivatives) =
-        parse_mesh_file(mesh_path, verbose)?;
+    let NativeGridData {
+        detected_grid_type,
+        center_coords,
+        lower_edge_coords,
+        up_derivatives,
+        down_derivatives,
+    } = parse_mesh_file(mesh_path, verbose)?;
 
     if detected_grid_type != G::TYPE {
         return Err(io::Error::new(
@@ -114,13 +119,14 @@ where
     utils::write_text_file(&text, mesh_path)
 }
 
-type NativeGridData = (
-    GridType,
-    Coords3<fgr>,
-    Coords3<fgr>,
-    Coords3<fgr>,
-    Coords3<fgr>,
-);
+/// Data for a grid representing a Bifrost mesh file.
+pub struct NativeGridData {
+    pub detected_grid_type: GridType,
+    pub center_coords: Coords3<fgr>,
+    pub lower_edge_coords: Coords3<fgr>,
+    pub up_derivatives: Coords3<fgr>,
+    pub down_derivatives: Coords3<fgr>,
+}
 
 /// Parses the mesh file at the given path and returns relevant data.
 pub fn parse_mesh_file<P: AsRef<Path>>(
@@ -216,7 +222,7 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
         center_coord_vecs.pop_front().unwrap(),
     );
 
-    let lower_coords = Coords3::new(
+    let lower_edge_coords = Coords3::new(
         lower_coord_vecs.pop_front().unwrap(),
         lower_coord_vecs.pop_front().unwrap(),
         lower_coord_vecs.pop_front().unwrap(),
@@ -235,13 +241,13 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
     );
 
     let detected_grid_type =
-        grid::verify_coordinate_arrays(&center_coords, &lower_coords, verbose.is_yes())?;
+        grid::verify_coordinate_arrays(&center_coords, &lower_edge_coords, verbose.is_yes())?;
 
-    Ok((
+    Ok(NativeGridData {
         detected_grid_type,
         center_coords,
-        lower_coords,
+        lower_edge_coords,
         up_derivatives,
         down_derivatives,
-    ))
+    })
 }
