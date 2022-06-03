@@ -296,42 +296,6 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
 
         Ok(())
     }
-
-    fn read_scalar_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
-        let variable_descriptor = self.get_variable_descriptor(variable_name)?;
-        let file_path = if variable_descriptor.is_primary {
-            &self.snap_path
-        } else {
-            &self.aux_path
-        };
-        if self.config.verbose.is_yes() {
-            println!(
-                "Reading {} from {}",
-                variable_name,
-                file_path.file_name().unwrap().to_string_lossy()
-            );
-        }
-        let shape = self.grid.shape();
-        let number_of_values = shape[X] * shape[Y] * shape[Z];
-        let byte_offset = number_of_values * variable_descriptor.index * mem::size_of::<fdt>();
-        let buffer = utils::read_from_binary_file(
-            file_path,
-            number_of_values,
-            byte_offset,
-            self.config.endianness,
-        )?;
-        let values = Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap();
-        Ok(ScalarField3::new(
-            variable_name.to_string(),
-            Arc::clone(&self.grid),
-            variable_descriptor.locations.clone(),
-            values,
-        ))
-    }
 }
 
 impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NativeSnapshotReader3<G> {
@@ -381,6 +345,44 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
         super::extract_name_and_num_from_snapshot_path(self.config.param_file_path())
+    }
+}
+
+impl<G: Grid3<fgr>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
+    fn read_scalar_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
+        let variable_descriptor = self.get_variable_descriptor(variable_name)?;
+        let file_path = if variable_descriptor.is_primary {
+            &self.snap_path
+        } else {
+            &self.aux_path
+        };
+        if self.config.verbose.is_yes() {
+            println!(
+                "Reading {} from {}",
+                variable_name,
+                file_path.file_name().unwrap().to_string_lossy()
+            );
+        }
+        let shape = self.grid.shape();
+        let number_of_values = shape[X] * shape[Y] * shape[Z];
+        let byte_offset = number_of_values * variable_descriptor.index * mem::size_of::<fdt>();
+        let buffer = utils::read_from_binary_file(
+            file_path,
+            number_of_values,
+            byte_offset,
+            self.config.endianness,
+        )?;
+        let values = Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap();
+        Ok(ScalarField3::new(
+            variable_name.to_string(),
+            Arc::clone(&self.grid),
+            variable_descriptor.locations.clone(),
+            values,
+        ))
     }
 }
 

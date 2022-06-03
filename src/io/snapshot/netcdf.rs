@@ -147,40 +147,6 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
 
         Ok(())
     }
-
-    fn read_scalar_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
-        if self.config.verbose.is_yes() {
-            println!(
-                "Reading {} from {}",
-                variable_name,
-                self.config.file_path.file_name().unwrap().to_string_lossy()
-            );
-        }
-        let (values, locations, endianness) = read_snapshot_3d_variable::<fdt, G>(
-            &self.file.root().unwrap(),
-            self.grid(),
-            variable_name,
-        )?;
-        if endianness != self.endianness {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Inconsistent endianness for variable {} in NetCDF file",
-                    variable_name
-                ),
-            ));
-        }
-        Ok(ScalarField3::new(
-            variable_name.to_string(),
-            Arc::clone(&self.grid),
-            locations,
-            values,
-        ))
-    }
 }
 
 impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
@@ -230,6 +196,42 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
         super::extract_name_and_num_from_snapshot_path(self.config.file_path())
+    }
+}
+
+impl<G: Grid3<fgr>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
+    fn read_scalar_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        let variable_name = variable_name.as_ref();
+        if self.config.verbose.is_yes() {
+            println!(
+                "Reading {} from {}",
+                variable_name,
+                self.config.file_path.file_name().unwrap().to_string_lossy()
+            );
+        }
+        let (values, locations, endianness) = read_snapshot_3d_variable::<fdt, G>(
+            &self.file.root().unwrap(),
+            self.grid(),
+            variable_name,
+        )?;
+        if endianness != self.endianness {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Inconsistent endianness for variable {} in NetCDF file",
+                    variable_name
+                ),
+            ));
+        }
+        Ok(ScalarField3::new(
+            variable_name.to_string(),
+            Arc::clone(&self.grid),
+            locations,
+            values,
+        ))
     }
 }
 

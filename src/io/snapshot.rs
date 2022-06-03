@@ -132,6 +132,14 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
 }
 
+pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
+    /// Reads the field of the specified 3D scalar variable and returns it by value.
+    fn read_scalar_field<S: AsRef<str>>(
+        &self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>>;
+}
+
 /// Parameters associated with a snapshot.
 pub trait SnapshotParameters: Clone {
     /// Returns the number of parameters associated with the snapshot.
