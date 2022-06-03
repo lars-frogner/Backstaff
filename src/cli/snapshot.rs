@@ -335,11 +335,12 @@ fn create_netcdf_reader_and_run(
                 up_derivatives,
                 down_derivatives,
             );
+            let reader = NetCDFSnapshotReader3::<RegularGrid3<fgr>>::new_from_parameters_and_grid(
+                config, file, parameters, grid, endianness,
+            );
             run_snapshot_subcommand_with_derive(
                 arguments,
-                NetCDFSnapshotReader3::<RegularGrid3<fgr>>::new_from_parameters_and_grid(
-                    config, file, parameters, grid, endianness,
-                ),
+                reader,
                 snap_num_in_range,
                 protected_file_types,
             )
@@ -352,11 +353,13 @@ fn create_netcdf_reader_and_run(
                 up_derivatives,
                 down_derivatives,
             );
-            run_snapshot_subcommand_with_derive(
-                arguments,
+            let reader =
                 NetCDFSnapshotReader3::<HorRegularGrid3<fgr>>::new_from_parameters_and_grid(
                     config, file, parameters, grid, endianness,
-                ),
+                );
+            run_snapshot_subcommand_with_derive(
+                arguments,
+                reader,
                 snap_num_in_range,
                 protected_file_types,
             )
