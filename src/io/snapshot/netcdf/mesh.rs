@@ -14,6 +14,7 @@ use netcdf_rs::{self, File, GroupMut};
 use std::io;
 
 /// Data for a grid represented in a NetCDF file.
+#[derive(Debug, Clone)]
 pub struct NetCDFGridData {
     pub detected_grid_type: GridType,
     pub center_coords: Coords3<fgr>,

@@ -11,6 +11,16 @@ use crate::{
 };
 use std::{collections::VecDeque, io, io::BufRead, path::Path};
 
+/// Data for a grid representing a Bifrost mesh file.
+#[derive(Debug, Clone)]
+pub struct NativeGridData {
+    pub detected_grid_type: GridType,
+    pub center_coords: Coords3<fgr>,
+    pub lower_edge_coords: Coords3<fgr>,
+    pub up_derivatives: Coords3<fgr>,
+    pub down_derivatives: Coords3<fgr>,
+}
+
 /// Constructs a grid from a Bifrost mesh file.
 ///
 /// # Parameters
@@ -117,15 +127,6 @@ where
 
     let text = [format_for_dim(X), format_for_dim(Y), format_for_dim(Z)].join("\n");
     utils::write_text_file(&text, mesh_path)
-}
-
-/// Data for a grid representing a Bifrost mesh file.
-pub struct NativeGridData {
-    pub detected_grid_type: GridType,
-    pub center_coords: Coords3<fgr>,
-    pub lower_edge_coords: Coords3<fgr>,
-    pub up_derivatives: Coords3<fgr>,
-    pub down_derivatives: Coords3<fgr>,
 }
 
 /// Parses the mesh file at the given path and returns relevant data.
