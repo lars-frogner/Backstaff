@@ -427,14 +427,35 @@ impl ParameterValue {
     }
 }
 
+#[cfg(feature = "comparison")]
+macro_rules! compare_parameter_values {
+    ($self:expr, $other:expr, |$a:ident, $b:ident| $compare:expr) => {
+        match ($self, $other) {
+            (ParameterValue::Str(a), ParameterValue::Str(b)) => a == b,
+            (ParameterValue::Int(a), ParameterValue::Int(b)) => a == b,
+            (ParameterValue::Float(a), ParameterValue::Float(b)) => {
+                #[allow(clippy::needless_borrow)]
+                let compare = |$a: &fpa, $b: &fpa| $compare;
+                compare(a, b)
+            }
+            (self_val, other_val) => {
+                if let (Ok(a), Ok(b)) = (self_val.try_as_float(), other_val.try_as_float()) {
+                    let compare = |$a: fpa, $b: fpa| $compare;
+                    compare(a, b)
+                } else if let (Ok(a), Ok(b)) = (self_val.try_as_int(), other_val.try_as_int()) {
+                    a == b
+                } else {
+                    self_val.as_string() == other_val.as_string()
+                }
+            }
+        }
+    };
+}
+
+#[cfg(feature = "comparison")]
 impl PartialEq for ParameterValue {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Str(a), Self::Str(b)) => a == b,
-            (Self::Int(a), Self::Int(b)) => a == b,
-            (Self::Float(a), Self::Float(b)) => a == b,
-            _ => false,
-        }
+        compare_parameter_values!(self, other, |a, b| a == b)
     }
 }
 
@@ -447,10 +468,7 @@ impl AbsDiffEq for ParameterValue {
     }
 
     fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
-        match (self, other) {
-            (Self::Float(a), Self::Float(b)) => a.abs_diff_eq(b, epsilon),
-            (a, b) => a == b,
-        }
+        compare_parameter_values!(self, other, |a, b| a.abs_diff_eq(&b, epsilon))
     }
 }
 
@@ -466,10 +484,7 @@ impl RelativeEq for ParameterValue {
         epsilon: Self::Epsilon,
         max_relative: Self::Epsilon,
     ) -> bool {
-        match (self, other) {
-            (Self::Float(a), Self::Float(b)) => a.relative_eq(b, epsilon, max_relative),
-            (a, b) => a == b,
-        }
+        compare_parameter_values!(self, other, |a, b| a.relative_eq(&b, epsilon, max_relative))
     }
 }
 
