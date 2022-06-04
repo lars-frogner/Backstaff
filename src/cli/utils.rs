@@ -35,7 +35,7 @@ macro_rules! add_subcommand_combinations {
             .into_iter()
             .flatten()
             .zip(subcommand_creators.into_iter())
-            .collect::<std::collections::HashMap<_, _>>();
+            .collect::<::std::collections::HashMap<_, _>>();
 
         crate::cli::utils::add_subcommand_combinations_with_map(
             $command,

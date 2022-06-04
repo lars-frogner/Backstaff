@@ -16,9 +16,6 @@ use std::{
 };
 
 #[cfg(feature = "comparison")]
-use approx::{AbsDiffEq, RelativeEq};
-
-#[cfg(feature = "comparison")]
 use crate::{
     impl_abs_diff_eq_for_parameters, impl_partial_eq_for_parameters,
     impl_relative_eq_for_parameters,

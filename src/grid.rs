@@ -754,9 +754,9 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 #[macro_export]
 macro_rules! impl_partial_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
-        impl<$F, G> PartialEq<G> for $T<$F>
+        impl<$F, G> ::std::cmp::PartialEq<G> for $T<$F>
         where
-            $F: BFloat,
+            $F: crate::num::BFloat,
             G: $GT<$F>,
         {
             fn eq(&self, other: &G) -> bool {
@@ -775,13 +775,13 @@ macro_rules! impl_partial_eq_for_grid {
 #[macro_export]
 macro_rules! impl_abs_diff_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
-        impl<$F, G> AbsDiffEq<G> for $T<$F>
+        impl<$F, G> approx::AbsDiffEq<G> for $T<$F>
         where
-            $F: BFloat + AbsDiffEq,
+            $F: crate::num::BFloat + approx::AbsDiffEq,
             $F::Epsilon: Copy,
             G: $GT<$F>,
         {
-            type Epsilon = <$F as AbsDiffEq>::Epsilon;
+            type Epsilon = <$F as approx::AbsDiffEq>::Epsilon;
 
             fn default_epsilon() -> Self::Epsilon {
                 $F::default_epsilon()
@@ -802,9 +802,9 @@ macro_rules! impl_abs_diff_eq_for_grid {
 #[macro_export]
 macro_rules! impl_relative_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
-        impl<$F, G> RelativeEq<G> for $T<$F>
+        impl<$F, G> approx::RelativeEq<G> for $T<$F>
         where
-            $F: BFloat + RelativeEq,
+            $F: crate::num::BFloat + approx::RelativeEq,
             $F::Epsilon: Copy,
             G: $GT<$F>,
         {

@@ -22,7 +22,7 @@ use serde_pickle;
 #[macro_export]
 macro_rules! io_result {
     ($result:expr) => {
-        $result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))
+        $result.map_err(|err| ::std::io::Error::new(::std::io::ErrorKind::Other, err.to_string()))
     };
 }
 
@@ -30,7 +30,7 @@ macro_rules! io_result {
 macro_rules! with_io_err_msg {
     ($result:expr, $($print_arg:tt)+) => {
         $result.map_err(|err| {
-            std::io::Error::new(
+            ::std::io::Error::new(
             err.kind(),
             format!($($print_arg)*, err),
             )

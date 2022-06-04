@@ -14,9 +14,6 @@ use std::iter;
 #[cfg(feature = "comparison")]
 use crate::{impl_abs_diff_eq_for_grid, impl_partial_eq_for_grid, impl_relative_eq_for_grid};
 
-#[cfg(feature = "comparison")]
-use approx::{AbsDiffEq, RelativeEq};
-
 /// A regular 3D grid.
 #[derive(Clone, Debug)]
 pub struct RegularGrid3<F> {

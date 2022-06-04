@@ -1,6 +1,13 @@
 //! Utilities for reading and writing of Bifrost simulation data.
 
-use std::{borrow::Cow, fmt, path::Path};
+use std::{borrow::Cow, fmt, io, path::Path};
+
+use crate::{
+    grid::{fgr, Grid3},
+    io::{Endianness, Verbose},
+};
+
+use super::SnapshotReader3;
 
 /// Type of an input snapshot file (or set of files).
 #[derive(Clone, Debug)]
@@ -152,3 +159,19 @@ macro_rules! with_new_snapshot_reader {
         }
     }};
 }
+
+// fn read_snapshot_equals_given<P, G, R>(
+//     input_file_path: P,
+//     endianness: Endianness,
+//     verbose: Verbose,
+//     reference_snapshot_reader: &R,
+// ) -> io::Result<bool>
+// where
+//     P: AsRef<Path>,
+//     G: Grid3<fgr>,
+//     R: SnapshotReader3<G>,
+// {
+//     with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
+//         Ok(snapshot_reader == reference_snapshot_reader)
+//     })
+// }

@@ -1826,7 +1826,7 @@ macro_rules! impl_abs_diff_eq_for_field {
             $F::Epsilon: Copy,
             $G: $GT<$GTF> + AbsDiffEq<$H>,
             $H: $GT<$GTF> + AbsDiffEq<$G>,
-            <$G as AbsDiffEq<$H>>::Epsilon: std::convert::From<<$F as AbsDiffEq>::Epsilon>,
+            <$G as AbsDiffEq<$H>>::Epsilon: ::std::convert::From<<$F as AbsDiffEq>::Epsilon>,
         {
             type Epsilon = <$F as AbsDiffEq>::Epsilon;
 
@@ -1838,9 +1838,7 @@ macro_rules! impl_abs_diff_eq_for_field {
                 let self_values = ComparableSlice(self.values().as_slice_memory_order().unwrap());
                 let other_values = ComparableSlice(other.values().as_slice_memory_order().unwrap());
                 self.locations() == other.locations()
-                    && self
-                        .grid()
-                        .abs_diff_eq(other.grid(), <$G as AbsDiffEq<$H>>::Epsilon::from(epsilon))
+                    && self.grid().abs_diff_eq(other.grid(), epsilon.into())
                     && self_values.abs_diff_eq(&other_values, epsilon)
             }
         }
@@ -1856,7 +1854,7 @@ macro_rules! impl_relative_eq_for_field {
             $F::Epsilon: Copy,
             $G: $GT<$GTF> + RelativeEq<$H>,
             $H: $GT<$GTF> + RelativeEq<$G>,
-            <$G as AbsDiffEq<$H>>::Epsilon: std::convert::From<<$F as AbsDiffEq>::Epsilon>,
+            <$G as AbsDiffEq<$H>>::Epsilon: ::std::convert::From<<$F as AbsDiffEq>::Epsilon>,
         {
             fn default_max_relative() -> Self::Epsilon {
                 $F::default_max_relative()
@@ -1871,11 +1869,9 @@ macro_rules! impl_relative_eq_for_field {
                 let self_values = ComparableSlice(self.values().as_slice_memory_order().unwrap());
                 let other_values = ComparableSlice(other.values().as_slice_memory_order().unwrap());
                 self.locations() == other.locations()
-                    && self.grid().relative_eq(
-                        other.grid(),
-                        <$G as AbsDiffEq<$H>>::Epsilon::from(epsilon),
-                        <$G as AbsDiffEq<$H>>::Epsilon::from(max_relative),
-                    )
+                    && self
+                        .grid()
+                        .relative_eq(other.grid(), epsilon.into(), max_relative.into())
                     && self_values.relative_eq(&other_values, epsilon, max_relative)
             }
         }

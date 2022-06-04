@@ -14,9 +14,6 @@ use std::iter;
 #[cfg(feature = "comparison")]
 use crate::{impl_abs_diff_eq_for_grid, impl_partial_eq_for_grid, impl_relative_eq_for_grid};
 
-#[cfg(feature = "comparison")]
-use approx::{AbsDiffEq, RelativeEq};
-
 /// A 3D grid which is regular in x and y but non-uniform in z.
 #[derive(Clone, Debug)]
 pub struct HorRegularGrid3<F> {

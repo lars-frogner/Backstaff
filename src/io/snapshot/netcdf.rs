@@ -35,9 +35,6 @@ pub use mesh::{read_grid_data, NetCDFGridData};
 pub use param::NetCDFSnapshotParameters;
 
 #[cfg(feature = "comparison")]
-use approx::{AbsDiffEq, RelativeEq};
-
-#[cfg(feature = "comparison")]
 use crate::{
     impl_abs_diff_eq_for_snapshot_reader, impl_partial_eq_for_snapshot_reader,
     impl_relative_eq_for_snapshot_reader,
