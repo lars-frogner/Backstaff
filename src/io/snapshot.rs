@@ -147,129 +147,95 @@ pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
 
 #[cfg(feature = "comparison")]
 #[macro_export]
-macro_rules! impl_partial_eq_for_snapshot_reader {
-    ($T:ident <$G:ident>, $H:ident) => {
-        impl<$G, $H> ::std::cmp::PartialEq<$T<$H>> for $T<$G>
-        where
-            $G: crate::grid::Grid3<fgr>,
-            $H: crate::grid::Grid3<fgr>,
-            crate::field::ScalarField3<crate::io::snapshot::fdt, $G>:
-                ::std::cmp::PartialEq<ScalarField3<crate::io::snapshot::fdt, $H>>,
-            crate::field::ScalarField3<crate::io::snapshot::fdt, $H>:
-                ::std::cmp::PartialEq<ScalarField3<crate::io::snapshot::fdt, $G>>,
-        {
-            fn eq(&self, other: &$T<$H>) -> bool {
-                let all_variable_names_self = self.all_variable_names();
-                let all_variable_names_other = other.all_variable_names();
-                if all_variable_names_self.len() != all_variable_names_other.len() {
-                    return false;
-                }
-                if self.parameters() != other.parameters() {
-                    return false;
-                }
+macro_rules! snapshots_eq {
+    ($self:expr, $other:expr) => {{
+        use crate::io::snapshot::{SnapshotProvider3, SnapshotReader3};
+
+        let all_variable_names_self = $self.all_variable_names();
+        let all_variable_names_other = $other.all_variable_names();
+        if all_variable_names_self.len() != all_variable_names_other.len() {
+            false
+        } else {
+            if $self.parameters() != $other.parameters() {
+                false
+            } else {
                 all_variable_names_self.iter().all(|name| {
-                    match (self.read_scalar_field(name), other.read_scalar_field(name)) {
+                    match (
+                        $self.read_scalar_field(name),
+                        $other.read_scalar_field(name),
+                    ) {
                         (Ok(a), Ok(b)) => a == b,
                         _ => false,
                     }
                 })
             }
         }
-    };
+    }};
 }
 
 #[cfg(feature = "comparison")]
 #[macro_export]
-macro_rules! impl_abs_diff_eq_for_snapshot_reader {
-    ($T:ident <$G:ident>, $H:ident) => {
-        impl<$G, $H> approx::AbsDiffEq<$T<$H>> for $T<$G>
-        where
-            $G: crate::grid::Grid3<crate::grid::fgr>,
-            $H: crate::grid::Grid3<crate::grid::fgr>,
-            crate::field::ScalarField3<crate::io::snapshot::fdt, $G>:
-                approx::AbsDiffEq<crate::field::ScalarField3<crate::io::snapshot::fdt, $H>>,
-            crate::field::ScalarField3<crate::io::snapshot::fdt, $H>:
-                approx::AbsDiffEq<crate::field::ScalarField3<crate::io::snapshot::fdt, $G>>,
-            <crate::field::ScalarField3<crate::io::snapshot::fdt, G> as approx::AbsDiffEq<
-                crate::field::ScalarField3<crate::io::snapshot::fdt, H>,
-            >>::Epsilon: ::std::convert::From<crate::io::snapshot::fdt>,
-        {
-            type Epsilon = crate::io::snapshot::fdt;
+macro_rules! snapshots_abs_diff_eq {
+    ($self:expr, $other:expr, $epsilon:expr) => {{
+        use crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
+        use approx::AbsDiffEq;
 
-            fn default_epsilon() -> Self::Epsilon {
-                crate::io::snapshot::fdt::default_epsilon()
-            }
-
-            fn abs_diff_eq(&self, other: &$T<$H>, epsilon: Self::Epsilon) -> bool {
-                let all_variable_names_self = self.all_variable_names();
-                let all_variable_names_other = other.all_variable_names();
-                if all_variable_names_self.len() != all_variable_names_other.len() {
-                    return false;
-                }
-                if self
-                    .parameters()
-                    .abs_diff_ne(other.parameters(), epsilon as fpa)
-                {
-                    return false;
-                }
+        let all_variable_names_self = $self.all_variable_names();
+        let all_variable_names_other = $other.all_variable_names();
+        if all_variable_names_self.len() != all_variable_names_other.len() {
+            false
+        } else {
+            if $self
+                .parameters()
+                .abs_diff_ne($other.parameters(), $epsilon as fpa)
+            {
+                false
+            } else {
                 all_variable_names_self.iter().all(|name| {
-                    match (self.read_scalar_field(name), other.read_scalar_field(name)) {
-                        (Ok(a), Ok(b)) => a.abs_diff_eq(&b, epsilon.into()),
+                    match (
+                        $self.read_scalar_field(name),
+                        $other.read_scalar_field(name),
+                    ) {
+                        (Ok(a), Ok(b)) => a.abs_diff_eq(&b, $epsilon as fdt),
                         _ => false,
                     }
                 })
             }
         }
-    };
+    }};
 }
 
 #[cfg(feature = "comparison")]
 #[macro_export]
-macro_rules! impl_relative_eq_for_snapshot_reader {
-    ($T:ident <$G:ident>, $H:ident) => {
-        impl<$G, $H> approx::RelativeEq<$T<$H>> for $T<$G>
-        where
-            $G: crate::grid::Grid3<crate::grid::fgr>,
-            $H: crate::grid::Grid3<crate::grid::fgr>,
-            crate::field::ScalarField3<crate::io::snapshot::fdt, $G>:
-                approx::RelativeEq<crate::field::ScalarField3<crate::io::snapshot::fdt, $H>>,
-            crate::field::ScalarField3<crate::io::snapshot::fdt, $H>:
-                approx::RelativeEq<crate::field::ScalarField3<crate::io::snapshot::fdt, $G>>,
-            <crate::field::ScalarField3<crate::io::snapshot::fdt, G> as approx::AbsDiffEq<
-                crate::field::ScalarField3<crate::io::snapshot::fdt, H>,
-            >>::Epsilon: ::std::convert::From<crate::io::snapshot::fdt>,
-        {
-            fn default_max_relative() -> Self::Epsilon {
-                crate::io::snapshot::fdt::default_max_relative()
-            }
+macro_rules! snapshots_relative_eq {
+    ($self:expr, $other:expr, $epsilon:expr, $max_relative:expr) => {{
+        use crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
+        use approx::RelativeEq;
 
-            fn relative_eq(
-                &self,
-                other: &$T<$H>,
-                epsilon: Self::Epsilon,
-                max_relative: Self::Epsilon,
-            ) -> bool {
-                let all_variable_names_self = self.all_variable_names();
-                let all_variable_names_other = other.all_variable_names();
-                if all_variable_names_self.len() != all_variable_names_other.len() {
-                    return false;
-                }
-                if self.parameters().relative_ne(
-                    other.parameters(),
-                    epsilon as fpa,
-                    max_relative as fpa,
-                ) {
-                    return false;
-                }
+        let all_variable_names_self = $self.all_variable_names();
+        let all_variable_names_other = $other.all_variable_names();
+        if all_variable_names_self.len() != all_variable_names_other.len() {
+            false
+        } else {
+            if $self.parameters().relative_ne(
+                $other.parameters(),
+                $epsilon as fpa,
+                $max_relative as fpa,
+            ) {
+                false
+            } else {
                 all_variable_names_self.iter().all(|name| {
-                    match (self.read_scalar_field(name), other.read_scalar_field(name)) {
-                        (Ok(a), Ok(b)) => a.relative_eq(&b, epsilon.into(), max_relative.into()),
+                    match (
+                        $self.read_scalar_field(name),
+                        $other.read_scalar_field(name),
+                    ) {
+                        (Ok(a), Ok(b)) => a.relative_eq(&b, $epsilon as fdt, $max_relative as fdt),
                         _ => false,
                     }
                 })
             }
         }
-    };
+    }};
 }
 
 /// Parameters associated with a snapshot.
@@ -329,8 +295,11 @@ pub trait SnapshotParameters: Clone {
 #[macro_export]
 macro_rules! impl_partial_eq_for_parameters {
     ($T:ty) => {
-        impl ::std::cmp::PartialEq for $T {
-            fn eq(&self, other: &Self) -> bool {
+        impl<P> ::std::cmp::PartialEq<P> for $T
+        where
+            P: crate::io::snapshot::SnapshotParameters,
+        {
+            fn eq(&self, other: &P) -> bool {
                 if self.n_values() != other.n_values() {
                     return false;
                 }
@@ -349,14 +318,17 @@ macro_rules! impl_partial_eq_for_parameters {
 #[macro_export]
 macro_rules! impl_abs_diff_eq_for_parameters {
     ($T:ty) => {
-        impl approx::AbsDiffEq for $T {
+        impl<P> approx::AbsDiffEq<P> for $T
+        where
+            P: crate::io::snapshot::SnapshotParameters,
+        {
             type Epsilon = <crate::io::snapshot::ParameterValue as approx::AbsDiffEq>::Epsilon;
 
             fn default_epsilon() -> Self::Epsilon {
                 crate::io::snapshot::ParameterValue::default_epsilon()
             }
 
-            fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+            fn abs_diff_eq(&self, other: &P, epsilon: Self::Epsilon) -> bool {
                 if self.n_values() != other.n_values() {
                     return false;
                 }
@@ -375,14 +347,17 @@ macro_rules! impl_abs_diff_eq_for_parameters {
 #[macro_export]
 macro_rules! impl_relative_eq_for_parameters {
     ($T:ty) => {
-        impl approx::RelativeEq for $T {
+        impl<P> approx::RelativeEq<P> for $T
+        where
+            P: crate::io::snapshot::SnapshotParameters,
+        {
             fn default_max_relative() -> Self::Epsilon {
                 crate::io::snapshot::ParameterValue::default_max_relative()
             }
 
             fn relative_eq(
                 &self,
-                other: &Self,
+                other: &P,
                 epsilon: Self::Epsilon,
                 max_relative: Self::Epsilon,
             ) -> bool {

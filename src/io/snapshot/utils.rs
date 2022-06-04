@@ -3,11 +3,15 @@
 use std::{borrow::Cow, fmt, io, path::Path};
 
 use crate::{
-    grid::{fgr, Grid3},
+    grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
     io::{Endianness, Verbose},
+    snapshots_relative_eq,
 };
 
-use super::SnapshotReader3;
+use super::{fdt, SnapshotReader3};
+
+#[cfg(feature = "comparison")]
+use approx::RelativeEq;
 
 /// Type of an input snapshot file (or set of files).
 #[derive(Clone, Debug)]
@@ -108,8 +112,10 @@ macro_rules! with_new_snapshot_reader {
         type SnapshotInputType = crate::io::snapshot::utils::SnapshotInputType;
         type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
         type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
+        type NativeSnapshotReader3<G> = crate::io::snapshot::native::NativeSnapshotReader3<G>;
         type NetCDFSnapshotReaderConfig = crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
         type NetCDFSnapshotMetadata = crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
+        type NetCDFSnapshotReader3<G> = crate::io::snapshot::netcdf::NetCDFSnapshotReader3<G>;
         type GridType = crate::grid::GridType;
         type RegularGrid3<F> = crate::grid::regular::RegularGrid3<F>;
         type HorRegularGrid3<F> = crate::grid::hor_regular::HorRegularGrid3<F>;
@@ -124,14 +130,15 @@ macro_rules! with_new_snapshot_reader {
                 GridType::Regular => metadata
                     .into_reader::<RegularGrid3<_>>()
                     .and_then(|reader| {
-                        let action = |$reader| $action;
+                        let action = |$reader: NativeSnapshotReader3<RegularGrid3<_>>| $action;
                         action(reader)
                     }),
                 GridType::HorRegular => {
                     metadata
                         .into_reader::<HorRegularGrid3<_>>()
                         .and_then(|reader| {
-                            let action = |$reader| $action;
+                            let action =
+                                |$reader: NativeSnapshotReader3<HorRegularGrid3<_>>| $action;
                             action(reader)
                         })
                 }
@@ -144,14 +151,15 @@ macro_rules! with_new_snapshot_reader {
                 GridType::Regular => metadata
                     .into_reader::<RegularGrid3<_>>()
                     .and_then(|reader| {
-                        let action = |$reader| $action;
+                        let action = |$reader: NetCDFSnapshotReader3<RegularGrid3<_>>| $action;
                         action(reader)
                     }),
                 GridType::HorRegular => {
                     metadata
                         .into_reader::<HorRegularGrid3<_>>()
                         .and_then(|reader| {
-                            let action = |$reader| $action;
+                            let action =
+                                |$reader: NetCDFSnapshotReader3<HorRegularGrid3<_>>| $action;
                             action(reader)
                         })
                 }
@@ -160,18 +168,55 @@ macro_rules! with_new_snapshot_reader {
     }};
 }
 
-// fn read_snapshot_equals_given<P, G, R>(
-//     input_file_path: P,
-//     endianness: Endianness,
-//     verbose: Verbose,
-//     reference_snapshot_reader: &R,
-// ) -> io::Result<bool>
-// where
-//     P: AsRef<Path>,
-//     G: Grid3<fgr>,
-//     R: SnapshotReader3<G>,
-// {
-//     with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
-//         Ok(snapshot_reader == reference_snapshot_reader)
-//     })
-// }
+/// Reads the snapshot at the given path and compares for
+/// approximate equality to the given snapshot.
+#[cfg(feature = "comparison")]
+pub fn read_snapshot_eq_given_snapshot<P, G, R>(
+    input_file_path: P,
+    endianness: Endianness,
+    verbose: Verbose,
+    reference_snapshot_reader: &R,
+    epsilon: fdt,
+    max_relative: fdt,
+) -> io::Result<bool>
+where
+    P: AsRef<Path>,
+    G: Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
+    R: SnapshotReader3<G>,
+{
+    with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
+        Ok(snapshots_relative_eq!(
+            snapshot_reader,
+            reference_snapshot_reader,
+            epsilon,
+            max_relative
+        ))
+    })
+}
+
+/// Reads the snapshots at the given paths and compares them
+/// for approximate equality.
+#[cfg(feature = "comparison")]
+pub fn read_snapshots_eq<P1, P2>(
+    input_file_path_1: P1,
+    input_file_path_2: P2,
+    endianness: Endianness,
+    verbose: Verbose,
+    epsilon: fdt,
+    max_relative: fdt,
+) -> io::Result<bool>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    with_new_snapshot_reader!(input_file_path_1, endianness, verbose, |snapshot_reader| {
+        read_snapshot_eq_given_snapshot(
+            input_file_path_2,
+            endianness,
+            verbose,
+            &snapshot_reader,
+            epsilon,
+            max_relative,
+        )
+    })
+}

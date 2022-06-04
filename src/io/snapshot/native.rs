@@ -39,12 +39,6 @@ pub use mesh::{
 };
 pub use param::NativeSnapshotParameters;
 
-#[cfg(feature = "comparison")]
-use crate::{
-    impl_abs_diff_eq_for_snapshot_reader, impl_partial_eq_for_snapshot_reader,
-    impl_relative_eq_for_snapshot_reader,
-};
-
 /// Configuration parameters for native snapshot reader.
 #[derive(Clone, Debug)]
 pub struct NativeSnapshotReaderConfig {
@@ -492,15 +486,6 @@ impl NativeSnapshotMetadata {
         )
     }
 }
-
-#[cfg(feature = "comparison")]
-impl_partial_eq_for_snapshot_reader!(NativeSnapshotReader3<G>, H);
-
-#[cfg(feature = "comparison")]
-impl_abs_diff_eq_for_snapshot_reader!(NativeSnapshotReader3<G>, H);
-
-#[cfg(feature = "comparison")]
-impl_relative_eq_for_snapshot_reader!(NativeSnapshotReader3<G>, H);
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
 pub fn write_modified_snapshot<Pa, G, P>(

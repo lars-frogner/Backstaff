@@ -34,12 +34,6 @@ use std::{
 pub use mesh::{read_grid_data, NetCDFGridData};
 pub use param::NetCDFSnapshotParameters;
 
-#[cfg(feature = "comparison")]
-use crate::{
-    impl_abs_diff_eq_for_snapshot_reader, impl_partial_eq_for_snapshot_reader,
-    impl_relative_eq_for_snapshot_reader,
-};
-
 /// Configuration parameters for NetCDF snapshot reader.
 #[derive(Clone, Debug)]
 pub struct NetCDFSnapshotReaderConfig {
@@ -322,15 +316,6 @@ impl NetCDFSnapshotMetadata {
         ))
     }
 }
-
-#[cfg(feature = "comparison")]
-impl_partial_eq_for_snapshot_reader!(NetCDFSnapshotReader3<G>, H);
-
-#[cfg(feature = "comparison")]
-impl_abs_diff_eq_for_snapshot_reader!(NetCDFSnapshotReader3<G>, H);
-
-#[cfg(feature = "comparison")]
-impl_relative_eq_for_snapshot_reader!(NetCDFSnapshotReader3<G>, H);
 
 impl NetCDFSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
