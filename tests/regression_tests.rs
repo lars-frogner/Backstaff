@@ -1,6 +1,8 @@
+mod common;
 mod regression;
 
-use regression::{run, Actual, Expected, RegressionTest};
+use common::run;
+use regression::{Actual, Expected, RegressionTest};
 
 #[test]
 fn regular_mesh_is_correct() {
@@ -15,5 +17,5 @@ fn regular_mesh_is_correct() {
         "--y-bounds=-1,2",
         "--z-bounds=1,1.5",
     ]);
-    test.assert_files_identical();
+    test.assert_mesh_files_similar();
 }

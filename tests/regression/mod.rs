@@ -1,10 +1,7 @@
-use backstaff::{cli, exit_on_error, exit_with_error, io::utils as io_utils};
-use clap::Command;
+use crate::common;
 use lazy_static::lazy_static;
 use std::{
     env,
-    ffi::OsString,
-    io::{self, Read},
     path::{Path, PathBuf},
 };
 
@@ -15,8 +12,8 @@ pub struct RegressionTest {
     output_path: String,
 }
 
-pub struct Actual<S>(S);
-pub struct Expected<S>(S);
+pub struct Actual<S>(pub S);
+pub struct Expected<S>(pub S);
 
 impl RegressionTest {
     pub fn for_output_file<S: AsRef<str>>(output_file_name: S) -> Self {
@@ -59,11 +56,16 @@ impl RegressionTest {
 
     pub fn assert_files_identical(&self) {
         if let RegressionTestAction::Compare = CONTEXT.action {
-            let identical = exit_on_error!(
-                file_content_is_identical(self.actual_output_path(), self.expected_output_path()),
-                "Error: Could not read files for comparison: {}"
+            common::assert_files_identical(self.actual_output_path(), self.expected_output_path());
+        }
+    }
+
+    pub fn assert_mesh_files_similar(&self) {
+        if let RegressionTestAction::Compare = CONTEXT.action {
+            common::assert_mesh_files_similar(
+                self.actual_output_path(),
+                self.expected_output_path(),
             );
-            assert!(identical);
         }
     }
 
@@ -76,17 +78,8 @@ impl RegressionTest {
     }
 }
 
-pub fn run<I, T>(args: I)
-where
-    I: IntoIterator<Item = T>,
-    T: Into<OsString> + Clone,
-{
-    cli::run::run_with_args(COMMAND.clone().get_matches_from(args));
-}
-
 lazy_static! {
     static ref CONTEXT: RegressionTestContext = RegressionTestContext::new();
-    static ref COMMAND: Command<'static> = cli::build::build().no_binary_name(true);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -119,8 +112,10 @@ struct RegressionTestContext {
 }
 
 impl RegressionTestContext {
-    const EXPECTED_DIR_PATH_COMPONENTS: [&'static str; 3] = ["tests", "data", "expected_output"];
-    const ACTUAL_DIR_PATH_COMPONENTS: [&'static str; 3] = ["tests", "data", "actual_output"];
+    const EXPECTED_DIR_PATH_COMPONENTS: [&'static str; 4] =
+        ["tests", "data", "regression", "expected_output"];
+    const ACTUAL_DIR_PATH_COMPONENTS: [&'static str; 4] =
+        ["tests", "data", "regression", "actual_output"];
 
     fn new() -> Self {
         let action = RegressionTestAction::from_env();
@@ -141,32 +136,5 @@ impl RegressionTestContext {
 
     fn actual_output_dir(&self) -> &Path {
         &self.actual_output_dir
-    }
-}
-
-fn file_content_is_identical<P1, P2>(file_path_1: P1, file_path_2: P2) -> io::Result<bool>
-where
-    P1: AsRef<Path>,
-    P2: AsRef<Path>,
-{
-    let file_1 = io_utils::open_file_and_map_err(file_path_1)?;
-    let file_2 = io_utils::open_file_and_map_err(file_path_2)?;
-
-    let mut reader_1 = io::BufReader::new(file_1);
-    let mut reader_2 = io::BufReader::new(file_2);
-
-    const BUFFER_SIZE: usize = 10000; // Bytes
-    let mut buffer_1 = [0; BUFFER_SIZE];
-    let mut buffer_2 = [0; BUFFER_SIZE];
-
-    loop {
-        let n_bytes_read_1 = reader_1.read(&mut buffer_1)?;
-        let n_bytes_read_2 = reader_2.read(&mut buffer_2)?;
-
-        if n_bytes_read_1 == 0 && n_bytes_read_2 == 0 {
-            break Ok(true);
-        } else if n_bytes_read_2 != n_bytes_read_1 || buffer_1 != buffer_2 {
-            break Ok(false);
-        }
     }
 }
