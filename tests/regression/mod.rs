@@ -120,7 +120,7 @@ struct RegressionTestContext {
 
 impl RegressionTestContext {
     const EXPECTED_DIR_PATH_COMPONENTS: [&'static str; 3] = ["tests", "data", "expected_output"];
-    const ACTUAL_DIR_PATH_COMPONENTS: [&'static str; 3] = ["tests", "data", "expected_output"];
+    const ACTUAL_DIR_PATH_COMPONENTS: [&'static str; 3] = ["tests", "data", "actual_output"];
 
     fn new() -> Self {
         let action = RegressionTestAction::from_env();
