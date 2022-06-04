@@ -1703,10 +1703,6 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1>(
         .zip(grid_cell_edges.iter().skip(1))
         .map(|(lower, upper)| upper - lower);
 
-    let lower_edges = grid_cell_edges
-        .iter()
-        .map(|&lower_edge| F::from_f64(lower_edge).unwrap())
-        .collect();
     let centers = grid_cell_extents
         .zip(grid_cell_edges.iter())
         .map(|(grid_cell_extent, lower_edge)| {
@@ -1715,6 +1711,11 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1>(
         .collect();
 
     grid_cell_edges.pop().unwrap();
+
+    let lower_edges = grid_cell_edges
+        .iter()
+        .map(|&lower_edge| F::from_f64(lower_edge).unwrap())
+        .collect();
 
     Ok((centers, lower_edges))
 }
