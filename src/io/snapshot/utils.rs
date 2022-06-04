@@ -148,20 +148,15 @@ macro_rules! with_new_snapshot_reader {
                 NetCDFSnapshotReaderConfig::new($input_file_path, $verbose),
             )
             .and_then(|metadata| match metadata.grid_type() {
-                GridType::Regular => metadata
-                    .into_reader::<RegularGrid3<_>>()
-                    .and_then(|reader| {
-                        let action = |$reader: NetCDFSnapshotReader3<RegularGrid3<_>>| $action;
-                        action(reader)
-                    }),
+                GridType::Regular => {
+                    let reader = metadata.into_reader::<RegularGrid3<_>>();
+                    let action = |$reader: NetCDFSnapshotReader3<RegularGrid3<_>>| $action;
+                    action(reader)
+                }
                 GridType::HorRegular => {
-                    metadata
-                        .into_reader::<HorRegularGrid3<_>>()
-                        .and_then(|reader| {
-                            let action =
-                                |$reader: NetCDFSnapshotReader3<HorRegularGrid3<_>>| $action;
-                            action(reader)
-                        })
+                    let reader = metadata.into_reader::<HorRegularGrid3<_>>();
+                    let action = |$reader: NetCDFSnapshotReader3<HorRegularGrid3<_>>| $action;
+                    action(reader)
                 }
             }),
         }

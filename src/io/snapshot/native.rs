@@ -457,6 +457,23 @@ impl NativeSnapshotMetadata {
 
     /// Creates a new snapshot reader from this metadata.
     pub fn into_reader<G: Grid3<fgr>>(self) -> io::Result<NativeSnapshotReader3<G>> {
+        let (reader_config, parameters, grid) = self.into_parameters_and_grid();
+
+        with_io_err_msg!(
+            NativeSnapshotReader3::new_from_parameters_and_grid(reader_config, parameters, grid),
+            "Could not create snapshot reader: {}"
+        )
+    }
+
+    /// Creates a new grid from this metadata.
+    pub fn into_grid<G: Grid3<fgr>>(self) -> G {
+        let (_, _, grid) = self.into_parameters_and_grid();
+        grid
+    }
+
+    fn into_parameters_and_grid<G: Grid3<fgr>>(
+        self,
+    ) -> (NativeSnapshotReaderConfig, NativeSnapshotParameters, G) {
         let Self {
             reader_config,
             parameters,
@@ -479,11 +496,7 @@ impl NativeSnapshotMetadata {
             Some(up_derivatives),
             Some(down_derivatives),
         );
-
-        with_io_err_msg!(
-            NativeSnapshotReader3::new_from_parameters_and_grid(reader_config, parameters, grid,),
-            "Could not create snapshot reader: {}"
-        )
+        (reader_config, parameters, grid)
     }
 }
 

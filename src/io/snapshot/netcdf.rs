@@ -282,7 +282,33 @@ impl NetCDFSnapshotMetadata {
     }
 
     /// Creates a new snapshot reader from this metadata.
-    pub fn into_reader<G: Grid3<fgr>>(self) -> io::Result<NetCDFSnapshotReader3<G>> {
+    pub fn into_reader<G: Grid3<fgr>>(self) -> NetCDFSnapshotReader3<G> {
+        let (reader_config, file, parameters, grid, endianness) = self.into_parameters_and_grid();
+
+        NetCDFSnapshotReader3::new_from_parameters_and_grid(
+            reader_config,
+            file,
+            parameters,
+            grid,
+            endianness,
+        )
+    }
+
+    /// Creates a new grid from this metadata.
+    pub fn into_grid<G: Grid3<fgr>>(self) -> G {
+        let (_, _, _, grid, _) = self.into_parameters_and_grid();
+        grid
+    }
+
+    fn into_parameters_and_grid<G: Grid3<fgr>>(
+        self,
+    ) -> (
+        NetCDFSnapshotReaderConfig,
+        File,
+        NetCDFSnapshotParameters,
+        G,
+        Endianness,
+    ) {
         let Self {
             reader_config,
             file,
@@ -307,13 +333,7 @@ impl NetCDFSnapshotMetadata {
             up_derivatives,
             down_derivatives,
         );
-        Ok(NetCDFSnapshotReader3::new_from_parameters_and_grid(
-            reader_config,
-            file,
-            parameters,
-            grid,
-            endianness,
-        ))
+        (reader_config, file, parameters, grid, endianness)
     }
 }
 
