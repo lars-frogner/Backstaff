@@ -22,26 +22,15 @@ use crate::{
     add_subcommand_combinations,
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
-    grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
+    grid::{fgr, Grid3},
     io::{
-        snapshot::{
-            self,
-            native::{NativeSnapshotMetadata, NativeSnapshotReaderConfig},
-            CachingSnapshotProvider3, SnapshotProvider3,
-        },
+        snapshot::{self, utils::SnapshotInputType, CachingSnapshotProvider3, SnapshotProvider3},
         utils as io_utils, Endianness,
     },
-    update_command_graph,
+    update_command_graph, with_new_snapshot_reader,
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    fmt,
-    path::{Path, PathBuf},
-    process,
-    str::FromStr,
-};
+use std::{collections::HashMap, path::PathBuf, process, str::FromStr};
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
@@ -54,9 +43,6 @@ use super::ebeam::create_ebeam_subcommand;
 
 #[cfg(feature = "synthesis")]
 use self::synthesize::create_synthesize_subcommand;
-
-#[cfg(feature = "netcdf")]
-use crate::io::snapshot::netcdf::{NetCDFSnapshotMetadata, NetCDFSnapshotReaderConfig};
 
 /// Builds a representation of the `snapshot` command line subcommand.
 #[allow(clippy::let_and_return)]
@@ -141,7 +127,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
         "Error: Could not interpret path to input file: {}"
     );
 
-    let input_type = InputType::from_path(&input_file_path);
+    let input_type = SnapshotInputType::from_path(&input_file_path);
 
     let input_snap_paths_and_num_offsets = match arguments.values_of("snap-range") {
         Some(value_strings) => {
@@ -197,109 +183,19 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
 
     let verbose = arguments.is_present("verbose").into();
 
-    match input_type {
-        InputType::Native(_) => {
-            for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
-                let reader_config = NativeSnapshotReaderConfig::new(file_path, endianness, verbose);
-                create_native_reader_and_run(
+    for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
+        exit_on_error!(
+            with_new_snapshot_reader!(&file_path, endianness, verbose, |reader| {
+                run_snapshot_subcommand_with_derive(
                     arguments,
-                    reader_config,
+                    reader,
                     &snap_num_in_range,
                     protected_file_types,
                 );
-            }
-        }
-        #[cfg(feature = "netcdf")]
-        InputType::NetCDF => {
-            for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
-                let reader_config = NetCDFSnapshotReaderConfig::new(file_path, verbose);
-                create_netcdf_reader_and_run(
-                    arguments,
-                    reader_config,
-                    &snap_num_in_range,
-                    protected_file_types,
-                );
-            }
-        }
-    }
-}
-
-fn create_native_reader_and_run(
-    arguments: &ArgMatches,
-    config: NativeSnapshotReaderConfig,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
-) {
-    let metadata = exit_on_error!(
-        NativeSnapshotMetadata::new(config),
-        "Error: Could not interpret snapshot metadata: {}"
-    );
-
-    match metadata.grid_type() {
-        GridType::Regular => {
-            let reader = exit_on_error!(
-                metadata.into_reader::<RegularGrid3<_>>(),
-                "Error: Could not create snapshot reader: {}"
-            );
-            run_snapshot_subcommand_with_derive(
-                arguments,
-                reader,
-                snap_num_in_range,
-                protected_file_types,
-            );
-        }
-        GridType::HorRegular => {
-            let reader = exit_on_error!(
-                metadata.into_reader::<HorRegularGrid3<_>>(),
-                "Error: Could not create snapshot reader: {}"
-            );
-            run_snapshot_subcommand_with_derive(
-                arguments,
-                reader,
-                snap_num_in_range,
-                protected_file_types,
-            );
-        }
-    }
-}
-
-#[cfg(feature = "netcdf")]
-fn create_netcdf_reader_and_run(
-    arguments: &ArgMatches,
-    config: NetCDFSnapshotReaderConfig,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
-) {
-    let metadata = exit_on_error!(
-        NetCDFSnapshotMetadata::new(config),
-        "Error: Could not interpret snapshot metadata: {}"
-    );
-
-    match metadata.grid_type() {
-        GridType::Regular => {
-            let reader = exit_on_error!(
-                metadata.into_reader::<RegularGrid3<_>>(),
-                "Error: Could not create snapshot reader: {}"
-            );
-            run_snapshot_subcommand_with_derive(
-                arguments,
-                reader,
-                snap_num_in_range,
-                protected_file_types,
-            )
-        }
-        GridType::HorRegular => {
-            let reader = exit_on_error!(
-                metadata.into_reader::<HorRegularGrid3<_>>(),
-                "Error: Could not create snapshot reader: {}"
-            );
-            run_snapshot_subcommand_with_derive(
-                arguments,
-                reader,
-                snap_num_in_range,
-                protected_file_types,
-            )
-        }
+                Ok(())
+            }),
+            "Error: {}"
+        );
     }
 }
 
@@ -504,93 +400,6 @@ impl SnapNumInRange {
 
     pub fn is_final(&self) -> bool {
         self.current_offset == self.final_offset
-    }
-}
-
-#[derive(Clone, Debug)]
-enum InputType {
-    Native(NativeType),
-    #[cfg(feature = "netcdf")]
-    NetCDF,
-}
-
-#[derive(Copy, Clone, Debug)]
-enum NativeType {
-    Snap,
-    Scratch,
-}
-
-impl InputType {
-    fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
-        let file_name = Path::new(file_path.as_ref().file_name().unwrap_or_else(|| {
-            exit_with_error!(
-                "Error: Missing extension for input file\n\
-                         Valid extensions are: {}",
-                Self::valid_extensions_string()
-            )
-        }));
-        let final_extension = file_name.extension().unwrap().to_string_lossy();
-        let extension = if final_extension.as_ref() == "scr" {
-            match Path::new(file_name.file_stem().unwrap()).extension() {
-                Some(extension) => Cow::Owned(format!(
-                    "{}.{}",
-                    extension.to_string_lossy(),
-                    final_extension
-                )),
-                None => final_extension,
-            }
-        } else {
-            final_extension
-        };
-        Self::from_extension(extension.as_ref())
-    }
-
-    fn from_extension(extension: &str) -> Self {
-        match extension {
-            "idl" => Self::Native(NativeType::Snap),
-            "idl.scr" => Self::Native(NativeType::Scratch),
-            "nc" => {
-                #[cfg(feature = "netcdf")]
-                {
-                    Self::NetCDF
-                }
-                #[cfg(not(feature = "netcdf"))]
-                exit_with_error!("Error: Compile with netcdf feature in order to read NetCDF files\n\
-                                  Tip: Use cargo flag --features=netcdf and make sure the NetCDF library is available");
-            }
-            invalid => exit_with_error!(
-                "Error: Invalid extension {} for input file\n\
-                 Valid extensions are: {}",
-                invalid,
-                Self::valid_extensions_string()
-            ),
-        }
-    }
-
-    fn valid_extensions_string() -> String {
-        format!(
-            "idl[.scr]{}",
-            if cfg!(feature = "netcdf") { ", nc" } else { "" }
-        )
-    }
-
-    fn is_scratch(&self) -> bool {
-        matches!(self, Self::Native(NativeType::Scratch))
-    }
-}
-
-impl fmt::Display for InputType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Native(NativeType::Snap) => "idl",
-                Self::Native(NativeType::Scratch) => "idl.scr",
-                #[cfg(feature = "netcdf")]
-                Self::NetCDF => "nc",
-            }
-        )
     }
 }
 

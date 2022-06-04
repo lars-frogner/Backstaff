@@ -26,6 +26,18 @@ macro_rules! io_result {
     };
 }
 
+#[macro_export]
+macro_rules! with_io_err_msg {
+    ($result:expr, $($print_arg:tt)+) => {
+        $result.map_err(|err| {
+            std::io::Error::new(
+            err.kind(),
+            format!($($print_arg)*, err),
+            )
+        })
+    };
+}
+
 /// Path to a target output file, with an associated temporary path for writing data to.
 /// The temporary file can take the place of the target output file in a single operation.
 pub struct AtomicOutputPath {

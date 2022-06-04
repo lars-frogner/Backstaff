@@ -5,6 +5,8 @@ pub mod native;
 #[cfg(feature = "netcdf")]
 pub mod netcdf;
 
+pub mod utils;
+
 use super::{Endianness, Verbose};
 use crate::{
     field::{
