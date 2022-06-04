@@ -113,9 +113,14 @@ macro_rules! with_new_snapshot_reader {
         type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
         type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
         type NativeSnapshotReader3<G> = crate::io::snapshot::native::NativeSnapshotReader3<G>;
+
+        #[cfg(feature = "netcdf")]
         type NetCDFSnapshotReaderConfig = crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
+        #[cfg(feature = "netcdf")]
         type NetCDFSnapshotMetadata = crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
+        #[cfg(feature = "netcdf")]
         type NetCDFSnapshotReader3<G> = crate::io::snapshot::netcdf::NetCDFSnapshotReader3<G>;
+
         type GridType = crate::grid::GridType;
         type RegularGrid3<F> = crate::grid::regular::RegularGrid3<F>;
         type HorRegularGrid3<F> = crate::grid::hor_regular::HorRegularGrid3<F>;
@@ -169,8 +174,12 @@ macro_rules! with_new_snapshot_grid {
         type SnapshotInputType = crate::io::snapshot::utils::SnapshotInputType;
         type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
         type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
+
+        #[cfg(feature = "netcdf")]
         type NetCDFSnapshotReaderConfig = crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
+        #[cfg(feature = "netcdf")]
         type NetCDFSnapshotMetadata = crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
+
         type GridType = crate::grid::GridType;
         type RegularGrid3<F> = crate::grid::regular::RegularGrid3<F>;
         type HorRegularGrid3<F> = crate::grid::hor_regular::HorRegularGrid3<F>;
