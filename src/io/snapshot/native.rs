@@ -39,6 +39,9 @@ pub use mesh::{
 };
 pub use param::NativeSnapshotParameters;
 
+#[cfg(feature = "comparison")]
+pub use mesh::parsed_mesh_files_eq;
+
 /// Configuration parameters for native snapshot reader.
 #[derive(Clone, Debug)]
 pub struct NativeSnapshotReaderConfig {

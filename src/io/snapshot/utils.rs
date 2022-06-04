@@ -163,6 +163,56 @@ macro_rules! with_new_snapshot_reader {
     }};
 }
 
+#[macro_export]
+macro_rules! with_new_snapshot_grid {
+    ($input_file_path:expr, $endianness:expr, $verbose:expr, |$grid:ident| $action:expr) => {{
+        type SnapshotInputType = crate::io::snapshot::utils::SnapshotInputType;
+        type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
+        type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
+        type NetCDFSnapshotReaderConfig = crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
+        type NetCDFSnapshotMetadata = crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
+        type GridType = crate::grid::GridType;
+        type RegularGrid3<F> = crate::grid::regular::RegularGrid3<F>;
+        type HorRegularGrid3<F> = crate::grid::hor_regular::HorRegularGrid3<F>;
+
+        let input_type = SnapshotInputType::from_path(&$input_file_path);
+
+        match input_type {
+            SnapshotInputType::Native(_) => NativeSnapshotMetadata::new(
+                NativeSnapshotReaderConfig::new($input_file_path, $endianness, $verbose),
+            )
+            .and_then(|metadata| match metadata.grid_type() {
+                GridType::Regular => {
+                    let grid = metadata.into_grid::<RegularGrid3<_>>();
+                    let action = |$grid: RegularGrid3<_>| $action;
+                    action(grid)
+                }
+                GridType::HorRegular => {
+                    let grid = metadata.into_grid::<HorRegularGrid3<_>>();
+                    let action = |$grid: HorRegularGrid3<_>| $action;
+                    action(grid)
+                }
+            }),
+            #[cfg(feature = "netcdf")]
+            SnapshotInputType::NetCDF => NetCDFSnapshotMetadata::new(
+                NetCDFSnapshotReaderConfig::new($input_file_path, $verbose),
+            )
+            .and_then(|metadata| match metadata.grid_type() {
+                GridType::Regular => {
+                    let grid = metadata.into_grid::<RegularGrid3<_>>();
+                    let action = |$grid: RegularGrid3<_>| $action;
+                    action(grid)
+                }
+                GridType::HorRegular => {
+                    let grid = metadata.into_grid::<HorRegularGrid3<_>>();
+                    let action = |$grid: HorRegularGrid3<_>| $action;
+                    action(grid)
+                }
+            }),
+        }
+    }};
+}
+
 /// Reads the snapshot at the given path and compares for
 /// approximate equality to the given snapshot.
 #[cfg(feature = "comparison")]
@@ -210,6 +260,53 @@ where
             endianness,
             verbose,
             &snapshot_reader,
+            epsilon,
+            max_relative,
+        )
+    })
+}
+
+/// Reads the grid of the snapshot at the given path and compares
+/// for approximate equality to the given grid.
+#[cfg(feature = "comparison")]
+pub fn read_snapshot_grid_eq_given_grid<P, G>(
+    input_file_path: P,
+    endianness: Endianness,
+    verbose: Verbose,
+    reference_snapshot_grid: &G,
+    epsilon: fgr,
+    max_relative: fgr,
+) -> io::Result<bool>
+where
+    P: AsRef<Path>,
+    G: Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
+{
+    with_new_snapshot_grid!(input_file_path, endianness, verbose, |snapshot_grid| {
+        Ok(snapshot_grid.relative_eq(reference_snapshot_grid, epsilon, max_relative))
+    })
+}
+
+/// Reads the grids of the snapshots at the given paths and compares
+/// them for approximate equality.
+#[cfg(feature = "comparison")]
+pub fn read_snapshot_grids_eq<P1, P2>(
+    input_file_path_1: P1,
+    input_file_path_2: P2,
+    endianness: Endianness,
+    verbose: Verbose,
+    epsilon: fgr,
+    max_relative: fgr,
+) -> io::Result<bool>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    with_new_snapshot_grid!(input_file_path_1, endianness, verbose, |snapshot_grid| {
+        read_snapshot_grid_eq_given_grid(
+            input_file_path_2,
+            endianness,
+            verbose,
+            &snapshot_grid,
             epsilon,
             max_relative,
         )

@@ -11,6 +11,9 @@ use crate::{
 };
 use std::{collections::VecDeque, io, io::BufRead, path::Path};
 
+#[cfg(feature = "comparison")]
+use approx::RelativeEq;
+
 /// Data for a grid representing a Bifrost mesh file.
 #[derive(Debug, Clone)]
 pub struct NativeGridData {
@@ -251,4 +254,43 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
         up_derivatives,
         down_derivatives,
     })
+}
+
+/// Parses the mesh files at the given paths and compares
+/// the resulting grids for approximate equality.
+#[cfg(feature = "comparison")]
+pub fn parsed_mesh_files_eq<P1, P2>(
+    mesh_path_1: P1,
+    mesh_path_2: P2,
+    verbose: Verbose,
+    epsilon: fgr,
+    max_relative: fgr,
+) -> io::Result<bool>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    match (
+        parse_mesh_file(mesh_path_1, verbose),
+        parse_mesh_file(mesh_path_2, verbose),
+    ) {
+        (Ok(gd_1), Ok(gd_2)) => {
+            Ok(gd_1
+                .center_coords
+                .relative_eq(&gd_2.center_coords, epsilon, max_relative)
+                && gd_1.lower_edge_coords.relative_eq(
+                    &gd_2.lower_edge_coords,
+                    epsilon,
+                    max_relative,
+                )
+                && gd_1
+                    .up_derivatives
+                    .relative_eq(&gd_2.up_derivatives, epsilon, max_relative)
+                && gd_1
+                    .down_derivatives
+                    .relative_eq(&gd_2.down_derivatives, epsilon, max_relative))
+        }
+        (Err(err), _) => Err(err),
+        (_, Err(err)) => Err(err),
+    }
 }
