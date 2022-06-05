@@ -1,13 +1,12 @@
 //! Utilities for reading and writing of Bifrost simulation data.
 
-use std::{borrow::Cow, fmt, io, path::Path};
-
+use super::{fdt, SnapshotReader3};
 use crate::{
+    field::ScalarField3,
     grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
     io::{Endianness, Verbose},
 };
-
-use super::{fdt, SnapshotReader3};
+use std::{borrow::Cow, collections::HashMap, fmt, io, path::Path};
 
 #[cfg(feature = "comparison")]
 use crate::snapshots_relative_eq;
@@ -274,6 +273,36 @@ where
             epsilon,
             max_relative,
         )
+    })
+}
+
+/// Reads the fields of the snapshot at the given path and
+/// compares for approximate equality to the corresponding
+/// given fields.
+#[cfg(feature = "comparison")]
+pub fn read_snapshot_has_given_fields_eq<'a, P, G, I>(
+    input_file_path: P,
+    endianness: Endianness,
+    verbose: Verbose,
+    reference_fields: I,
+    epsilon: fdt,
+    max_relative: fdt,
+) -> io::Result<bool>
+where
+    P: AsRef<Path>,
+    G: 'a + Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
+    I: IntoIterator<Item = &'a ScalarField3<fdt, G>>,
+{
+    with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
+        for field in reference_fields {
+            if snapshot_reader
+                .read_scalar_field(field.name())?
+                .relative_ne(field, epsilon, max_relative)
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     })
 }
 
