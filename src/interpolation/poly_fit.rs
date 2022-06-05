@@ -1603,9 +1603,20 @@ impl Interpolator3 for PolyFitInterpolator3 {
         F: BFloat,
         G: Grid3<fgr>,
     {
-        assert!(field
+        let is_inside = field
             .grid()
-            .point_is_inside_cell(interp_point, interp_indices));
+            .point_is_inside_cell(interp_point, interp_indices);
+
+        if !is_inside {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
+            );
+
+            return self
+                .interp_scalar_field(field, interp_point)
+                .expect_inside_or_moved();
+        }
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -1736,9 +1747,20 @@ impl Interpolator3 for PolyFitInterpolator3 {
         F: BFloat,
         G: Grid3<fgr>,
     {
-        assert!(field
+        let is_inside = field
             .grid()
-            .point_is_inside_cell(interp_point, interp_indices));
+            .point_is_inside_cell(interp_point, interp_indices);
+
+        if !is_inside {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
+            );
+
+            return self
+                .interp_vector_field(field, interp_point)
+                .expect_inside_or_moved();
+        }
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -1885,9 +1907,20 @@ impl Interpolator2 for PolyFitInterpolator2 {
         F: BFloat,
         G: Grid2<fgr>,
     {
-        assert!(field
+        let is_inside = field
             .grid()
-            .point_is_inside_cell(interp_point, interp_indices));
+            .point_is_inside_cell(interp_point, interp_indices);
+
+        if !is_inside {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
+            );
+
+            return self
+                .interp_scalar_field(field, interp_point)
+                .expect_inside_or_moved();
+        }
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -2018,9 +2051,20 @@ impl Interpolator2 for PolyFitInterpolator2 {
         F: BFloat,
         G: Grid2<fgr>,
     {
-        assert!(field
+        let is_inside = field
             .grid()
-            .point_is_inside_cell(interp_point, interp_indices));
+            .point_is_inside_cell(interp_point, interp_indices);
+
+        if !is_inside {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
+            );
+
+            return self
+                .interp_vector_field(field, interp_point)
+                .expect_inside_or_moved();
+        }
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
@@ -2167,7 +2211,18 @@ impl Interpolator1 for PolyFitInterpolator1 {
         F: BFloat,
         G: Grid1<fgr>,
     {
-        assert!(field.grid().coord_is_inside_cell(interp_coord, interp_idx));
+        let is_inside = field.grid().coord_is_inside_cell(interp_coord, interp_idx);
+
+        if !is_inside {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "Warning (line {} in {}): Incorrect \"known\" cell index in interpolation, using correct index", line!(), file!()
+            );
+
+            return self
+                .interp_scalar_field(field, interp_coord)
+                .expect_inside_or_moved();
+        }
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
