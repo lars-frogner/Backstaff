@@ -22,13 +22,6 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
     let command = Command::new(command_name)
         .about("Inspect properties of the snapshot")
         .arg(
-            Arg::new("all-quantities")
-                .long("all-quantities")
-                .short('A')
-                .help("Inspect all original quantities")
-                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
-        )
-        .arg(
             Arg::new("included-quantities")
                 .long("included-quantities")
                 .short('I')
@@ -36,13 +29,11 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_name("NAMES")
-                .help(
-                    "List of all the original quantities to inspect (comma-separated)\n\
-                     [default: none]",
-                )
+                .help("List of the original quantities to inspect (comma-separated)")
                 .takes_value(true)
                 .multiple_values(true)
-                .conflicts_with_all(&["all-quantities", "excluded-quantities"]),
+                .default_value("all")
+                .conflicts_with_all(&["excluded-quantities"]),
         )
         .arg(
             Arg::new("excluded-quantities")
@@ -52,10 +43,10 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
                 .use_value_delimiter(true)
                 .require_value_delimiter(true)
                 .value_name("NAMES")
-                .help("List of original quantities to ignore (comma-separated) [default: none]")
+                .help("List of original quantities to ignore (comma-separated)")
                 .takes_value(true)
                 .multiple_values(true)
-                .conflicts_with_all(&["all-quantities", "included-quantities"]),
+                .conflicts_with_all(&["included-quantities"]),
         )
         .arg(
             Arg::new("ignore-warnings")

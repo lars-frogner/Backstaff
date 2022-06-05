@@ -412,49 +412,50 @@ where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    if arguments.is_present("all-quantities") {
-        provider.all_variable_names().to_vec()
-    } else if let Some(included_quantities) = arguments
-        .values_of("included-quantities")
-        .map(|values| values.collect::<Vec<_>>())
-    {
-        included_quantities
+    if let Some(excluded_quantities) = arguments.values_of("excluded-quantities") {
+        let excluded_quantities: Vec<_> = excluded_quantities
             .into_iter()
             .filter_map(|name| {
+                let name = name.trim().to_lowercase();
                 if name.is_empty() {
                     None
                 } else {
-                    let name = name.to_lowercase();
-                    let has_variable = provider.has_variable(&name);
-                    if has_variable {
-                        Some(name)
-                    } else {
-                        eprintln!("Warning: Quantity {} not available", &name);
-                        if !continue_on_warnings
-                            && !io_utils::user_says_yes("Still continue?", true)
-                        {
-                            eprintln!("Aborted");
-                            process::exit(1);
-                        }
-                        None
-                    }
+                    Some(name)
                 }
             })
-            .collect()
-    } else if let Some(excluded_quantities) =
-        arguments.values_of("excluded-quantities").map(|values| {
-            values
-                .into_iter()
-                .map(|name| name.to_lowercase())
-                .collect::<Vec<_>>()
-        })
-    {
-        let excluded_quantities: Vec<_> = excluded_quantities
-            .into_iter()
-            .filter(|name| !name.is_empty())
             .collect();
         provider.all_variable_names_except(&excluded_quantities)
     } else {
-        Vec::new()
+        let included_quantities = arguments
+            .values_of("included-quantities")
+            .expect("No default for included-quantities")
+            .collect::<Vec<_>>();
+        if included_quantities.len() == 1 && included_quantities[0].trim().to_lowercase() == "all" {
+            provider.all_variable_names().to_vec()
+        } else {
+            included_quantities
+                .into_iter()
+                .filter_map(|name| {
+                    let name = name.trim().to_lowercase();
+                    if name.is_empty() {
+                        None
+                    } else {
+                        let has_variable = provider.has_variable(&name);
+                        if has_variable {
+                            Some(name)
+                        } else {
+                            eprintln!("Warning: Quantity {} not available", &name);
+                            if !continue_on_warnings
+                                && !io_utils::user_says_yes("Still continue?", true)
+                            {
+                                eprintln!("Aborted");
+                                process::exit(1);
+                            }
+                            None
+                        }
+                    }
+                })
+                .collect()
+        }
     }
 }

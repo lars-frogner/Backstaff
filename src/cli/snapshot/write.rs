@@ -56,13 +56,6 @@ pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'s
                 .conflicts_with("overwrite"),
         )
         .arg(
-            Arg::new("all-quantities")
-                .long("all-quantities")
-                .short('A')
-                .help("Include all original quantities in the output snapshot")
-                .conflicts_with_all(&["included-quantities", "excluded-quantities"]),
-        )
-        .arg(
             Arg::new("included-quantities")
                 .long("included-quantities")
                 .short('I')
@@ -71,11 +64,12 @@ pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'s
                 .value_name("NAMES")
                 .help(
                     "List of all the original quantities to include in the output snapshot\n\
-                    (comma-separated) [default: none]",
+                    (comma-separated)",
                 )
                 .takes_value(true)
                 .multiple_values(true)
-                .conflicts_with_all(&["all-quantities", "excluded-quantities"]),
+                .default_value("all")
+                .conflicts_with_all(&["excluded-quantities"]),
         )
         .arg(
             Arg::new("excluded-quantities")
@@ -86,11 +80,11 @@ pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'s
                 .value_name("NAMES")
                 .help(
                     "List of original quantities to leave out of the output snapshot\n\
-                    (comma-separated) [default: none]",
+                    (comma-separated)",
                 )
                 .takes_value(true)
                 .multiple_values(true)
-                .conflicts_with_all(&["all-quantities", "included-quantities"]),
+                .conflicts_with_all(&["included-quantities"]),
         )
         .arg(
             Arg::new("ignore-warnings")
