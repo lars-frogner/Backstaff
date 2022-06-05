@@ -1703,7 +1703,7 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1>(
         .zip(grid_cell_edges.iter().skip(1))
         .map(|(lower, upper)| upper - lower);
 
-    let centers = grid_cell_extents
+    let centers: Vec<_> = grid_cell_extents
         .zip(grid_cell_edges.iter())
         .map(|(grid_cell_extent, lower_edge)| {
             F::from_f64(lower_edge + 0.5 * grid_cell_extent).unwrap()
@@ -1712,10 +1712,14 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1>(
 
     grid_cell_edges.pop().unwrap();
 
-    let lower_edges = grid_cell_edges
+    let mut lower_edges: Vec<_> = grid_cell_edges
         .iter()
         .map(|&lower_edge| F::from_f64(lower_edge).unwrap())
         .collect();
+
+    // Ensure derived upper bound will have the exact specified value
+    *lower_edges.last_mut().unwrap() =
+        F::from_f32(2.0).unwrap() * *centers.last().unwrap() - F::from_f64(upper_bound).unwrap();
 
     Ok((centers, lower_edges))
 }
