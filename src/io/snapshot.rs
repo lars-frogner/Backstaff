@@ -230,24 +230,31 @@ macro_rules! snapshots_relative_eq {
         let all_variable_names_self = $self.all_variable_names();
         let all_variable_names_other = $other.all_variable_names();
         if all_variable_names_self.len() != all_variable_names_other.len() {
-            false
+            Ok(false)
         } else {
             if $self.parameters().relative_ne(
                 $other.parameters(),
                 $epsilon as fpa,
                 $max_relative as fpa,
             ) {
-                false
+                Ok(false)
             } else {
-                all_variable_names_self.iter().all(|name| {
-                    match (
-                        $self.read_scalar_field(name),
-                        $other.read_scalar_field(name),
-                    ) {
-                        (Ok(a), Ok(b)) => a.relative_eq(&b, $epsilon as fdt, $max_relative as fdt),
-                        _ => false,
+                let mut all_equal = true;
+                for name in all_variable_names_self.iter() {
+                    if all_variable_names_other.contains(name) {
+                        all_equal = $self.read_scalar_field(name)?.relative_eq(
+                            &$other.read_scalar_field(name)?,
+                            $epsilon as fdt,
+                            $max_relative as fdt,
+                        );
+                    } else {
+                        all_equal = false;
                     }
-                })
+                    if !all_equal {
+                        break;
+                    }
+                }
+                Ok(all_equal)
             }
         }
     }};

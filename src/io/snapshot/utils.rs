@@ -4,9 +4,9 @@ use super::{fdt, SnapshotReader3};
 use crate::{
     field::ScalarField3,
     grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
-    io::{Endianness, Verbose},
+    io::{snapshot::SnapshotProvider3, Endianness, Verbose},
 };
-use std::{borrow::Cow, collections::HashMap, fmt, io, path::Path};
+use std::{borrow::Cow, fmt, io, path::Path};
 
 #[cfg(feature = "comparison")]
 use crate::snapshots_relative_eq;
@@ -240,12 +240,12 @@ where
     R: SnapshotReader3<G>,
 {
     with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
-        Ok(snapshots_relative_eq!(
+        snapshots_relative_eq!(
             snapshot_reader,
             reference_snapshot_reader,
             epsilon,
             max_relative
-        ))
+        )
     })
 }
 
@@ -294,10 +294,15 @@ where
     I: IntoIterator<Item = &'a ScalarField3<fdt, G>>,
 {
     with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
+        let all_snapshot_variable_names = snapshot_reader.all_variable_names();
         for field in reference_fields {
-            if snapshot_reader
-                .read_scalar_field(field.name())?
-                .relative_ne(field, epsilon, max_relative)
+            let name = field.name().to_string();
+            if !all_snapshot_variable_names.contains(&name)
+                || snapshot_reader.read_scalar_field(name)?.relative_ne(
+                    field,
+                    epsilon,
+                    max_relative,
+                )
             {
                 return Ok(false);
             }
