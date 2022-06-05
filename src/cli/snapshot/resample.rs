@@ -419,9 +419,17 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     P: SnapshotProvider3<G>,
     I: Interpolator3,
 {
+    const MIN_NUMBER_OF_VERTICAL_GRID_CELLS: usize = 10; // Grid will be unstable for smaller values
     const TARGET_CONTROL_SIZE: usize = 100;
 
     if let Some(new_shape) = new_shape {
+        exit_on_false!(
+            new_shape[Z] >= MIN_NUMBER_OF_VERTICAL_GRID_CELLS,
+            "Error: The number of grid cells in the z-direction must be at least {}\n\
+             Tip: Resample to a regular grid instead",
+            MIN_NUMBER_OF_VERTICAL_GRID_CELLS
+        );
+
         let horizontal_grid = RegularGrid3::from_bounds(
             new_shape.clone(),
             grid.lower_bounds().clone(),
@@ -448,7 +456,10 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         *control_grid_cell_extents.last_mut().unwrap() =
             lower_edges_z[size_z - 1] - lower_edges_z[size_z - 2];
 
-        let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig::default());
+        let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig {
+            order: 1,
+            ..PolyFitInterpolatorConfig::default()
+        });
         let (new_centers_z, new_lower_edges_z) = exit_on_error!(
             grid::create_new_grid_coords_from_control_extents(
                 new_shape[Z],
