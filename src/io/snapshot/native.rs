@@ -61,8 +61,6 @@ pub struct NativeSnapshotReader3<G> {
     snap_path: PathBuf,
     aux_path: PathBuf,
     grid: Arc<G>,
-    primary_variable_names: Vec<String>,
-    auxiliary_variable_names: Vec<String>,
     all_variable_names: Vec<String>,
     variable_descriptors: HashMap<String, VariableDescriptor>,
 }
@@ -96,9 +94,10 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
         parameters: NativeSnapshotParameters,
         grid: G,
     ) -> io::Result<Self> {
-        let is_mhd = parameters.determine_if_mhd()?;
-
         let (snap_path, aux_path) = parameters.determine_snap_path()?;
+
+        // Determine the set of primary variables to use
+        let is_mhd = parameters.determine_if_mhd()?;
 
         let primary_variable_names: Vec<_> = if snap_path.exists() {
             if is_mhd {
@@ -113,7 +112,7 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
         };
 
         let auxiliary_variable_names = parameters.determine_aux_names()?;
-        let mut all_variable_names = primary_variable_names.clone();
+        let mut all_variable_names = primary_variable_names;
         all_variable_names.append(&mut auxiliary_variable_names.clone());
 
         let mut variable_descriptors = HashMap::new();
@@ -129,8 +128,6 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
             snap_path,
             aux_path,
             grid: Arc::new(grid),
-            primary_variable_names,
-            auxiliary_variable_names,
             all_variable_names,
             variable_descriptors,
         })
@@ -286,8 +283,6 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
             snap_path,
             aux_path,
             grid,
-            primary_variable_names,
-            auxiliary_variable_names,
             variable_descriptors,
             ..
         } = Self::new(self.config.clone())?;
@@ -296,8 +291,6 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
         self.snap_path = snap_path;
         self.aux_path = aux_path;
         self.grid = grid;
-        self.primary_variable_names = primary_variable_names;
-        self.auxiliary_variable_names = auxiliary_variable_names;
         self.variable_descriptors = variable_descriptors;
 
         Ok(())
@@ -330,14 +323,6 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
 
     fn endianness(&self) -> Endianness {
         self.config.endianness
-    }
-
-    fn primary_variable_names(&self) -> &[String] {
-        &self.primary_variable_names
-    }
-
-    fn auxiliary_variable_names(&self) -> &[String] {
-        &self.auxiliary_variable_names
     }
 
     fn all_variable_names(&self) -> &[String] {
@@ -538,7 +523,7 @@ where
         ParameterValue::Str(format!("\"{}.mesh\"", snap_name)),
     );
 
-    let (included_primary_variable_names, included_auxiliary_variable_names) =
+    let (included_primary_variable_names, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);
 
     modified_parameters.insert(
@@ -548,6 +533,8 @@ where
             included_auxiliary_variable_names.join(" ")
         )),
     );
+
+    modified_parameters.insert("do_mhd", ParameterValue::Int(if is_mhd { 1 } else { 0 }));
 
     let grid = provider.grid();
 

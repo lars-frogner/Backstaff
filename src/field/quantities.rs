@@ -172,7 +172,6 @@ fn create_available_quantity_table_string() -> String {
 pub struct DerivedSnapshotProvider3<G, P> {
     provider: P,
     derived_quantity_names: Vec<String>,
-    auxiliary_variable_names: Vec<String>,
     all_variable_names: Vec<String>,
     cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt, G>>>,
     verbose: Verbose,
@@ -199,16 +198,12 @@ where
             .filter(|name| Self::verify_variable_availability(&provider, name, handle_unavailable))
             .collect();
 
-        let mut auxiliary_variable_names: Vec<_> = provider.auxiliary_variable_names().to_vec();
-        auxiliary_variable_names.append(&mut derived_quantity_names.clone());
-
-        let mut all_variable_names = provider.primary_variable_names().to_vec();
-        all_variable_names.append(&mut auxiliary_variable_names.clone());
+        let mut all_variable_names = provider.all_variable_names().to_vec();
+        all_variable_names.append(&mut derived_quantity_names.clone());
 
         Self {
             provider,
             derived_quantity_names,
-            auxiliary_variable_names,
             all_variable_names,
             cached_scalar_fields: HashMap::new(),
             verbose,
@@ -502,14 +497,6 @@ where
 
     fn endianness(&self) -> Endianness {
         self.provider.endianness()
-    }
-
-    fn primary_variable_names(&self) -> &[String] {
-        self.provider.primary_variable_names()
-    }
-
-    fn auxiliary_variable_names(&self) -> &[String] {
-        &self.auxiliary_variable_names
     }
 
     fn all_variable_names(&self) -> &[String] {

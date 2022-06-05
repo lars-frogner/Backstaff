@@ -33,6 +33,10 @@ impl NetCDFSnapshotParameters {
         Ok(Self { parameters })
     }
 
+    pub fn determine_if_mhd(&self) -> io::Result<bool> {
+        Ok(self.get_value("do_mhd")?.try_as_int()? > 0)
+    }
+
     /// Uses the available parameters to determine the axes for which the snapshot grid is periodic.
     pub fn determine_grid_periodicity(&self) -> io::Result<In3D<bool>> {
         Ok(In3D::new(

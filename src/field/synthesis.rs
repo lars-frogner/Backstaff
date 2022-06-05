@@ -230,7 +230,6 @@ fn parse_line_quantity_name<S: AsRef<str>>(line_quantity_name: S) -> io::Result<
 pub struct EmissivitySnapshotProvider3<G, P, I> {
     provider: P,
     interpolator: I,
-    auxiliary_variable_names: Vec<String>,
     all_variable_names: Vec<String>,
     quantity_dependencies: Vec<&'static str>,
     emissivity_tables: Arc<EmissivityTables<fdt>>,
@@ -288,16 +287,12 @@ where
                 .append(&mut SYNTHESIZABLE_QUANTITIES[quantity_name.as_str()].1.clone())
         }
 
-        let mut auxiliary_variable_names: Vec<_> = provider.auxiliary_variable_names().to_vec();
-        auxiliary_variable_names.append(&mut emissivity_quantity_names);
-
-        let mut all_variable_names = provider.primary_variable_names().to_vec();
-        all_variable_names.append(&mut auxiliary_variable_names.clone());
+        let mut all_variable_names: Vec<_> = provider.all_variable_names().to_vec();
+        all_variable_names.append(&mut emissivity_quantity_names);
 
         Self {
             provider,
             interpolator,
-            auxiliary_variable_names,
             all_variable_names,
             quantity_dependencies,
             emissivity_tables,
@@ -689,14 +684,6 @@ where
 
     fn endianness(&self) -> Endianness {
         self.provider.endianness()
-    }
-
-    fn primary_variable_names(&self) -> &[String] {
-        self.provider.primary_variable_names()
-    }
-
-    fn auxiliary_variable_names(&self) -> &[String] {
-        &self.auxiliary_variable_names
     }
 
     fn all_variable_names(&self) -> &[String] {

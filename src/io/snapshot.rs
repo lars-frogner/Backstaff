@@ -88,12 +88,6 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
     /// Returns the assumed endianness of the snapshot.
     fn endianness(&self) -> Endianness;
 
-    /// Returns the names of the primary variables of the snapshot.
-    fn primary_variable_names(&self) -> &[String];
-
-    /// Returns the names of the auxiliary variables of the snapshot.
-    fn auxiliary_variable_names(&self) -> &[String];
-
     /// Returns the names of all the variables that can be provided.
     fn all_variable_names(&self) -> &[String];
 
@@ -107,27 +101,48 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
             .collect::<Vec<_>>()
     }
 
-    /// Given a list of variable names, returns a list of the ones that are primary
-    /// and a list of the ones that are auxiliary.
-    fn classify_variable_names(&self, variable_names: &[String]) -> (Vec<String>, Vec<String>) {
-        let all_primary_variable_names = self.primary_variable_names();
-
-        let included_primary_variable_names = all_primary_variable_names
+    /// Given a complete list of variable names, returns lists of the ones that
+    /// should be considered primary and auxiliary, and whether the set of
+    /// primary variables correspond to full MHD.
+    fn classify_variable_names(
+        &self,
+        variable_names: &[String],
+    ) -> (Vec<String>, Vec<String>, bool) {
+        let primary_variable_names_mhd: Vec<_> = PRIMARY_VARIABLE_NAMES_MHD
             .iter()
             .cloned()
-            .filter(|name| variable_names.contains(name))
-            .collect::<Vec<_>>();
+            .map(String::from)
+            .collect();
 
-        let included_auxiliary_variable_names = variable_names
+        let (primary_variable_names, is_mhd) = if primary_variable_names_mhd
+            .iter()
+            .all(|name| variable_names.contains(name))
+        {
+            (primary_variable_names_mhd, true)
+        } else {
+            let primary_variable_names_hd: Vec<_> = PRIMARY_VARIABLE_NAMES_HD
+                .iter()
+                .cloned()
+                .map(String::from)
+                .collect();
+
+            if primary_variable_names_hd
+                .iter()
+                .all(|name| variable_names.contains(name))
+            {
+                (primary_variable_names_hd, false)
+            } else {
+                (Vec::new(), false)
+            }
+        };
+
+        let auxiliary_variable_names = variable_names
             .iter()
             .cloned()
-            .filter(|name| !included_primary_variable_names.contains(name))
+            .filter(|name| !primary_variable_names.contains(name))
             .collect::<Vec<_>>();
 
-        (
-            included_primary_variable_names,
-            included_auxiliary_variable_names,
-        )
+        (primary_variable_names, auxiliary_variable_names, is_mhd)
     }
 
     /// Returns whether the given variable can be provided.
@@ -593,14 +608,6 @@ where
         self.provider.endianness()
     }
 
-    fn primary_variable_names(&self) -> &[String] {
-        self.provider.primary_variable_names()
-    }
-
-    fn auxiliary_variable_names(&self) -> &[String] {
-        self.provider.auxiliary_variable_names()
-    }
-
     fn all_variable_names(&self) -> &[String] {
         self.provider.all_variable_names()
     }
@@ -685,14 +692,6 @@ where
         self.provider.endianness()
     }
 
-    fn primary_variable_names(&self) -> &[String] {
-        self.provider.primary_variable_names()
-    }
-
-    fn auxiliary_variable_names(&self) -> &[String] {
-        self.provider.auxiliary_variable_names()
-    }
-
     fn all_variable_names(&self) -> &[String] {
         self.provider.all_variable_names()
     }
@@ -732,14 +731,6 @@ where
 
     fn endianness(&self) -> Endianness {
         self.provider().endianness()
-    }
-
-    fn primary_variable_names(&self) -> &[String] {
-        self.provider().primary_variable_names()
-    }
-
-    fn auxiliary_variable_names(&self) -> &[String] {
-        self.provider().auxiliary_variable_names()
     }
 
     fn all_variable_names(&self) -> &[String] {

@@ -9,7 +9,7 @@ use super::{
         Endianness, OverwriteMode, Verbose,
     },
     fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, SnapshotReader3,
-    COORDINATE_NAMES, FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_MHD,
+    COORDINATE_NAMES, FALLBACK_SNAP_NUM,
 };
 use crate::{
     field::{ScalarField3, ScalarFieldProvider3},
@@ -51,8 +51,6 @@ pub struct NetCDFSnapshotReader3<G> {
     grid: Arc<G>,
     parameters: NetCDFSnapshotParameters,
     endianness: Endianness,
-    primary_variable_names: Vec<String>,
-    auxiliary_variable_names: Vec<String>,
     all_variable_names: Vec<String>,
 }
 
@@ -90,10 +88,8 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
         endianness: Endianness,
     ) -> Self {
         let root_group = file.root().unwrap();
-        let (primary_variable_names, auxiliary_variable_names) =
-            Self::read_variable_names(&root_group);
-        let mut all_variable_names = primary_variable_names.clone();
-        all_variable_names.append(&mut auxiliary_variable_names.clone());
+
+        let all_variable_names = read_all_non_coord_variable_names(&root_group);
 
         Self {
             config,
@@ -101,29 +97,7 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
             grid: Arc::new(grid),
             parameters,
             endianness,
-            primary_variable_names,
-            auxiliary_variable_names,
             all_variable_names,
-        }
-    }
-
-    fn read_variable_names(group: &Group) -> (Vec<String>, Vec<String>) {
-        let variable_names = read_all_non_coord_variable_names(group);
-        let primary_variable_names: Vec<_> = PRIMARY_VARIABLE_NAMES_MHD
-            .iter()
-            .map(|&name| name.to_string())
-            .collect();
-        if primary_variable_names
-            .iter()
-            .all(|primary_variable_name| variable_names.contains(primary_variable_name))
-        {
-            let secondary_variable_names = variable_names
-                .into_iter()
-                .filter(|name| !primary_variable_names.contains(name))
-                .collect();
-            (primary_variable_names, secondary_variable_names)
-        } else {
-            (Vec::new(), variable_names)
         }
     }
 
@@ -134,8 +108,6 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
             grid,
             parameters,
             endianness,
-            primary_variable_names,
-            auxiliary_variable_names,
             ..
         } = Self::new(self.config.clone())?;
 
@@ -143,8 +115,6 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
         self.grid = grid;
         self.parameters = parameters;
         self.endianness = endianness;
-        self.primary_variable_names = primary_variable_names;
-        self.auxiliary_variable_names = auxiliary_variable_names;
 
         Ok(())
     }
@@ -176,14 +146,6 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
 
     fn endianness(&self) -> Endianness {
         self.endianness
-    }
-
-    fn primary_variable_names(&self) -> &[String] {
-        &self.primary_variable_names
-    }
-
-    fn auxiliary_variable_names(&self) -> &[String] {
-        &self.auxiliary_variable_names
     }
 
     fn all_variable_names(&self) -> &[String] {
@@ -369,8 +331,7 @@ where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let mut quantity_names = provider.primary_variable_names().to_vec();
-    quantity_names.append(&mut provider.auxiliary_variable_names().to_vec());
+    let quantity_names = provider.all_variable_names().to_vec();
     write_modified_snapshot(
         provider,
         &quantity_names,
@@ -414,7 +375,8 @@ where
         ParameterValue::Str(format!("\"{}.mesh\"", snap_name)),
     );
 
-    let (_, included_auxiliary_variable_names) = provider.classify_variable_names(quantity_names);
+    let (_, included_auxiliary_variable_names, is_mhd) =
+        provider.classify_variable_names(quantity_names);
 
     modified_parameters.insert(
         "aux",
@@ -423,6 +385,8 @@ where
             included_auxiliary_variable_names.join(" ")
         )),
     );
+
+    modified_parameters.insert("do_mhd", ParameterValue::Int(if is_mhd { 1 } else { 0 }));
 
     let grid = provider.grid();
 
@@ -631,38 +595,6 @@ pub fn create_file<P: AsRef<Path>>(path: P) -> io::Result<MutableFile> {
     utils::create_directory_if_missing(&path)?;
     let file = io_result!(nc::create(path))?;
     Ok(file)
-}
-
-/// Writes all the primary variables of the given snapshot to the given NetCDF group.
-pub fn write_snapshot_primary_variables<G, P>(
-    group: &mut GroupMut,
-    provider: &mut P,
-) -> io::Result<()>
-where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
-{
-    for name in &provider.primary_variable_names().to_vec() {
-        let field = provider.provide_scalar_field(name)?;
-        write_3d_scalar_field(group, &field)?;
-    }
-    Ok(())
-}
-
-/// Writes all the auxiliary variables of the given snapshot to the given NetCDF group.
-pub fn write_snapshot_auxiliary_variables<G, P>(
-    group: &mut GroupMut,
-    provider: &mut P,
-) -> io::Result<()>
-where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
-{
-    for name in &provider.auxiliary_variable_names().to_vec() {
-        let field = provider.provide_scalar_field(name)?;
-        write_3d_scalar_field(group, &field)?;
-    }
-    Ok(())
 }
 
 /// Writes a representation of the given 3D scalar field to the given NetCDF group.
