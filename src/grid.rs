@@ -15,7 +15,7 @@ use crate::{
     num::BFloat,
 };
 use ndarray::prelude::*;
-use std::{borrow::Cow, io, sync::Arc};
+use std::{borrow::Cow, io, iter, sync::Arc};
 
 /// Default floating-point precision to use for grids.
 #[allow(non_camel_case_types)]
@@ -1553,7 +1553,7 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1>(
     interpolator: &I,
 ) -> Result<(Vec<F>, Vec<F>), Cow<'static, str>> {
     const UNIFORM_CELLS: usize = 4;
-    const MAX_ITERATIONS: usize = 1000;
+    const MAX_ITERATIONS: usize = 100000;
     const TOLERANCE: f64 = 1e-9;
 
     assert!(upper_bound > lower_bound);
@@ -1780,7 +1780,12 @@ pub fn compute_up_and_down_derivatives<F: BFloat>(centers: &[F]) -> (Vec<F>, Vec
     )
 }
 
-fn compute_grid_cell_extents<F: BFloat>(centers: &[F], lower_edges: &[F]) -> Vec<F> {
+/// Computes coordinate derivatives for regular coordinates with the given cell extent.
+pub fn compute_regular_derivatives<F: BFloat>(size: usize, cell_extent: F) -> Vec<F> {
+    iter::repeat(F::one() / cell_extent).take(size).collect()
+}
+
+pub fn compute_grid_cell_extents<F: BFloat>(centers: &[F], lower_edges: &[F]) -> Vec<F> {
     assert_eq!(centers.len(), lower_edges.len());
     let mut grid_cell_extents = Vec::with_capacity(lower_edges.len());
     grid_cell_extents.extend(
@@ -1796,11 +1801,11 @@ fn compute_grid_cell_extents<F: BFloat>(centers: &[F], lower_edges: &[F]) -> Vec
     grid_cell_extents
 }
 
-fn extent_from_bounds<F: BFloat>(lower_bound: F, upper_bound: F) -> F {
+pub fn extent_from_bounds<F: BFloat>(lower_bound: F, upper_bound: F) -> F {
     upper_bound - lower_bound
 }
 
-fn cell_extent_from_bounds<F: BFloat>(size: usize, lower_bound: F, upper_bound: F) -> F {
+pub fn cell_extent_from_bounds<F: BFloat>(size: usize, lower_bound: F, upper_bound: F) -> F {
     let extent = extent_from_bounds(lower_bound, upper_bound);
     extent / F::from_usize(size).unwrap()
 }

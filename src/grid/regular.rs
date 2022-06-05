@@ -70,15 +70,9 @@ impl<F: BFloat> RegularGrid3<F> {
         let cell_extent_z =
             super::cell_extent_from_bounds(size_z, lower_bounds[Z], upper_bounds[Z]);
 
-        let derivatives_x = iter::repeat(F::one() / cell_extent_x)
-            .take(size_x)
-            .collect();
-        let derivatives_y = iter::repeat(F::one() / cell_extent_y)
-            .take(size_y)
-            .collect();
-        let derivatives_z = iter::repeat(F::one() / cell_extent_z)
-            .take(size_z)
-            .collect();
+        let derivatives_x = super::compute_regular_derivatives(size_x, cell_extent_x);
+        let derivatives_y = super::compute_regular_derivatives(size_y, cell_extent_y);
+        let derivatives_z = super::compute_regular_derivatives(size_z, cell_extent_z);
         let derivatives = Some(Coords3::new(derivatives_x, derivatives_y, derivatives_z));
 
         Self {

@@ -140,7 +140,15 @@ pub fn run_horizontally_regular_subcommand(
     arguments: &ArgMatches,
     protected_file_types: &[&str],
 ) {
-    let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(8));
+    let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
+
+    const MIN_NUMBER_OF_VERTICAL_GRID_CELLS: usize = 10; // Grid will be unstable for smaller values
+    exit_on_false!(
+        shape[Z] >= MIN_NUMBER_OF_VERTICAL_GRID_CELLS,
+        "Error: The number of grid cells in the z-direction must be at least {}\n\
+         Tip: Create a regular grid instead",
+        MIN_NUMBER_OF_VERTICAL_GRID_CELLS
+    );
 
     let x_bounds = utils::parse_limits(
         arguments,
@@ -241,8 +249,14 @@ pub fn run_horizontally_regular_subcommand(
         "Error: Could not compute new z-coordinates for grid: {}"
     );
 
-    let (up_derivatives_x, down_derivatives_x) = grid::compute_up_and_down_derivatives(&centers_x);
-    let (up_derivatives_y, down_derivatives_y) = grid::compute_up_and_down_derivatives(&centers_y);
+    let derivatives_x = grid::compute_regular_derivatives(
+        shape[X],
+        grid::cell_extent_from_bounds(shape[X], x_bounds.0, x_bounds.1),
+    );
+    let derivatives_y = grid::compute_regular_derivatives(
+        shape[Y],
+        grid::cell_extent_from_bounds(shape[Y], y_bounds.0, y_bounds.1),
+    );
     let (up_derivatives_z, down_derivatives_z) = grid::compute_up_and_down_derivatives(&centers_z);
 
     let grid = HorRegularGrid3::from_coords(
@@ -250,13 +264,13 @@ pub fn run_horizontally_regular_subcommand(
         Coords3::new(lower_edges_x, lower_edges_y, lower_edges_z),
         In3D::same(false),
         Some(Coords3::new(
-            up_derivatives_x,
-            up_derivatives_y,
+            derivatives_x.clone(),
+            derivatives_y.clone(),
             up_derivatives_z,
         )),
         Some(Coords3::new(
-            down_derivatives_x,
-            down_derivatives_y,
+            derivatives_x,
+            derivatives_y,
             down_derivatives_z,
         )),
     );
