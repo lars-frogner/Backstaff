@@ -16,6 +16,7 @@ use crate::{
     io::Verbose,
     num::{BFloat, KeyValueOrderableByValue},
 };
+use ieee754::Ieee754;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use std::{
@@ -765,18 +766,25 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_sample_averaging(
+                self.shift_overlying_grid_cell_corners_for_sample_averaging(
                     &overlying_locations,
                     &mut lower_overlying_corner,
                     &mut upper_overlying_corner,
                 );
 
                 // Get indices and edges of all grid cells fully or partially within by the overlying grid cell,
-                // making sure that none of the coordinates are wrapped
+                // making sure that none of the coordinates are wrapped.
+
+                let (lower_underlying_indices, lower_offsets) =
+                    self.determine_underlying_indices_and_offsets(&lower_overlying_corner);
+                let (upper_underlying_indices, _) =
+                    self.determine_underlying_indices_and_offsets(&upper_overlying_corner);
+
                 let (underlying_indices, underlying_edges) = self
-                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
-                        &lower_overlying_corner,
-                        &upper_overlying_corner,
+                    .obtain_indexed_monotonic_grid_cell_edges(
+                        &lower_underlying_indices,
+                        &upper_underlying_indices,
+                        &lower_offsets,
                     );
 
                 let compute_overlap_centers_and_lengths_along_dim = |dim| {
@@ -895,7 +903,7 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_sample_averaging(
+                self.shift_overlying_grid_cell_corners_for_sample_averaging(
                     &overlying_locations,
                     &mut lower_overlying_corner,
                     &mut upper_overlying_corner,
@@ -927,11 +935,18 @@ where
                 );
 
                 // Get indices and edges of all grid cells fully or partially within by the bounding box,
-                // making sure that none of the coordinates are wrapped
+                // making sure that none of the coordinates are wrapped.
+
+                let (lower_underlying_indices, lower_offsets) =
+                    self.determine_underlying_indices_and_offsets(&bounding_box_lower_corner);
+                let (upper_underlying_indices, _) =
+                    self.determine_underlying_indices_and_offsets(&bounding_box_upper_corner);
+
                 let (underlying_indices, underlying_edges) = self
-                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
-                        &bounding_box_lower_corner,
-                        &bounding_box_upper_corner,
+                    .obtain_indexed_monotonic_grid_cell_edges(
+                        &lower_underlying_indices,
+                        &upper_underlying_indices,
+                        &lower_offsets,
                     );
 
                 // Compute the center points and areas of the polynomials found by
@@ -1046,14 +1061,9 @@ where
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
     ) -> ScalarField3<F, H> {
-        let underlying_locations = self.locations();
-        let average_underlying_cell_extents = self.grid().average_grid_cell_extents();
-
         let overlying_grid = grid;
-        let overlying_locations = ResampledCoordLocation::convert_to_locations_3d(
-            resampled_locations,
-            underlying_locations,
-        );
+        let overlying_locations =
+            ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
@@ -1064,20 +1074,25 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_cell_averaging(
-                    underlying_locations,
+                self.shift_overlying_grid_cell_corners_for_cell_averaging(
                     &overlying_locations,
-                    &average_underlying_cell_extents,
                     &mut lower_overlying_corner,
                     &mut upper_overlying_corner,
                 );
 
                 // Get indices and edges of all grid cells fully or partially within by the overlying grid cell,
-                // making sure that none of the coordinates are wrapped
+                // making sure that none of the coordinates are wrapped.
+
+                let (lower_underlying_indices, lower_offsets) =
+                    self.determine_underlying_indices_and_offsets(&lower_overlying_corner);
+                let (upper_underlying_indices, _) =
+                    self.determine_underlying_indices_and_offsets(&upper_overlying_corner);
+
                 let (underlying_indices, underlying_edges) = self
-                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
-                        &lower_overlying_corner,
-                        &upper_overlying_corner,
+                    .obtain_indexed_monotonic_grid_cell_edges(
+                        &lower_underlying_indices,
+                        &upper_underlying_indices,
+                        &lower_offsets,
                     );
 
                 let compute_overlap_lengths_along_dim = |dim| {
@@ -1158,14 +1173,9 @@ where
     {
         const MIN_INTERSECTION_AREA: fgr = 1e-6;
 
-        let underlying_locations = self.locations();
-        let average_underlying_cell_extents = self.grid().average_grid_cell_extents();
-
         let overlying_grid = grid;
-        let overlying_locations = ResampledCoordLocation::convert_to_locations_3d(
-            resampled_locations,
-            underlying_locations,
-        );
+        let overlying_locations =
+            ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
 
@@ -1176,10 +1186,8 @@ where
                         overlying_grid.as_ref(),
                         overlying_idx,
                     );
-                Self::shift_overlying_grid_cell_corners_for_cell_averaging(
-                    underlying_locations,
+                self.shift_overlying_grid_cell_corners_for_cell_averaging(
                     &overlying_locations,
-                    &average_underlying_cell_extents,
                     &mut lower_overlying_corner,
                     &mut upper_overlying_corner,
                 );
@@ -1210,11 +1218,18 @@ where
                 );
 
                 // Get indices and edges of all grid cells fully or partially within by the overlying grid cell,
-                // making sure that none of the coordinates are wrapped
+                // making sure that none of the coordinates are wrapped.
+
+                let (lower_underlying_indices, lower_offsets) =
+                    self.determine_underlying_indices_and_offsets(&bounding_box_lower_corner);
+                let (upper_underlying_indices, _) =
+                    self.determine_underlying_indices_and_offsets(&bounding_box_upper_corner);
+
                 let (underlying_indices, underlying_edges) = self
-                    .compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
-                        &bounding_box_lower_corner,
-                        &bounding_box_upper_corner,
+                    .obtain_indexed_monotonic_grid_cell_edges(
+                        &lower_underlying_indices,
+                        &upper_underlying_indices,
+                        &lower_offsets,
                     );
 
                 // Compute the areas of the polynomials found by  horizontally intersecting
@@ -1481,10 +1496,14 @@ where
     }
 
     fn shift_overlying_grid_cell_corners_for_sample_averaging(
+        &self,
         overlying_locations: &In3D<CoordLocation>,
         lower_overlying_corner: &mut Point3<fgr>,
         upper_overlying_corner: &mut Point3<fgr>,
     ) {
+        let lower_bounds = self.grid().lower_bounds();
+        let upper_bounds = self.grid().upper_bounds();
+
         for &dim in &Dim3::slice() {
             if let CoordLocation::LowerEdge = overlying_locations[dim] {
                 // Shift the overlying grid cell half a cell down to be centered around the
@@ -1492,17 +1511,32 @@ where
                 let shift = -(upper_overlying_corner[dim] - lower_overlying_corner[dim]) * 0.5;
                 lower_overlying_corner[dim] += shift;
                 upper_overlying_corner[dim] += shift;
+
+                // Correct any shift outside a non-periodic boundary
+                if !self.grid().is_periodic(dim) {
+                    if lower_overlying_corner[dim] < lower_bounds[dim] {
+                        lower_overlying_corner[dim] = lower_bounds[dim];
+                    }
+                    if upper_overlying_corner[dim] >= upper_bounds[dim] {
+                        upper_overlying_corner[dim] = upper_bounds[dim].prev();
+                    }
+                }
             }
         }
     }
 
     fn shift_overlying_grid_cell_corners_for_cell_averaging(
-        underlying_locations: &In3D<CoordLocation>,
+        &self,
         overlying_locations: &In3D<CoordLocation>,
-        average_underlying_cell_extents: &Vec3<fgr>,
         lower_overlying_corner: &mut Point3<fgr>,
         upper_overlying_corner: &mut Point3<fgr>,
     ) {
+        let underlying_locations = self.locations();
+        let average_underlying_cell_extents = self.grid().average_grid_cell_extents();
+
+        let lower_bounds = self.grid().lower_bounds();
+        let upper_bounds = self.grid().upper_bounds();
+
         for &dim in &Dim3::slice() {
             let mut shift = 0.0;
             if let CoordLocation::LowerEdge = underlying_locations[dim] {
@@ -1518,34 +1552,46 @@ where
             shift *= 0.5;
             lower_overlying_corner[dim] += shift;
             upper_overlying_corner[dim] += shift;
+
+            // Correct any shift outside a non-periodic boundary
+            if !self.grid().is_periodic(dim) {
+                if lower_overlying_corner[dim] < lower_bounds[dim] {
+                    lower_overlying_corner[dim] = lower_bounds[dim];
+                }
+                if upper_overlying_corner[dim] >= upper_bounds[dim] {
+                    upper_overlying_corner[dim] = upper_bounds[dim].prev();
+                }
+            }
         }
     }
 
-    fn compute_indexed_monotonic_underlying_grid_cell_edges_for_resampling(
+    fn determine_underlying_indices_and_offsets(
         &self,
-        lower_overlying_corner: &Point3<fgr>,
-        upper_overlying_corner: &Point3<fgr>,
-    ) -> (In3D<Vec<usize>>, In3D<Vec<fgr>>) {
-        let (lower_underlying_indices, offset) =
-            match self.grid.find_closest_grid_cell(lower_overlying_corner) {
-                GridPointQuery3::Inside(indices) => (indices, Vec3::zero()),
-                GridPointQuery3::MovedInside((indices, moved_point)) => {
-                    (indices, lower_overlying_corner - &moved_point)
-                }
-                _ => unreachable!(),
-            };
-        let upper_underlying_indices = self
-            .grid
-            .find_closest_grid_cell(upper_overlying_corner)
-            .expect_inside_or_moved();
+        overlying_corner: &Point3<fgr>,
+    ) -> (Idx3<usize>, Vec3<fgr>) {
+        match self.grid().find_closest_grid_cell(overlying_corner) {
+            GridPointQuery3::Inside(indices) => (indices, Vec3::zero()),
+            GridPointQuery3::MovedInside((indices, moved_point)) => {
+                let offsets = overlying_corner - &moved_point;
+                (indices, offsets)
+            }
+            _ => unreachable!(),
+        }
+    }
 
+    fn obtain_indexed_monotonic_grid_cell_edges(
+        &self,
+        lower_indices: &Idx3<usize>,
+        upper_indices: &Idx3<usize>,
+        lower_offsets: &Vec3<fgr>,
+    ) -> (In3D<Vec<usize>>, In3D<Vec<fgr>>) {
         let determine_underlying_indices_and_edges = |dim| {
             self.grid
                 .determine_indexed_monotonic_grid_cell_edges_between(
                     dim,
-                    lower_underlying_indices[dim],
-                    upper_underlying_indices[dim],
-                    offset[dim],
+                    lower_indices[dim],
+                    upper_indices[dim],
+                    lower_offsets[dim],
                 )
         };
 
