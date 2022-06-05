@@ -5,10 +5,12 @@ use std::{borrow::Cow, fmt, io, path::Path};
 use crate::{
     grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
     io::{Endianness, Verbose},
-    snapshots_relative_eq,
 };
 
 use super::{fdt, SnapshotReader3};
+
+#[cfg(feature = "comparison")]
+use crate::snapshots_relative_eq;
 
 #[cfg(feature = "comparison")]
 use approx::RelativeEq;
