@@ -97,6 +97,12 @@ pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command
                 .short('v')
                 .long("verbose")
                 .help("Print status messages related to reading"),
+        )
+        .arg(
+            Arg::new("force-horizontally-regular")
+                .long("force-horizontally-regular")
+                .help("Treat the grid as horizontally regular even if fully regular")
+                .hide(true),
         );
 
     #[cfg(feature = "synthesis")]
@@ -183,17 +189,25 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
 
     let verbose = arguments.is_present("verbose").into();
 
+    let force_hor_regular = arguments.is_present("force-horizontally-regular");
+
     for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
         exit_on_error!(
-            with_new_snapshot_reader!(&file_path, endianness, verbose, |reader| {
-                run_snapshot_subcommand_with_derive(
-                    arguments,
-                    reader,
-                    &snap_num_in_range,
-                    protected_file_types,
-                );
-                Ok(())
-            }),
+            with_new_snapshot_reader!(
+                &file_path,
+                endianness,
+                verbose,
+                force_hor_regular,
+                |reader| {
+                    run_snapshot_subcommand_with_derive(
+                        arguments,
+                        reader,
+                        &snap_num_in_range,
+                        protected_file_types,
+                    );
+                    Ok(())
+                }
+            ),
             "Error: {}"
         );
     }

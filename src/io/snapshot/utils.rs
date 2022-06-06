@@ -109,7 +109,7 @@ impl fmt::Display for SnapshotInputType {
 
 #[macro_export]
 macro_rules! with_new_snapshot_reader {
-    ($input_file_path:expr, $endianness:expr, $verbose:expr, |$reader:ident| $action:expr) => {{
+    ($input_file_path:expr, $endianness:expr, $verbose:expr, $force_hor_regular:expr, |$reader:ident| $action:expr) => {{
         type SnapshotInputType = crate::io::snapshot::utils::SnapshotInputType;
         type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
         type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
@@ -133,33 +133,30 @@ macro_rules! with_new_snapshot_reader {
                 NativeSnapshotReaderConfig::new($input_file_path, $endianness, $verbose),
             )
             .and_then(|metadata| match metadata.grid_type() {
-                GridType::Regular => metadata
+                GridType::Regular if !$force_hor_regular => metadata
                     .into_reader::<RegularGrid3<_>>()
                     .and_then(|reader| {
                         let action = |$reader: NativeSnapshotReader3<RegularGrid3<_>>| $action;
                         action(reader)
                     }),
-                GridType::HorRegular => {
-                    metadata
-                        .into_reader::<HorRegularGrid3<_>>()
-                        .and_then(|reader| {
-                            let action =
-                                |$reader: NativeSnapshotReader3<HorRegularGrid3<_>>| $action;
-                            action(reader)
-                        })
-                }
+                _ => metadata
+                    .into_reader::<HorRegularGrid3<_>>()
+                    .and_then(|reader| {
+                        let action = |$reader: NativeSnapshotReader3<HorRegularGrid3<_>>| $action;
+                        action(reader)
+                    }),
             }),
             #[cfg(feature = "netcdf")]
             SnapshotInputType::NetCDF => NetCDFSnapshotMetadata::new(
                 NetCDFSnapshotReaderConfig::new($input_file_path, $verbose),
             )
             .and_then(|metadata| match metadata.grid_type() {
-                GridType::Regular => {
+                GridType::Regular if !$force_hor_regular => {
                     let reader = metadata.into_reader::<RegularGrid3<_>>();
                     let action = |$reader: NetCDFSnapshotReader3<RegularGrid3<_>>| $action;
                     action(reader)
                 }
-                GridType::HorRegular => {
+                _ => {
                     let reader = metadata.into_reader::<HorRegularGrid3<_>>();
                     let action = |$reader: NetCDFSnapshotReader3<HorRegularGrid3<_>>| $action;
                     action(reader)
@@ -167,11 +164,16 @@ macro_rules! with_new_snapshot_reader {
             }),
         }
     }};
+    ($input_file_path:expr, $endianness:expr, $verbose:expr, |$reader:ident| $action:expr) => {
+        with_new_snapshot_reader!($input_file_path, $endianness, $verbose, false, |$reader| {
+            $action
+        })
+    };
 }
 
 #[macro_export]
 macro_rules! with_new_snapshot_grid {
-    ($input_file_path:expr, $endianness:expr, $verbose:expr, |$grid:ident| $action:expr) => {{
+    ($input_file_path:expr, $endianness:expr, $verbose:expr, $force_hor_regular:expr, |$grid:ident| $action:expr) => {{
         type SnapshotInputType = crate::io::snapshot::utils::SnapshotInputType;
         type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
         type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
@@ -192,12 +194,12 @@ macro_rules! with_new_snapshot_grid {
                 NativeSnapshotReaderConfig::new($input_file_path, $endianness, $verbose),
             )
             .and_then(|metadata| match metadata.grid_type() {
-                GridType::Regular => {
+                GridType::Regular if !$force_hor_regular => {
                     let grid = metadata.into_grid::<RegularGrid3<_>>();
                     let action = |$grid: RegularGrid3<_>| $action;
                     action(grid)
                 }
-                GridType::HorRegular => {
+                _ => {
                     let grid = metadata.into_grid::<HorRegularGrid3<_>>();
                     let action = |$grid: HorRegularGrid3<_>| $action;
                     action(grid)
@@ -208,12 +210,12 @@ macro_rules! with_new_snapshot_grid {
                 NetCDFSnapshotReaderConfig::new($input_file_path, $verbose),
             )
             .and_then(|metadata| match metadata.grid_type() {
-                GridType::Regular => {
+                GridType::Regular if !$force_hor_regular => {
                     let grid = metadata.into_grid::<RegularGrid3<_>>();
                     let action = |$grid: RegularGrid3<_>| $action;
                     action(grid)
                 }
-                GridType::HorRegular => {
+                _ => {
                     let grid = metadata.into_grid::<HorRegularGrid3<_>>();
                     let action = |$grid: HorRegularGrid3<_>| $action;
                     action(grid)
@@ -221,6 +223,11 @@ macro_rules! with_new_snapshot_grid {
             }),
         }
     }};
+    ($input_file_path:expr, $endianness:expr, $verbose:expr, |$grid:ident| $action:expr) => {
+        with_new_snapshot_grid!($input_file_path, $endianness, $verbose, false, |$grid| {
+            $action
+        })
+    };
 }
 
 /// Reads the snapshot at the given path and compares for
