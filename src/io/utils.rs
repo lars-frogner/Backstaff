@@ -27,6 +27,13 @@ macro_rules! io_result {
 }
 
 #[macro_export]
+macro_rules! io_result_from_option {
+    ($option:expr, $($print_arg:tt)+) => {
+        $option.ok_or_else(|| ::std::io::Error::new(::std::io::ErrorKind::Other, format!($($print_arg)*)))
+    };
+}
+
+#[macro_export]
 macro_rules! with_io_err_msg {
     ($result:expr, $($print_arg:tt)+) => {
         $result.map_err(|err| {
