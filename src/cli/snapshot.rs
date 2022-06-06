@@ -30,7 +30,7 @@ use crate::{
     update_command_graph, with_new_snapshot_reader,
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
-use std::{collections::HashMap, path::PathBuf, process, str::FromStr};
+use std::{path::PathBuf, process, str::FromStr};
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
@@ -336,7 +336,6 @@ fn run_snapshot_subcommand_for_provider<G, P>(
             write_arguments,
             provider,
             snap_num_in_range,
-            HashMap::new(),
             protected_file_types,
         );
     } else {

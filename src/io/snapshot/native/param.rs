@@ -121,15 +121,19 @@ impl SnapshotParameters for NativeSnapshotParameters {
             .map(|s| ParameterValue::Str(s.to_owned()))
     }
 
-    fn modify_values(&mut self, modified_values: HashMap<&str, ParameterValue>) {
-        for (name, new_value) in modified_values {
-            if let Some(old_value) = self.parameter_set.values.get_mut(name) {
-                let new_value = new_value.as_string();
-                self.file_text
-                    .replace_parameter_value(name, new_value.as_str());
-                *old_value = new_value;
-            }
-        }
+    fn set_value(&mut self, name: &str, value: ParameterValue) {
+        let value = value.as_string();
+        self.parameter_set
+            .values
+            .entry(name.to_string())
+            .and_modify(|old_value| {
+                self.file_text.replace_parameter_value(name, value.as_str());
+                *old_value = value.clone();
+            })
+            .or_insert_with(|| {
+                self.file_text.append_parameter_value(name, value.as_str());
+                value
+            });
     }
 
     fn native_text_representation(&self) -> String {
@@ -184,6 +188,10 @@ impl ParameterFile {
         }) {
             self.text = new_text;
         }
+    }
+
+    fn append_parameter_value(&mut self, name: &str, new_value: &str) {
+        self.text = format!("{}\n{} = {}", self.text, name, new_value);
     }
 
     fn from_text(text: String) -> Self {

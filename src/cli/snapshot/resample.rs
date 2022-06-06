@@ -44,7 +44,7 @@ use crate::{
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
-use std::{collections::HashMap, process, sync::Arc};
+use std::{process, sync::Arc};
 
 /// Builds a representation of the `snapshot-resample` command line subcommand.
 pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command<'static> {
@@ -791,7 +791,6 @@ fn run_snapshot_resampling_for_provider<G, P>(
             write_arguments,
             provider,
             snap_num_in_range,
-            HashMap::new(),
             protected_file_types,
         );
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {

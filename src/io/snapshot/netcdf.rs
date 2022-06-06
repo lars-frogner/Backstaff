@@ -8,8 +8,7 @@ use super::{
         utils::{self, AtomicOutputPath},
         Endianness, OverwriteMode, Verbose,
     },
-    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, SnapshotReader3,
-    COORDINATE_NAMES, FALLBACK_SNAP_NUM,
+    fdt, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES, FALLBACK_SNAP_NUM,
 };
 use crate::{
     field::{ScalarField3, ScalarFieldProvider3},
@@ -25,7 +24,6 @@ use crate::{
 use ndarray::prelude::*;
 use netcdf_rs::{self as nc, File, Group, GroupMut, MutableFile, Numeric};
 use std::{
-    collections::HashMap,
     io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -335,7 +333,6 @@ where
     write_modified_snapshot(
         provider,
         &quantity_names,
-        HashMap::new(),
         output_file_path,
         strip_metadata,
         overwrite_mode,
@@ -348,7 +345,6 @@ where
 pub fn write_modified_snapshot<Pa, G, P>(
     provider: &mut P,
     quantity_names: &[String],
-    mut modified_parameters: HashMap<&str, ParameterValue>,
     output_file_path: Pa,
     strip_metadata: bool,
     overwrite_mode: OverwriteMode,
@@ -364,49 +360,10 @@ where
 
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_file_path);
     let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
-
-    modified_parameters.insert(
-        "snapname",
-        ParameterValue::Str(format!("\"{}\"", snap_name)),
-    );
-    modified_parameters.insert("isnap", ParameterValue::Str(format!("{}", snap_num)));
-    modified_parameters.insert(
-        "meshfile",
-        ParameterValue::Str(format!("\"{}.mesh\"", snap_name)),
-    );
+    let snap_num = format!("{}", snap_num);
 
     let (_, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);
-
-    modified_parameters.insert(
-        "aux",
-        ParameterValue::Str(format!(
-            "\"{}\"",
-            included_auxiliary_variable_names.join(" ")
-        )),
-    );
-
-    modified_parameters.insert("do_mhd", ParameterValue::Int(if is_mhd { 1 } else { 0 }));
-
-    let grid = provider.grid();
-
-    let shape = grid.shape();
-    let average_grid_cell_extents = grid.average_grid_cell_extents();
-    modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
-    modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
-    modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
-    modified_parameters.insert(
-        "dx",
-        ParameterValue::Float(average_grid_cell_extents[X] as fpa),
-    );
-    modified_parameters.insert(
-        "dy",
-        ParameterValue::Float(average_grid_cell_extents[Y] as fpa),
-    );
-    modified_parameters.insert(
-        "dz",
-        ParameterValue::Float(average_grid_cell_extents[Z] as fpa),
-    );
 
     let atomic_output_path = AtomicOutputPath::new(output_file_path)?;
     if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
@@ -422,8 +379,12 @@ where
     let mut file = create_file(atomic_output_path.temporary_path())?;
     let mut root_group = file.root_mut().unwrap();
 
-    let mut new_parameters = provider.parameters().clone();
-    new_parameters.modify_values(modified_parameters);
+    let new_parameters = provider.create_updated_parameters(
+        snap_name.as_str(),
+        snap_num,
+        &included_auxiliary_variable_names,
+        is_mhd,
+    );
 
     if !strip_metadata {
         if verbose.is_yes() {
@@ -435,7 +396,7 @@ where
     if verbose.is_yes() {
         println!("Writing grid to {}", output_file_name);
     }
-    mesh::write_grid(&mut root_group, grid, strip_metadata)?;
+    mesh::write_grid(&mut root_group, provider.grid(), strip_metadata)?;
 
     for name in quantity_names {
         let field = provider.provide_scalar_field(name)?;

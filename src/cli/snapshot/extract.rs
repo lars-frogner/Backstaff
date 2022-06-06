@@ -25,7 +25,6 @@ use crate::{
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
-use std::collections::HashMap;
 
 #[cfg(feature = "synthesis")]
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
@@ -372,7 +371,6 @@ fn run_extract_subcommand_for_provider<G, P>(
             write_arguments,
             provider,
             snap_num_in_range,
-            HashMap::new(),
             protected_file_types,
         );
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {

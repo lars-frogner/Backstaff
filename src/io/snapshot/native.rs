@@ -8,8 +8,8 @@ use super::{
         utils::{self, AtomicOutputPath},
         Endianness, OverwriteMode, Verbose,
     },
-    fdt, fpa, ParameterValue, SnapshotParameters, SnapshotProvider3, SnapshotReader3,
-    FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
+    fdt, SnapshotParameters, SnapshotProvider3, SnapshotReader3, FALLBACK_SNAP_NUM,
+    PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
     field::{ScalarField3, ScalarFieldProvider3},
@@ -492,7 +492,6 @@ impl NativeSnapshotMetadata {
 pub fn write_modified_snapshot<Pa, G, P>(
     provider: &mut P,
     quantity_names: &[String],
-    mut modified_parameters: HashMap<&str, ParameterValue>,
     output_param_path: Pa,
     is_scratch: bool,
     write_mesh_file: bool,
@@ -509,52 +508,10 @@ where
 
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_param_path);
     let snap_num = snap_num.unwrap_or(if is_scratch { 1 } else { FALLBACK_SNAP_NUM });
-
-    modified_parameters.insert(
-        "snapname",
-        ParameterValue::Str(format!("\"{}\"", snap_name)),
-    );
-    modified_parameters.insert(
-        "isnap",
-        ParameterValue::Str(format!("{}{}", if is_scratch { "-" } else { "" }, snap_num)),
-    );
-    modified_parameters.insert(
-        "meshfile",
-        ParameterValue::Str(format!("\"{}.mesh\"", snap_name)),
-    );
+    let snap_num = format!("{}{}", if is_scratch { "-" } else { "" }, snap_num);
 
     let (included_primary_variable_names, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);
-
-    modified_parameters.insert(
-        "aux",
-        ParameterValue::Str(format!(
-            "\"{}\"",
-            included_auxiliary_variable_names.join(" ")
-        )),
-    );
-
-    modified_parameters.insert("do_mhd", ParameterValue::Int(if is_mhd { 1 } else { 0 }));
-
-    let grid = provider.grid();
-
-    let shape = grid.shape();
-    let average_grid_cell_extents = grid.average_grid_cell_extents();
-    modified_parameters.insert("mx", ParameterValue::Int(shape[X] as i64));
-    modified_parameters.insert("my", ParameterValue::Int(shape[Y] as i64));
-    modified_parameters.insert("mz", ParameterValue::Int(shape[Z] as i64));
-    modified_parameters.insert(
-        "dx",
-        ParameterValue::Float(average_grid_cell_extents[X] as fpa),
-    );
-    modified_parameters.insert(
-        "dy",
-        ParameterValue::Float(average_grid_cell_extents[Y] as fpa),
-    );
-    modified_parameters.insert(
-        "dz",
-        ParameterValue::Float(average_grid_cell_extents[Z] as fpa),
-    );
 
     let has_primary = !included_primary_variable_names.is_empty();
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
@@ -603,8 +560,12 @@ where
             .unwrap()
             .to_string_lossy();
 
-        let mut new_parameters = provider.parameters().clone();
-        new_parameters.modify_values(modified_parameters);
+        let new_parameters = provider.create_updated_parameters(
+            snap_name.as_str(),
+            snap_num,
+            &included_auxiliary_variable_names,
+            is_mhd,
+        );
 
         if verbose.is_yes() {
             println!("Writing parameters to {}", output_param_file_name);
@@ -626,7 +587,7 @@ where
                     .to_string_lossy()
             );
         }
-        mesh::write_mesh_file_from_grid(grid, atomic_mesh_path.temporary_path())?;
+        mesh::write_mesh_file_from_grid(provider.grid(), atomic_mesh_path.temporary_path())?;
     }
 
     let endianness = provider.endianness();

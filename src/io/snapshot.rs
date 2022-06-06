@@ -13,7 +13,10 @@ use crate::{
         CachingScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod, ScalarField3,
         ScalarFieldCacher3, ScalarFieldProvider3,
     },
-    geometry::{Idx3, In3D, PointTransformation2},
+    geometry::{
+        Dim3::{X, Y, Z},
+        Idx3, In3D, PointTransformation2,
+    },
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
 };
@@ -150,6 +153,73 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
 
     /// Returns the name and (if available) number of the snapshot.
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
+
+    /// Returns the set of snapshot parameters, but modified to account for
+    /// changes in the grid, snapshot name and number and included set of quantities.
+    fn create_updated_parameters(
+        &self,
+        snap_name: &str,
+        snap_num: String,
+        included_auxiliary_variable_names: &[String],
+        is_mhd: bool,
+    ) -> Self::Parameters {
+        let grid = self.grid();
+        let shape = grid.shape();
+        let average_grid_cell_extents = grid.average_grid_cell_extents();
+
+        let mut new_parameters = self.parameters().clone();
+
+        new_parameters.set_value(
+            "snapname",
+            ParameterValue::Str(format!("\"{}\"", snap_name)),
+        );
+        new_parameters.set_value("isnap", ParameterValue::Str(snap_num));
+        new_parameters.set_value(
+            "meshfile",
+            ParameterValue::Str(format!("\"{}.mesh\"", snap_name)),
+        );
+
+        new_parameters.set_value(
+            "aux",
+            ParameterValue::Str(format!(
+                "\"{}\"",
+                included_auxiliary_variable_names.join(" ")
+            )),
+        );
+
+        new_parameters.set_value("do_mhd", ParameterValue::Int(if is_mhd { 1 } else { 0 }));
+
+        new_parameters.set_value(
+            "periodic_x",
+            ParameterValue::Int(if grid.is_periodic(X) { 1 } else { 0 }),
+        );
+        new_parameters.set_value(
+            "periodic_y",
+            ParameterValue::Int(if grid.is_periodic(Y) { 1 } else { 0 }),
+        );
+        new_parameters.set_value(
+            "periodic_z",
+            ParameterValue::Int(if grid.is_periodic(Z) { 1 } else { 0 }),
+        );
+
+        new_parameters.set_value("mx", ParameterValue::Int(shape[X] as i64));
+        new_parameters.set_value("my", ParameterValue::Int(shape[Y] as i64));
+        new_parameters.set_value("mz", ParameterValue::Int(shape[Z] as i64));
+        new_parameters.set_value(
+            "dx",
+            ParameterValue::Float(average_grid_cell_extents[X] as fpa),
+        );
+        new_parameters.set_value(
+            "dy",
+            ParameterValue::Float(average_grid_cell_extents[Y] as fpa),
+        );
+        new_parameters.set_value(
+            "dz",
+            ParameterValue::Float(average_grid_cell_extents[Z] as fpa),
+        );
+
+        new_parameters
+    }
 }
 
 pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
@@ -271,8 +341,8 @@ pub trait SnapshotParameters: Clone {
     /// Provides the value of the given snapshot parameter.
     fn get_value(&self, name: &str) -> io::Result<ParameterValue>;
 
-    /// Replaces the specified parameter values.
-    fn modify_values(&mut self, modified_values: HashMap<&str, ParameterValue>);
+    /// Replaces or adds the given value of the given snapshot parameter.
+    fn set_value(&mut self, name: &str, value: ParameterValue);
 
     /// Returns a text representation of the parameters in the native parameter file format.
     fn native_text_representation(&self) -> String;
@@ -553,12 +623,13 @@ impl SnapshotParameters for MapOfSnapshotParameters {
         })
     }
 
-    fn modify_values(&mut self, modified_values: HashMap<&str, ParameterValue>) {
-        for (name, new_value) in modified_values {
-            if let Some(old_value) = self.parameters.get_mut(name) {
-                *old_value = new_value;
-            }
-        }
+    fn set_value(&mut self, name: &str, value: ParameterValue) {
+        self.parameters
+            .entry(name.to_string())
+            .and_modify(|old_value| {
+                *old_value = value.clone();
+            })
+            .or_insert(value);
     }
 
     fn native_text_representation(&self) -> String {

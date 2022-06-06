@@ -5,13 +5,12 @@ use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
     grid::{fgr, Grid3},
-    io::snapshot::{self, native, ParameterValue, SnapshotProvider3},
+    io::snapshot::{self, native, SnapshotProvider3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 use std::{
     borrow::Cow,
-    collections::HashMap,
     fmt,
     path::{Path, PathBuf},
     str::FromStr,
@@ -114,7 +113,6 @@ pub fn run_write_subcommand<G, P>(
     arguments: &ArgMatches,
     mut provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    modified_parameters: HashMap<&str, ParameterValue>,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fgr>,
@@ -165,7 +163,6 @@ pub fn run_write_subcommand<G, P>(
             OutputType::Native(native_type) => native::write_modified_snapshot(
                 &mut provider,
                 &quantity_names,
-                modified_parameters,
                 &output_file_path,
                 native_type == NativeType::Scratch,
                 write_mesh_file,
@@ -179,7 +176,6 @@ pub fn run_write_subcommand<G, P>(
                 netcdf::write_modified_snapshot(
                     &mut provider,
                     &quantity_names,
-                    modified_parameters,
                     &output_file_path,
                     strip_metadata,
                     overwrite_mode,
