@@ -2,7 +2,6 @@
 
 use super::{fdt, SnapshotReader3};
 use crate::{
-    field::ScalarField3,
     grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
     io::{snapshot::SnapshotProvider3, Endianness, Verbose},
 };
@@ -283,35 +282,32 @@ where
     })
 }
 
-/// Reads the fields of the snapshot at the given path and
-/// compares for approximate equality to the corresponding
-/// given fields.
+/// Reads the field values of the snapshot at the given path and
+/// compares for equality to the corresponding given field values
+/// using the given closure.
 #[cfg(feature = "comparison")]
-pub fn read_snapshot_has_given_fields_eq<'a, P, G, I>(
+pub fn read_snapshot_has_given_fields_custom_eq<'a, P, I, C>(
     input_file_path: P,
     endianness: Endianness,
     verbose: Verbose,
-    reference_fields: I,
-    epsilon: fdt,
-    max_relative: fdt,
+    reference_field_values: I,
+    are_equal: C,
 ) -> io::Result<bool>
 where
     P: AsRef<Path>,
-    G: 'a + Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
-    I: IntoIterator<Item = &'a ScalarField3<fdt, G>>,
+    I: IntoIterator<Item = (String, &'a [fdt])>,
+    C: Fn(&[fdt], &'a [fdt]) -> bool,
 {
     with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
         let all_snapshot_variable_names = snapshot_reader.all_variable_names();
-        for field in reference_fields {
-            let name = field.name().to_string();
-            if !all_snapshot_variable_names.contains(&name)
-                || snapshot_reader.read_scalar_field(name)?.relative_ne(
-                    field,
-                    epsilon,
-                    max_relative,
-                )
-            {
+        for (name, values) in reference_field_values {
+            if !all_snapshot_variable_names.contains(&name) {
                 return Ok(false);
+            } else {
+                let read_field = snapshot_reader.read_scalar_field(name)?;
+                if !are_equal(read_field.values().as_slice_memory_order().unwrap(), values) {
+                    return Ok(false);
+                }
             }
         }
         Ok(true)
