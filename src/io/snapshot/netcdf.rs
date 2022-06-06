@@ -32,7 +32,7 @@ use std::{
 };
 
 pub use mesh::{read_grid_data, NetCDFGridData};
-pub use param::NetCDFSnapshotParameters;
+pub use param::{read_netcdf_snapshot_parameters, NetCDFSnapshotParameters};
 
 /// Configuration parameters for NetCDF snapshot reader.
 #[derive(Clone, Debug)]
@@ -59,7 +59,7 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
     pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
         let file = open_file(&config.file_path)?;
 
-        let parameters = NetCDFSnapshotParameters::new(&file, config.verbose())?;
+        let parameters = read_netcdf_snapshot_parameters(&file, config.verbose())?;
 
         let is_periodic = parameters.determine_grid_periodicity()?;
         let (grid, endianness) = mesh::read_grid::<G>(&file, is_periodic, config.verbose())?;
@@ -218,7 +218,7 @@ impl NetCDFSnapshotMetadata {
             "Could not open NetCDF file: {}"
         )?;
         let parameters = with_io_err_msg!(
-            NetCDFSnapshotParameters::new(&file, reader_config.verbose()),
+            read_netcdf_snapshot_parameters(&file, reader_config.verbose()),
             "Could not read snapshot parameters from NetCDF file: {}"
         )?;
         let grid_data = with_io_err_msg!(

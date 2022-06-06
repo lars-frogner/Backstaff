@@ -510,6 +510,75 @@ impl RelativeEq for ParameterValue {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+/// Representation of parameters as a `HashMap` of `ParameterValue`s.
+pub struct MapOfSnapshotParameters {
+    parameters: HashMap<String, ParameterValue>,
+}
+
+impl MapOfSnapshotParameters {
+    pub fn new(parameters: HashMap<String, ParameterValue>) -> Self {
+        Self { parameters }
+    }
+
+    pub fn determine_if_mhd(&self) -> io::Result<bool> {
+        Ok(self.get_value("do_mhd")?.try_as_int()? > 0)
+    }
+
+    /// Uses the available parameters to determine the axes for which the snapshot grid is periodic.
+    pub fn determine_grid_periodicity(&self) -> io::Result<In3D<bool>> {
+        Ok(In3D::new(
+            self.get_value("periodic_x")?.try_as_int()? == 1,
+            self.get_value("periodic_y")?.try_as_int()? == 1,
+            self.get_value("periodic_z")?.try_as_int()? == 1,
+        ))
+    }
+}
+
+impl SnapshotParameters for MapOfSnapshotParameters {
+    fn n_values(&self) -> usize {
+        self.parameters.len()
+    }
+
+    fn names(&self) -> Vec<&str> {
+        self.parameters.keys().map(|s| s.as_str()).collect()
+    }
+
+    fn get_value(&self, name: &str) -> io::Result<ParameterValue> {
+        self.parameters.get(name).cloned().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Parameter {} not found", name),
+            )
+        })
+    }
+
+    fn modify_values(&mut self, modified_values: HashMap<&str, ParameterValue>) {
+        for (name, new_value) in modified_values {
+            if let Some(old_value) = self.parameters.get_mut(name) {
+                *old_value = new_value;
+            }
+        }
+    }
+
+    fn native_text_representation(&self) -> String {
+        let mut text = String::new();
+        for (name, value) in &self.parameters {
+            text = format!("{}{} = {}\n", &text, name, value.as_string());
+        }
+        text
+    }
+}
+
+#[cfg(feature = "comparison")]
+impl_partial_eq_for_parameters!(MapOfSnapshotParameters);
+
+#[cfg(feature = "comparison")]
+impl_abs_diff_eq_for_parameters!(MapOfSnapshotParameters);
+
+#[cfg(feature = "comparison")]
+impl_relative_eq_for_parameters!(MapOfSnapshotParameters);
+
 /// Wrapper for a `SnapshotProvider3` that resamples the provided fields
 /// to a given grid.
 pub struct ResampledSnapshotProvider3<GOLD, G, P, T, I> {

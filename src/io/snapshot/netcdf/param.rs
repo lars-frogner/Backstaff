@@ -1,95 +1,31 @@
 //! Utilities for parameters in NetCDF format.
 
-use super::super::{super::Verbose, fpa, ParameterValue, SnapshotParameters};
-use crate::{geometry::In3D, io_result};
-use netcdf_rs::{AttrValue, File, Group, GroupMut};
-use std::{collections::HashMap, io};
-
-#[cfg(feature = "comparison")]
-use crate::{
-    impl_abs_diff_eq_for_parameters, impl_partial_eq_for_parameters,
-    impl_relative_eq_for_parameters,
+use super::super::{
+    super::Verbose, fpa, MapOfSnapshotParameters, ParameterValue, SnapshotParameters,
 };
+use crate::io_result;
+use netcdf_rs::{AttrValue, File, Group, GroupMut};
+use std::io;
 
-#[derive(Clone, Debug)]
-/// Representation of parameters for NetCDF snapshots.
-pub struct NetCDFSnapshotParameters {
-    parameters: HashMap<String, ParameterValue>,
+pub type NetCDFSnapshotParameters = MapOfSnapshotParameters;
+
+pub fn read_netcdf_snapshot_parameters(
+    file: &File,
+    verbose: Verbose,
+) -> io::Result<NetCDFSnapshotParameters> {
+    if verbose.is_yes() {
+        println!(
+            "Reading parameters from {}",
+            file.path().unwrap().file_name().unwrap().to_string_lossy()
+        );
+    }
+    let root_group = file.root().unwrap();
+    let parameters = read_all_parameter_names(&root_group)
+        .into_iter()
+        .map(|name| read_snapshot_parameter(&root_group, &name).map(|value| (name, value)))
+        .collect::<io::Result<_>>()?;
+    Ok(NetCDFSnapshotParameters::new(parameters))
 }
-
-impl NetCDFSnapshotParameters {
-    pub fn new(file: &File, verbose: Verbose) -> io::Result<Self> {
-        if verbose.is_yes() {
-            println!(
-                "Reading parameters from {}",
-                file.path().unwrap().file_name().unwrap().to_string_lossy()
-            );
-        }
-        let root_group = file.root().unwrap();
-        let parameters = read_all_parameter_names(&root_group)
-            .into_iter()
-            .map(|name| read_snapshot_parameter(&root_group, &name).map(|value| (name, value)))
-            .collect::<io::Result<_>>()?;
-        Ok(Self { parameters })
-    }
-
-    pub fn determine_if_mhd(&self) -> io::Result<bool> {
-        Ok(self.get_value("do_mhd")?.try_as_int()? > 0)
-    }
-
-    /// Uses the available parameters to determine the axes for which the snapshot grid is periodic.
-    pub fn determine_grid_periodicity(&self) -> io::Result<In3D<bool>> {
-        Ok(In3D::new(
-            self.get_value("periodic_x")?.try_as_int()? == 1,
-            self.get_value("periodic_y")?.try_as_int()? == 1,
-            self.get_value("periodic_z")?.try_as_int()? == 1,
-        ))
-    }
-}
-
-impl SnapshotParameters for NetCDFSnapshotParameters {
-    fn n_values(&self) -> usize {
-        self.parameters.len()
-    }
-
-    fn names(&self) -> Vec<&str> {
-        self.parameters.keys().map(|s| s.as_str()).collect()
-    }
-
-    fn get_value(&self, name: &str) -> io::Result<ParameterValue> {
-        self.parameters.get(name).cloned().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Parameter {} not found in NetCDF file", name),
-            )
-        })
-    }
-
-    fn modify_values(&mut self, modified_values: HashMap<&str, ParameterValue>) {
-        for (name, new_value) in modified_values {
-            if let Some(old_value) = self.parameters.get_mut(name) {
-                *old_value = new_value;
-            }
-        }
-    }
-
-    fn native_text_representation(&self) -> String {
-        let mut text = String::new();
-        for (name, value) in &self.parameters {
-            text = format!("{}{} = {}\n", &text, name, value.as_string());
-        }
-        text
-    }
-}
-
-#[cfg(feature = "comparison")]
-impl_partial_eq_for_parameters!(NetCDFSnapshotParameters);
-
-#[cfg(feature = "comparison")]
-impl_abs_diff_eq_for_parameters!(NetCDFSnapshotParameters);
-
-#[cfg(feature = "comparison")]
-impl_relative_eq_for_parameters!(NetCDFSnapshotParameters);
 
 /// Returns a list of all parameters in the given NetCDF group.
 fn read_all_parameter_names(group: &Group) -> Vec<String> {
