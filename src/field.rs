@@ -442,6 +442,102 @@ where
     }
 }
 
+type FieldValueComputer<F> = Box<dyn Fn(&Point3<fgr>) -> F>;
+
+/// Object for generating general 3D scalar fields by computing values
+/// using provided closures.
+pub struct CustomScalarFieldGenerator3<F, G> {
+    grid: Arc<G>,
+    computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
+    verbose: Verbose,
+}
+
+impl<F, G> CustomScalarFieldGenerator3<F, G>
+where
+    F: BFloat,
+    G: Grid3<fgr>,
+    FieldValueComputer<F>: Sync,
+{
+    /// Creates a new generator of 3D scalar fields.
+    ///
+    /// The fields are generated on the given grid. For each field to
+    /// compute, a variable name, closure and coordinate location must
+    /// be provided. Each closure computes a value given a point on the
+    /// grid.
+    pub fn new(
+        grid: Arc<G>,
+        computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
+        verbose: Verbose,
+    ) -> Self {
+        Self {
+            grid,
+            computers,
+            verbose,
+        }
+    }
+
+    fn compute_field<S: AsRef<str>>(&self, variable_name: S) -> io::Result<ScalarField3<F, G>> {
+        let variable_name = variable_name.as_ref().to_string();
+
+        if self.verbose.is_yes() {
+            println!("Computing {}", &variable_name);
+        }
+
+        let (computer, locations) = self.computers.get(&variable_name).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Invalid variable name {}", &variable_name),
+            )
+        })?;
+
+        let grid = self.grid();
+        let grid_shape = grid.shape();
+
+        let coords = ScalarField3::<F, G>::coords_from_grid(grid, locations);
+
+        let mut values = Array3::uninit(grid_shape.to_tuple().f());
+        let values_buffer = values.as_slice_memory_order_mut().unwrap();
+
+        values_buffer
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(idx, value)| {
+                let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
+                let point = coords.point(&indices);
+                value.write(computer(&point));
+            });
+        let values = unsafe { values.assume_init() };
+        Ok(ScalarField3::new(
+            variable_name,
+            self.arc_with_grid(),
+            locations.clone(),
+            values,
+        ))
+    }
+}
+
+impl<F, G> ScalarFieldProvider3<F, G> for CustomScalarFieldGenerator3<F, G>
+where
+    F: BFloat,
+    G: Grid3<fgr>,
+    FieldValueComputer<F>: Sync,
+{
+    fn grid(&self) -> &G {
+        self.grid.as_ref()
+    }
+
+    fn arc_with_grid(&self) -> Arc<G> {
+        Arc::clone(&self.grid)
+    }
+
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<F, G>> {
+        self.compute_field(variable_name)
+    }
+}
+
 /// Location in the grid cell for resampled field values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ResampledCoordLocation {
