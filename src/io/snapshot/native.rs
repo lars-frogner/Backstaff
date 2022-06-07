@@ -488,6 +488,30 @@ impl NativeSnapshotMetadata {
     }
 }
 
+/// Writes the data associated with the given snapshot to native snapshot files at the given path.
+pub fn write_new_snapshot<Pa, G, P>(
+    provider: &mut P,
+    output_param_path: Pa,
+    verbose: Verbose,
+) -> io::Result<()>
+where
+    Pa: AsRef<Path>,
+    G: Grid3<fgr>,
+    P: SnapshotProvider3<G>,
+{
+    let quantity_names = provider.all_variable_names().to_vec();
+    write_modified_snapshot(
+        provider,
+        &quantity_names,
+        output_param_path,
+        false,
+        true,
+        OverwriteMode::Always,
+        &[],
+        verbose,
+    )
+}
+
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
 pub fn write_modified_snapshot<Pa, G, P>(
     provider: &mut P,

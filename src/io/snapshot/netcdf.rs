@@ -315,13 +315,10 @@ impl NetCDFSnapshotReaderConfig {
     }
 }
 
-/// Writes all data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_identical_snapshot<Pa, G, P>(
+/// Writes data associated with the given snapshot to a NetCDF file at the given path.
+pub fn write_new_snapshot<Pa, G, P>(
     provider: &mut P,
     output_file_path: Pa,
-    strip_metadata: bool,
-    overwrite_mode: OverwriteMode,
-    protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
 where
@@ -334,9 +331,9 @@ where
         provider,
         &quantity_names,
         output_file_path,
-        strip_metadata,
-        overwrite_mode,
-        protected_file_types,
+        false,
+        OverwriteMode::Always,
+        &[],
         verbose,
     )
 }
