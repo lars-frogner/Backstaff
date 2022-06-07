@@ -260,17 +260,8 @@ impl ParameterSet {
 #[cfg(test)]
 mod tests {
 
-    use super::{
-        super::{
-            super::{
-                super::{Endianness, Verbose},
-                SnapshotReader3,
-            },
-            NativeSnapshotReader3, NativeSnapshotReaderConfig,
-        },
-        *,
-    };
-    use crate::grid::hor_regular::HorRegularGrid3;
+    use super::ParameterFile;
+    use std::collections::HashMap;
 
     #[test]
     fn param_parsing_works() {
