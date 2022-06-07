@@ -586,32 +586,3 @@ pub fn write_3d_scalar_field<G: Grid3<fgr>>(
     )?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::grid::hor_regular::HorRegularGrid3;
-    use crate::io::{
-        snapshot::native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
-        Endianness, Verbose,
-    };
-    #[test]
-    fn snapshot_writing_works() {
-        let mut reader =
-            NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
-                "data/test_snapshot.idl",
-                Endianness::Little,
-                Verbose::No,
-            ))
-            .unwrap();
-        write_identical_snapshot(
-            &mut reader,
-            "data/test_snapshot.nc",
-            false,
-            OverwriteMode::Always,
-            &[],
-            Verbose::No,
-        )
-        .unwrap();
-    }
-}

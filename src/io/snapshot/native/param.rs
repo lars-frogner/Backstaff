@@ -297,16 +297,4 @@ mod tests {
         );
         assert!(parameter_set.get_numerical_param::<f32>("invalid").is_err());
     }
-
-    #[test]
-    fn reading_works() {
-        let reader =
-            NativeSnapshotReader3::<HorRegularGrid3<_>>::new(NativeSnapshotReaderConfig::new(
-                "data/test_snapshot.idl",
-                Endianness::Little,
-                Verbose::No,
-            ))
-            .unwrap();
-        let _field = reader.read_scalar_field("r").unwrap();
-    }
 }
