@@ -10,9 +10,8 @@ pub mod utils;
 use super::{Endianness, Verbose};
 use crate::{
     field::{
-        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, FieldValueComputer,
-        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldCacher3,
-        ScalarFieldProvider3,
+        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, ResampledCoordLocation,
+        ResamplingMethod, ScalarField3, ScalarFieldCacher3, ScalarFieldProvider3,
     },
     geometry::{
         Dim3::{X, Y, Z},
@@ -318,7 +317,6 @@ pub type CustomSnapshotGenerator3<G> =
 impl<G> CustomScalarFieldGenerator3<fdt, G>
 where
     G: Grid3<fgr>,
-    FieldValueComputer<fdt>: Sync,
 {
     /// Creates a wrapped version of the generator that
     /// implements the `SnapshotProvider3` trait.

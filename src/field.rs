@@ -442,13 +442,13 @@ where
     }
 }
 
-pub type FieldValueComputer<F> = Box<dyn Fn(&Point3<fgr>) -> F>;
+pub type FieldValueComputer<F> = Box<dyn Fn(fgr, fgr, fgr) -> F + Sync>;
 
 /// Object for generating general 3D scalar fields by computing values
 /// using provided closures.
 pub struct CustomScalarFieldGenerator3<F, G> {
     grid: Arc<G>,
-    computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
+    variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
     verbose: Verbose,
 }
 
@@ -456,7 +456,6 @@ impl<F, G> CustomScalarFieldGenerator3<F, G>
 where
     F: BFloat,
     G: Grid3<fgr>,
-    FieldValueComputer<F>: Sync,
 {
     /// Creates a new generator of 3D scalar fields.
     ///
@@ -464,21 +463,43 @@ where
     /// compute, a variable name, closure and coordinate location must
     /// be provided. Each closure computes a value given a point on the
     /// grid.
-    pub fn new(
+    pub fn new_with_variables(
         grid: Arc<G>,
-        computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
+        variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
         verbose: Verbose,
     ) -> Self {
         Self {
             grid,
-            computers,
+            variable_computers,
             verbose,
         }
     }
 
+    pub fn new(grid: Arc<G>, verbose: Verbose) -> Self {
+        Self::new_with_variables(grid, HashMap::new(), verbose)
+    }
+
+    /// Adds a new cell-centered variable with the given computation closure,
+    /// overwriting any existing variable with the same name.
+    pub fn with_variable(self, name: String, computer: FieldValueComputer<F>) -> Self {
+        self.with_variable_at_locations(name, computer, In3D::same(CoordLocation::Center))
+    }
+
+    /// Adds a new variable with the given computation closure and coordinate
+    /// locations, overwriting any existing variable with the same name.
+    pub fn with_variable_at_locations(
+        mut self,
+        name: String,
+        computer: FieldValueComputer<F>,
+        locations: In3D<CoordLocation>,
+    ) -> Self {
+        self.variable_computers.insert(name, (computer, locations));
+        self
+    }
+
     /// Creates a vector with the names of all variables that can be computed.
     pub fn all_variable_names(&self) -> Vec<String> {
-        self.computers.keys().cloned().collect()
+        self.variable_computers.keys().cloned().collect()
     }
 
     fn compute_field<S: AsRef<str>>(&self, variable_name: S) -> io::Result<ScalarField3<F, G>> {
@@ -488,12 +509,13 @@ where
             println!("Computing {}", &variable_name);
         }
 
-        let (computer, locations) = self.computers.get(&variable_name).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                format!("Invalid variable name {}", &variable_name),
-            )
-        })?;
+        let (computer, locations) =
+            self.variable_computers.get(&variable_name).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Invalid variable name {}", &variable_name),
+                )
+            })?;
 
         let grid = self.grid();
         let grid_shape = grid.shape();
@@ -509,7 +531,7 @@ where
             .for_each(|(idx, value)| {
                 let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = coords.point(&indices);
-                value.write(computer(&point));
+                value.write(computer(point[X], point[Y], point[Z]));
             });
         let values = unsafe { values.assume_init() };
         Ok(ScalarField3::new(
@@ -541,6 +563,31 @@ where
     ) -> io::Result<ScalarField3<F, G>> {
         self.compute_field(variable_name)
     }
+}
+
+#[macro_export]
+macro_rules! field_value_computer {
+    (constant = $c:expr; ($float_type:ty)) => {
+        Box::new(|_, _, _| $c as $float_type)
+    };
+    (
+        $( constant  = $c:expr; )?
+        $( slope     = ($ax:expr, $ay:expr, $az:expr); )?
+        $( curvature = ($ax2:expr, $axy:expr, $axz:expr,
+                        $ayx:expr, $ay2:expr, $ayz:expr,
+                        $azx:expr, $azy:expr, $az2:expr); )?
+        ($float_type:ty)
+    ) => {
+        Box::new(|x, y, z| (0.0 $(+ $c)?
+                               $(+ $ax * x + $ay * y + $az * z)?
+                               $(+ $ax2 * x * x + $axy * x * y + $axz * x * z
+                                 + $ayx * y * x + $ay2 * y * y + $ayz * y * z
+                                 + $azx * z * x + $azy * z * y + $az2 * z * z)?)
+                            as $float_type)
+    };
+    (|$x:ident, $y:ident, $z:ident| $compute:expr) => {
+        Box::new(|$x, $y, $z| $compute)
+    };
 }
 
 /// Location in the grid cell for resampled field values.
