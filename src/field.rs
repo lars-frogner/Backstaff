@@ -442,7 +442,7 @@ where
     }
 }
 
-type FieldValueComputer<F> = Box<dyn Fn(&Point3<fgr>) -> F>;
+pub type FieldValueComputer<F> = Box<dyn Fn(&Point3<fgr>) -> F>;
 
 /// Object for generating general 3D scalar fields by computing values
 /// using provided closures.
@@ -474,6 +474,11 @@ where
             computers,
             verbose,
         }
+    }
+
+    /// Creates a vector with the names of all variables that can be computed.
+    pub fn all_variable_names(&self) -> Vec<String> {
+        self.computers.keys().cloned().collect()
     }
 
     fn compute_field<S: AsRef<str>>(&self, variable_name: S) -> io::Result<ScalarField3<F, G>> {

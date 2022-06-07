@@ -10,8 +10,9 @@ pub mod utils;
 use super::{Endianness, Verbose};
 use crate::{
     field::{
-        CachingScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod, ScalarField3,
-        ScalarFieldCacher3, ScalarFieldProvider3,
+        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, FieldValueComputer,
+        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldCacher3,
+        ScalarFieldProvider3,
     },
     geometry::{
         Dim3::{X, Y, Z},
@@ -219,6 +220,123 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
         );
 
         new_parameters
+    }
+}
+
+/// Wrapper for a `ScalarFieldProvider3` that uses provided information
+/// about the snapshot to implement `SnapshotProvider3`.
+pub struct SnapshotProvider3Wrapper<G, P> {
+    provider: P,
+    snap_name: String,
+    snap_num: Option<u32>,
+    parameters: MapOfSnapshotParameters,
+    endianness: Endianness,
+    all_variable_names: Vec<String>,
+    phantom: PhantomData<G>,
+}
+
+impl<G, P> SnapshotProvider3Wrapper<G, P>
+where
+    G: Grid3<fgr>,
+    P: ScalarFieldProvider3<fdt, G>,
+{
+    /// Creates a new wrapper for the given provider with
+    /// the given snapshot information.
+    pub fn new(
+        provider: P,
+        snap_name: String,
+        snap_num: Option<u32>,
+        parameters: MapOfSnapshotParameters,
+        endianness: Endianness,
+        all_variable_names: Vec<String>,
+    ) -> Self {
+        Self {
+            provider,
+            snap_name,
+            snap_num,
+            parameters,
+            endianness,
+            all_variable_names,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<G, P> ScalarFieldProvider3<fdt, G> for SnapshotProvider3Wrapper<G, P>
+where
+    G: Grid3<fgr>,
+    P: ScalarFieldProvider3<fdt, G>,
+{
+    fn grid(&self) -> &G {
+        self.provider.grid()
+    }
+
+    fn arc_with_grid(&self) -> Arc<G> {
+        self.provider.arc_with_grid()
+    }
+
+    fn produce_scalar_field<S: AsRef<str>>(
+        &mut self,
+        variable_name: S,
+    ) -> io::Result<ScalarField3<fdt, G>> {
+        self.provider.produce_scalar_field(variable_name)
+    }
+}
+
+impl<G, P> SnapshotProvider3<G> for SnapshotProvider3Wrapper<G, P>
+where
+    G: Grid3<fgr>,
+    P: ScalarFieldProvider3<fdt, G>,
+{
+    type Parameters = MapOfSnapshotParameters;
+
+    fn parameters(&self) -> &Self::Parameters {
+        &self.parameters
+    }
+
+    fn endianness(&self) -> Endianness {
+        self.endianness
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        &self.all_variable_names
+    }
+
+    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+        self.all_variable_names()
+            .contains(&variable_name.as_ref().to_string())
+    }
+
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+        (self.snap_name.clone(), self.snap_num)
+    }
+}
+
+pub type CustomSnapshotGenerator3<G> =
+    SnapshotProvider3Wrapper<G, CustomScalarFieldGenerator3<fdt, G>>;
+
+impl<G> CustomScalarFieldGenerator3<fdt, G>
+where
+    G: Grid3<fgr>,
+    FieldValueComputer<fdt>: Sync,
+{
+    /// Creates a wrapped version of the generator that
+    /// implements the `SnapshotProvider3` trait.
+    pub fn for_snapshot(
+        self,
+        snap_name: String,
+        snap_num: Option<u32>,
+        parameters: MapOfSnapshotParameters,
+    ) -> CustomSnapshotGenerator3<G> {
+        let all_variable_names = self.all_variable_names();
+        SnapshotProvider3Wrapper::new(
+            self,
+            snap_name,
+            snap_num,
+            parameters,
+            Endianness::Native,
+            all_variable_names,
+        )
     }
 }
 
