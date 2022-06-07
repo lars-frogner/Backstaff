@@ -244,7 +244,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
              {:5.1} -- {:5.1}\n\
              |                              |\n\
              {:5.1} -- {:5.1}",
-            corners[0], corners[1], corners[2], corners[3]
+            corners[3], corners[2], corners[0], corners[1]
         );
     }
 
