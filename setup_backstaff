@@ -43,7 +43,11 @@ command_exists() {
 
 get_user_input() {
     local question="$1"
-    read -p "$question"$'\n' -r
+    if [[ "$NO_TO_ALL" = 1 ]]; then
+        read -p "$question"$'\n' -r <<< n
+    else
+        read -p "$question"$'\n' -r
+    fi
     echo "$REPLY"
 }
 
@@ -129,20 +133,31 @@ set_env_var() {
     CONFIGURED_ENV_VARS="$CONFIGURED_ENV_VARS $var_name"
 }
 
-feature_in_args() {
-    local feature_name="$1"
-    eval "echo '"$ARGS"' | grep -q -E '(^|\s)--all-features(\s|\$)'"
+regex_matches_arg() {
+    local expression="$1"
+    eval "echo '"$ARGS"' | grep -q -E '(^|\s)$expression(\s|\$)'"
     local return_code=$?
     if [[ $return_code = 0 ]]; then
         echo 1
     else
-        eval "echo '"$ARGS"' | grep -q -E '(^|\s)--features(=|\s+)([a-z0-9_-]+,)*$feature_name(,[a-z0-9_-]+)*(\s|\$)'"
-        local return_code=$?
-        if [[ $return_code = 0 ]]; then
-            echo 1
-        else
-            echo 0
-        fi
+        echo 0
+    fi
+}
+
+without_regex_match() {
+    local input="$1"
+    local expression="$2"
+    echo "$input" | sed "s/\(^\|[[:space:]]\)$expression\([[:space:]]\|\$\)//"
+}
+
+feature_in_args() {
+    local feature_name="$1"
+    if [[ $(regex_matches_arg --all-features) = 1 ]]; then
+        echo 1
+    elif [[ $(regex_matches_arg "--features(=|\s+)([a-z0-9_-]+,)*$feature_name(,[a-z0-9_-]+)*") = 1 ]]; then
+        echo 1
+    else
+        echo 0
     fi
 }
 
@@ -412,6 +427,12 @@ run_interactive_installation() {
 setup_env_and_run_cargo() {
     CONFIGURED_ENV_VARS=''
 
+    NO_TO_ALL_FLAG=--no-to-all
+    if [[ "$(regex_matches_arg $NO_TO_ALL_FLAG)" = 1 ]]; then
+        ARGS="$(without_regex_match "$ARGS" $NO_TO_ALL_FLAG)"
+        NO_TO_ALL=1
+    fi
+
     if [[ $(feature_in_args synthesis) = 1 ]]; then
         setup_python
         verify_chianti
@@ -431,6 +452,7 @@ setup_env_and_run_cargo() {
 }
 
 ARGS="$@"
+NO_TO_ALL=0
 
 if [[ -z "$ARGS" ]]; then
     run_interactive_installation
