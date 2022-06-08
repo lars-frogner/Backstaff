@@ -1,17 +1,13 @@
 //! Command line interface for computing derived quantities for a snapshot.
 
-use std::process;
-
 use crate::{
+    cli::utils as cli_utils,
     field::{
         quantities::{DerivedSnapshotProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,
     },
     grid::{fgr, Grid3},
-    io::{
-        snapshot::{fdt, SnapshotProvider3},
-        utils as io_utils,
-    },
+    io::snapshot::{fdt, SnapshotProvider3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -114,15 +110,13 @@ where
                     quantity_name,
                     missing_dependencies.join(", ")
                 );
-                if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
-                    eprintln!("Aborted");
-                    process::exit(1);
+                if !continue_on_warnings {
+                    cli_utils::verify_user_will_continue_or_abort()
                 }
             } else {
                 eprintln!("Warning: Derived quantity {} not supported", quantity_name);
-                if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
-                    eprintln!("Aborted");
-                    process::exit(1);
+                if !continue_on_warnings {
+                    cli_utils::verify_user_will_continue_or_abort()
                 }
             }
         },

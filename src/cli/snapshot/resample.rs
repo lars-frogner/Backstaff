@@ -24,6 +24,7 @@ use crate::{
             derive::create_derive_provider, inspect::run_inspect_subcommand,
             write::run_write_subcommand,
         },
+        utils as cli_utils,
     },
     exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
@@ -39,12 +40,12 @@ use crate::{
     },
     io::{
         snapshot::{CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
-        utils, Verbose,
+        Verbose,
     },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
-use std::{process, sync::Arc};
+use std::sync::Arc;
 
 /// Builds a representation of the `snapshot-resample` command line subcommand.
 pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command<'static> {
@@ -629,9 +630,8 @@ fn correct_periodicity_for_new_grid<GIN: Grid3<fgr>, GOUT: Grid3<fgr>>(
                          After resampling: {}",
                         dim, original_extent, new_extent,
                     );
-                    if !continue_on_warnings && !utils::user_says_yes("Still continue?", true) {
-                        eprintln!("Aborted");
-                        process::exit(1);
+                    if !continue_on_warnings {
+                        cli_utils::verify_user_will_continue_or_abort()
                     }
                 }
             }

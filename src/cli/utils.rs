@@ -6,13 +6,13 @@ use crate::{
     grid::{fgr, Grid3},
     io::{
         snapshot::{fpa, SnapshotParameters, SnapshotProvider3},
-        OverwriteMode,
+        utils as io_utils, OverwriteMode,
     },
     num::BFloat,
 };
 use clap::{self, ArgMatches, Command};
 use num;
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, process, str::FromStr};
 
 pub type CommandCreator = fn(&'static str) -> Command<'static>;
 
@@ -90,6 +90,17 @@ pub fn add_subcommand_combinations_with_map(
         }
     }
     command
+}
+
+pub fn verify_user_will_continue_or_abort() {
+    let abort = !io_utils::user_says_yes("Still continue?", true).unwrap_or_else(|err| {
+        eprintln!("Warning: Not continuing due to error: {}", err);
+        false
+    });
+    if abort {
+        eprintln!("Aborted");
+        process::exit(1);
+    }
 }
 
 pub fn parse_value_string<T>(argument_name: &str, value_string: &str) -> T

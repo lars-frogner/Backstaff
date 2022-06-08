@@ -26,6 +26,7 @@ comparison = ["approx"]
 
 [dependencies]
 # Dependencies for core
+atty = "*"
 byteorder = "*"
 ieee754 = "*"
 lazy_static = "*"

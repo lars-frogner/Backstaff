@@ -106,7 +106,13 @@ impl AtomicOutputPath {
 /// Prompts the user with a question and returns whether the answer was yes.
 ///
 /// The given default answer is assumed if the user simply presses `return`.
-pub fn user_says_yes(question: &str, default_is_no: bool) -> bool {
+pub fn user_says_yes(question: &str, default_is_no: bool) -> io::Result<bool> {
+    if atty::isnt(atty::Stream::Stdin) {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Can not prompt user without a terminal",
+        ));
+    }
     let full_question = format!(
         "{} [{}]",
         question,
@@ -142,7 +148,7 @@ pub fn user_says_yes(question: &str, default_is_no: bool) -> bool {
         answer.clear();
         println!("{}", &full_question);
     }
-    final_answer == "y"
+    Ok(final_answer == "y")
 }
 
 /// Checks whether the current path can be written to, either automatically
@@ -157,30 +163,29 @@ pub fn check_if_write_allowed<P: AsRef<Path>>(
         Some(extension) => protected_file_types.contains(&extension.to_string_lossy().as_ref()),
         None => false,
     };
+    let file_path_string = file_path.file_name().unwrap().to_string_lossy();
     if file_path.exists() {
         if is_protected {
-            println!(
-                "Skipping {} (protected file type)",
-                file_path.file_name().unwrap().to_string_lossy()
-            );
+            println!("Skipping {} (protected file type)", file_path_string);
             false
         } else {
             let can_overwrite = match overwrite_mode {
                 OverwriteMode::Ask => user_says_yes(
-                    &format!(
-                        "File {} already exists, overwrite?",
-                        file_path.file_name().unwrap().to_string_lossy()
-                    ),
+                    &format!("File {} already exists, overwrite?", file_path_string),
                     true,
-                ),
+                )
+                .unwrap_or_else(|err| {
+                    eprintln!(
+                        "Warning: Not overwriting {} due to error: {}",
+                        file_path_string, err
+                    );
+                    false
+                }),
                 OverwriteMode::Always => true,
                 OverwriteMode::Never => false,
             };
             if !can_overwrite {
-                println!(
-                    "Skipping {}",
-                    file_path.file_name().unwrap().to_string_lossy()
-                );
+                println!("Skipping {}", file_path_string);
             }
             can_overwrite
         }

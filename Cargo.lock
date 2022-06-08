@@ -48,6 +48,7 @@ name = "backstaff"
 version = "0.3.0"
 dependencies = [
  "approx",
+ "atty",
  "byteorder",
  "chrono",
  "clap",

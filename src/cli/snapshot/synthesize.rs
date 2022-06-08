@@ -8,14 +8,10 @@ use crate::{
     },
     grid::{fgr, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
-    io::{
-        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
-        utils as io_utils,
-    },
+    io::snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
-use std::process;
 
 /// Builds a representation of the `snapshot-synthesize` command line subcommand.
 pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Command<'static> {
@@ -204,18 +200,18 @@ where
                     quantity_name,
                     missing_dependencies.join(", ")
                 );
-                if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
-                    eprintln!("Aborted");
-                    process::exit(1);
+
+                if !continue_on_warnings {
+                    cli_utils::verify_user_will_continue_or_abort()
                 }
             } else {
                 eprintln!(
                     "Warning: Synthesized quantity {} not supported",
                     quantity_name
                 );
-                if !continue_on_warnings && !io_utils::user_says_yes("Still continue?", true) {
-                    eprintln!("Aborted");
-                    process::exit(1);
+
+                if !continue_on_warnings {
+                    cli_utils::verify_user_will_continue_or_abort()
                 }
             }
         },

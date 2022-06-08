@@ -25,12 +25,12 @@ use crate::{
     grid::{fgr, Grid3},
     io::{
         snapshot::{self, utils::SnapshotInputType, CachingSnapshotProvider3, SnapshotProvider3},
-        utils as io_utils, Endianness,
+        Endianness,
     },
     update_command_graph, with_new_snapshot_reader,
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
-use std::{path::PathBuf, process, str::FromStr};
+use std::{path::PathBuf, str::FromStr};
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
@@ -458,11 +458,8 @@ where
                             Some(name)
                         } else {
                             eprintln!("Warning: Quantity {} not available", &name);
-                            if !continue_on_warnings
-                                && !io_utils::user_says_yes("Still continue?", true)
-                            {
-                                eprintln!("Aborted");
-                                process::exit(1);
+                            if !continue_on_warnings {
+                                cli_utils::verify_user_will_continue_or_abort()
                             }
                             None
                         }
