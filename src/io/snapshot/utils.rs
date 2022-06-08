@@ -269,9 +269,9 @@ pub fn read_snapshots_eq(
     epsilon: fdt,
     max_relative: fdt,
 ) -> io::Result<bool> {
-    with_new_snapshot_reader!(input_file_path_1, endianness, verbose, |snapshot_reader| {
+    with_new_snapshot_reader!(input_file_path_2, endianness, verbose, |snapshot_reader| {
         read_snapshot_eq_given_snapshot(
-            input_file_path_2,
+            input_file_path_1,
             endianness,
             verbose,
             &snapshot_reader,
@@ -296,10 +296,14 @@ pub fn read_snapshot_has_given_fields_custom_eq<'a>(
         let all_snapshot_variable_names = snapshot_reader.all_variable_names();
         for (name, values) in reference_field_values {
             if !all_snapshot_variable_names.contains(&name) {
+                #[cfg(debug_assertions)]
+                println!("Field {} not present in other", name);
                 return Ok(false);
             } else {
                 let read_field = snapshot_reader.read_scalar_field(&name)?;
                 if !are_equal(read_field.values().as_slice_memory_order().unwrap(), values) {
+                    #[cfg(debug_assertions)]
+                    println!("Fields {} not equal", name);
                     return Ok(false);
                 }
             }
@@ -338,9 +342,9 @@ pub fn read_snapshot_grids_eq(
     epsilon: fgr,
     max_relative: fgr,
 ) -> io::Result<bool> {
-    with_new_snapshot_grid!(input_file_path_1, endianness, verbose, |snapshot_grid| {
+    with_new_snapshot_grid!(input_file_path_2, endianness, verbose, |snapshot_grid| {
         read_snapshot_grid_eq_given_grid(
-            input_file_path_2,
+            input_file_path_1,
             endianness,
             verbose,
             &snapshot_grid,

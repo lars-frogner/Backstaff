@@ -410,6 +410,14 @@ macro_rules! snapshots_relative_eq {
         let all_variable_names_self = $self.all_variable_names();
         let all_variable_names_other = $other.all_variable_names();
         if all_variable_names_self.len() != all_variable_names_other.len() {
+            #[cfg(debug_assertions)]
+            {
+                println!("Number of variables not equal");
+                dbg!(
+                    all_variable_names_self.len(),
+                    all_variable_names_other.len()
+                );
+            }
             Ok(false)
         } else {
             if $self.parameters().relative_ne(
@@ -417,6 +425,8 @@ macro_rules! snapshots_relative_eq {
                 $epsilon as fpa,
                 $max_relative as fpa,
             ) {
+                #[cfg(debug_assertions)]
+                println!("Parameters not equal");
                 Ok(false)
             } else {
                 let mut all_equal = true;
@@ -427,7 +437,13 @@ macro_rules! snapshots_relative_eq {
                             $epsilon as fdt,
                             $max_relative as fdt,
                         );
+                        #[cfg(debug_assertions)]
+                        if !all_equal {
+                            println!("Fields {} not equal", name);
+                        }
                     } else {
+                        #[cfg(debug_assertions)]
+                        println!("Field {} not present in other", name);
                         all_equal = false;
                     }
                     if !all_equal {
@@ -564,11 +580,24 @@ macro_rules! impl_relative_eq_for_parameters {
                 max_relative: Self::Epsilon,
             ) -> bool {
                 if self.n_values() != other.n_values() {
+                    #[cfg(debug_assertions)]
+                    {
+                        println!("Number of parameter values not equal");
+                        dbg!(self.n_values(), other.n_values());
+                    }
                     return false;
                 }
                 self.names().into_iter().all(|name| {
                     match (self.get_value(name), other.get_value(name)) {
-                        (Ok(a), Ok(b)) => a.relative_eq(&b, epsilon, max_relative),
+                        (Ok(a), Ok(b)) => {
+                            let equal = a.relative_eq(&b, epsilon, max_relative);
+                            #[cfg(debug_assertions)]
+                            if !equal {
+                                println!("Parameter {} not equal", name);
+                                dbg!(a, b);
+                            }
+                            equal
+                        }
                         _ => false,
                     }
                 })

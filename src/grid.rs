@@ -818,15 +818,54 @@ macro_rules! impl_relative_eq_for_grid {
                 epsilon: Self::Epsilon,
                 max_relative: Self::Epsilon,
             ) -> bool {
-                self.shape() == other.shape()
-                    && self.periodicity() == other.periodicity()
-                    && self
-                        .lower_edges()
-                        .relative_eq(other.lower_edges(), epsilon, max_relative)
-                    && self
-                        .centers()
-                        .relative_eq(other.centers(), epsilon, max_relative)
-                    && self.derivatives_equal(other, |a, b| a.relative_eq(b, epsilon, max_relative))
+                if self.shape() != other.shape() {
+                    #[cfg(debug_assertions)]
+                    {
+                        println!("Shapes not equal");
+                        dbg!(self.shape(), other.shape());
+                    }
+                    return false;
+                }
+                if self.periodicity() != other.periodicity() {
+                    #[cfg(debug_assertions)]
+                    {
+                        println!("Periodicities not equal");
+                        dbg!(self.periodicity(), other.periodicity());
+                    }
+                    return false;
+                }
+                if self
+                    .lower_edges()
+                    .relative_ne(other.lower_edges(), epsilon, max_relative)
+                {
+                    #[cfg(debug_assertions)]
+                    {
+                        println!("Lower edges not equal");
+                        dbg!(self.lower_edges(), other.lower_edges());
+                    }
+                    return false;
+                }
+                if self
+                    .centers()
+                    .relative_eq(other.centers(), epsilon, max_relative)
+                {
+                    #[cfg(debug_assertions)]
+                    {
+                        println!("Centers not equal");
+                        dbg!(self.centers(), other.centers());
+                    }
+                    return false;
+                }
+                if !self.derivatives_equal(other, |a, b| a.relative_eq(b, epsilon, max_relative)) {
+                    #[cfg(debug_assertions)]
+                    {
+                        println!("Derivatives not equal");
+                        dbg!(self.up_derivatives(), other.up_derivatives());
+                        dbg!(self.down_derivatives(), other.down_derivatives());
+                    }
+                    return false;
+                }
+                true
             }
         }
     };

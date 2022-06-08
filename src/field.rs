@@ -2031,11 +2031,29 @@ macro_rules! impl_relative_eq_for_field {
             ) -> bool {
                 let self_values = ComparableSlice(self.values().as_slice_memory_order().unwrap());
                 let other_values = ComparableSlice(other.values().as_slice_memory_order().unwrap());
-                self.locations() == other.locations()
-                    && self
-                        .grid()
-                        .relative_eq(other.grid(), epsilon.into(), max_relative.into())
-                    && self_values.relative_eq(&other_values, epsilon, max_relative)
+                if self.locations() != other.locations() {
+                    #[cfg(debug_assertions)]
+                    {
+                        println!("Locations for {} not equal", self.name());
+                        dbg!(self.locations(), other.locations());
+                    }
+                    return false;
+                }
+                if self
+                    .grid()
+                    .relative_ne(other.grid(), epsilon.into(), max_relative.into())
+                {
+                    #[cfg(debug_assertions)]
+                    println!("Grids for {} not equal", self.name());
+                    return false;
+                }
+                if self_values.relative_ne(&other_values, epsilon, max_relative) {
+                    #[cfg(debug_assertions)]
+                    println!("Values for {} not equal", self.name());
+                    dbg!(self_values, other_values);
+                    return false;
+                }
+                true
             }
         }
     };
