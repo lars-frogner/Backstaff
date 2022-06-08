@@ -43,13 +43,12 @@ pub struct NativeGridData {
 ///
 /// - `P`: A type that can be treated as a reference to a `Path`.
 /// - `G`: Type of the grid.
-pub fn create_grid_from_mesh_file<P, G>(
-    mesh_path: P,
+pub fn create_grid_from_mesh_file<G>(
+    mesh_path: &Path,
     is_periodic: In3D<bool>,
     verbose: Verbose,
 ) -> io::Result<G>
 where
-    P: AsRef<Path>,
     G: Grid3<fgr>,
 {
     let NativeGridData {
@@ -92,11 +91,9 @@ where
 ///
 /// # Type parameters
 ///
-/// - `P`: A type that can be treated as a reference to a `Path`.
 /// - `G`: Type of the grid.
-pub fn write_mesh_file_from_grid<P, G>(grid: &G, mesh_path: P) -> io::Result<()>
+pub fn write_mesh_file_from_grid<G>(grid: &G, mesh_path: &Path) -> io::Result<()>
 where
-    P: AsRef<Path>,
     G: Grid3<fgr>,
 {
     let shape = grid.shape();
@@ -133,15 +130,12 @@ where
 }
 
 /// Parses the mesh file at the given path and returns relevant data.
-pub fn parse_mesh_file<P: AsRef<Path>>(
-    mesh_path: P,
-    verbose: Verbose,
-) -> io::Result<NativeGridData> {
+pub fn parse_mesh_file(mesh_path: &Path, verbose: Verbose) -> io::Result<NativeGridData> {
     let file = utils::open_file_and_map_err(&mesh_path)?;
     if verbose.is_yes() {
         println!(
             "Reading grid from {}",
-            mesh_path.as_ref().file_name().unwrap().to_string_lossy()
+            mesh_path.file_name().unwrap().to_string_lossy()
         );
     }
     let mut lines = io::BufReader::new(file).lines();
@@ -259,17 +253,13 @@ pub fn parse_mesh_file<P: AsRef<Path>>(
 /// Parses the mesh files at the given paths and compares
 /// the resulting grids for approximate equality.
 #[cfg(feature = "comparison")]
-pub fn parsed_mesh_files_eq<P1, P2>(
-    mesh_path_1: P1,
-    mesh_path_2: P2,
+pub fn parsed_mesh_files_eq(
+    mesh_path_1: &Path,
+    mesh_path_2: &Path,
     verbose: Verbose,
     epsilon: fgr,
     max_relative: fgr,
-) -> io::Result<bool>
-where
-    P1: AsRef<Path>,
-    P2: AsRef<Path>,
-{
+) -> io::Result<bool> {
     match (
         parse_mesh_file(mesh_path_1, verbose),
         parse_mesh_file(mesh_path_2, verbose),

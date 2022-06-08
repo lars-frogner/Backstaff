@@ -202,8 +202,8 @@ enum NativeType {
 }
 
 impl OutputType {
-    fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
-        let file_name = Path::new(file_path.as_ref().file_name().unwrap_or_else(|| {
+    fn from_path(file_path: &Path) -> Self {
+        let file_name = Path::new(file_path.file_name().unwrap_or_else(|| {
             exit_with_error!(
                 "Error: Missing extension for output file\n\
                          Valid extensions are: {}",

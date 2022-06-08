@@ -1,5 +1,7 @@
 //! Useful tools for working with Bifrost in Rust.
 
+#![allow(clippy::too_many_arguments)]
+
 #[macro_export]
 macro_rules! exit_on_error {
     ($result:expr, $($fmt_arg:tt)*) => {

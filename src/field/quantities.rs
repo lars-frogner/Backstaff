@@ -184,15 +184,12 @@ where
     P: CachingSnapshotProvider3<G>,
 {
     /// Creates a computer of derived 3D quantities.
-    pub fn new<H>(
+    pub fn new(
         provider: P,
         derived_quantity_names: Vec<String>,
-        handle_unavailable: H,
+        handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
         verbose: Verbose,
-    ) -> Self
-    where
-        H: Fn(&str, Option<Vec<&str>>) + Copy,
-    {
+    ) -> Self {
         let derived_quantity_names: Vec<_> = derived_quantity_names
             .into_iter()
             .filter(|name| Self::verify_variable_availability(&provider, name, handle_unavailable))
@@ -216,11 +213,10 @@ where
         &self.derived_quantity_names
     }
 
-    fn produce_uncached_scalar_field<S: AsRef<str>>(
+    fn produce_uncached_scalar_field(
         &mut self,
-        variable_name: S,
+        variable_name: &str,
     ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
         if self.provider.has_variable(variable_name) {
             self.provider.produce_scalar_field(variable_name)
         } else {
@@ -228,13 +224,13 @@ where
         }
     }
 
-    fn basic_variable_is_available<S: AsRef<str>>(
+    fn basic_variable_is_available(
         provider: &P,
-        variable_name: S,
-    ) -> (bool, Option<Vec<&str>>) {
-        if provider.has_variable(&variable_name) {
+        variable_name: &str,
+    ) -> (bool, Option<Vec<&'static str>>) {
+        if provider.has_variable(variable_name) {
             (true, None)
-        } else if let Some((_, dependencies)) = DERIVABLE_QUANTITIES.get(variable_name.as_ref()) {
+        } else if let Some((_, dependencies)) = DERIVABLE_QUANTITIES.get(variable_name) {
             let missing_dependencies: Vec<_> = dependencies
                 .iter()
                 .filter_map(|name| {
@@ -252,18 +248,13 @@ where
         }
     }
 
-    fn verify_variable_availability<S, H>(
+    fn verify_variable_availability(
         provider: &P,
-        variable_name: S,
-        handle_unavailable: H,
-    ) -> bool
-    where
-        S: AsRef<str>,
-        H: Fn(&str, Option<Vec<&str>>),
-    {
-        let variable_name = variable_name.as_ref();
+        variable_name: &str,
+        handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
+    ) -> bool {
         let (available, missing_dependencies) =
-            Self::basic_variable_is_available(provider, variable_name);
+            DerivedSnapshotProvider3::basic_variable_is_available(provider, variable_name);
         if available {
             true
         } else if let Some(cgs_base_name) = cgs_base_name(variable_name) {
@@ -271,11 +262,11 @@ where
                 mod_vec_component_names(cgs_base_name)
             {
                 let (available_x, missing_dependencies_x) =
-                    Self::basic_variable_is_available(provider, &x_comp_name);
+                    DerivedSnapshotProvider3::basic_variable_is_available(provider, &x_comp_name);
                 let (available_y, missing_dependencies_y) =
-                    Self::basic_variable_is_available(provider, &y_comp_name);
+                    DerivedSnapshotProvider3::basic_variable_is_available(provider, &y_comp_name);
                 let (available_z, missing_dependencies_z) =
-                    Self::basic_variable_is_available(provider, &z_comp_name);
+                    DerivedSnapshotProvider3::basic_variable_is_available(provider, &z_comp_name);
                 if available_x && available_y && available_z {
                     true
                 } else {
@@ -301,7 +292,10 @@ where
                 }
             } else if let Some(centered_base_name) = centered_base_name(cgs_base_name) {
                 let (available, missing_dependencies) =
-                    Self::basic_variable_is_available(provider, centered_base_name);
+                    DerivedSnapshotProvider3::basic_variable_is_available(
+                        provider,
+                        centered_base_name,
+                    );
                 if available {
                     true
                 } else {
@@ -310,7 +304,7 @@ where
                 }
             } else {
                 let (available, missing_dependencies) =
-                    Self::basic_variable_is_available(provider, cgs_base_name);
+                    DerivedSnapshotProvider3::basic_variable_is_available(provider, cgs_base_name);
                 if available {
                     true
                 } else {
@@ -322,11 +316,11 @@ where
             mod_vec_component_names(variable_name)
         {
             let (available_x, missing_dependencies_x) =
-                Self::basic_variable_is_available(provider, &x_comp_name);
+                DerivedSnapshotProvider3::basic_variable_is_available(provider, &x_comp_name);
             let (available_y, missing_dependencies_y) =
-                Self::basic_variable_is_available(provider, &y_comp_name);
+                DerivedSnapshotProvider3::basic_variable_is_available(provider, &y_comp_name);
             let (available_z, missing_dependencies_z) =
-                Self::basic_variable_is_available(provider, &z_comp_name);
+                DerivedSnapshotProvider3::basic_variable_is_available(provider, &z_comp_name);
             if available_x && available_y && available_z {
                 true
             } else {
@@ -352,7 +346,7 @@ where
             }
         } else if let Some(centered_base_name) = centered_base_name(variable_name) {
             let (available, missing_dependencies) =
-                Self::basic_variable_is_available(provider, centered_base_name);
+                DerivedSnapshotProvider3::basic_variable_is_available(provider, centered_base_name);
             if available {
                 true
             } else {
@@ -379,11 +373,7 @@ where
         self.provider.arc_with_grid()
     }
 
-    fn produce_scalar_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.cached_scalar_field(variable_name).clone())
         } else {
@@ -391,11 +381,10 @@ where
         }
     }
 
-    fn provide_scalar_field<S: AsRef<str>>(
+    fn provide_scalar_field(
         &mut self,
-        variable_name: S,
+        variable_name: &str,
     ) -> io::Result<Arc<ScalarField3<fdt, G>>> {
-        let variable_name = variable_name.as_ref();
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.arc_with_cached_scalar_field(variable_name).clone())
         } else {
@@ -409,18 +398,16 @@ where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
-    fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        let variable_name = variable_name.as_ref();
+    fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.cached_scalar_fields.contains_key(variable_name)
             || self.provider.scalar_field_is_cached(variable_name)
     }
 
-    fn vector_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn vector_field_is_cached(&self, variable_name: &str) -> bool {
         self.provider.vector_field_is_cached(variable_name)
     }
 
-    fn cache_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
-        let variable_name = variable_name.as_ref();
+    fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
         if self.provider.has_variable(variable_name) {
             self.provider.cache_scalar_field(variable_name)
         } else {
@@ -436,15 +423,11 @@ where
         }
     }
 
-    fn cache_vector_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
+    fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
         self.provider.cache_vector_field(variable_name)
     }
 
-    fn arc_with_cached_scalar_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> &Arc<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt, G>> {
         if let Some(field) = self.cached_scalar_fields.get(variable_name) {
             if self.verbose.is_yes() {
                 println!("Using cached {}", variable_name);
@@ -455,15 +438,11 @@ where
         }
     }
 
-    fn arc_with_cached_vector_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> &Arc<VectorField3<fdt, G>> {
+    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt, G>> {
         self.provider.arc_with_cached_vector_field(variable_name)
     }
 
-    fn drop_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) {
-        let variable_name = variable_name.as_ref();
+    fn drop_scalar_field(&mut self, variable_name: &str) {
         if self.cached_scalar_fields.contains_key(variable_name) {
             if self.verbose.is_yes() {
                 println!("Dropping {} from cache", variable_name);
@@ -474,7 +453,7 @@ where
         }
     }
 
-    fn drop_vector_field<S: AsRef<str>>(&mut self, variable_name: S) {
+    fn drop_vector_field(&mut self, variable_name: &str) {
         self.provider.drop_vector_field(variable_name)
     }
 
@@ -503,8 +482,8 @@ where
         &self.all_variable_names
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        Self::verify_variable_availability(&self.provider, variable_name.as_ref(), |_, _| {})
+    fn has_variable(&self, variable_name: &str) -> bool {
+        Self::verify_variable_availability(&self.provider, variable_name, &|_, _| {})
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {

@@ -348,7 +348,7 @@ impl FieldLineSet3 {
 
     /// Serializes the field line data into JSON format and saves at the given path.
     #[cfg(feature = "json")]
-    pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_json(&self, output_file_path: &Path) -> io::Result<()> {
         utils::save_data_as_json(output_file_path, &self)
     }
 
@@ -364,7 +364,7 @@ impl FieldLineSet3 {
     ///
     /// All the field line data is saved as a single pickled structure.
     #[cfg(feature = "pickle")]
-    pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_pickle(&self, output_file_path: &Path) -> io::Result<()> {
         utils::save_data_as_pickle(output_file_path, &self)
     }
 
@@ -424,7 +424,7 @@ impl FieldLineSet3 {
     ///
     /// The data fields are saved as separate pickle objects in the same file.
     #[cfg(feature = "pickle")]
-    pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_combined_pickles(&self, output_file_path: &Path) -> io::Result<()> {
         let mut file = utils::create_file_and_required_directories(output_file_path)?;
         self.write_as_combined_pickles(&mut file)
     }
@@ -440,7 +440,7 @@ impl FieldLineSet3 {
     }
 
     /// Serializes the field line data into a custom binary format and saves at the given path.
-    pub fn save_as_custom_binary<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_custom_binary(&self, output_file_path: &Path) -> io::Result<()> {
         save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -452,10 +452,10 @@ impl FieldLineSet3 {
 
     /// Serializes the field line data into a H5Part format and saves to the given path.
     #[cfg(feature = "hdf5")]
-    pub fn save_as_h5part<P: AsRef<Path>>(
+    pub fn save_as_h5part(
         &self,
-        output_file_path: P,
-        output_seed_file_path: P,
+        output_file_path: &Path,
+        output_seed_file_path: &Path,
         drop_id: bool,
     ) -> io::Result<()> {
         save_field_line_data_as_h5part(
@@ -479,7 +479,7 @@ impl FieldLineSet3 {
 
     /// Serializes the field line data into a custom binary format and saves at the given path,
     /// consuming the field line set in the process.
-    pub fn save_into_custom_binary<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
+    pub fn save_into_custom_binary(self, output_file_path: &Path) -> io::Result<()> {
         save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -492,10 +492,10 @@ impl FieldLineSet3 {
     /// Serializes the field line data into a H5Part format and saves to the given path,
     /// consuming the field line set in the process.
     #[cfg(feature = "hdf5")]
-    pub fn save_into_h5part<P: AsRef<Path>>(
+    pub fn save_into_h5part(
         self,
-        output_file_path: P,
-        output_seed_file_path: P,
+        output_file_path: &Path,
+        output_seed_file_path: &Path,
         drop_id: bool,
     ) -> io::Result<()> {
         save_field_line_data_as_h5part(
@@ -530,8 +530,8 @@ impl Serialize for FieldLineSet3 {
 
 /// Writes the given field line data in a custom binary format at the
 /// given path.
-pub fn save_field_line_data_as_custom_binary<P: AsRef<Path>>(
-    output_file_path: P,
+pub fn save_field_line_data_as_custom_binary(
+    output_file_path: &Path,
     lower_bounds: &Vec3<ftr>,
     upper_bounds: &Vec3<ftr>,
     properties: FieldLineSetProperties3,
@@ -845,9 +845,9 @@ pub fn write_field_line_data_as_custom_binary<W: io::Write>(
 
 /// Saves the given field line data as a H5Part file at the given path.
 #[cfg(feature = "hdf5")]
-pub fn save_field_line_data_as_h5part<P: AsRef<Path>>(
-    file_path: P,
-    seed_file_path: P,
+pub fn save_field_line_data_as_h5part(
+    file_path: &Path,
+    seed_file_path: &Path,
     properties: FieldLineSetProperties3,
     drop_id: bool,
 ) -> io::Result<()> {

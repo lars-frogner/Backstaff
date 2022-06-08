@@ -194,7 +194,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
     for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
         exit_on_error!(
             with_new_snapshot_reader!(
-                &file_path,
+                file_path,
                 endianness,
                 verbose,
                 force_hor_regular,

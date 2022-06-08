@@ -600,7 +600,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
     /// Serializes the electron beam data into JSON format and saves at the given path.
     #[cfg(feature = "json")]
-    pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_json(&self, output_file_path: &Path) -> io::Result<()> {
         utils::save_data_as_json(output_file_path, &self)
     }
 
@@ -608,7 +608,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// All the electron beam data is saved as a single pickled structure.
     #[cfg(feature = "pickle")]
-    pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_pickle(&self, output_file_path: &Path) -> io::Result<()> {
         utils::save_data_as_pickle(output_file_path, &self)
     }
 
@@ -616,7 +616,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// The data fields are saved as separate pickle objects in the same file.
     #[cfg(feature = "pickle")]
-    pub fn save_as_combined_pickles<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_combined_pickles(&self, output_file_path: &Path) -> io::Result<()> {
         let mut buffer_1 = Vec::new();
         utils::write_data_as_pickle(&mut buffer_1, &self.lower_bounds)?;
         let mut buffer_2 = Vec::new();
@@ -668,7 +668,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Serializes the electron beam data into a custom binary format and saves at the given path.
-    pub fn save_as_custom_binary<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_custom_binary(&self, output_file_path: &Path) -> io::Result<()> {
         let mut file = field_line::save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -680,10 +680,10 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
     /// Serializes the electron beam data into a H5Part format and saves to the given path.
     #[cfg(feature = "hdf5")]
-    pub fn save_as_h5part<P: AsRef<Path>>(
+    pub fn save_as_h5part(
         &self,
-        output_file_path: P,
-        output_acceleration_site_file_path: P,
+        output_file_path: &Path,
+        output_acceleration_site_file_path: &Path,
         drop_id: bool,
     ) -> io::Result<()> {
         field_line::save_field_line_data_as_h5part(
@@ -696,7 +696,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
     /// Serializes the electron beam data into a custom binary format and saves at the given path,
     /// consuming the electron beam swarm in the process.
-    pub fn save_into_custom_binary<P: AsRef<Path>>(self, output_file_path: P) -> io::Result<()> {
+    pub fn save_into_custom_binary(self, output_file_path: &Path) -> io::Result<()> {
         let mut file = field_line::save_field_line_data_as_custom_binary(
             output_file_path,
             &self.lower_bounds,
@@ -709,10 +709,10 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// Serializes the electron beam data into a H5Part format and saves to the given path,
     /// consuming the electron beam swarm in the process.
     #[cfg(feature = "hdf5")]
-    pub fn save_into_h5part<P: AsRef<Path>>(
+    pub fn save_into_h5part(
         self,
-        output_file_path: P,
-        output_acceleration_site_file_path: P,
+        output_file_path: &Path,
+        output_acceleration_site_file_path: &Path,
         drop_id: bool,
     ) -> io::Result<()> {
         field_line::save_field_line_data_as_h5part(

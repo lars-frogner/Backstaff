@@ -127,10 +127,7 @@ impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
         Arc::clone(&self.grid)
     }
 
-    fn produce_scalar_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         self.read_scalar_field(variable_name)
     }
 }
@@ -150,9 +147,9 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
         &self.all_variable_names
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn has_variable(&self, variable_name: &str) -> bool {
         self.all_variable_names()
-            .contains(&variable_name.as_ref().to_string())
+            .contains(&variable_name.to_string())
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -161,11 +158,7 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
 }
 
 impl<G: Grid3<fgr>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
-    fn read_scalar_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         if self.config.verbose.is_yes() {
             println!(
                 "Reading {} from {}",
@@ -299,11 +292,8 @@ impl NetCDFSnapshotMetadata {
 
 impl NetCDFSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new<P: AsRef<Path>>(file_path: P, verbose: Verbose) -> Self {
-        NetCDFSnapshotReaderConfig {
-            file_path: file_path.as_ref().to_path_buf(),
-            verbose,
-        }
+    pub fn new(file_path: PathBuf, verbose: Verbose) -> Self {
+        NetCDFSnapshotReaderConfig { file_path, verbose }
     }
 
     pub fn verbose(&self) -> Verbose {
@@ -316,13 +306,12 @@ impl NetCDFSnapshotReaderConfig {
 }
 
 /// Writes data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_new_snapshot<Pa, G, P>(
+pub fn write_new_snapshot<G, P>(
     provider: &mut P,
-    output_file_path: Pa,
+    output_file_path: &Path,
     verbose: Verbose,
 ) -> io::Result<()>
 where
-    Pa: AsRef<Path>,
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -339,22 +328,19 @@ where
 }
 
 /// Writes modified data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_modified_snapshot<Pa, G, P>(
+pub fn write_modified_snapshot<G, P>(
     provider: &mut P,
     quantity_names: &[String],
-    output_file_path: Pa,
+    output_file_path: &Path,
     strip_metadata: bool,
     overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
     verbose: Verbose,
 ) -> io::Result<()>
 where
-    Pa: AsRef<Path>,
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let output_file_path = output_file_path.as_ref();
-
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_file_path);
     let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
     let snap_num = format!("{}", snap_num);
@@ -362,7 +348,7 @@ where
     let (_, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);
 
-    let atomic_output_path = AtomicOutputPath::new(output_file_path)?;
+    let atomic_output_path = AtomicOutputPath::new(output_file_path.to_path_buf())?;
     if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
         return Ok(());
     }
@@ -410,7 +396,7 @@ where
 }
 
 /// Opens an existing NetCDF file at the given path.
-pub fn open_file<P: AsRef<Path>>(path: P) -> io::Result<File> {
+pub fn open_file(path: &Path) -> io::Result<File> {
     io_result!(nc::open(path))
 }
 
@@ -549,7 +535,7 @@ fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<fgr>>(
 }
 
 /// Creates a new NetCDF file at the given path.
-pub fn create_file<P: AsRef<Path>>(path: P) -> io::Result<MutableFile> {
+pub fn create_file(path: &Path) -> io::Result<MutableFile> {
     utils::create_directory_if_missing(&path)?;
     let file = io_result!(nc::create(path))?;
     Ok(file)

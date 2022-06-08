@@ -456,10 +456,9 @@ enum OutputType {
 }
 
 impl OutputType {
-    fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
+    fn from_path(file_path: &Path) -> Self {
         Self::from_extension(
             file_path
-                .as_ref()
                 .extension()
                 .unwrap_or_else(|| {
                     exit_with_error!(

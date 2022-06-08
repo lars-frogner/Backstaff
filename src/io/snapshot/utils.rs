@@ -5,7 +5,11 @@ use crate::{
     grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
     io::{snapshot::SnapshotProvider3, Endianness, Verbose},
 };
-use std::{borrow::Cow, fmt, io, path::Path};
+use std::{
+    borrow::Cow,
+    fmt, io,
+    path::{Path, PathBuf},
+};
 
 #[cfg(feature = "comparison")]
 use crate::snapshots_relative_eq;
@@ -30,8 +34,8 @@ pub enum NativeSnapshotInputType {
 
 impl SnapshotInputType {
     /// Determines the input type by parsing the given input file.
-    pub fn from_path<P: AsRef<Path>>(file_path: P) -> Self {
-        let file_name = Path::new(file_path.as_ref().file_name().unwrap_or_else(|| {
+    pub fn from_path(file_path: &Path) -> Self {
+        let file_name = Path::new(file_path.file_name().unwrap_or_else(|| {
             exit_with_error!(
                 "Error: Missing extension for input file\n\
                          Valid extensions are: {}",
@@ -232,8 +236,8 @@ macro_rules! with_new_snapshot_grid {
 /// Reads the snapshot at the given path and compares for
 /// approximate equality to the given snapshot.
 #[cfg(feature = "comparison")]
-pub fn read_snapshot_eq_given_snapshot<P, G, R>(
-    input_file_path: P,
+pub fn read_snapshot_eq_given_snapshot<G, R>(
+    input_file_path: PathBuf,
     endianness: Endianness,
     verbose: Verbose,
     reference_snapshot_reader: &R,
@@ -241,7 +245,6 @@ pub fn read_snapshot_eq_given_snapshot<P, G, R>(
     max_relative: fdt,
 ) -> io::Result<bool>
 where
-    P: AsRef<Path>,
     G: Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
     R: SnapshotReader3<G>,
 {
@@ -258,18 +261,14 @@ where
 /// Reads the snapshots at the given paths and compares them
 /// for approximate equality.
 #[cfg(feature = "comparison")]
-pub fn read_snapshots_eq<P1, P2>(
-    input_file_path_1: P1,
-    input_file_path_2: P2,
+pub fn read_snapshots_eq(
+    input_file_path_1: PathBuf,
+    input_file_path_2: PathBuf,
     endianness: Endianness,
     verbose: Verbose,
     epsilon: fdt,
     max_relative: fdt,
-) -> io::Result<bool>
-where
-    P1: AsRef<Path>,
-    P2: AsRef<Path>,
-{
+) -> io::Result<bool> {
     with_new_snapshot_reader!(input_file_path_1, endianness, verbose, |snapshot_reader| {
         read_snapshot_eq_given_snapshot(
             input_file_path_2,
@@ -286,25 +285,20 @@ where
 /// compares for equality to the corresponding given field values
 /// using the given closure.
 #[cfg(feature = "comparison")]
-pub fn read_snapshot_has_given_fields_custom_eq<'a, P, I, C>(
-    input_file_path: P,
+pub fn read_snapshot_has_given_fields_custom_eq<'a>(
+    input_file_path: PathBuf,
     endianness: Endianness,
     verbose: Verbose,
-    reference_field_values: I,
-    are_equal: C,
-) -> io::Result<bool>
-where
-    P: AsRef<Path>,
-    I: IntoIterator<Item = (String, &'a [fdt])>,
-    C: Fn(&[fdt], &'a [fdt]) -> bool,
-{
+    reference_field_values: Vec<(String, &'a [fdt])>,
+    are_equal: &dyn Fn(&[fdt], &'a [fdt]) -> bool,
+) -> io::Result<bool> {
     with_new_snapshot_reader!(input_file_path, endianness, verbose, |snapshot_reader| {
         let all_snapshot_variable_names = snapshot_reader.all_variable_names();
         for (name, values) in reference_field_values {
             if !all_snapshot_variable_names.contains(&name) {
                 return Ok(false);
             } else {
-                let read_field = snapshot_reader.read_scalar_field(name)?;
+                let read_field = snapshot_reader.read_scalar_field(&name)?;
                 if !are_equal(read_field.values().as_slice_memory_order().unwrap(), values) {
                     return Ok(false);
                 }
@@ -317,8 +311,8 @@ where
 /// Reads the grid of the snapshot at the given path and compares
 /// for approximate equality to the given grid.
 #[cfg(feature = "comparison")]
-pub fn read_snapshot_grid_eq_given_grid<P, G>(
-    input_file_path: P,
+pub fn read_snapshot_grid_eq_given_grid<G>(
+    input_file_path: PathBuf,
     endianness: Endianness,
     verbose: Verbose,
     reference_snapshot_grid: &G,
@@ -326,7 +320,6 @@ pub fn read_snapshot_grid_eq_given_grid<P, G>(
     max_relative: fgr,
 ) -> io::Result<bool>
 where
-    P: AsRef<Path>,
     G: Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
 {
     with_new_snapshot_grid!(input_file_path, endianness, verbose, |snapshot_grid| {
@@ -337,18 +330,14 @@ where
 /// Reads the grids of the snapshots at the given paths and compares
 /// them for approximate equality.
 #[cfg(feature = "comparison")]
-pub fn read_snapshot_grids_eq<P1, P2>(
-    input_file_path_1: P1,
-    input_file_path_2: P2,
+pub fn read_snapshot_grids_eq(
+    input_file_path_1: PathBuf,
+    input_file_path_2: PathBuf,
     endianness: Endianness,
     verbose: Verbose,
     epsilon: fgr,
     max_relative: fgr,
-) -> io::Result<bool>
-where
-    P1: AsRef<Path>,
-    P2: AsRef<Path>,
-{
+) -> io::Result<bool> {
     with_new_snapshot_grid!(input_file_path_1, endianness, verbose, |snapshot_grid| {
         read_snapshot_grid_eq_given_grid(
             input_file_path_2,

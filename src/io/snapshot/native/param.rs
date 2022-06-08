@@ -30,9 +30,9 @@ pub struct NativeSnapshotParameters {
 }
 
 impl NativeSnapshotParameters {
-    pub fn new<P: AsRef<Path>>(param_file_path: P, verbose: Verbose) -> io::Result<Self> {
-        let original_path = param_file_path.as_ref().to_path_buf();
-        let file_text = ParameterFile::new(param_file_path)?;
+    pub fn new(param_file_path: PathBuf, verbose: Verbose) -> io::Result<Self> {
+        let file_text = ParameterFile::new(&param_file_path)?;
+        let original_path = param_file_path;
         if verbose.is_yes() {
             println!(
                 "Reading parameters from {}",
@@ -158,7 +158,7 @@ struct ParameterFile {
 
 impl ParameterFile {
     /// Reads the parameter file at the given path.
-    fn new<P: AsRef<Path>>(param_file_path: P) -> io::Result<Self> {
+    fn new(param_file_path: &Path) -> io::Result<Self> {
         let text = utils::read_text_file(param_file_path)?;
         Ok(Self::from_text(text))
     }

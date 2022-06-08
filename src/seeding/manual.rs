@@ -36,11 +36,7 @@ impl ManualSeeder3 {
     ///
     /// - `Ok`: Contains a new `ManualSeeder3`.
     /// - `Err`: Contains an error encountered while trying to open or parse the input file.
-    ///
-    /// # Type parameters
-    ///
-    /// - `P`: A type that can be treated as a reference to a `Path`.
-    pub fn new<P: AsRef<Path>>(input_file_path: P) -> io::Result<Self> {
+    pub fn new(input_file_path: &Path) -> io::Result<Self> {
         let file = utils::open_file_and_map_err(input_file_path)?;
         let lines = io::BufReader::new(file).lines();
         let seed_points = lines

@@ -49,7 +49,7 @@ pub fn construct_manual_reconnection_site_detector_from_options(
         "Error: Could not interpret path to input file: {}"
     );
     exit_on_error!(
-        ManualReconnectionSiteDetector::new(input_file_path),
+        ManualReconnectionSiteDetector::new(&input_file_path),
         "Error: Could not create manual reconnection site detector: {}"
     )
 }

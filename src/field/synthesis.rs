@@ -200,8 +200,7 @@ lazy_static! {
         Regex::new(r"^([a-zA-Z]+)_([a-zA-Z]+_[0-9ivxlcdmIVXLCDM]+_[0-9]+(:?\.[0-9]*)?)$").unwrap();
 }
 
-fn parse_line_quantity_name<S: AsRef<str>>(line_quantity_name: S) -> io::Result<(String, String)> {
-    let line_quantity_name = line_quantity_name.as_ref();
+fn parse_line_quantity_name(line_quantity_name: &str) -> io::Result<(String, String)> {
     if let Some(groups) = EMISSIVITY_QUANTITY_REGEX.captures(line_quantity_name) {
         let quantity_name = groups
             .get(1)
@@ -245,7 +244,7 @@ where
     I: Interpolator2,
 {
     /// Creates a computer of emissivities.
-    pub fn new<H>(
+    pub fn new(
         provider: P,
         interpolator: I,
         line_names: &[String],
@@ -254,12 +253,9 @@ where
         n_electron_density_points: usize,
         log_temperature_limits: (fdt, fdt),
         log_electron_density_limits: (fdt, fdt),
-        handle_unavailable: H,
+        handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
         verbose: Verbose,
-    ) -> Self
-    where
-        H: Fn(&str, Option<Vec<&str>>) + Copy,
-    {
+    ) -> Self {
         let quantity_names: Vec<_> = quantity_names
             .iter()
             .filter(|name| Self::verify_quantity_availability(&provider, name, handle_unavailable))
@@ -302,11 +298,10 @@ where
         }
     }
 
-    fn provide_new_scalar_field<S: AsRef<str>>(
+    fn provide_new_scalar_field(
         &mut self,
-        variable_name: S,
+        variable_name: &str,
     ) -> io::Result<Arc<ScalarField3<fdt, G>>> {
-        let variable_name = variable_name.as_ref();
         if self.provider.has_variable(variable_name) {
             self.provider.provide_scalar_field(variable_name)
         } else {
@@ -505,11 +500,10 @@ where
         ))
     }
 
-    fn quantity_is_available<S: AsRef<str>>(
+    fn quantity_is_available(
         provider: &P,
-        quantity_name: S,
-    ) -> (bool, Option<Vec<&str>>) {
-        let quantity_name = quantity_name.as_ref();
+        quantity_name: &str,
+    ) -> (bool, Option<Vec<&'static str>>) {
         if let Some((_, dependencies)) = SYNTHESIZABLE_QUANTITIES.get(quantity_name) {
             let missing_dependencies: Vec<_> = dependencies
                 .iter()
@@ -528,14 +522,11 @@ where
         }
     }
 
-    fn verify_quantity_availability<H>(
+    fn verify_quantity_availability(
         provider: &P,
         quantity_name: &str,
-        handle_unavailable: H,
-    ) -> bool
-    where
-        H: Fn(&str, Option<Vec<&str>>),
-    {
+        handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
+    ) -> bool {
         let (available, missing_dependencies) =
             Self::quantity_is_available(provider, quantity_name);
         if available {
@@ -561,11 +552,7 @@ where
         self.provider.arc_with_grid()
     }
 
-    fn produce_scalar_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.cached_scalar_field(variable_name).clone())
         } else {
@@ -576,11 +563,10 @@ where
         }
     }
 
-    fn provide_scalar_field<S: AsRef<str>>(
+    fn provide_scalar_field(
         &mut self,
-        variable_name: S,
+        variable_name: &str,
     ) -> io::Result<Arc<ScalarField3<fdt, G>>> {
-        let variable_name = variable_name.as_ref();
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.arc_with_cached_scalar_field(variable_name).clone())
         } else {
@@ -595,18 +581,16 @@ where
     P: CachingSnapshotProvider3<G>,
     I: Interpolator2,
 {
-    fn scalar_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        let variable_name = variable_name.as_ref();
+    fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.cached_scalar_fields.contains_key(variable_name)
             || self.provider.scalar_field_is_cached(variable_name)
     }
 
-    fn vector_field_is_cached<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn vector_field_is_cached(&self, variable_name: &str) -> bool {
         self.provider.vector_field_is_cached(variable_name)
     }
 
-    fn cache_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
-        let variable_name = variable_name.as_ref();
+    fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
         if self.provider.has_variable(variable_name) {
             self.provider.cache_scalar_field(variable_name)
         } else {
@@ -622,15 +606,11 @@ where
         }
     }
 
-    fn cache_vector_field<S: AsRef<str>>(&mut self, variable_name: S) -> io::Result<()> {
+    fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
         self.provider.cache_vector_field(variable_name)
     }
 
-    fn arc_with_cached_scalar_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> &Arc<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt, G>> {
         if let Some(field) = self.cached_scalar_fields.get(variable_name) {
             if self.verbose.is_yes() {
                 println!("Using cached {}", variable_name);
@@ -641,15 +621,11 @@ where
         }
     }
 
-    fn arc_with_cached_vector_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> &Arc<VectorField3<fdt, G>> {
+    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt, G>> {
         self.provider.arc_with_cached_vector_field(variable_name)
     }
 
-    fn drop_scalar_field<S: AsRef<str>>(&mut self, variable_name: S) {
-        let variable_name = variable_name.as_ref();
+    fn drop_scalar_field(&mut self, variable_name: &str) {
         if self.cached_scalar_fields.contains_key(variable_name) {
             if self.verbose.is_yes() {
                 println!("Dropping {} from cache", variable_name);
@@ -660,7 +636,7 @@ where
         }
     }
 
-    fn drop_vector_field<S: AsRef<str>>(&mut self, variable_name: S) {
+    fn drop_vector_field(&mut self, variable_name: &str) {
         self.provider.drop_vector_field(variable_name)
     }
 
@@ -690,8 +666,7 @@ where
         &self.all_variable_names
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
-        let variable_name = variable_name.as_ref();
+    fn has_variable(&self, variable_name: &str) -> bool {
         self.all_variable_names.contains(&variable_name.to_string())
             || self.provider.has_variable(variable_name)
     }
@@ -981,14 +956,11 @@ where
 /// Parses a spectral line name in the format \<element>\_\<ionization stage>\_\<wavelength>
 /// and returns a tuple of the ion name (\<element>\_\<ionization stage>), nuclear charge,
 /// ionization stage and wavelength.
-fn parse_spectral_line_name<F, S>(line_name: S) -> io::Result<(String, u32, u32, F)>
+fn parse_spectral_line_name<F>(line_name: &str) -> io::Result<(String, u32, u32, F)>
 where
     F: BFloat + FromStr,
     <F as FromStr>::Err: std::fmt::Display,
-    S: AsRef<str>,
 {
-    let line_name = line_name.as_ref();
-
     if let Some(groups) = ION_LINE_REGEX.captures(line_name) {
         let element_name = groups
             .get(1)
@@ -1071,12 +1043,11 @@ where
 }
 
 /// Computes atomic mass [g] of the ion for the given spectral line.
-fn atomic_mass_from_line_name<F, S>(line_name: S) -> io::Result<F>
+fn atomic_mass_from_line_name<F>(line_name: &str) -> io::Result<F>
 where
     F: BFloat + FromStr,
     <F as FromStr>::Err: std::fmt::Display,
-    S: AsRef<str>,
 {
-    let (_, nuclear_charge, _, _) = parse_spectral_line_name::<f32, S>(line_name)?;
+    let (_, nuclear_charge, _, _) = parse_spectral_line_name::<f32>(line_name)?;
     Ok(F::from_f64(2.0 * AMU as f64 * nuclear_charge as f64).unwrap())
 }

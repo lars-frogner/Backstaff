@@ -68,7 +68,8 @@ pub struct NativeSnapshotReader3<G> {
 impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NativeSnapshotReaderConfig) -> io::Result<Self> {
-        let parameters = NativeSnapshotParameters::new(&config.param_file_path, config.verbose())?;
+        let parameters =
+            NativeSnapshotParameters::new(config.param_file_path.clone(), config.verbose())?;
 
         let mesh_path = parameters.determine_mesh_path()?;
         let is_periodic = parameters.determine_grid_periodicity()?;
@@ -306,10 +307,7 @@ impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NativeSnapshotReader3<G> {
         Arc::clone(&self.grid)
     }
 
-    fn produce_scalar_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         self.read_scalar_field(variable_name)
     }
 }
@@ -329,9 +327,9 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
         &self.all_variable_names
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn has_variable(&self, variable_name: &str) -> bool {
         self.all_variable_names()
-            .contains(&variable_name.as_ref().to_string())
+            .contains(&variable_name.to_string())
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -340,11 +338,7 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
 }
 
 impl<G: Grid3<fgr>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
-    fn read_scalar_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let variable_descriptor = self.get_variable_descriptor(variable_name)?;
         let file_path = if variable_descriptor.is_primary {
             &self.snap_path
@@ -379,13 +373,9 @@ impl<G: Grid3<fgr>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
 
 impl NativeSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new<P: AsRef<Path>>(
-        param_file_path: P,
-        endianness: Endianness,
-        verbose: Verbose,
-    ) -> Self {
+    pub fn new(param_file_path: PathBuf, endianness: Endianness, verbose: Verbose) -> Self {
         NativeSnapshotReaderConfig {
-            param_file_path: param_file_path.as_ref().to_path_buf(),
+            param_file_path,
             endianness,
             verbose,
         }
@@ -415,7 +405,10 @@ impl NativeSnapshotMetadata {
     /// reader configuration and creates a new metadata object.
     pub fn new(reader_config: NativeSnapshotReaderConfig) -> io::Result<Self> {
         let parameters = with_io_err_msg!(
-            NativeSnapshotParameters::new(reader_config.param_file_path(), reader_config.verbose()),
+            NativeSnapshotParameters::new(
+                reader_config.param_file_path().to_path_buf(),
+                reader_config.verbose()
+            ),
             "Could not read parameter file: {}"
         )?;
         let mesh_path = with_io_err_msg!(
@@ -427,7 +420,7 @@ impl NativeSnapshotMetadata {
             "Could not determine grid periodicity: {}"
         )?;
         let grid_data = with_io_err_msg!(
-            parse_mesh_file(mesh_path, reader_config.verbose()),
+            parse_mesh_file(&mesh_path, reader_config.verbose()),
             "Could not parse mesh file: {}"
         )?;
         Ok(Self {
@@ -489,13 +482,12 @@ impl NativeSnapshotMetadata {
 }
 
 /// Writes the data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_new_snapshot<Pa, G, P>(
+pub fn write_new_snapshot<G, P>(
     provider: &mut P,
-    output_param_path: Pa,
+    output_param_path: &Path,
     verbose: Verbose,
 ) -> io::Result<()>
 where
-    Pa: AsRef<Path>,
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -513,10 +505,10 @@ where
 }
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_modified_snapshot<Pa, G, P>(
+pub fn write_modified_snapshot<G, P>(
     provider: &mut P,
     quantity_names: &[String],
-    output_param_path: Pa,
+    output_param_path: &Path,
     is_scratch: bool,
     write_mesh_file: bool,
     overwrite_mode: OverwriteMode,
@@ -524,12 +516,9 @@ pub fn write_modified_snapshot<Pa, G, P>(
     verbose: Verbose,
 ) -> io::Result<()>
 where
-    Pa: AsRef<Path>,
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let output_param_path = output_param_path.as_ref();
-
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_param_path);
     let snap_num = snap_num.unwrap_or(if is_scratch { 1 } else { FALLBACK_SNAP_NUM });
     let snap_num = format!("{}{}", if is_scratch { "-" } else { "" }, snap_num);
@@ -540,7 +529,7 @@ where
     let has_primary = !included_primary_variable_names.is_empty();
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
 
-    let atomic_param_path = AtomicOutputPath::new(output_param_path)?;
+    let atomic_param_path = AtomicOutputPath::new(output_param_path.to_path_buf())?;
     let mut atomic_mesh_path = if write_mesh_file {
         Some(AtomicOutputPath::new(
             atomic_param_path
@@ -691,25 +680,12 @@ where
 ///
 /// - `Ok`: Writing was completed successfully.
 /// - `Err`: Contains an error encountered while trying to create or write to the file.
-///
-/// # Type parameters
-///
-/// - `P`: A type that can be treated as a reference to a `Path`.
-/// - `N`: A type that can be treated as a reference to a `str`.
-/// - `V`: A function type taking a reference to a string slice and returning a reference to a 3D array.
-fn write_3d_snapfile<P, N, V>(
-    output_file_path: P,
-    variable_names: &[N],
-    variable_value_producer: &mut V,
+fn write_3d_snapfile(
+    output_file_path: &Path,
+    variable_names: &[String],
+    variable_value_producer: &mut dyn FnMut(&str) -> io::Result<Array3<fdt>>,
     endianness: Endianness,
-) -> io::Result<()>
-where
-    P: AsRef<Path>,
-    N: AsRef<str>,
-    V: FnMut(&str) -> io::Result<Array3<fdt>>,
-{
-    let output_file_path = output_file_path.as_ref();
-
+) -> io::Result<()> {
     let number_of_variables = variable_names.len();
     assert!(
         number_of_variables > 0,

@@ -149,7 +149,7 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
     }
 
     /// Returns whether the given variable can be provided.
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool;
+    fn has_variable(&self, variable_name: &str) -> bool;
 
     /// Returns the name and (if available) number of the snapshot.
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
@@ -274,10 +274,7 @@ where
         self.provider.arc_with_grid()
     }
 
-    fn produce_scalar_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         self.provider.produce_scalar_field(variable_name)
     }
 }
@@ -301,9 +298,9 @@ where
         &self.all_variable_names
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn has_variable(&self, variable_name: &str) -> bool {
         self.all_variable_names()
-            .contains(&variable_name.as_ref().to_string())
+            .contains(&variable_name.to_string())
     }
 
     fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
@@ -340,10 +337,7 @@ where
 
 pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
     /// Reads the field of the specified 3D scalar variable and returns it by value.
-    fn read_scalar_field<S: AsRef<str>>(
-        &self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>>;
+    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>>;
 }
 
 #[cfg(feature = "comparison")]
@@ -825,11 +819,7 @@ where
         Arc::clone(&self.new_grid)
     }
 
-    fn produce_scalar_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let field = self.provider.provide_scalar_field(variable_name)?;
         if self.verbose.is_yes() {
             println!("Resampling {}", variable_name);
@@ -875,7 +865,7 @@ where
         self.provider.all_variable_names()
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn has_variable(&self, variable_name: &str) -> bool {
         self.provider.has_variable(variable_name)
     }
 
@@ -927,11 +917,7 @@ where
         Arc::clone(&self.new_grid)
     }
 
-    fn produce_scalar_field<S: AsRef<str>>(
-        &mut self,
-        variable_name: S,
-    ) -> io::Result<ScalarField3<fdt, G>> {
-        let variable_name = variable_name.as_ref();
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let field = self.provider.provide_scalar_field(variable_name)?;
         if self.verbose.is_yes() {
             println!("Extracting {} in subgrid", variable_name);
@@ -959,7 +945,7 @@ where
         self.provider.all_variable_names()
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn has_variable(&self, variable_name: &str) -> bool {
         self.provider.has_variable(variable_name)
     }
 
@@ -1000,7 +986,7 @@ where
         self.provider().all_variable_names()
     }
 
-    fn has_variable<S: AsRef<str>>(&self, variable_name: S) -> bool {
+    fn has_variable(&self, variable_name: &str) -> bool {
         self.provider().has_variable(variable_name)
     }
 
@@ -1011,9 +997,7 @@ where
 
 /// Parses the file name of the given path and returns the interpreted
 /// snapshot name and (if detected) number.
-pub fn extract_name_and_num_from_snapshot_path<P: AsRef<Path>>(
-    file_path: P,
-) -> (String, Option<u32>) {
+pub fn extract_name_and_num_from_snapshot_path(file_path: &Path) -> (String, Option<u32>) {
     let (snap_name, snap_num_string) = parse_snapshot_file_path(file_path);
     (
         snap_name,
@@ -1023,7 +1007,7 @@ pub fn extract_name_and_num_from_snapshot_path<P: AsRef<Path>>(
 
 /// Parses the file name of the given path and returns the number of digits
 /// in the snapshot number part of the file name, if present.
-pub fn determine_length_of_snap_num_in_file_name<P: AsRef<Path>>(file_path: P) -> Option<u32> {
+pub fn determine_length_of_snap_num_in_file_name(file_path: &Path) -> Option<u32> {
     parse_snapshot_file_path(file_path)
         .1
         .map(|s| s.len() as u32)
@@ -1031,8 +1015,8 @@ pub fn determine_length_of_snap_num_in_file_name<P: AsRef<Path>>(file_path: P) -
 
 /// Parses the file name of the given path and returns a corresponding
 /// snapshot file name with the given number and extension.
-pub fn create_new_snapshot_file_name_from_path<P: AsRef<Path>>(
-    file_path: P,
+pub fn create_new_snapshot_file_name_from_path(
+    file_path: &Path,
     snap_num: u32,
     extension: &str,
     use_snap_num_as_offset: bool,
@@ -1067,8 +1051,7 @@ pub fn create_new_snapshot_file_name_from_path<P: AsRef<Path>>(
     }
 }
 
-fn parse_snapshot_file_path<P: AsRef<Path>>(file_path: P) -> (String, Option<String>) {
-    let file_path = file_path.as_ref();
+fn parse_snapshot_file_path(file_path: &Path) -> (String, Option<String>) {
     let file_path = match file_path.extension() {
         Some(extension) if extension == "scr" => Path::new(file_path.file_stem().unwrap()),
         _ => file_path,
@@ -1093,6 +1076,6 @@ pub fn extract_magnitude_name(name: &str) -> Option<&str> {
 }
 
 /// Adds | at the beginning and end of the given string.
-pub fn add_magnitude_pipes<S: AsRef<str>>(name: S) -> String {
-    format!("|{}|", name.as_ref())
+pub fn add_magnitude_pipes(name: &str) -> String {
+    format!("|{}|", name)
 }

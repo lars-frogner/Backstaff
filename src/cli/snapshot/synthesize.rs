@@ -197,7 +197,7 @@ where
         n_electron_density_points,
         log_temperature_limits,
         log_electron_density_limits,
-        |quantity_name, missing_dependencies| {
+        &|quantity_name, missing_dependencies| {
             if let Some(missing_dependencies) = missing_dependencies {
                 eprintln!(
                     "Warning: Missing following dependencies for synthesized quantity {}: {}",

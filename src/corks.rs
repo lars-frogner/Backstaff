@@ -432,6 +432,7 @@ impl CorkSet {
         if self.verbose().is_yes() {
             println!("Sampling field values");
         }
+        #[allow(clippy::unnecessary_to_owned)]
         for (quantity_idx, name) in self
             .scalar_quantity_names()
             .to_vec()
@@ -443,6 +444,7 @@ impl CorkSet {
                 cork.add_scalar_quantity_value(quantity_idx, field.as_ref(), interpolator)
             });
         }
+        #[allow(clippy::unnecessary_to_owned)]
         for (quantity_idx, name) in self
             .vector_quantity_names()
             .to_vec()
@@ -465,7 +467,7 @@ impl CorkSet {
 
     /// Serializes the cork data into JSON format and saves at the given path.
     #[cfg(feature = "json")]
-    pub fn save_as_json<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_json(&self, output_file_path: &Path) -> io::Result<()> {
         utils::save_data_as_json(output_file_path, &self)
     }
 
@@ -481,7 +483,7 @@ impl CorkSet {
     ///
     /// All the cork data is saved as a single pickled structure.
     #[cfg(feature = "pickle")]
-    pub fn save_as_pickle<P: AsRef<Path>>(&self, output_file_path: P) -> io::Result<()> {
+    pub fn save_as_pickle(&self, output_file_path: &Path) -> io::Result<()> {
         utils::save_data_as_pickle(output_file_path, &self)
     }
 }

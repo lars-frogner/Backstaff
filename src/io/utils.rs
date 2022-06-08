@@ -47,8 +47,8 @@ pub struct AtomicOutputPath {
 
 impl AtomicOutputPath {
     /// Creates a new atomic output path for the given target file path.
-    pub fn new<P: AsRef<Path>>(output_file_path: P) -> io::Result<Self> {
-        let target_output_file_path = output_file_path.as_ref().to_path_buf();
+    pub fn new(output_file_path: PathBuf) -> io::Result<Self> {
+        let target_output_file_path = output_file_path;
         let output_dir = target_output_file_path.parent().ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "No extension for output file")
         })?;

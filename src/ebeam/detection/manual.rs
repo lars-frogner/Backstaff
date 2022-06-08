@@ -21,7 +21,7 @@ impl ManualReconnectionSiteDetector {
     ///
     /// The input file is assumed to be in CSV format, with each line consisting
     /// of the three comma-separated coordinates of a single position.
-    pub fn new<P: AsRef<Path>>(input_file_path: P) -> io::Result<Self> {
+    pub fn new(input_file_path: &Path) -> io::Result<Self> {
         Ok(Self {
             seeder: ManualSeeder3::new(input_file_path)?,
         })

@@ -107,7 +107,7 @@ where
     DerivedSnapshotProvider3::new(
         cached_provider,
         derived_quantity_names,
-        |quantity_name, missing_dependencies| {
+        &|quantity_name, missing_dependencies| {
             if let Some(missing_dependencies) = missing_dependencies {
                 eprintln!(
                     "Warning: Missing following dependencies for derived quantity {}: {}",

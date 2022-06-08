@@ -42,7 +42,7 @@ pub fn create_manual_seeder_from_arguments(arguments: &ArgMatches) -> ManualSeed
     );
 
     exit_on_error!(
-        ManualSeeder3::new(input_file_path),
+        ManualSeeder3::new(&input_file_path),
         "Error: Could not create manual seeder: {}"
     )
 }

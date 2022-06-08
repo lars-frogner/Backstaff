@@ -130,7 +130,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         up_derivatives,
         down_derivatives,
     } = exit_on_error!(
-        native::parse_mesh_file(mesh_file_path, verbose),
+        native::parse_mesh_file(&mesh_file_path, verbose),
         "Error: Could not parse mesh file: {}"
     );
 
