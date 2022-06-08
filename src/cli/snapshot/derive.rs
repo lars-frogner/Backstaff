@@ -46,9 +46,9 @@ pub fn create_derive_subcommand(_parent_command_name: &'static str) -> Command<'
                 .require_equals(true)
                 .allow_hyphen_values(false)
                 .value_name("PERCENTAGE")
-                .help("Avoid exceeding this percentage of total memory when caching")
+                .help("Input fields are cached unless total memory usage exceeds this percentage")
                 .takes_value(true)
-                .default_value("80"),
+                .default_value("50"),
         )
         .arg(
             Arg::new("ignore-warnings")

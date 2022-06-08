@@ -174,6 +174,7 @@ where
 
     /// Creates a new snapshot cacher from the given provider.
     pub fn new_automatic_cacher(provider: P, max_memory_usage: f32, verbose: Verbose) -> Self {
+        assert!(max_memory_usage >= 0.0);
         Self {
             provider,
             max_memory_usage_fraction: max_memory_usage * 1e-2,
@@ -261,28 +262,38 @@ where
 
                 let available_memory = self.system.available_memory() as f32;
                 let total_memory = self.system.total_memory() as f32;
+                let used_memory = total_memory - available_memory;
+                let used_memory_fraction = used_memory / total_memory;
 
-                if self.verbose.is_yes() {
-                    println!(
-                        "Available memory is {:.0} MB (of {:.0} MB in total)",
-                        available_memory * 1e-3,
-                        total_memory * 1e-3
-                    );
-                }
-
-                let max_memory_exceeded =
-                    1.0 - (available_memory / total_memory) > self.max_memory_usage_fraction;
+                let max_memory_exceeded = used_memory_fraction > self.max_memory_usage_fraction;
 
                 if max_memory_exceeded {
                     match self.least_requested_cached_variable() {
-                        Some((least_requested_variable, least_requested_count)) => {
-                            if request_count <= least_requested_count {
-                                (field, None)
-                            } else {
-                                (field, Some(least_requested_variable))
+                        Some((least_requested_variable, least_requested_count))
+                            if request_count > least_requested_count =>
+                        {
+                            if self.verbose.is_yes() && self.max_memory_usage_fraction > 0.0 {
+                                println!(
+                                    "Replacing {} with {} in cache ({:.0}% of {:.1} GB memory in use)",
+                                    &least_requested_variable,
+                                    variable_name,
+                                    used_memory_fraction * 1e2,
+                                    total_memory * 1e-6,
+                                );
                             }
+                            (field, Some(least_requested_variable))
                         }
-                        None => (field, None),
+                        _ => {
+                            if self.verbose.is_yes() && self.max_memory_usage_fraction > 0.0 {
+                                println!(
+                                    "Not caching {} ({:.0}% of {:.1} GB memory in use)",
+                                    variable_name,
+                                    used_memory_fraction * 1e2,
+                                    total_memory * 1e-6,
+                                );
+                            }
+                            (field, None)
+                        }
                     }
                 } else {
                     if self.verbose.is_yes() {
