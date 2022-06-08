@@ -1604,15 +1604,33 @@ class Visualizer:
         self, bifrost_data, plot_description, field, output_path, label=None
     ):
         time = float(bifrost_data.params["t"]) * units.U_T
-        text = f"{time:.1f} s"
+        time_text = f"{time:.1f} s"
+
+        plot_kwargs = plot_description.get_plot_kwargs(field)
 
         if label is not None:
-            text = f"{text}\n{label}"
+            time_text = f"{time_text}\n{label}"
+
+        custom_label = plot_kwargs.pop("label", None)
+        if custom_label == "ebeam":
+            power_law_index = float(bifrost_data.params["power_law_index"])
+            qjoule_acc_frac = float(bifrost_data.params["qjoule_acc_frac"])
+            custom_label = r"$p = {}$, $\delta = {}$".format(
+                f"{qjoule_acc_frac:g}",
+                "varying" if power_law_index < 0 else f"{float(power_law_index):g}",
+            )
+
+        extra_artists = [AnchoredText(time_text, "upper left", frameon=False)]
+
+        if custom_label is not None:
+            extra_artists.append(
+                AnchoredText(custom_label, "upper right", frameon=False)
+            )
 
         field.plot(
             output_path=output_path,
-            extra_artists=[AnchoredText(text, "upper left", frameon=False)],
-            **plot_description.get_plot_kwargs(field),
+            extra_artists=extra_artists,
+            **plot_kwargs,
         )
 
     def _create_video_from_frames(self, frame_dir, frame_indices, output_path, fps=15):
@@ -1622,7 +1640,10 @@ class Visualizer:
 
         tempdir = frame_dir / ".ffmpeg_tmp"
         if tempdir.exists():
-            shutil.rmtree(tempdir)
+            try:
+                shutil.rmtree(tempdir)
+            except FileNotFoundError:
+                pass
 
         os.makedirs(tempdir)
         frame_num = 0
