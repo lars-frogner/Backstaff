@@ -13,8 +13,11 @@ pub fn build() -> Command<'static> {
     let command = Command::new(clap::crate_name!())
         .version(clap::crate_version!())
         .author(clap::crate_authors!())
-        .about(clap::crate_description!())
-
+        .about(
+            concat!(clap::crate_description!(),
+                    "\n\n\
+                    For documentation, see https://github.com/lars-frogner/Backstaff")
+        )
         .propagate_version(false)
         .disable_help_subcommand(true)
         .global_setting(AppSettings::DeriveDisplayOrder)
