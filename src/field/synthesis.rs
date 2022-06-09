@@ -267,7 +267,7 @@ where
             n_electron_density_points,
             log_temperature_limits,
             log_electron_density_limits,
-            verbose,
+            &verbose,
         ));
 
         let mut emissivity_quantity_names = Vec::new();
@@ -306,6 +306,7 @@ where
             self.provider.provide_scalar_field(variable_name)
         } else {
             let (quantity_name, line_name) = parse_line_quantity_name(variable_name)?;
+            let verbose = self.verbose.clone();
 
             let field = match quantity_name.as_str() {
                 "emis" => self.produce_emissivity_field(variable_name, &line_name),
@@ -316,19 +317,19 @@ where
                             shiftx,
                             |ux| ux * doppler_factor,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'y' => compute_derived_quantity!(
                             shifty,
                             |uy| uy * doppler_factor,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'z' => compute_derived_quantity!(
                             shiftz,
                             |uz| uz * doppler_factor,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         _ => unreachable!(),
                     }
@@ -340,7 +341,7 @@ where
                         vartg,
                         |tg| tg * thermal_variance_factor,
                         self,
-                        self.verbose
+                        &verbose
                     )
                 }
                 name if name.starts_with("emis_shift")
@@ -352,19 +353,19 @@ where
                             emis_shiftx,
                             |emis, ux| emis * ux * doppler_factor,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'y' => compute_derived_quantity!(
                             emis_shifty,
                             |emis, uy| emis * uy * doppler_factor,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'z' => compute_derived_quantity!(
                             emis_shiftz,
                             |emis, uz| emis * uz * doppler_factor,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         _ => unreachable!(),
                     }
@@ -382,21 +383,21 @@ where
                             |tg, ux| tg * thermal_variance_factor
                                 + ux * ux * doppler_factor_squared,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'y' => compute_derived_quantity!(
                             vartgshift2y,
                             |tg, uy| tg * thermal_variance_factor
                                 + uy * uy * doppler_factor_squared,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'z' => compute_derived_quantity!(
                             vartgshift2z,
                             |tg, uz| tg * thermal_variance_factor
                                 + uz * uz * doppler_factor_squared,
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         _ => unreachable!(),
                     }
@@ -414,21 +415,21 @@ where
                             |emis, tg, ux| emis
                                 * (tg * thermal_variance_factor + ux * ux * doppler_factor_squared),
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'y' => compute_derived_quantity!(
                             emis_vartgshift2y,
                             |emis, tg, uy| emis
                                 * (tg * thermal_variance_factor + uy * uy * doppler_factor_squared),
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         'z' => compute_derived_quantity!(
                             emis_vartgshift2z,
                             |emis, tg, uz| emis
                                 * (tg * thermal_variance_factor + uz * uz * doppler_factor_squared),
                             self,
-                            self.verbose
+                            &verbose
                         ),
                         _ => unreachable!(),
                     }
@@ -738,7 +739,7 @@ where
         n_electron_density_points: usize,
         log_temperature_limits: (F, F),
         log_electron_density_limits: (F, F),
-        verbose: Verbose,
+        verbose: &Verbose,
     ) -> Self {
         assert!(n_temperature_points > 1);
         assert!(n_electron_density_points > 1);
@@ -853,7 +854,7 @@ where
         n_electron_density_points: usize,
         log_temperature_limits: (F, F),
         log_electron_density_limits: (F, F),
-        verbose: Verbose,
+        verbose: &Verbose,
     ) -> PyResult<(Vec<fgr>, Vec<fgr>, EmissivityTableArrMap<F>)> {
         let kwargs = [
             ("dtype", F::get_dtype(py).into_py(py)),

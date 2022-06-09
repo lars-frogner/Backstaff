@@ -15,7 +15,7 @@ pub trait ReconnectionSiteDetector {
     type Seeder: IndexSeeder3;
     /// Detects reconnection sites in the given snapshot and returns
     /// a seeder with the corresponding 3D indices.
-    fn detect_reconnection_sites<G, P>(&self, snapshot: &mut P, verbose: Verbose) -> Self::Seeder
+    fn detect_reconnection_sites<G, P>(&self, snapshot: &mut P, verbose: &Verbose) -> Self::Seeder
     where
         G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>;

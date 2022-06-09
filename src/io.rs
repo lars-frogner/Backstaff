@@ -3,6 +3,8 @@
 pub mod snapshot;
 pub mod utils;
 
+use indicatif::ProgressStyle;
+
 /// Little- or big-endian byte order.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endianness {
@@ -11,20 +13,28 @@ pub enum Endianness {
     Big,
 }
 
-/// Whether or not to print non-critical status messages.
-#[derive(Clone, Copy, Debug)]
+/// Whether or not to print non-critical status messages
+/// and showing progress.
+#[derive(Clone, Debug)]
 pub enum Verbose {
     Yes,
     No,
+    Progress(ProgressStyle),
 }
 
 impl Verbose {
+    /// Creates a new verbosity indicator for showing progress with
+    /// the given progress bar style.
+    pub fn with_progress(style: ProgressStyle) -> Self {
+        Self::Progress(style)
+    }
+
     /// Whether verbosity is activated.
-    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub fn is_yes(&self) -> bool {
         match *self {
             Verbose::Yes => true,
             Verbose::No => false,
+            Verbose::Progress(_) => true,
         }
     }
 }

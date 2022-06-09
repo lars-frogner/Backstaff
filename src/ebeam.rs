@@ -341,7 +341,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
-            .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
+            .generate_distributions(snapshot, detector, interpolator, stepper_factory, &verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         let properties: ElectronBeamSwarmProperties = distributions
@@ -395,7 +395,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
-            .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
+            .generate_distributions(snapshot, detector, interpolator, stepper_factory, &verbose)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         let mut acceleration_map = Array::from_elem(snapshot.grid().shape().to_tuple(), false);
@@ -445,8 +445,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Whether the electron beam swarm is verbose.
-    pub fn verbose(&self) -> Verbose {
-        self.verbose
+    pub fn verbose(&self) -> &Verbose {
+        &self.verbose
     }
 
     /// Returns the number of beams making up the electron beam set.

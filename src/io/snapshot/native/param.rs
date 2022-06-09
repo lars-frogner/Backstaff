@@ -30,7 +30,7 @@ pub struct NativeSnapshotParameters {
 }
 
 impl NativeSnapshotParameters {
-    pub fn new(param_file_path: PathBuf, verbose: Verbose) -> io::Result<Self> {
+    pub fn new(param_file_path: PathBuf, verbose: &Verbose) -> io::Result<Self> {
         let file_text = ParameterFile::new(&param_file_path)?;
         let original_path = param_file_path;
         if verbose.is_yes() {

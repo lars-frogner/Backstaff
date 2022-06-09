@@ -73,8 +73,8 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
     }
 
     /// Whether the reader is verbose.
-    pub fn verbose(&self) -> Verbose {
-        self.config.verbose
+    pub fn verbose(&self) -> &Verbose {
+        self.config.verbose()
     }
 
     /// Creates a reader for a 3D Bifrost snapshot.
@@ -296,8 +296,8 @@ impl NetCDFSnapshotReaderConfig {
         NetCDFSnapshotReaderConfig { file_path, verbose }
     }
 
-    pub fn verbose(&self) -> Verbose {
-        self.verbose
+    pub fn verbose(&self) -> &Verbose {
+        &self.verbose
     }
 
     pub fn file_path(&self) -> &Path {
@@ -309,7 +309,7 @@ impl NetCDFSnapshotReaderConfig {
 pub fn write_new_snapshot<G, P>(
     provider: &mut P,
     output_file_path: &Path,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,
@@ -335,7 +335,7 @@ pub fn write_modified_snapshot<G, P>(
     strip_metadata: bool,
     overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,

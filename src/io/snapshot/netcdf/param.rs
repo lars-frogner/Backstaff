@@ -11,7 +11,7 @@ pub type NetCDFSnapshotParameters = MapOfSnapshotParameters;
 
 pub fn read_netcdf_snapshot_parameters(
     file: &File,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<NetCDFSnapshotParameters> {
     if verbose.is_yes() {
         println!(

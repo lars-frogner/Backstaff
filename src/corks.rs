@@ -348,8 +348,8 @@ impl CorkSet {
     }
 
     /// Whether the cork set is verbose.
-    pub fn verbose(&self) -> Verbose {
-        self.verbose
+    pub fn verbose(&self) -> &Verbose {
+        &self.verbose
     }
 
     fn number_of_corks(&self) -> usize {

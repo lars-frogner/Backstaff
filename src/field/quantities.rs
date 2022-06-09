@@ -220,7 +220,8 @@ where
         if self.provider.has_variable(variable_name) {
             self.provider.produce_scalar_field(variable_name)
         } else {
-            compute_quantity(self, variable_name, self.verbose)
+            let verbose = self.verbose.clone();
+            compute_quantity(self, variable_name, &verbose)
         }
     }
 
@@ -539,7 +540,7 @@ macro_rules! compute_derived_quantity {
 fn compute_quantity<G, P>(
     provider: &mut P,
     quantity_name: &str,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fgr>,
@@ -661,7 +662,7 @@ pub fn compute_quantity_unary<G, P, C>(
     provider: &mut P,
     dep_name: &str,
     compute: C,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fgr>,
@@ -695,7 +696,7 @@ pub fn compute_centered_quantity_unary<G, P, C>(
     provider: &mut P,
     dep_name: &str,
     compute: C,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fgr>,
@@ -738,7 +739,7 @@ pub fn compute_quantity_unary_with_indices<G, P, C>(
     provider: &mut P,
     dep_name: &str,
     compute: C,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fgr>,
@@ -780,7 +781,7 @@ pub fn compute_quantity_binary<G, P, C>(
     dep_name_1: &str,
     dep_name_2: &str,
     compute: C,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fgr>,
@@ -847,7 +848,7 @@ pub fn compute_quantity_tertiary<G, P, C>(
     dep_name_2: &str,
     dep_name_3: &str,
     compute: C,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<ScalarField3<fdt, G>>
 where
     G: Grid3<fgr>,

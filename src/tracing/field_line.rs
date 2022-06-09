@@ -191,8 +191,8 @@ impl FieldLineSet3 {
     }
 
     /// Whether the field line set is verbose.
-    pub fn verbose(&self) -> Verbose {
-        self.verbose
+    pub fn verbose(&self) -> &Verbose {
+        &self.verbose
     }
 
     /// Returns the number of field lines making up the field line set.

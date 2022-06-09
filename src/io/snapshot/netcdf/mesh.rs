@@ -28,7 +28,7 @@ pub struct NetCDFGridData {
 pub fn read_grid<G: Grid3<fgr>>(
     file: &File,
     is_periodic: In3D<bool>,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<(G, Endianness)> {
     let NetCDFGridData {
         detected_grid_type,
@@ -59,7 +59,7 @@ pub fn read_grid<G: Grid3<fgr>>(
 }
 
 /// Reads the data required to construct a grid from the given NetCDF group.
-pub fn read_grid_data(file: &File, verbose: Verbose) -> io::Result<NetCDFGridData> {
+pub fn read_grid_data(file: &File, verbose: &Verbose) -> io::Result<NetCDFGridData> {
     if verbose.is_yes() {
         println!(
             "Reading grid from {}",

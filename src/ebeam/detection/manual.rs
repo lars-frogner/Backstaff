@@ -31,7 +31,7 @@ impl ManualReconnectionSiteDetector {
 impl ReconnectionSiteDetector for ManualReconnectionSiteDetector {
     type Seeder = Vec<Idx3<usize>>;
 
-    fn detect_reconnection_sites<G, P>(&self, snapshot: &mut P, _verbose: Verbose) -> Self::Seeder
+    fn detect_reconnection_sites<G, P>(&self, snapshot: &mut P, _verbose: &Verbose) -> Self::Seeder
     where
         G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,

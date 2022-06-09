@@ -7,7 +7,10 @@ use crate::{
         ScalarFieldCacher3,
     },
     grid::{fgr, Grid3},
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::{
+        snapshot::{fdt, SnapshotProvider3},
+        Verbose,
+    },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -95,10 +98,10 @@ where
     }
 
     let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let verbose = arguments.is_present("verbose").into();
+    let verbose: Verbose = arguments.is_present("verbose").into();
 
     let cached_provider =
-        ScalarFieldCacher3::new_automatic_cacher(provider, max_memory_usage, verbose);
+        ScalarFieldCacher3::new_automatic_cacher(provider, max_memory_usage, verbose.clone());
 
     DerivedSnapshotProvider3::new(
         cached_provider,

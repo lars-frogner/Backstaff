@@ -25,7 +25,7 @@ pub trait Accelerator {
         detector: D,
         interpolator: &I,
         stepper_factory: &StF,
-        verbose: Verbose,
+        verbose: &Verbose,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
         Self::AccelerationDataCollectionType,

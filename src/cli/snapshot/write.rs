@@ -168,7 +168,7 @@ pub fn run_write_subcommand<G, P>(
                 write_mesh_file,
                 overwrite_mode,
                 protected_file_types,
-                verbose,
+                &verbose,
             ),
             #[cfg(feature = "netcdf")]
             OutputType::NetCDF => {
@@ -180,7 +180,7 @@ pub fn run_write_subcommand<G, P>(
                     strip_metadata,
                     overwrite_mode,
                     protected_file_types,
-                    verbose,
+                    &verbose,
                 )
             }
         },

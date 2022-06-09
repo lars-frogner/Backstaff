@@ -269,16 +269,21 @@ pub fn read_snapshots_eq(
     epsilon: fdt,
     max_relative: fdt,
 ) -> io::Result<bool> {
-    with_new_snapshot_reader!(input_file_path_2, endianness, verbose, |snapshot_reader| {
-        read_snapshot_eq_given_snapshot(
-            input_file_path_1,
-            endianness,
-            verbose,
-            &snapshot_reader,
-            epsilon,
-            max_relative,
-        )
-    })
+    with_new_snapshot_reader!(
+        input_file_path_2,
+        endianness,
+        verbose.clone(),
+        |snapshot_reader| {
+            read_snapshot_eq_given_snapshot(
+                input_file_path_1,
+                endianness,
+                verbose,
+                &snapshot_reader,
+                epsilon,
+                max_relative,
+            )
+        }
+    )
 }
 
 /// Reads the field values of the snapshot at the given path and
@@ -342,14 +347,19 @@ pub fn read_snapshot_grids_eq(
     epsilon: fgr,
     max_relative: fgr,
 ) -> io::Result<bool> {
-    with_new_snapshot_grid!(input_file_path_2, endianness, verbose, |snapshot_grid| {
-        read_snapshot_grid_eq_given_grid(
-            input_file_path_1,
-            endianness,
-            verbose,
-            &snapshot_grid,
-            epsilon,
-            max_relative,
-        )
-    })
+    with_new_snapshot_grid!(
+        input_file_path_2,
+        endianness,
+        verbose.clone(),
+        |snapshot_grid| {
+            read_snapshot_grid_eq_given_grid(
+                input_file_path_1,
+                endianness,
+                verbose,
+                &snapshot_grid,
+                epsilon,
+                max_relative,
+            )
+        }
+    )
 }

@@ -366,7 +366,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         detector: D,
         interpolator: &I,
         _stepper_factory: &StF,
-        verbose: Verbose,
+        verbose: &Verbose,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
         Self::AccelerationDataCollectionType,

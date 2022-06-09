@@ -29,6 +29,7 @@ comparison = ["approx"]
 atty = "*"
 byteorder = "*"
 ieee754 = "*"
+indicatif = {version = "*", features = ["rayon"]}
 lazy_static = "*"
 ndarray = { version = "*", features = ["rayon"] }
 num = "*"

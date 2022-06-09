@@ -85,7 +85,7 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
     }
 
     /// Whether the reader is verbose.
-    pub fn verbose(&self) -> Verbose {
+    pub fn verbose(&self) -> &Verbose {
         self.config.verbose()
     }
 
@@ -381,8 +381,8 @@ impl NativeSnapshotReaderConfig {
         }
     }
 
-    pub fn verbose(&self) -> Verbose {
-        self.verbose
+    pub fn verbose(&self) -> &Verbose {
+        &self.verbose
     }
 
     pub fn param_file_path(&self) -> &Path {
@@ -485,7 +485,7 @@ impl NativeSnapshotMetadata {
 pub fn write_new_snapshot<G, P>(
     provider: &mut P,
     output_param_path: &Path,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,
@@ -513,7 +513,7 @@ pub fn write_modified_snapshot<G, P>(
     write_mesh_file: bool,
     overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,

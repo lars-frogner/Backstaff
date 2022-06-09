@@ -42,7 +42,7 @@ impl SimpleReconnectionSiteDetector {
 impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
     type Seeder = CriterionSeeder3;
 
-    fn detect_reconnection_sites<G, P>(&self, provider: &mut P, verbose: Verbose) -> Self::Seeder
+    fn detect_reconnection_sites<G, P>(&self, provider: &mut P, verbose: &Verbose) -> Self::Seeder
     where
         G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,

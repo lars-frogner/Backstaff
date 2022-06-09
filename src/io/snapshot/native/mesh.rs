@@ -46,7 +46,7 @@ pub struct NativeGridData {
 pub fn create_grid_from_mesh_file<G>(
     mesh_path: &Path,
     is_periodic: In3D<bool>,
-    verbose: Verbose,
+    verbose: &Verbose,
 ) -> io::Result<G>
 where
     G: Grid3<fgr>,
@@ -130,7 +130,7 @@ where
 }
 
 /// Parses the mesh file at the given path and returns relevant data.
-pub fn parse_mesh_file(mesh_path: &Path, verbose: Verbose) -> io::Result<NativeGridData> {
+pub fn parse_mesh_file(mesh_path: &Path, verbose: &Verbose) -> io::Result<NativeGridData> {
     let file = utils::open_file_and_map_err(&mesh_path)?;
     if verbose.is_yes() {
         println!(
@@ -256,7 +256,7 @@ pub fn parse_mesh_file(mesh_path: &Path, verbose: Verbose) -> io::Result<NativeG
 pub fn parsed_mesh_files_eq(
     mesh_path_1: &Path,
     mesh_path_2: &Path,
-    verbose: Verbose,
+    verbose: &Verbose,
     epsilon: fgr,
     max_relative: fgr,
 ) -> io::Result<bool> {
