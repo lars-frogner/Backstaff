@@ -789,6 +789,7 @@ where
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         method: ResamplingMethod,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -799,13 +800,17 @@ where
                 grid,
                 resampled_locations,
                 interpolator,
+                verbose,
             ),
             ResamplingMethod::CellAveraging => {
-                self.resampled_to_grid_with_cell_averaging(grid, resampled_locations)
+                self.resampled_to_grid_with_cell_averaging(grid, resampled_locations, verbose)
             }
-            ResamplingMethod::DirectSampling => {
-                self.resampled_to_grid_with_direct_sampling(grid, resampled_locations, interpolator)
-            }
+            ResamplingMethod::DirectSampling => self.resampled_to_grid_with_direct_sampling(
+                grid,
+                resampled_locations,
+                interpolator,
+                verbose,
+            ),
         }
     }
 
@@ -821,6 +826,7 @@ where
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         method: ResamplingMethod,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -834,12 +840,14 @@ where
                     transformation,
                     resampled_locations,
                     interpolator,
+                    verbose,
                 ),
             ResamplingMethod::CellAveraging => self
                 .resampled_to_transformed_grid_with_cell_averaging(
                     grid,
                     transformation,
                     resampled_locations,
+                    verbose,
                 ),
             ResamplingMethod::DirectSampling => self
                 .resampled_to_transformed_grid_with_direct_sampling(
@@ -847,6 +855,7 @@ where
                     transformation,
                     resampled_locations,
                     interpolator,
+                    verbose,
                 ),
         }
     }
@@ -865,6 +874,7 @@ where
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -999,6 +1009,7 @@ where
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -1177,6 +1188,7 @@ where
         &self,
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H> {
         let overlying_grid = grid;
         let overlying_locations =
@@ -1283,6 +1295,7 @@ where
         grid: Arc<H>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -1439,6 +1452,7 @@ where
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -1486,6 +1500,7 @@ where
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbose: &Verbose,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -2181,6 +2196,7 @@ where
         &self,
         grid: Arc<H>,
         interpolator: &I,
+        verbose: &Verbose,
     ) -> VectorField3<F, H>
     where
         H: Grid3<fgr>,
@@ -2191,6 +2207,7 @@ where
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
+                verbose,
             )
         });
         VectorField3::new(self.name.clone(), grid, components)
@@ -2206,11 +2223,13 @@ where
     pub fn resampled_to_grid_with_cell_averaging<H: Grid3<fgr>>(
         &self,
         grid: Arc<H>,
+        verbose: &Verbose,
     ) -> VectorField3<F, H> {
         let components = In3D::with_each_component(|dim| {
             self.components[dim].resampled_to_grid_with_cell_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
+                verbose,
             )
         });
         VectorField3::new(self.name.clone(), grid, components)
@@ -2227,6 +2246,7 @@ where
         &self,
         grid: Arc<H>,
         interpolator: &I,
+        verbose: &Verbose,
     ) -> VectorField3<F, H>
     where
         H: Grid3<fgr>,
@@ -2237,6 +2257,7 @@ where
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
+                verbose,
             )
         });
         VectorField3::new(self.name.clone(), grid, components)

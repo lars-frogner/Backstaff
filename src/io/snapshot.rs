@@ -859,6 +859,7 @@ where
                 self.resampled_locations.clone(),
                 &self.interpolator,
                 self.resampling_method,
+                &self.verbose,
             )
         } else {
             field.resampled_to_transformed_grid(
@@ -867,6 +868,7 @@ where
                 self.resampled_locations.clone(),
                 &self.interpolator,
                 self.resampling_method,
+                &self.verbose,
             )
         })
     }

@@ -722,6 +722,7 @@ where
             In3D::same(ResampledCoordLocation::center()),
             &interpolator,
             ResamplingMethod::DirectSampling,
+            verbose,
         )
     }
     .with_name(quantity_name.to_string());
@@ -809,6 +810,7 @@ where
                     In3D::same(ResampledCoordLocation::center()),
                     &interpolator,
                     ResamplingMethod::DirectSampling,
+                    verbose,
                 );
             };
         };
@@ -877,6 +879,7 @@ where
                     In3D::same(ResampledCoordLocation::center()),
                     &interpolator,
                     ResamplingMethod::DirectSampling,
+                    verbose,
                 );
             };
         };
