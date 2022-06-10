@@ -522,7 +522,10 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+    let verbosity = cli_utils::parse_verbosity(root_arguments, true);
+
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
+    {
         return;
     }
 
@@ -537,9 +540,11 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
                 ),
                 "Error: Could not create temporary output file: {}"
             );
-            if !extra_atomic_output_path
-                .check_if_write_allowed(overwrite_mode, protected_file_types)
-            {
+            if !extra_atomic_output_path.check_if_write_allowed(
+                overwrite_mode,
+                protected_file_types,
+                &verbosity,
+            ) {
                 return;
             }
             Some(extra_atomic_output_path)
@@ -556,7 +561,6 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
         quantity
     );
 
-    let verbosity = cli_utils::parse_verbosity(root_arguments, true);
     let field_lines = FieldLineSet3::trace(
         quantity,
         &snapshot,

@@ -47,6 +47,12 @@ pub fn create_create_mesh_subcommand(_parent_command_name: &'static str) -> Comm
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .help("Print status messages related to mesh file creation"),
+        )
         .subcommand(create_regular_subcommand(command_name))
         .subcommand(create_horizontally_regular_subcommand(command_name))
 }
@@ -87,13 +93,15 @@ fn write_mesh_file<G: Grid3<fgr>>(
     }
 
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
+    let verbosity = cli_utils::parse_verbosity(root_arguments, false);
 
     let atomic_output_path = exit_on_error!(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
+    {
         return;
     }
 

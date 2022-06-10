@@ -350,7 +350,7 @@ where
         provider.classify_variable_names(quantity_names);
 
     let atomic_output_path = AtomicOutputPath::new(output_file_path.to_path_buf())?;
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity) {
         return Ok(());
     }
 

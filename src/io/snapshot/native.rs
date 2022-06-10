@@ -557,16 +557,16 @@ where
     })?;
 
     let write_param_file =
-        atomic_param_path.check_if_write_allowed(overwrite_mode, protected_file_types);
+        atomic_param_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
     let write_mesh_file = if let Some(atomic_mesh_path) = &atomic_mesh_path {
-        atomic_mesh_path.check_if_write_allowed(overwrite_mode, protected_file_types)
+        atomic_mesh_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity)
     } else {
         false
     };
     let write_snap_file = has_primary
-        && atomic_snap_path.check_if_write_allowed(overwrite_mode, protected_file_types);
+        && atomic_snap_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
     let write_aux_file = has_auxiliary
-        && atomic_aux_path.check_if_write_allowed(overwrite_mode, protected_file_types);
+        && atomic_aux_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
 
     if write_param_file {
         let output_param_file_name = atomic_param_path

@@ -24,6 +24,7 @@ use crate::{
     io::{
         snapshot::{fdt, SnapshotProvider3},
         utils::AtomicOutputPath,
+        Verbosity,
     },
     num::BFloat,
     update_command_graph,
@@ -180,6 +181,7 @@ pub fn run_statistics_subcommand<G, P>(
     provider: P,
     quantity_names: Vec<String>,
     protected_file_types: &[&str],
+    verbosity: &Verbosity,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -264,7 +266,11 @@ pub fn run_statistics_subcommand<G, P>(
                 "Error: Could not create temporary output file: {}"
             );
 
-            if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+            if !atomic_output_path.check_if_write_allowed(
+                overwrite_mode,
+                protected_file_types,
+                verbosity,
+            ) {
                 return;
             }
 

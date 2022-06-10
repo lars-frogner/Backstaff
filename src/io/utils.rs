@@ -1,6 +1,6 @@
 //! Utilities for input/output.
 
-use super::{Endianness, OverwriteMode};
+use super::{Endianness, OverwriteMode, Verbosity};
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use std::{
     fs, io,
@@ -86,8 +86,14 @@ impl AtomicOutputPath {
         &self,
         overwrite_mode: OverwriteMode,
         protected_file_types: &[&str],
+        verbosity: &Verbosity,
     ) -> bool {
-        check_if_write_allowed(self.target_path(), overwrite_mode, protected_file_types)
+        check_if_write_allowed(
+            self.target_path(),
+            overwrite_mode,
+            protected_file_types,
+            verbosity,
+        )
     }
 
     /// Moves the temporary file to the target output file path.
@@ -157,38 +163,50 @@ pub fn check_if_write_allowed<P: AsRef<Path>>(
     file_path: P,
     overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
+    verbosity: &Verbosity,
 ) -> bool {
     let file_path = file_path.as_ref();
     let is_protected = match file_path.extension() {
         Some(extension) => protected_file_types.contains(&extension.to_string_lossy().as_ref()),
         None => false,
     };
-    let file_path_string = file_path.file_name().unwrap().to_string_lossy();
+    let file_path_string = file_path.to_string_lossy();
+    let file_name = file_path.file_name().unwrap().to_string_lossy();
     if file_path.exists() {
-        if is_protected {
-            println!("Skipping {} (protected file type)", file_path_string);
-            false
-        } else {
-            let can_overwrite = match overwrite_mode {
-                OverwriteMode::Ask => user_says_yes(
-                    &format!("File {} already exists, overwrite?", file_path_string),
-                    true,
-                )
-                .unwrap_or_else(|err| {
-                    eprintln!(
-                        "Warning: Not overwriting {} due to error: {}",
-                        file_path_string, err
-                    );
-                    false
-                }),
-                OverwriteMode::Always => true,
-                OverwriteMode::Never => false,
-            };
-            if !can_overwrite {
-                println!("Skipping {}", file_path_string);
-            }
-            can_overwrite
+        let can_overwrite = match overwrite_mode {
+            OverwriteMode::Ask | OverwriteMode::Always if is_protected => user_says_yes(
+                &format!(
+                    "File {} already exists and is a protected file type, overwrite?",
+                    file_path_string
+                ),
+                true,
+            )
+            .unwrap_or_else(|err| {
+                eprintln!(
+                    "Warning: Not overwriting {} due to error: {}",
+                    file_path_string, err
+                );
+                false
+            }),
+            OverwriteMode::Ask => user_says_yes(
+                &format!("File {} already exists, overwrite?", file_path_string),
+                true,
+            )
+            .unwrap_or_else(|err| {
+                eprintln!(
+                    "Warning: Not overwriting {} due to error: {}",
+                    file_path_string, err
+                );
+                false
+            }),
+            OverwriteMode::Always => true,
+            OverwriteMode::Never => false,
+        };
+        if !can_overwrite && (verbosity.print_messages() || overwrite_mode != OverwriteMode::Never)
+        {
+            println!("Skipping {}", file_name);
         }
+        can_overwrite
     } else {
         true
     }

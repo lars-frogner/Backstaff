@@ -557,13 +557,15 @@ where G: Grid3<fgr>,
     }
 
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
+    let verbosity = cli_utils::parse_verbosity(root_arguments, true);
 
     let atomic_output_path = exit_on_error!(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
+    {
         return;
     }
 
@@ -578,9 +580,11 @@ where G: Grid3<fgr>,
                 ),
                 "Error: Could not create temporary output file: {}"
             );
-            if !extra_atomic_output_path
-                .check_if_write_allowed(overwrite_mode, protected_file_types)
-            {
+            if !extra_atomic_output_path.check_if_write_allowed(
+                overwrite_mode,
+                protected_file_types,
+                &verbosity,
+            ) {
                 return;
             }
             Some(extra_atomic_output_path)
@@ -588,7 +592,6 @@ where G: Grid3<fgr>,
         _ => None,
     };
 
-    let verbosity = cli_utils::parse_verbosity(root_arguments, true);
     let beams = match stepper_type {
         RKFStepperType::RKF23 => {
             let stepper_factory = RKF23StepperFactory3::new(stepper_config);

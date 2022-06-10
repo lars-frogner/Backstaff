@@ -410,15 +410,19 @@ fn write_output(
             "Error: Could not create temporary output file: {}"
         );
 
-        if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+        let corks = corks_state.as_ref().expect("Corks state not initialized");
+
+        if !atomic_output_path.check_if_write_allowed(
+            overwrite_mode,
+            protected_file_types,
+            corks.verbosity(),
+        ) {
             return;
         }
 
         if !write_output {
             return;
         }
-
-        let corks = corks_state.as_ref().expect("Corks state not initialized");
 
         if corks.verbosity().print_messages() {
             println!(

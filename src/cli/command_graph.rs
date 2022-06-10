@@ -75,6 +75,12 @@ pub fn create_command_graph_subcommand() -> Command<'static> {
                 .help("Do not overwrite any existing files")
                 .conflicts_with("overwrite"),
         )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .help("Print status messages related to command graph creation"),
+        )
 }
 
 /// Runs the actions for the `command_graph` subcommand using the given arguments.
@@ -90,6 +96,7 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types
 
     let include_configuration = arguments.is_present("include-configuration");
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
 
     let mut command_graph = COMMAND_GRAPH.lock().unwrap().clone();
 
@@ -104,7 +111,12 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types
         Dot::with_config(&command_graph, &[Config::EdgeNoLabel])
     );
 
-    if !utils::check_if_write_allowed(&output_file_path, overwrite_mode, protected_file_types) {
+    if !utils::check_if_write_allowed(
+        &output_file_path,
+        overwrite_mode,
+        protected_file_types,
+        &verbosity,
+    ) {
         return;
     }
 

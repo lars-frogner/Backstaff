@@ -4,6 +4,7 @@
 mod statistics;
 
 use crate::{
+    cli::utils as cli_utils,
     grid::{fgr, Grid3},
     io::snapshot::SnapshotProvider3,
     update_command_graph,
@@ -52,6 +53,12 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
             Arg::new("ignore-warnings")
                 .long("ignore-warnings")
                 .help("Automatically continue on warnings"),
+        )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .help("Print status messages related to inspection"),
         );
 
     #[cfg(feature = "statistics")]
@@ -72,6 +79,7 @@ pub fn run_inspect_subcommand<G, P>(
     P: SnapshotProvider3<G>,
 {
     let continue_on_warnings = arguments.is_present("ignore-warnings");
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
 
     let quantity_names =
         super::parse_included_quantity_list(arguments, &provider, continue_on_warnings);
@@ -87,6 +95,7 @@ pub fn run_inspect_subcommand<G, P>(
             provider,
             quantity_names,
             protected_file_types,
+            &verbosity,
         );
     }
     #[cfg(not(feature = "statistics"))]

@@ -121,6 +121,12 @@ pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'s
                     "Make sampled slice values follow the potentially non-uniform underlying grid",
                 ),
         )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .long("verbose")
+                .help("Print status messages related to slicing"),
+        )
         .subcommand(create_poly_fit_interpolator_subcommand(command_name))
 }
 
@@ -181,13 +187,15 @@ pub fn run_slice_subcommand<G, P>(
     }
 
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
 
     let atomic_output_path = exit_on_error!(
         AtomicOutputPath::new(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types) {
+    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
+    {
         return;
     }
 
