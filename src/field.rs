@@ -2938,37 +2938,3 @@ pub fn compute_2d_array_indices_from_flat_idx(shape: &In2D<usize>, idx: usize) -
     let j = idx / shape[Dim2::X];
     Idx2::new(i, j)
 }
-
-#[cfg(test)]
-mod tests {
-
-    use crate::{
-        geometry::{In3D, Vec3},
-        grid::regular::RegularGrid3,
-        io::{snapshot::fdt, Verbosity},
-    };
-
-    use super::CustomScalarFieldGenerator3;
-    use std::sync::Arc;
-
-    #[test]
-    fn scalar_field_generator() {
-        let generator = CustomScalarFieldGenerator3::new(
-            Arc::new(RegularGrid3::from_bounds(
-                In3D::same(4),
-                Vec3::zero(),
-                Vec3::equal_components(1.0),
-                In3D::same(false),
-            )),
-            Verbosity::Messages,
-        )
-        .with_variable(
-            "one".to_string(),
-            field_value_computer!(constant = 1.0; slope = (0.0, 0.0, 1.0); (fdt)),
-        );
-
-        let field = generator.compute_field("one").unwrap();
-
-        dbg!(field.values());
-    }
-}
