@@ -60,12 +60,9 @@ impl RegressionTest {
         }
     }
 
-    pub fn assert_mesh_files_similar(&self) {
+    pub fn assert_mesh_files_equal(&self) {
         if let RegressionTestAction::Compare = CONTEXT.action {
-            common::assert_mesh_files_similar(
-                self.actual_output_path(),
-                self.expected_output_path(),
-            );
+            common::assert_mesh_files_equal(self.actual_output_path(), self.expected_output_path());
         }
     }
 
