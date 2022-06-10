@@ -28,12 +28,10 @@ pub fn create_cell_averaging_subcommand(_parent_command_name: &'static str) -> C
              This method is suited for downsampling. It is faster than weighted sample\n\
              averaging, but slightly less accurate.",
         );
-
-    #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (write, inspect));
-    #[cfg(not(feature = "synthesis"))]
-    let command =
-        add_subcommand_combinations!(command, command_name, true; derive, (write, inspect));
-
-    command
+    add_subcommand_combinations!(
+        command, command_name, true;
+        derive,
+        synthesize if "synthesis",
+        (write, inspect)
+    )
 }

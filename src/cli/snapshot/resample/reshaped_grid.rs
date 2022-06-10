@@ -74,13 +74,12 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
         .subcommand(create_cell_averaging_subcommand(command_name))
         .subcommand(create_direct_sampling_subcommand(command_name));
 
-    #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (write, inspect));
-    #[cfg(not(feature = "synthesis"))]
-    let command =
-        add_subcommand_combinations!(command, command_name, true; derive, (write, inspect));
-
-    command
+    add_subcommand_combinations!(
+        command, command_name, true;
+        derive,
+        synthesize if "synthesis",
+        (write, inspect)
+    )
 }
 
 pub fn run_resampling_for_reshaped_grid<G, P, I>(

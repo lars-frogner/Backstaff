@@ -105,21 +105,12 @@ pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command
                 .hide(true),
         );
 
-    #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (inspect, slice, extract, resample, write));
-    #[cfg(not(feature = "synthesis"))]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, (inspect, slice, extract, resample, write));
-
-    #[cfg(feature = "corks")]
-    let command = command.subcommand(create_corks_subcommand(command_name));
-
-    #[cfg(feature = "tracing")]
-    let command = command.subcommand(create_trace_subcommand(command_name));
-
-    #[cfg(feature = "ebeam")]
-    let command = command.subcommand(create_ebeam_subcommand(command_name));
-
-    command
+    add_subcommand_combinations!(
+        command, command_name, true;
+        derive,
+        synthesize if "synthesis",
+        (inspect, slice, extract, resample, write, corks if "corks", trace if "tracing", ebeam if "ebeam")
+    )
 }
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.

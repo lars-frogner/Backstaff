@@ -35,11 +35,11 @@ pub fn create_direct_sampling_subcommand(_parent_command_name: &'static str) -> 
             "You can use a subcommand to configure the interpolator. If left unspecified,\n\
              the default interpolator implementation and parameters are used.",
         );
-
-    #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, derive, synthesize, (write, inspect));
-    #[cfg(not(feature = "synthesis"))]
-    let command = add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, derive, (write, inspect));
-
-    command
+    add_subcommand_combinations!(
+        command, command_name, true;
+        poly_fit_interpolator,
+        derive,
+        synthesize if "synthesis",
+        (write, inspect)
+    )
 }

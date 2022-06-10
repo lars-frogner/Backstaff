@@ -25,17 +25,18 @@ pub type CommandCreator = fn(&'static str) -> Command<'static>;
 
 #[macro_export]
 macro_rules! add_subcommand_combinations {
-    ($command:expr, $command_name:expr, $subcommand_required:expr; $($child_subcommand_names:tt),+) => {{
+    ($command:expr, $command_name:expr, $subcommand_required:expr; $($child_subcommand_names:tt $(if $cfg_condition:expr)?),+) => {{
         let mut nested_subcommand_names = Vec::new();
         let mut subcommand_creators = Vec::<crate::cli::utils::CommandCreator>::new();
 
         $(
+            $( #[cfg(feature = $cfg_condition)] )*
             add_subcommand_combinations!(
                 @extend nested_subcommand_names,
                 subcommand_creators;
                 $child_subcommand_names
             );
-        )+
+        )*
 
         let subcommand_creator_map = nested_subcommand_names
             .clone()
@@ -52,20 +53,26 @@ macro_rules! add_subcommand_combinations {
             $subcommand_required,
         )
     }};
-    (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; ($($subcommand_name:ident),+)) => {{
+    (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; ($($subcommand_name:ident $(if $cfg_condition:expr)?),+)) => {{
         #[allow(clippy::vec_init_then_push)]
         {
             let mut same_level_subcommand_names = Vec::new();
             $(
-                same_level_subcommand_names.push(stringify!($subcommand_name));
-                $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
+                $( #[cfg(feature = $cfg_condition)] )*
+                {
+                    same_level_subcommand_names.push(stringify!($subcommand_name));
+                    $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
+                }
             )+
             $nested_subcommand_names.push(same_level_subcommand_names);
         }
     }};
-    (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; $subcommand_name:ident) => {{
-        $nested_subcommand_names.push(vec![stringify!($subcommand_name)]);
-        $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
+    (@extend $nested_subcommand_names:expr, $subcommand_creators:expr; $subcommand_name:ident $(if $cfg_condition:expr)?) => {{
+        $( #[cfg(feature = $cfg_condition)] )*
+        {
+            $nested_subcommand_names.push(vec![stringify!($subcommand_name)]);
+            $subcommand_creators.push(paste::paste! {[<create_ $subcommand_name _subcommand>]});
+        }
     }};
 }
 

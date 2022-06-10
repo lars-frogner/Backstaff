@@ -128,12 +128,12 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .help("Print status messages related to extraction"),
         );
 
-    #[cfg(feature = "synthesis")]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, synthesize, (resample, write, inspect));
-    #[cfg(not(feature = "synthesis"))]
-    let command = add_subcommand_combinations!(command, command_name, true; derive, (resample, write, inspect));
-
-    command
+    add_subcommand_combinations!(
+        command, command_name, true;
+        derive,
+        synthesize if "synthesis",
+        (resample, write, inspect)
+    )
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
