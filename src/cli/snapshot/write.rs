@@ -149,7 +149,7 @@ pub fn run_write_subcommand<G, P>(
 
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
     let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let verbose = arguments.is_present("verbose").into();
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
 
     let quantity_names =
         super::parse_included_quantity_list(arguments, &provider, continue_on_warnings);
@@ -168,7 +168,7 @@ pub fn run_write_subcommand<G, P>(
                 write_mesh_file,
                 overwrite_mode,
                 protected_file_types,
-                verbose,
+                &verbosity,
             ),
             #[cfg(feature = "netcdf")]
             OutputType::NetCDF => {
@@ -180,7 +180,7 @@ pub fn run_write_subcommand<G, P>(
                     strip_metadata,
                     overwrite_mode,
                     protected_file_types,
-                    verbose,
+                    &verbosity,
                 )
             }
         },

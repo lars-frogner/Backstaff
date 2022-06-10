@@ -13,10 +13,11 @@ use crate::{
     },
     grid::{fgr, regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3, GridPointQuery3},
     interpolation::Interpolator3,
-    io::Verbose,
+    io::Verbosity,
     num::{BFloat, KeyValueOrderableByValue},
 };
 use ieee754::Ieee754;
+use indicatif::ParallelProgressIterator;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use std::{
@@ -154,7 +155,7 @@ impl<T> CachedField<T> {
 pub struct ScalarFieldCacher3<F, G, P> {
     provider: P,
     max_memory_usage_fraction: f32,
-    verbose: Verbose,
+    verbosity: Verbosity,
     system: System,
     scalar_fields: HashMap<String, CachedField<ScalarField3<F, G>>>,
     vector_fields: HashMap<String, Arc<VectorField3<F, G>>>,
@@ -168,17 +169,17 @@ where
     P: ScalarFieldProvider3<F, G>,
 {
     /// Creates a new snapshot cacher from the given provider.
-    pub fn new_manual_cacher(provider: P, verbose: Verbose) -> Self {
-        Self::new_automatic_cacher(provider, 0.0, verbose)
+    pub fn new_manual_cacher(provider: P, verbosity: Verbosity) -> Self {
+        Self::new_automatic_cacher(provider, 0.0, verbosity)
     }
 
     /// Creates a new snapshot cacher from the given provider.
-    pub fn new_automatic_cacher(provider: P, max_memory_usage: f32, verbose: Verbose) -> Self {
+    pub fn new_automatic_cacher(provider: P, max_memory_usage: f32, verbosity: Verbosity) -> Self {
         assert!(max_memory_usage >= 0.0);
         Self {
             provider,
             max_memory_usage_fraction: max_memory_usage * 1e-2,
-            verbose,
+            verbosity,
             system: System::new_with_specifics(RefreshKind::new().with_memory()),
             scalar_fields: HashMap::new(),
             vector_fields: HashMap::new(),
@@ -250,7 +251,7 @@ where
         let (field, variable_to_replace) = match self.scalar_fields.entry(variable_name.to_string())
         {
             Entry::Occupied(entry) => {
-                if self.verbose.is_yes() {
+                if self.verbosity.print_messages() {
                     println!("Using cached {}", variable_name);
                 }
                 (Arc::clone(entry.into_mut().field()), None)
@@ -272,7 +273,9 @@ where
                         Some((least_requested_variable, least_requested_count))
                             if request_count > least_requested_count =>
                         {
-                            if self.verbose.is_yes() && self.max_memory_usage_fraction > 0.0 {
+                            if self.verbosity.print_messages()
+                                && self.max_memory_usage_fraction > 0.0
+                            {
                                 println!(
                                     "Replacing {} with {} in cache ({:.0}% of {:.1} GB memory in use)",
                                     &least_requested_variable,
@@ -284,7 +287,9 @@ where
                             (field, Some(least_requested_variable))
                         }
                         _ => {
-                            if self.verbose.is_yes() && self.max_memory_usage_fraction > 0.0 {
+                            if self.verbosity.print_messages()
+                                && self.max_memory_usage_fraction > 0.0
+                            {
                                 println!(
                                     "Not caching {} ({:.0}% of {:.1} GB memory in use)",
                                     variable_name,
@@ -296,7 +301,7 @@ where
                         }
                     }
                 } else {
-                    if self.verbose.is_yes() {
+                    if self.verbosity.print_messages() {
                         println!("Caching {}", variable_name);
                     }
                     (
@@ -313,7 +318,7 @@ where
         if let Some(variable_to_replace) = variable_to_replace {
             self.drop_scalar_field(&variable_to_replace);
 
-            if self.verbose.is_yes() {
+            if self.verbosity.print_messages() {
                 println!("Caching {}", variable_name);
             }
             self.scalar_fields.insert(
@@ -342,7 +347,7 @@ where
     fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
         if !self.scalar_field_is_cached(variable_name) {
             let field = self.provider.provide_scalar_field(variable_name)?;
-            if self.verbose.is_yes() {
+            if self.verbosity.print_messages() {
                 println!("Caching {}", variable_name);
             }
             self.scalar_fields.insert(
@@ -356,7 +361,7 @@ where
     fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
         if !self.vector_field_is_cached(variable_name) {
             let field = self.provider.provide_vector_field(variable_name)?;
-            if self.verbose.is_yes() {
+            if self.verbosity.print_messages() {
                 println!("Caching {}", variable_name);
             }
             self.vector_fields.insert(variable_name.to_string(), field);
@@ -370,7 +375,7 @@ where
             .get(variable_name)
             .expect("Scalar field is not cached")
             .field();
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Using cached {}", variable_name);
         }
         field
@@ -381,7 +386,7 @@ where
             .vector_fields
             .get(variable_name)
             .expect("Vector field is not cached");
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Using cached {}", variable_name);
         }
         field
@@ -389,7 +394,7 @@ where
 
     fn drop_scalar_field(&mut self, variable_name: &str) {
         if self.scalar_field_is_cached(variable_name) {
-            if self.verbose.is_yes() {
+            if self.verbosity.print_messages() {
                 println!("Dropping {} from cache", variable_name);
             }
             self.scalar_fields.remove(variable_name);
@@ -398,7 +403,7 @@ where
 
     fn drop_vector_field(&mut self, variable_name: &str) {
         if self.vector_field_is_cached(variable_name) {
-            if self.verbose.is_yes() {
+            if self.verbosity.print_messages() {
                 println!("Dropping {} from cache", variable_name);
             }
             self.vector_fields.remove(variable_name);
@@ -406,7 +411,7 @@ where
     }
 
     fn drop_all_fields(&mut self) {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Dropping cache");
         }
         self.scalar_fields.clear();
@@ -421,7 +426,7 @@ pub type FieldValueComputer<F> = Box<dyn Fn(fgr, fgr, fgr) -> F + Sync>;
 pub struct CustomScalarFieldGenerator3<F, G> {
     grid: Arc<G>,
     variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
-    verbose: Verbose,
+    verbosity: Verbosity,
 }
 
 impl<F, G> CustomScalarFieldGenerator3<F, G>
@@ -438,17 +443,17 @@ where
     pub fn new_with_variables(
         grid: Arc<G>,
         variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
-        verbose: Verbose,
+        verbosity: Verbosity,
     ) -> Self {
         Self {
             grid,
             variable_computers,
-            verbose,
+            verbosity,
         }
     }
 
-    pub fn new(grid: Arc<G>, verbose: Verbose) -> Self {
-        Self::new_with_variables(grid, HashMap::new(), verbose)
+    pub fn new(grid: Arc<G>, verbosity: Verbosity) -> Self {
+        Self::new_with_variables(grid, HashMap::new(), verbosity)
     }
 
     /// Adds a new cell-centered variable with the given computation closure,
@@ -477,7 +482,7 @@ where
     fn compute_field(&self, variable_name: &str) -> io::Result<ScalarField3<F, G>> {
         let variable_name = variable_name.to_string();
 
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Computing {}", &variable_name);
         }
 
@@ -789,6 +794,7 @@ where
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         method: ResamplingMethod,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -799,13 +805,17 @@ where
                 grid,
                 resampled_locations,
                 interpolator,
+                verbosity,
             ),
             ResamplingMethod::CellAveraging => {
-                self.resampled_to_grid_with_cell_averaging(grid, resampled_locations)
+                self.resampled_to_grid_with_cell_averaging(grid, resampled_locations, verbosity)
             }
-            ResamplingMethod::DirectSampling => {
-                self.resampled_to_grid_with_direct_sampling(grid, resampled_locations, interpolator)
-            }
+            ResamplingMethod::DirectSampling => self.resampled_to_grid_with_direct_sampling(
+                grid,
+                resampled_locations,
+                interpolator,
+                verbosity,
+            ),
         }
     }
 
@@ -821,6 +831,7 @@ where
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         method: ResamplingMethod,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -834,12 +845,14 @@ where
                     transformation,
                     resampled_locations,
                     interpolator,
+                    verbosity,
                 ),
             ResamplingMethod::CellAveraging => self
                 .resampled_to_transformed_grid_with_cell_averaging(
                     grid,
                     transformation,
                     resampled_locations,
+                    verbosity,
                 ),
             ResamplingMethod::DirectSampling => self
                 .resampled_to_transformed_grid_with_direct_sampling(
@@ -847,6 +860,7 @@ where
                     transformation,
                     resampled_locations,
                     interpolator,
+                    verbosity,
                 ),
         }
     }
@@ -865,6 +879,7 @@ where
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -875,9 +890,13 @@ where
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
+        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer.par_iter_mut().enumerate().for_each(
-            |(overlying_idx, overlying_value)| {
+        overlying_values_buffer
+            .par_iter_mut()
+            .enumerate()
+            .progress_with(verbosity.create_progress_bar(n_overlying_values))
+            .for_each(|(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -970,8 +989,7 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            },
-        );
+            });
         let overlying_values = unsafe { overlying_values.assume_init() };
 
         ScalarField3::new(
@@ -999,6 +1017,7 @@ where
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -1012,9 +1031,13 @@ where
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
+        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer.par_iter_mut().enumerate().for_each(
-            |(overlying_idx, overlying_value)| {
+        overlying_values_buffer
+            .par_iter_mut()
+            .enumerate()
+            .progress_with(verbosity.create_progress_bar(n_overlying_values))
+            .for_each(|(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -1154,8 +1177,7 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            },
-        );
+            });
         let overlying_values = unsafe { overlying_values.assume_init() };
 
         ScalarField3::new(
@@ -1177,15 +1199,20 @@ where
         &self,
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H> {
         let overlying_grid = grid;
         let overlying_locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
+        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer.par_iter_mut().enumerate().for_each(
-            |(overlying_idx, overlying_value)| {
+        overlying_values_buffer
+            .par_iter_mut()
+            .enumerate()
+            .progress_with(verbosity.create_progress_bar(n_overlying_values))
+            .for_each(|(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -1258,8 +1285,7 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            },
-        );
+            });
         let overlying_values = unsafe { overlying_values.assume_init() };
         ScalarField3::new(
             self.name.clone(),
@@ -1283,6 +1309,7 @@ where
         grid: Arc<H>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -1295,9 +1322,13 @@ where
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
+        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer.par_iter_mut().enumerate().for_each(
-            |(overlying_idx, overlying_value)| {
+        overlying_values_buffer
+            .par_iter_mut()
+            .enumerate()
+            .progress_with(verbosity.create_progress_bar(n_overlying_values))
+            .for_each(|(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -1416,8 +1447,7 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            },
-        );
+            });
         let overlying_values = unsafe { overlying_values.assume_init() };
         ScalarField3::new(
             self.name.clone(),
@@ -1439,6 +1469,7 @@ where
         grid: Arc<H>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -1451,10 +1482,12 @@ where
         let grid_shape = grid.shape();
         let mut new_values = Array3::uninit(grid_shape.to_tuple().f());
         let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
+        let n_values = values_buffer.len();
 
         values_buffer
             .par_iter_mut()
             .enumerate()
+            .progress_with(verbosity.create_progress_bar(n_values))
             .for_each(|(idx, value)| {
                 let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = new_coords.point(&indices);
@@ -1486,6 +1519,7 @@ where
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
+        verbosity: &Verbosity,
     ) -> ScalarField3<F, H>
     where
         H: Grid3<fgr>,
@@ -1499,10 +1533,12 @@ where
         let grid_shape = grid.shape();
         let mut new_values = Array3::uninit(grid_shape.to_tuple().f());
         let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
+        let n_values = values_buffer.len();
 
         values_buffer
             .par_iter_mut()
             .enumerate()
+            .progress_with(verbosity.create_progress_bar(n_values))
             .for_each(|(idx, value)| {
                 let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = new_coords.point(&indices);
@@ -2181,6 +2217,7 @@ where
         &self,
         grid: Arc<H>,
         interpolator: &I,
+        verbosity: &Verbosity,
     ) -> VectorField3<F, H>
     where
         H: Grid3<fgr>,
@@ -2191,6 +2228,7 @@ where
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
+                verbosity,
             )
         });
         VectorField3::new(self.name.clone(), grid, components)
@@ -2206,11 +2244,13 @@ where
     pub fn resampled_to_grid_with_cell_averaging<H: Grid3<fgr>>(
         &self,
         grid: Arc<H>,
+        verbosity: &Verbosity,
     ) -> VectorField3<F, H> {
         let components = In3D::with_each_component(|dim| {
             self.components[dim].resampled_to_grid_with_cell_averaging(
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
+                verbosity,
             )
         });
         VectorField3::new(self.name.clone(), grid, components)
@@ -2227,6 +2267,7 @@ where
         &self,
         grid: Arc<H>,
         interpolator: &I,
+        verbosity: &Verbosity,
     ) -> VectorField3<F, H>
     where
         H: Grid3<fgr>,
@@ -2237,6 +2278,7 @@ where
                 Arc::clone(&grid),
                 In3D::same(ResampledCoordLocation::Original),
                 interpolator,
+                verbosity,
             )
         });
         VectorField3::new(self.name.clone(), grid, components)
@@ -2903,7 +2945,7 @@ mod tests {
     use crate::{
         geometry::{In3D, Vec3},
         grid::regular::RegularGrid3,
-        io::{snapshot::fdt, Verbose},
+        io::{snapshot::fdt, Verbosity},
     };
 
     use super::CustomScalarFieldGenerator3;
@@ -2918,7 +2960,7 @@ mod tests {
                 Vec3::equal_components(1.0),
                 In3D::same(false),
             )),
-            Verbose::Yes,
+            Verbosity::Messages,
         )
         .with_variable(
             "one".to_string(),

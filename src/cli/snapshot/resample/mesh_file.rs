@@ -27,7 +27,7 @@ use crate::{
             native::{self, NativeGridData},
             SnapshotProvider3,
         },
-        Verbose,
+        Verbosity,
     },
     update_command_graph,
 };
@@ -106,7 +106,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -130,7 +130,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         up_derivatives,
         down_derivatives,
     } = exit_on_error!(
-        native::parse_mesh_file(&mesh_file_path, verbose),
+        native::parse_mesh_file(&mesh_file_path, &verbosity),
         "Error: Could not parse mesh file: {}"
     );
 
@@ -182,7 +182,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                verbose,
+                verbosity,
                 interpolator,
                 protected_file_types,
             );
@@ -204,7 +204,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                verbose,
+                verbosity,
                 interpolator,
                 protected_file_types,
             );

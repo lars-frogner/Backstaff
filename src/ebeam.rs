@@ -17,7 +17,7 @@ use crate::{
     },
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::{snapshot::fdt, utils, Verbose},
+    io::{snapshot::fdt, utils, Verbosity},
     num::BFloat,
     tracing::{
         self,
@@ -27,6 +27,7 @@ use crate::{
         TracerResult,
     },
 };
+use indicatif::ParallelProgressIterator;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use std::{
@@ -99,7 +100,7 @@ pub struct ElectronBeamSwarm<A: Accelerator> {
     upper_bounds: Vec3<ftr>,
     properties: ElectronBeamSwarmProperties,
     acceleration_data: A::AccelerationDataCollectionType,
-    verbose: Verbose,
+    verbosity: Verbosity,
 }
 
 #[derive(Clone, Debug)]
@@ -317,7 +318,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `accelerator`: Accelerator to use for generating electron distributions.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper_factory`: Factory structure to use for producing steppers.
-    /// - `verbose`: Whether to print status messages.
+    /// - `verbosity`: Whether and how to pass non-essential information to user.
     ///
     /// # Returns
     ///
@@ -330,7 +331,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_unpropagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
     where G: Grid3<fgr>,
           P: CachingScalarFieldProvider3<fdt, G>,
           D: ReconnectionSiteDetector,
@@ -341,7 +342,13 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
-            .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
+            .generate_distributions(
+                snapshot,
+                detector,
+                interpolator,
+                stepper_factory,
+                &verbosity,
+            )
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         let properties: ElectronBeamSwarmProperties = distributions
@@ -357,7 +364,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             upper_bounds,
             properties,
             acceleration_data,
-            verbose,
+            verbosity,
         }
     }
 
@@ -371,7 +378,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `accelerator`: Accelerator to use for generating initial electron distributions.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper_factory`: Factory structure to use for producing steppers.
-    /// - `verbose`: Whether to print status messages.
+    /// - `verbosity`: Whether and how to pass non-essential information to user.
     ///
     /// # Returns
     ///
@@ -384,7 +391,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbose: Verbose) -> Self
+    pub fn generate_propagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
     where G: Grid3<fgr>,
           P: CachingScalarFieldProvider3<fdt, G>,
           D: ReconnectionSiteDetector,
@@ -395,7 +402,13 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
-            .generate_distributions(snapshot, detector, interpolator, stepper_factory, verbose)
+            .generate_distributions(
+                snapshot,
+                detector,
+                interpolator,
+                stepper_factory,
+                &verbosity,
+            )
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         let mut acceleration_map = Array::from_elem(snapshot.grid().shape().to_tuple(), false);
@@ -405,15 +418,17 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             acceleration_map[(indices[X], indices[Y], indices[Z])] = true;
         }
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!(
                 "Attempting to propagate {} electron beams",
                 distributions.len()
             );
         }
+        let number_of_beams = distributions.len();
 
         let properties: ElectronBeamSwarmProperties = distributions
             .into_par_iter()
+            .progress_with(verbosity.create_progress_bar(number_of_beams))
             .filter_map(|distribution| {
                 PropagatedElectronBeam::<A::DistributionType>::generate(
                     distribution,
@@ -425,7 +440,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             })
             .collect();
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!(
                 "Successfully propagated {} electron beams",
                 properties.number_of_beams
@@ -440,13 +455,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             upper_bounds,
             properties,
             acceleration_data,
-            verbose,
+            verbosity,
         }
     }
 
-    /// Whether the electron beam swarm is verbose.
-    pub fn verbose(&self) -> Verbose {
-        self.verbose
+    pub fn verbosity(&self) -> &Verbosity {
+        &self.verbosity
     }
 
     /// Returns the number of beams making up the electron beam set.
@@ -471,14 +485,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} at acceleration sites", field.name());
         }
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
+        let number_of_beams = self.number_of_beams();
         let values = initial_coords_x
             .into_par_iter()
+            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&beam_x0, &beam_y0), &beam_z0)| {
@@ -501,14 +517,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} at acceleration sites", field.name());
         }
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
+        let number_of_beams = self.number_of_beams();
         let vectors = initial_coords_x
             .into_par_iter()
+            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&beam_x0, &beam_y0), &beam_z0)| {
@@ -531,14 +549,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} along beam trajectories", field.name());
         }
         let coords_x = &self.properties.varying_scalar_values["x"];
         let coords_y = &self.properties.varying_scalar_values["y"];
         let coords_z = &self.properties.varying_scalar_values["z"];
+        let number_of_beams = self.number_of_beams();
         let values = coords_x
             .into_par_iter()
+            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(coords_y)
             .zip(coords_z)
             .map(|((beam_coords_x, beam_coords_y), beam_coords_z)| {
@@ -568,14 +588,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} along beam trajectories", field.name());
         }
         let coords_x = &self.properties.varying_scalar_values["x"];
         let coords_y = &self.properties.varying_scalar_values["y"];
         let coords_z = &self.properties.varying_scalar_values["z"];
+        let number_of_beams = self.number_of_beams();
         let vectors = coords_x
             .into_par_iter()
+            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(coords_y)
             .zip(coords_z)
             .map(|((beam_coords_x, beam_coords_y), beam_coords_z)| {

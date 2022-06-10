@@ -7,7 +7,7 @@ use crate::{
     field::CachingScalarFieldProvider3,
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::{snapshot::fdt, Verbose},
+    io::{snapshot::fdt, Verbosity},
     tracing::stepping::StepperFactory3,
 };
 use std::io;
@@ -25,7 +25,7 @@ pub trait Accelerator {
         detector: D,
         interpolator: &I,
         stepper_factory: &StF,
-        verbose: Verbose,
+        verbosity: &Verbosity,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
         Self::AccelerationDataCollectionType,

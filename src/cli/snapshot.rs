@@ -25,7 +25,7 @@ use crate::{
     grid::{fgr, Grid3},
     io::{
         snapshot::{self, utils::SnapshotInputType, CachingSnapshotProvider3, SnapshotProvider3},
-        Endianness,
+        Endianness, Verbosity,
     },
     update_command_graph, with_new_snapshot_reader,
 };
@@ -187,7 +187,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
         invalid => exit_with_error!("Error: Invalid endianness {}", invalid),
     };
 
-    let verbose = arguments.is_present("verbose").into();
+    let verbosity: Verbosity = cli_utils::parse_verbosity(arguments, false);
 
     let force_hor_regular = arguments.is_present("force-horizontally-regular");
 
@@ -196,7 +196,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, protected_file_types: &[&
             with_new_snapshot_reader!(
                 file_path,
                 endianness,
-                verbose,
+                verbosity.clone(),
                 force_hor_regular,
                 |reader| {
                     run_snapshot_subcommand_with_derive(

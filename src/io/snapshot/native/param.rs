@@ -1,7 +1,7 @@
 //! Utilities for parameter files in native format.
 
 use super::super::{
-    super::{utils, Verbose},
+    super::{utils, Verbosity},
     MapOfSnapshotParameters, ParameterValue, SnapshotParameters,
 };
 use crate::geometry::In3D;
@@ -28,10 +28,10 @@ pub struct NativeSnapshotParameters {
 }
 
 impl NativeSnapshotParameters {
-    pub fn new(param_file_path: PathBuf, verbose: Verbose) -> io::Result<Self> {
+    pub fn new(param_file_path: PathBuf, verbosity: &Verbosity) -> io::Result<Self> {
         let file_text = ParameterFile::new(&param_file_path)?;
         let original_path = param_file_path;
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!(
                 "Reading parameters from {}",
                 original_path.file_name().unwrap().to_string_lossy()

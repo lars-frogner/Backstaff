@@ -22,7 +22,7 @@ use crate::{
     },
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::{snapshot::SnapshotProvider3, Verbose},
+    io::{snapshot::SnapshotProvider3, Verbosity},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -147,7 +147,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -234,7 +234,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
 
     let shape = super::compute_scaled_grid_shape(&unscaled_shape, &scales);
 
-    if verbose.is_yes() {
+    if verbosity.print_messages() {
         let hor_bound_polygon =
             SimplePolygon2::rectangle_from_horizontal_bounds(&new_lower_bounds, &new_upper_bounds)
                 .transformed(&transformation);
@@ -263,7 +263,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
         resampling_method,
         transformation,
         continue_on_warnings,
-        verbose,
+        verbosity,
         interpolator,
         protected_file_types,
     );

@@ -6,7 +6,7 @@ mod param;
 use super::{
     super::{
         utils::{self, AtomicOutputPath},
-        Endianness, OverwriteMode, Verbose,
+        Endianness, OverwriteMode, Verbosity,
     },
     fdt, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES, FALLBACK_SNAP_NUM,
 };
@@ -37,8 +37,8 @@ pub use param::{read_netcdf_snapshot_parameters, NetCDFSnapshotParameters};
 pub struct NetCDFSnapshotReaderConfig {
     /// Path to the file.
     file_path: PathBuf,
-    /// Whether to print status messages while reading fields.
-    verbose: Verbose,
+    /// Whether and how to pass non-essential information to user while reading fields.
+    verbosity: Verbosity,
 }
 
 /// Reader for NetCDF files associated with Bifrost 3D simulation snapshots.
@@ -57,10 +57,10 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
     pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
         let file = open_file(&config.file_path)?;
 
-        let parameters = read_netcdf_snapshot_parameters(&file, config.verbose())?;
+        let parameters = read_netcdf_snapshot_parameters(&file, config.verbosity())?;
 
         let is_periodic = parameters.determine_grid_periodicity()?;
-        let (grid, endianness) = mesh::read_grid::<G>(&file, is_periodic, config.verbose())?;
+        let (grid, endianness) = mesh::read_grid::<G>(&file, is_periodic, config.verbosity())?;
 
         Ok(Self::new_from_parameters_and_grid(
             config, file, parameters, grid, endianness,
@@ -72,9 +72,8 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
         self.config.file_path()
     }
 
-    /// Whether the reader is verbose.
-    pub fn verbose(&self) -> Verbose {
-        self.config.verbose
+    pub fn verbosity(&self) -> &Verbosity {
+        self.config.verbosity()
     }
 
     /// Creates a reader for a 3D Bifrost snapshot.
@@ -159,7 +158,7 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
 
 impl<G: Grid3<fgr>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
     fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
-        if self.config.verbose.is_yes() {
+        if self.config.verbosity.print_messages() {
             println!(
                 "Reading {} from {}",
                 variable_name,
@@ -209,11 +208,11 @@ impl NetCDFSnapshotMetadata {
             "Could not open NetCDF file: {}"
         )?;
         let parameters = with_io_err_msg!(
-            read_netcdf_snapshot_parameters(&file, reader_config.verbose()),
+            read_netcdf_snapshot_parameters(&file, reader_config.verbosity()),
             "Could not read snapshot parameters from NetCDF file: {}"
         )?;
         let grid_data = with_io_err_msg!(
-            read_grid_data(&file, reader_config.verbose()),
+            read_grid_data(&file, reader_config.verbosity()),
             "Could not read grid data from NetCDF file: {}"
         )?;
         let is_periodic = with_io_err_msg!(
@@ -292,12 +291,15 @@ impl NetCDFSnapshotMetadata {
 
 impl NetCDFSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new(file_path: PathBuf, verbose: Verbose) -> Self {
-        NetCDFSnapshotReaderConfig { file_path, verbose }
+    pub fn new(file_path: PathBuf, verbosity: Verbosity) -> Self {
+        NetCDFSnapshotReaderConfig {
+            file_path,
+            verbosity,
+        }
     }
 
-    pub fn verbose(&self) -> Verbose {
-        self.verbose
+    pub fn verbosity(&self) -> &Verbosity {
+        &self.verbosity
     }
 
     pub fn file_path(&self) -> &Path {
@@ -309,7 +311,7 @@ impl NetCDFSnapshotReaderConfig {
 pub fn write_new_snapshot<G, P>(
     provider: &mut P,
     output_file_path: &Path,
-    verbose: Verbose,
+    verbosity: &Verbosity,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,
@@ -323,7 +325,7 @@ where
         false,
         OverwriteMode::Always,
         &[],
-        verbose,
+        verbosity,
     )
 }
 
@@ -335,7 +337,7 @@ pub fn write_modified_snapshot<G, P>(
     strip_metadata: bool,
     overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
-    verbose: Verbose,
+    verbosity: &Verbosity,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,
@@ -369,20 +371,20 @@ where
     );
 
     if !strip_metadata {
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!("Writing parameters to {}", output_file_name);
         }
         param::write_snapshot_parameters(&mut root_group, &new_parameters)?;
     }
 
-    if verbose.is_yes() {
+    if verbosity.print_messages() {
         println!("Writing grid to {}", output_file_name);
     }
     mesh::write_grid(&mut root_group, provider.grid(), strip_metadata)?;
 
     for name in quantity_names {
         let field = provider.provide_scalar_field(name)?;
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!("Writing {} to {}", name, output_file_name);
         }
         write_3d_scalar_field(&mut root_group, &field)?;

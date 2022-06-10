@@ -1,6 +1,6 @@
 //! Utilities for mesh files in native format.
 
-use super::super::{super::utils, Verbose};
+use super::super::{super::utils, Verbosity};
 use crate::{
     geometry::{
         Coords3,
@@ -30,7 +30,7 @@ pub struct NativeGridData {
 ///
 /// - `mesh_path`: Path of the mesh file.
 /// - `is_periodic`: Specifies for each dimension whether the grid is periodic.
-/// - `verbose`: Whether to print status messages while reading grid data.
+/// - `verbosity`: Whether and how to pass non-essential information to user while reading grid data.
 ///
 /// # Returns
 ///
@@ -46,7 +46,7 @@ pub struct NativeGridData {
 pub fn create_grid_from_mesh_file<G>(
     mesh_path: &Path,
     is_periodic: In3D<bool>,
-    verbose: Verbose,
+    verbosity: &Verbosity,
 ) -> io::Result<G>
 where
     G: Grid3<fgr>,
@@ -57,7 +57,7 @@ where
         lower_edge_coords,
         up_derivatives,
         down_derivatives,
-    } = parse_mesh_file(mesh_path, verbose)?;
+    } = parse_mesh_file(mesh_path, verbosity)?;
 
     if detected_grid_type != G::TYPE {
         return Err(io::Error::new(
@@ -130,9 +130,9 @@ where
 }
 
 /// Parses the mesh file at the given path and returns relevant data.
-pub fn parse_mesh_file(mesh_path: &Path, verbose: Verbose) -> io::Result<NativeGridData> {
+pub fn parse_mesh_file(mesh_path: &Path, verbosity: &Verbosity) -> io::Result<NativeGridData> {
     let file = utils::open_file_and_map_err(&mesh_path)?;
-    if verbose.is_yes() {
+    if verbosity.print_messages() {
         println!(
             "Reading grid from {}",
             mesh_path.file_name().unwrap().to_string_lossy()
@@ -238,8 +238,11 @@ pub fn parse_mesh_file(mesh_path: &Path, verbose: Verbose) -> io::Result<NativeG
         down_derivative_vecs.pop_front().unwrap(),
     );
 
-    let detected_grid_type =
-        grid::verify_coordinate_arrays(&center_coords, &lower_edge_coords, verbose.is_yes())?;
+    let detected_grid_type = grid::verify_coordinate_arrays(
+        &center_coords,
+        &lower_edge_coords,
+        verbosity.print_messages(),
+    )?;
 
     Ok(NativeGridData {
         detected_grid_type,
@@ -256,13 +259,13 @@ pub fn parse_mesh_file(mesh_path: &Path, verbose: Verbose) -> io::Result<NativeG
 pub fn parsed_mesh_files_eq(
     mesh_path_1: &Path,
     mesh_path_2: &Path,
-    verbose: Verbose,
+    verbosity: &Verbosity,
     epsilon: fgr,
     max_relative: fgr,
 ) -> io::Result<bool> {
     match (
-        parse_mesh_file(mesh_path_1, verbose),
-        parse_mesh_file(mesh_path_2, verbose),
+        parse_mesh_file(mesh_path_1, verbosity),
+        parse_mesh_file(mesh_path_2, verbosity),
     ) {
         (Ok(gd_1), Ok(gd_2)) => {
             Ok(gd_1

@@ -40,7 +40,7 @@ use crate::{
     },
     io::{
         snapshot::{CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
-        Verbose,
+        Verbosity,
     },
     update_command_graph,
 };
@@ -84,6 +84,12 @@ pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command
                 .long("verbose")
                 .help("Print status messages related to resampling"),
         )
+        .arg(
+            Arg::new("progress")
+                .short('p')
+                .long("progress")
+                .help("Show progress bar for resampling (also implies `verbose`)"),
+        )
         .subcommand(create_regular_grid_subcommand(command_name))
         .subcommand(create_rotated_regular_grid_subcommand(command_name))
         .subcommand(create_reshaped_grid_subcommand(command_name))
@@ -117,7 +123,8 @@ pub fn run_resample_subcommand<G, P>(
     };
 
     let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let verbose = arguments.is_present("verbose").into();
+
+    let verbosity = cli_utils::parse_verbosity(arguments, true);
 
     let (resample_grid_type, default_method, grid_type_arguments) =
         if let Some(regular_grid_arguments) = arguments.subcommand_matches("regular_grid") {
@@ -159,7 +166,7 @@ pub fn run_resample_subcommand<G, P>(
         default_method,
         &resampled_locations,
         continue_on_warnings,
-        verbose,
+        verbosity,
         protected_file_types,
     );
 }
@@ -172,7 +179,7 @@ fn run_with_selected_method<G, P>(
     default_method: ResamplingMethod,
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fgr>,
@@ -204,7 +211,7 @@ fn run_with_selected_method<G, P>(
         resampling_method,
         has_interpolator_subcommand,
         continue_on_warnings,
-        verbose,
+        verbosity,
         protected_file_types,
     )
 }
@@ -219,7 +226,7 @@ fn run_with_selected_interpolator<G, P>(
     resampling_method: ResamplingMethod,
     has_interpolator_subcommand: bool,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     protected_file_types: &[&str],
 ) where
     G: Grid3<fgr>,
@@ -249,7 +256,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            verbose,
+            verbosity,
             interpolator,
             protected_file_types,
         ),
@@ -261,7 +268,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            verbose,
+            verbosity,
             interpolator,
             protected_file_types,
         ),
@@ -273,7 +280,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            verbose,
+            verbosity,
             interpolator,
             protected_file_types,
         ),
@@ -285,7 +292,7 @@ fn run_with_selected_interpolator<G, P>(
             resampled_locations,
             resampling_method,
             continue_on_warnings,
-            verbose,
+            verbosity,
             interpolator,
             protected_file_types,
         ),
@@ -300,7 +307,7 @@ fn resample_to_reshaped_grid<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -328,7 +335,7 @@ fn resample_to_reshaped_grid<G, P, I>(
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                verbose,
+                verbosity,
                 interpolator,
                 protected_file_types,
             );
@@ -350,7 +357,7 @@ fn resample_to_reshaped_grid<G, P, I>(
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
-                verbose,
+                verbosity,
                 interpolator,
                 protected_file_types,
             );
@@ -367,7 +374,7 @@ fn resample_to_regular_grid<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -397,7 +404,7 @@ fn resample_to_regular_grid<G, P, I>(
         IdentityTransformation2::new(),
         resampled_locations,
         resampling_method,
-        verbose,
+        verbosity,
         interpolator,
         protected_file_types,
     );
@@ -412,7 +419,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -510,7 +517,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         IdentityTransformation2::new(),
         resampled_locations,
         resampling_method,
-        verbose,
+        verbosity,
         interpolator,
         protected_file_types,
     );
@@ -525,7 +532,7 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     resampling_method: ResamplingMethod,
     transformation: T,
     _continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -545,7 +552,7 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
         transformation,
         resampled_locations,
         resampling_method,
-        verbose,
+        verbosity,
         interpolator,
         protected_file_types,
     );
@@ -655,7 +662,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     transformation: T,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -677,7 +684,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
         resampled_locations.clone(),
         interpolator,
         resampling_method,
-        verbose,
+        verbosity,
     );
 
     run_snapshot_resampling_with_derive(

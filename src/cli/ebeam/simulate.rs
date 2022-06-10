@@ -195,10 +195,16 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
                 .help("Print status messages while simulating electron beams"),
         )
         .arg(
-            Arg::new("print-parameter-values")
+            Arg::new("progress")
                 .short('p')
+                .long("progress")
+                .help("Show progress bar for simulation (also implies `verbose`)"),
+        )
+        .arg(
+            Arg::new("print-parameter-values")
                 .long("print-parameter-values")
-                .help("Prints the values of all the parameters that will be used"),
+                .help("Prints the values of all the parameters that will be used")
+                .hide(true),
         )
         .subcommand(create_simple_reconnection_site_detector_subcommand(
             command_name,
@@ -222,8 +228,8 @@ pub fn run_simulate_subcommand<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let verbose = arguments.is_present("verbose").into();
-    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
+    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
     run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
@@ -582,7 +588,7 @@ where G: Grid3<fgr>,
         _ => None,
     };
 
-    let verbose = root_arguments.is_present("verbose").into();
+    let verbosity = cli_utils::parse_verbosity(root_arguments, true);
     let beams = match stepper_type {
         RKFStepperType::RKF23 => {
             let stepper_factory = RKF23StepperFactory3::new(stepper_config);
@@ -593,7 +599,7 @@ where G: Grid3<fgr>,
                     accelerator,
                     &interpolator,
                     &stepper_factory,
-                    verbose,
+                    verbosity,
                 )
             } else {
                 ElectronBeamSwarm::generate_propagated(
@@ -602,7 +608,7 @@ where G: Grid3<fgr>,
                     accelerator,
                     &interpolator,
                     &stepper_factory,
-                    verbose,
+                    verbosity,
                 )
             }
         }
@@ -615,7 +621,7 @@ where G: Grid3<fgr>,
                     accelerator,
                     &interpolator,
                     &stepper_factory,
-                    verbose,
+                    verbosity,
                 )
             } else {
                 ElectronBeamSwarm::generate_propagated(
@@ -624,7 +630,7 @@ where G: Grid3<fgr>,
                     accelerator,
                     &interpolator,
                     &stepper_factory,
-                    verbose,
+                    verbosity,
                 )
             }
         }
@@ -719,7 +725,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
         }
     }
 
-    if beams.verbose().is_yes() {
+    if beams.verbosity().print_messages() {
         println!(
             "Saving beams in {}",
             atomic_output_path

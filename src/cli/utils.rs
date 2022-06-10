@@ -6,13 +6,20 @@ use crate::{
     grid::{fgr, Grid3},
     io::{
         snapshot::{fpa, SnapshotParameters, SnapshotProvider3},
-        utils as io_utils, OverwriteMode,
+        utils as io_utils, OverwriteMode, Verbosity,
     },
     num::BFloat,
 };
 use clap::{self, ArgMatches, Command};
+use indicatif::ProgressStyle;
+use lazy_static::lazy_static;
 use num;
 use std::{collections::HashMap, process, str::FromStr};
+
+lazy_static! {
+    static ref DEFAULT_PROGRESS_STYLE: ProgressStyle =
+        ProgressStyle::default_bar().template("Progress: {bar:40}  {percent}% | ETA: {eta}");
+}
 
 pub type CommandCreator = fn(&'static str) -> Command<'static>;
 
@@ -753,5 +760,15 @@ pub fn overwrite_mode_from_arguments(arguments: &ArgMatches) -> OverwriteMode {
         OverwriteMode::Never
     } else {
         OverwriteMode::Ask
+    }
+}
+
+pub fn parse_verbosity(arguments: &ArgMatches, support_progress: bool) -> Verbosity {
+    if support_progress && arguments.is_present("progress") {
+        Verbosity::Progress(DEFAULT_PROGRESS_STYLE.clone())
+    } else if arguments.is_present("verbose") {
+        Verbosity::Messages
+    } else {
+        Verbosity::Quiet
     }
 }

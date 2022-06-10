@@ -21,7 +21,7 @@ use crate::{
     },
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::{snapshot::SnapshotProvider3, Verbose},
+    io::{snapshot::SnapshotProvider3, Verbosity},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -132,7 +132,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
-    verbose: Verbose,
+    verbosity: Verbosity,
     interpolator: I,
     protected_file_types: &[&str],
 ) where
@@ -212,7 +212,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
         resampled_locations,
         resampling_method,
         continue_on_warnings,
-        verbose,
+        verbosity,
         interpolator,
         protected_file_types,
     );
