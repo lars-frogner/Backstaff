@@ -11,10 +11,11 @@ use crate::{
     geometry::{Dim3, Point3, Vec3},
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::{snapshot::fdt, utils, Endianness, Verbose},
+    io::{snapshot::fdt, utils, Endianness, Verbosity},
     num::BFloat,
     seeding::Seeder3,
 };
+use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
 use std::{collections::HashMap, fs, io, mem, path::Path};
 
@@ -83,7 +84,7 @@ pub struct FieldLineSet3 {
     lower_bounds: Vec3<ftr>,
     upper_bounds: Vec3<ftr>,
     properties: FieldLineSetProperties3,
-    verbose: Verbose,
+    verbosity: Verbosity,
 }
 
 /// Holds the data associated with a set of 3D field lines.
@@ -107,13 +108,13 @@ impl FieldLineSet3 {
         lower_bounds: Vec3<ftr>,
         upper_bounds: Vec3<ftr>,
         properties: FieldLineSetProperties3,
-        verbose: Verbose,
+        verbosity: Verbosity,
     ) -> Self {
         Self {
             lower_bounds,
             upper_bounds,
             properties,
-            verbose,
+            verbosity,
         }
     }
 
@@ -127,7 +128,7 @@ impl FieldLineSet3 {
     /// - `tracer`: Field line tracer to use.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper_factory`: Factory structure to use for producing steppers.
-    /// - `verbose`: Whether to print status messages.
+    /// - `verbosity`: Whether and how to pass non-essential information to user.
     ///
     /// # Returns
     ///
@@ -148,7 +149,7 @@ impl FieldLineSet3 {
         tracer: &Tr,
         interpolator: &I,
         stepper_factory: &StF,
-        verbose: Verbose,
+        verbosity: Verbosity,
     ) -> Self
     where
         Sd: Seeder3,
@@ -160,12 +161,14 @@ impl FieldLineSet3 {
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
     {
-        if verbose.is_yes() {
-            println!("Found {} start positions", seeder.number_of_points());
+        let number_of_points = seeder.number_of_points();
+        if verbosity.print_messages() {
+            println!("Found {} start positions", number_of_points);
         }
 
         let properties: FieldLineSetProperties3 = seeder
             .into_par_iter()
+            .progress_with(verbosity.create_progress_bar(number_of_points))
             .filter_map(|start_position| {
                 tracer.trace(
                     field_name,
@@ -177,7 +180,7 @@ impl FieldLineSet3 {
             })
             .collect();
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!(
                 "Successfully traced {} field lines",
                 properties.number_of_field_lines
@@ -187,12 +190,12 @@ impl FieldLineSet3 {
         let lower_bounds = Vec3::from(snapshot.grid().lower_bounds());
         let upper_bounds = Vec3::from(snapshot.grid().upper_bounds());
 
-        Self::new(lower_bounds, upper_bounds, properties, verbose)
+        Self::new(lower_bounds, upper_bounds, properties, verbosity)
     }
 
-    /// Whether the field line set is verbose.
-    pub fn verbose(&self) -> &Verbose {
-        &self.verbose
+    /// Whether the field line set is verbosity.
+    pub fn verbosity(&self) -> &Verbosity {
+        &self.verbosity
     }
 
     /// Returns the number of field lines making up the field line set.
@@ -207,7 +210,7 @@ impl FieldLineSet3 {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} at initial positions", field.name());
         }
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
@@ -215,6 +218,10 @@ impl FieldLineSet3 {
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
         let values = initial_coords_x
             .into_par_iter()
+            .progress_with(
+                self.verbosity()
+                    .create_progress_bar(self.number_of_field_lines()),
+            )
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&field_line_x0, &field_line_y0), &field_line_z0)| {
@@ -238,7 +245,7 @@ impl FieldLineSet3 {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} at initial positions", field.name());
         }
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
@@ -246,6 +253,10 @@ impl FieldLineSet3 {
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
         let vectors = initial_coords_x
             .into_par_iter()
+            .progress_with(
+                self.verbosity()
+                    .create_progress_bar(self.number_of_field_lines()),
+            )
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&field_line_x0, &field_line_y0), &field_line_z0)| {
@@ -269,7 +280,7 @@ impl FieldLineSet3 {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} along field line paths", field.name());
         }
         let coords_x = &self.properties.varying_scalar_values["x"];
@@ -277,6 +288,10 @@ impl FieldLineSet3 {
         let coords_z = &self.properties.varying_scalar_values["z"];
         let values = coords_x
             .into_par_iter()
+            .progress_with(
+                self.verbosity()
+                    .create_progress_bar(self.number_of_field_lines()),
+            )
             .zip(coords_y)
             .zip(coords_z)
             .map(
@@ -308,7 +323,7 @@ impl FieldLineSet3 {
         G: Grid3<fgr>,
         I: Interpolator3,
     {
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} along field line paths", field.name());
         }
         let coords_x = &self.properties.varying_scalar_values["x"];
@@ -316,6 +331,10 @@ impl FieldLineSet3 {
         let coords_z = &self.properties.varying_scalar_values["z"];
         let vectors = coords_x
             .into_par_iter()
+            .progress_with(
+                self.verbosity()
+                    .create_progress_bar(self.number_of_field_lines()),
+            )
             .zip(coords_y)
             .zip(coords_z)
             .map(

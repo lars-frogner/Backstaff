@@ -6,7 +6,7 @@ mod param;
 use super::{
     super::{
         utils::{self, AtomicOutputPath},
-        Endianness, OverwriteMode, Verbose,
+        Endianness, OverwriteMode, Verbosity,
     },
     fdt, SnapshotParameters, SnapshotProvider3, SnapshotReader3, FALLBACK_SNAP_NUM,
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
@@ -49,8 +49,8 @@ pub struct NativeSnapshotReaderConfig {
     param_file_path: PathBuf,
     /// Order of bytes in the binary data files.
     endianness: Endianness,
-    /// Whether to print status messages while reading fields.
-    verbose: Verbose,
+    /// Whether and how to pass non-essential information to user while reading fields.
+    verbosity: Verbosity,
 }
 
 /// Reader for the native output files associated with Bifrost 3D simulation snapshots.
@@ -69,12 +69,12 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NativeSnapshotReaderConfig) -> io::Result<Self> {
         let parameters =
-            NativeSnapshotParameters::new(config.param_file_path.clone(), config.verbose())?;
+            NativeSnapshotParameters::new(config.param_file_path.clone(), config.verbosity())?;
 
         let mesh_path = parameters.determine_mesh_path()?;
         let is_periodic = parameters.determine_grid_periodicity()?;
 
-        let grid = create_grid_from_mesh_file(&mesh_path, is_periodic, config.verbose())?;
+        let grid = create_grid_from_mesh_file(&mesh_path, is_periodic, config.verbosity())?;
 
         Self::new_from_parameters_and_grid(config, parameters, grid)
     }
@@ -84,9 +84,8 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
         self.config.param_file_path()
     }
 
-    /// Whether the reader is verbose.
-    pub fn verbose(&self) -> &Verbose {
-        self.config.verbose()
+    pub fn verbosity(&self) -> &Verbosity {
+        self.config.verbosity()
     }
 
     /// Creates a reader for a 3D Bifrost snapshot.
@@ -345,7 +344,7 @@ impl<G: Grid3<fgr>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
         } else {
             &self.aux_path
         };
-        if self.config.verbose.is_yes() {
+        if self.config.verbosity.print_messages() {
             println!(
                 "Reading {} from {}",
                 variable_name,
@@ -373,16 +372,16 @@ impl<G: Grid3<fgr>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
 
 impl NativeSnapshotReaderConfig {
     /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new(param_file_path: PathBuf, endianness: Endianness, verbose: Verbose) -> Self {
+    pub fn new(param_file_path: PathBuf, endianness: Endianness, verbosity: Verbosity) -> Self {
         NativeSnapshotReaderConfig {
             param_file_path,
             endianness,
-            verbose,
+            verbosity,
         }
     }
 
-    pub fn verbose(&self) -> &Verbose {
-        &self.verbose
+    pub fn verbosity(&self) -> &Verbosity {
+        &self.verbosity
     }
 
     pub fn param_file_path(&self) -> &Path {
@@ -407,7 +406,7 @@ impl NativeSnapshotMetadata {
         let parameters = with_io_err_msg!(
             NativeSnapshotParameters::new(
                 reader_config.param_file_path().to_path_buf(),
-                reader_config.verbose()
+                reader_config.verbosity()
             ),
             "Could not read parameter file: {}"
         )?;
@@ -420,7 +419,7 @@ impl NativeSnapshotMetadata {
             "Could not determine grid periodicity: {}"
         )?;
         let grid_data = with_io_err_msg!(
-            parse_mesh_file(&mesh_path, reader_config.verbose()),
+            parse_mesh_file(&mesh_path, reader_config.verbosity()),
             "Could not parse mesh file: {}"
         )?;
         Ok(Self {
@@ -485,7 +484,7 @@ impl NativeSnapshotMetadata {
 pub fn write_new_snapshot<G, P>(
     provider: &mut P,
     output_param_path: &Path,
-    verbose: &Verbose,
+    verbosity: &Verbosity,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,
@@ -500,7 +499,7 @@ where
         true,
         OverwriteMode::Always,
         &[],
-        verbose,
+        verbosity,
     )
 }
 
@@ -513,7 +512,7 @@ pub fn write_modified_snapshot<G, P>(
     write_mesh_file: bool,
     overwrite_mode: OverwriteMode,
     protected_file_types: &[&str],
-    verbose: &Verbose,
+    verbosity: &Verbosity,
 ) -> io::Result<()>
 where
     G: Grid3<fgr>,
@@ -580,7 +579,7 @@ where
             is_mhd,
         );
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!("Writing parameters to {}", output_param_file_name);
         }
         utils::write_text_file(
@@ -590,7 +589,7 @@ where
     }
     if write_mesh_file {
         let atomic_mesh_path = atomic_mesh_path.as_ref().unwrap();
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!(
                 "Writing grid to {}",
                 atomic_mesh_path
@@ -617,7 +616,7 @@ where
             &included_primary_variable_names,
             &mut |name| {
                 provider.produce_scalar_field(name).map(|field| {
-                    if verbose.is_yes() {
+                    if verbosity.print_messages() {
                         println!("Writing {} to {}", name, output_snap_file_name);
                     }
                     field.into_values()
@@ -639,7 +638,7 @@ where
             &included_auxiliary_variable_names,
             &mut |name| {
                 provider.produce_scalar_field(name).map(|field| {
-                    if verbose.is_yes() {
+                    if verbosity.print_messages() {
                         println!("Writing {} to {}", name, output_aux_file_name);
                     }
                     field.into_values()

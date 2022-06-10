@@ -10,9 +10,10 @@ use crate::{
             fdt, CachingSnapshotProvider3, SnapshotParameters, SnapshotProvider3,
             MASS_DENSITY_VARIABLE_NAME, MOMENTUM_VARIABLE_NAME, OUTPUT_TIME_STEP_NAME,
         },
-        utils, Verbose,
+        utils, Verbosity,
     },
 };
+use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
 use std::{io, iter, path::Path};
 
@@ -66,8 +67,8 @@ pub struct CorkSet {
     /// Whether the mass density should not be sampled and thus can be dropped after each step.
     /// (The momentum field is always dropped since it can be recomputed from velocity and density.)
     can_drop_mass_density_field: bool,
-    /// Whether to print status messages.
-    verbose: Verbose,
+    /// Whether and how to pass non-essential information to user.
+    verbosity: Verbosity,
 }
 
 /// Uses the Heun method for advecting corks.
@@ -261,12 +262,13 @@ impl CorkSet {
     ///
     /// # Parameters
     ///
+    /// - `number_of_corks`: The total number of corks.
     /// - `initial_positions`: Iterator over the positions of the corks at the initial time.
     /// - `initial_snapshot`: Snapshot representing the atmosphere at the initial time.
     /// - `interpolator`: Interpolator to use.
     /// - `scalar_quantity_names`: List of scalar quantities to sample along cork trajectories.
     /// - `vector_quantity_names`: List of vector quantities to sample along cork trajectories.
-    /// - `verbose`: Whether to print status messages.
+    /// - `verbosity`: Whether and how to pass non-essential information to user.
     ///
     /// # Returns
     ///
@@ -281,12 +283,13 @@ impl CorkSet {
     /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
     pub fn new<Po, G, P, I>(
+        number_of_corks: usize,
         initial_positions: Po,
         initial_snapshot: &mut P,
         interpolator: &I,
         scalar_quantity_names: Vec<String>,
         vector_quantity_names: Vec<String>,
-        verbose: Verbose,
+        verbosity: Verbosity,
     ) -> io::Result<Self>
     where
         Po: IntoParallelIterator<Item = Point3<fco>>,
@@ -313,6 +316,7 @@ impl CorkSet {
         let mut corks = Self {
             corks: initial_positions
                 .into_par_iter()
+                .progress_with(verbosity.create_progress_bar(number_of_corks))
                 .map(|position| {
                     Cork::new_from_fields(
                         position,
@@ -331,9 +335,9 @@ impl CorkSet {
             scalar_quantity_names,
             vector_quantity_names,
             can_drop_mass_density_field,
-            verbose,
+            verbosity,
         };
-        if corks.verbose().is_yes() {
+        if corks.verbosity().print_messages() {
             println!("Initialized {} corks", corks.number_of_corks());
         }
 
@@ -347,9 +351,8 @@ impl CorkSet {
         Ok(corks)
     }
 
-    /// Whether the cork set is verbose.
-    pub fn verbose(&self) -> &Verbose {
-        &self.verbose
+    pub fn verbosity(&self) -> &Verbosity {
+        &self.verbosity
     }
 
     fn number_of_corks(&self) -> usize {
@@ -409,7 +412,7 @@ impl CorkSet {
     where
         A: Fn(&mut Cork) + Sync,
     {
-        if self.verbose().is_yes() {
+        if self.verbosity().print_messages() {
             println!("Advancing corks");
         }
         self.times.push(self.current_time() + step_duration);
@@ -429,7 +432,7 @@ impl CorkSet {
         P: SnapshotProvider3<G>,
         I: Interpolator3,
     {
-        if self.verbose().is_yes() {
+        if self.verbosity().print_messages() {
             println!("Sampling field values");
         }
         #[allow(clippy::unnecessary_to_owned)]

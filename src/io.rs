@@ -3,7 +3,7 @@
 pub mod snapshot;
 pub mod utils;
 
-use indicatif::ProgressStyle;
+use indicatif::{ProgressBar, ProgressStyle};
 
 /// Little- or big-endian byte order.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -13,45 +13,37 @@ pub enum Endianness {
     Big,
 }
 
-/// Whether or not to print non-critical status messages
-/// and showing progress.
+/// Whether and how to pass non-essential information to user.
 #[derive(Clone, Debug)]
-pub enum Verbose {
-    Yes,
-    No,
+pub enum Verbosity {
+    Messages,
+    Quiet,
     Progress(ProgressStyle),
 }
 
-impl Verbose {
-    /// Creates a new verbosity indicator for showing progress with
-    /// the given progress bar style.
-    pub fn with_progress(style: ProgressStyle) -> Self {
-        Self::Progress(style)
-    }
+impl Verbosity {
+    const N_PROGRESS_UPDATES: u64 = 100;
 
-    /// Whether verbosity is activated.
-    pub fn is_yes(&self) -> bool {
+    /// Whether messages should be printed.
+    pub fn print_messages(&self) -> bool {
         match *self {
-            Verbose::Yes => true,
-            Verbose::No => false,
-            Verbose::Progress(_) => true,
+            Verbosity::Messages => true,
+            Verbosity::Quiet => false,
+            Verbosity::Progress(_) => true,
         }
     }
-}
 
-impl From<bool> for Verbose {
-    fn from(is_verbose: bool) -> Self {
-        if is_verbose {
-            Verbose::Yes
+    /// Returns a progress bar that is only visible if this is
+    /// the `Progress` variant.
+    pub fn create_progress_bar(&self, n_steps: usize) -> ProgressBar {
+        let n_steps = n_steps as u64;
+        if let Verbosity::Progress(style) = self {
+            let progress_bar = ProgressBar::new(n_steps).with_style(style.clone());
+            progress_bar.set_draw_delta(n_steps / Self::N_PROGRESS_UPDATES);
+            progress_bar
         } else {
-            Verbose::No
+            ProgressBar::hidden()
         }
-    }
-}
-
-impl From<Verbose> for bool {
-    fn from(verbose: Verbose) -> Self {
-        verbose.is_yes()
     }
 }
 

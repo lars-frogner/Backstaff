@@ -1,6 +1,6 @@
 //! Utilities for mesh data in NetCDF format.
 
-use super::super::super::{Endianness, Verbose};
+use super::super::super::{Endianness, Verbosity};
 use crate::{
     geometry::{
         Coords3,
@@ -28,7 +28,7 @@ pub struct NetCDFGridData {
 pub fn read_grid<G: Grid3<fgr>>(
     file: &File,
     is_periodic: In3D<bool>,
-    verbose: &Verbose,
+    verbosity: &Verbosity,
 ) -> io::Result<(G, Endianness)> {
     let NetCDFGridData {
         detected_grid_type,
@@ -37,7 +37,7 @@ pub fn read_grid<G: Grid3<fgr>>(
         up_derivatives,
         down_derivatives,
         endianness,
-    } = read_grid_data(file, verbose)?;
+    } = read_grid_data(file, verbosity)?;
 
     if detected_grid_type != G::TYPE {
         return Err(io::Error::new(
@@ -59,8 +59,8 @@ pub fn read_grid<G: Grid3<fgr>>(
 }
 
 /// Reads the data required to construct a grid from the given NetCDF group.
-pub fn read_grid_data(file: &File, verbose: &Verbose) -> io::Result<NetCDFGridData> {
-    if verbose.is_yes() {
+pub fn read_grid_data(file: &File, verbosity: &Verbosity) -> io::Result<NetCDFGridData> {
+    if verbosity.print_messages() {
         println!(
             "Reading grid from {}",
             file.path().unwrap().file_name().unwrap().to_string_lossy()
@@ -107,8 +107,11 @@ pub fn read_grid_data(file: &File, verbose: &Verbose) -> io::Result<NetCDFGridDa
     let center_coords = Coords3::new(xm, ym, zm);
     let lower_edge_coords = Coords3::new(xmdn, ymdn, zmdn);
 
-    let detected_grid_type =
-        grid::verify_coordinate_arrays(&center_coords, &lower_edge_coords, verbose.is_yes())?;
+    let detected_grid_type = grid::verify_coordinate_arrays(
+        &center_coords,
+        &lower_edge_coords,
+        verbosity.print_messages(),
+    )?;
 
     let derivative_count = group
         .variables()

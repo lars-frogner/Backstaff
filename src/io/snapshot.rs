@@ -7,7 +7,7 @@ pub mod netcdf;
 
 pub mod utils;
 
-use super::{Endianness, Verbose};
+use super::{Endianness, Verbosity};
 use crate::{
     field::{
         CachingScalarFieldProvider3, CustomScalarFieldGenerator3, ResampledCoordLocation,
@@ -798,7 +798,7 @@ pub struct ResampledSnapshotProvider3<GOLD, G, P, T, I> {
     resampled_locations: In3D<ResampledCoordLocation>,
     interpolator: I,
     resampling_method: ResamplingMethod,
-    verbose: Verbose,
+    verbosity: Verbosity,
     phantom: PhantomData<GOLD>,
 }
 
@@ -817,7 +817,7 @@ where
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: I,
         resampling_method: ResamplingMethod,
-        verbose: Verbose,
+        verbosity: Verbosity,
     ) -> Self {
         Self {
             provider,
@@ -826,7 +826,7 @@ where
             resampled_locations,
             interpolator,
             resampling_method,
-            verbose,
+            verbosity,
             phantom: PhantomData,
         }
     }
@@ -850,7 +850,7 @@ where
 
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let field = self.provider.provide_scalar_field(variable_name)?;
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Resampling {}", variable_name);
         }
         Ok(if T::IS_IDENTITY {
@@ -859,7 +859,7 @@ where
                 self.resampled_locations.clone(),
                 &self.interpolator,
                 self.resampling_method,
-                &self.verbose,
+                &self.verbosity,
             )
         } else {
             field.resampled_to_transformed_grid(
@@ -868,7 +868,7 @@ where
                 self.resampled_locations.clone(),
                 &self.interpolator,
                 self.resampling_method,
-                &self.verbose,
+                &self.verbosity,
             )
         })
     }
@@ -911,7 +911,7 @@ pub struct ExtractedSnapshotProvider3<G, P> {
     provider: P,
     new_grid: Arc<G>,
     lower_indices: Idx3<usize>,
-    verbose: Verbose,
+    verbosity: Verbosity,
 }
 
 impl<G, P> ExtractedSnapshotProvider3<G, P>
@@ -923,14 +923,14 @@ where
         provider: P,
         lower_indices: Idx3<usize>,
         upper_indices: Idx3<usize>,
-        verbose: Verbose,
+        verbosity: Verbosity,
     ) -> Self {
         let new_grid = Arc::new(provider.grid().subgrid(&lower_indices, &upper_indices));
         Self {
             provider,
             new_grid,
             lower_indices,
-            verbose,
+            verbosity,
         }
     }
 }
@@ -950,7 +950,7 @@ where
 
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let field = self.provider.provide_scalar_field(variable_name)?;
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Extracting {} in subgrid", variable_name);
         }
         Ok(field.subfield(self.arc_with_grid(), &self.lower_indices))

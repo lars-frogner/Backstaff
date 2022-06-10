@@ -122,6 +122,12 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
                 .long("verbose")
                 .help("Print status messages related to computation of synthetic quantities"),
         )
+        .arg(
+            Arg::new("progress")
+                .short('p')
+                .long("progress")
+                .help("Show progress bar for synthesis (also implies `verbose`)"),
+        )
         .after_help(&**SYNTHESIZABLE_QUANTITY_TABLE_STRING)
 }
 
@@ -177,7 +183,7 @@ where
     );
 
     let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let verbose = arguments.is_present("verbose").into();
+    let verbosity = cli_utils::parse_verbosity(arguments, true);
 
     let interpolator = PolyFitInterpolator2::new(PolyFitInterpolatorConfig {
         order: 1,
@@ -215,7 +221,7 @@ where
                 }
             }
         },
-        verbose,
+        verbosity,
     )
 }
 
@@ -227,7 +233,7 @@ where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let verbose = arguments.is_present("verbose").into();
-    let cached_provider = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
+    let verbosity = cli_utils::parse_verbosity(arguments, true);
+    let cached_provider = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
     create_synthesize_provider(arguments, cached_provider)
 }

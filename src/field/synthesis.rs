@@ -11,7 +11,7 @@ use crate::{
     interpolation::Interpolator2,
     io::{
         snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
-        Endianness, Verbose,
+        Endianness, Verbosity,
     },
     num::BFloat,
     units::solar::U_U,
@@ -233,7 +233,7 @@ pub struct EmissivitySnapshotProvider3<G, P, I> {
     quantity_dependencies: Vec<&'static str>,
     emissivity_tables: Arc<EmissivityTables<fdt>>,
     cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt, G>>>,
-    verbose: Verbose,
+    verbosity: Verbosity,
     phantom: PhantomData<G>,
 }
 
@@ -254,7 +254,7 @@ where
         log_temperature_limits: (fdt, fdt),
         log_electron_density_limits: (fdt, fdt),
         handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
-        verbose: Verbose,
+        verbosity: Verbosity,
     ) -> Self {
         let quantity_names: Vec<_> = quantity_names
             .iter()
@@ -267,7 +267,7 @@ where
             n_electron_density_points,
             log_temperature_limits,
             log_electron_density_limits,
-            &verbose,
+            &verbosity,
         ));
 
         let mut emissivity_quantity_names = Vec::new();
@@ -293,7 +293,7 @@ where
             quantity_dependencies,
             emissivity_tables,
             cached_scalar_fields: HashMap::new(),
-            verbose,
+            verbosity,
             phantom: PhantomData,
         }
     }
@@ -306,7 +306,7 @@ where
             self.provider.provide_scalar_field(variable_name)
         } else {
             let (quantity_name, line_name) = parse_line_quantity_name(variable_name)?;
-            let verbose = self.verbose.clone();
+            let verbosity = self.verbosity.clone();
 
             let field = match quantity_name.as_str() {
                 "emis" => self.produce_emissivity_field(variable_name, &line_name),
@@ -317,19 +317,19 @@ where
                             shiftx,
                             |ux| ux * doppler_factor,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'y' => compute_derived_quantity!(
                             shifty,
                             |uy| uy * doppler_factor,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'z' => compute_derived_quantity!(
                             shiftz,
                             |uz| uz * doppler_factor,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         _ => unreachable!(),
                     }
@@ -341,7 +341,7 @@ where
                         vartg,
                         |tg| tg * thermal_variance_factor,
                         self,
-                        &verbose
+                        &verbosity
                     )
                 }
                 name if name.starts_with("emis_shift")
@@ -353,19 +353,19 @@ where
                             emis_shiftx,
                             |emis, ux| emis * ux * doppler_factor,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'y' => compute_derived_quantity!(
                             emis_shifty,
                             |emis, uy| emis * uy * doppler_factor,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'z' => compute_derived_quantity!(
                             emis_shiftz,
                             |emis, uz| emis * uz * doppler_factor,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         _ => unreachable!(),
                     }
@@ -383,21 +383,21 @@ where
                             |tg, ux| tg * thermal_variance_factor
                                 + ux * ux * doppler_factor_squared,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'y' => compute_derived_quantity!(
                             vartgshift2y,
                             |tg, uy| tg * thermal_variance_factor
                                 + uy * uy * doppler_factor_squared,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'z' => compute_derived_quantity!(
                             vartgshift2z,
                             |tg, uz| tg * thermal_variance_factor
                                 + uz * uz * doppler_factor_squared,
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         _ => unreachable!(),
                     }
@@ -415,21 +415,21 @@ where
                             |emis, tg, ux| emis
                                 * (tg * thermal_variance_factor + ux * ux * doppler_factor_squared),
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'y' => compute_derived_quantity!(
                             emis_vartgshift2y,
                             |emis, tg, uy| emis
                                 * (tg * thermal_variance_factor + uy * uy * doppler_factor_squared),
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         'z' => compute_derived_quantity!(
                             emis_vartgshift2z,
                             |emis, tg, uz| emis
                                 * (tg * thermal_variance_factor + uz * uz * doppler_factor_squared),
                             self,
-                            &verbose
+                            &verbosity
                         ),
                         _ => unreachable!(),
                     }
@@ -439,7 +439,7 @@ where
             .map(Arc::new)?;
 
             if self.quantity_dependencies.contains(&quantity_name.as_str()) {
-                if self.verbose.is_yes() {
+                if self.verbosity.print_messages() {
                     println!("Caching {}", variable_name);
                 }
                 let existing = self
@@ -473,7 +473,7 @@ where
         let temperatures = self.provider.provide_scalar_field("tg")?;
         let electron_densities = self.provider.provide_scalar_field("nel")?;
 
-        if self.verbose.is_yes() {
+        if self.verbosity.print_messages() {
             println!("Looking up emissivities for {}", line_name);
         }
 
@@ -597,7 +597,7 @@ where
         } else {
             if !self.cached_scalar_fields.contains_key(variable_name) {
                 let field = self.provide_scalar_field(variable_name)?;
-                if self.verbose.is_yes() {
+                if self.verbosity.print_messages() {
                     println!("Caching {}", variable_name);
                 }
                 self.cached_scalar_fields
@@ -613,7 +613,7 @@ where
 
     fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt, G>> {
         if let Some(field) = self.cached_scalar_fields.get(variable_name) {
-            if self.verbose.is_yes() {
+            if self.verbosity.print_messages() {
                 println!("Using cached {}", variable_name);
             }
             field
@@ -628,7 +628,7 @@ where
 
     fn drop_scalar_field(&mut self, variable_name: &str) {
         if self.cached_scalar_fields.contains_key(variable_name) {
-            if self.verbose.is_yes() {
+            if self.verbosity.print_messages() {
                 println!("Dropping {} from cache", variable_name);
             }
             self.cached_scalar_fields.remove(variable_name);
@@ -739,7 +739,7 @@ where
         n_electron_density_points: usize,
         log_temperature_limits: (F, F),
         log_electron_density_limits: (F, F),
-        verbose: &Verbose,
+        verbosity: &Verbosity,
     ) -> Self {
         assert!(n_temperature_points > 1);
         assert!(n_electron_density_points > 1);
@@ -753,7 +753,7 @@ where
                     n_electron_density_points,
                     log_temperature_limits,
                     log_electron_density_limits,
-                    verbose,
+                    verbosity,
                 )
             });
 
@@ -854,7 +854,7 @@ where
         n_electron_density_points: usize,
         log_temperature_limits: (F, F),
         log_electron_density_limits: (F, F),
-        verbose: &Verbose,
+        verbosity: &Verbosity,
     ) -> PyResult<(Vec<fgr>, Vec<fgr>, EmissivityTableArrMap<F>)> {
         let kwargs = [
             ("dtype", F::get_dtype(py).into_py(py)),
@@ -868,7 +868,7 @@ where
                 "log_electron_density_limits",
                 log_electron_density_limits.into_py(py),
             ),
-            ("verbose", verbose.is_yes().into_py(py)),
+            ("verbose", verbosity.print_messages().into_py(py)),
         ]
         .into_py_dict(py);
 

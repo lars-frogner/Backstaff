@@ -12,12 +12,14 @@ use crate::{
     interpolation::Interpolator3,
     io::{
         snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
-        Verbose,
+        Verbosity,
     },
     plasma::ionization,
+    seeding::IndexSeeder3,
     tracing::stepping::{StepperFactory3, SteppingSense},
     units::solar::{U_E, U_L, U_L3, U_R, U_T},
 };
+use indicatif::ParallelProgressIterator;
 use rand::{self, Rng};
 use rayon::prelude::*;
 use std::io;
@@ -366,7 +368,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         detector: D,
         interpolator: &I,
         _stepper_factory: &StF,
-        verbose: &Verbose,
+        verbosity: &Verbosity,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
         Self::AccelerationDataCollectionType,
@@ -378,14 +380,16 @@ impl Accelerator for SimplePowerLawAccelerator {
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
     {
-        let seeder = detector.detect_reconnection_sites(snapshot, verbose);
+        let seeder = detector.detect_reconnection_sites(snapshot, verbosity);
+        let number_of_locations = seeder.number_of_indices();
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!("Computing total beam powers");
         }
         snapshot.cache_scalar_field("qjoule")?;
         let properties: Vec<_> = seeder
             .into_par_iter()
+            .progress_with(verbosity.create_progress_bar(number_of_locations))
             .filter_map(|indices| {
                 if self.config.inclusion_probability < 1.0
                     && rand::thread_rng().gen::<feb>() >= self.config.inclusion_probability
@@ -404,13 +408,15 @@ impl Accelerator for SimplePowerLawAccelerator {
             .collect();
         snapshot.drop_scalar_field("qjoule");
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!("Computing magnetic and electric field directions");
         }
+        let number_of_locations = properties.len();
         snapshot.cache_vector_field("b")?;
         snapshot.cache_vector_field("e")?;
         let properties: Vec<_> = properties
             .into_par_iter()
+            .progress_with(verbosity.create_progress_bar(number_of_locations))
             .filter_map(|(indices, total_power_density)| {
                 let acceleration_position =
                     Self::determine_acceleration_position(snapshot, &indices);
@@ -447,14 +453,16 @@ impl Accelerator for SimplePowerLawAccelerator {
             .collect();
         snapshot.drop_vector_field("e");
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!("Computing lower cutoff energies and estimating stopping distances");
         }
+        let number_of_locations = properties.len();
         snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("r")?;
         snapshot.cache_scalar_field("tg")?;
         let distributions = properties
             .into_par_iter()
+            .progress_with(verbosity.create_progress_bar(number_of_locations))
             .filter_map(
                 |(
                     indices,

@@ -1,7 +1,7 @@
 //! Utilities for parameters in NetCDF format.
 
 use super::super::{
-    super::Verbose, fpa, MapOfSnapshotParameters, ParameterValue, SnapshotParameters,
+    super::Verbosity, fpa, MapOfSnapshotParameters, ParameterValue, SnapshotParameters,
 };
 use crate::io_result;
 use netcdf_rs::{AttrValue, File, Group, GroupMut};
@@ -11,9 +11,9 @@ pub type NetCDFSnapshotParameters = MapOfSnapshotParameters;
 
 pub fn read_netcdf_snapshot_parameters(
     file: &File,
-    verbose: &Verbose,
+    verbosity: &Verbosity,
 ) -> io::Result<NetCDFSnapshotParameters> {
-    if verbose.is_yes() {
+    if verbosity.print_messages() {
         println!(
             "Reading parameters from {}",
             file.path().unwrap().file_name().unwrap().to_string_lossy()

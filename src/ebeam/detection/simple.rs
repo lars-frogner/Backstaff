@@ -8,7 +8,7 @@ use crate::{
     grid::{fgr, Grid3},
     io::{
         snapshot::{fdt, fpa, SnapshotParameters, SnapshotProvider3},
-        Verbose,
+        Verbosity,
     },
     seeding::{criterion::CriterionSeeder3, IndexSeeder3},
 };
@@ -42,7 +42,11 @@ impl SimpleReconnectionSiteDetector {
 impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
     type Seeder = CriterionSeeder3;
 
-    fn detect_reconnection_sites<G, P>(&self, provider: &mut P, verbose: &Verbose) -> Self::Seeder
+    fn detect_reconnection_sites<G, P>(
+        &self,
+        provider: &mut P,
+        verbosity: &Verbosity,
+    ) -> Self::Seeder
     where
         G: Grid3<fgr>,
         P: CachingScalarFieldProvider3<fdt, G>,
@@ -62,7 +66,7 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
             },
         );
 
-        if verbose.is_yes() {
+        if verbosity.print_messages() {
             println!("Found {} acceleration sites", seeder.number_of_indices());
         }
         seeder

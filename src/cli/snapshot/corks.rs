@@ -108,6 +108,12 @@ pub fn create_corks_subcommand(_parent_command_name: &'static str) -> Command<'s
                 .short('v')
                 .long("verbose")
                 .help("Print status messages while tracing corks"),
+        )
+        .arg(
+            Arg::new("progress")
+                .short('p')
+                .long("progress")
+                .help("Show progress bar for cork tracing (also implies `verbose`)"),
         );
 
     add_subcommand_combinations!(command, command_name, true; poly_fit_interpolator, (slice_seeder, volume_seeder, manual_seeder))
@@ -142,8 +148,8 @@ pub fn run_corks_subcommand<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let verbose = arguments.is_present("verbose").into();
-    let mut snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
+    let mut snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
     run_with_selected_interpolator(
         arguments,
         &mut snapshot,
@@ -296,12 +302,13 @@ fn initialize_corks<G, P, I, Sd>(
 
     *corks_state = Some(exit_on_error!(
         CorkSet::new(
+            seeder.number_of_points(),
             seeder,
             snapshot,
             &interpolator,
             scalar_quantity_names,
             vector_quantity_names,
-            root_arguments.is_present("verbose").into(),
+            cli_utils::parse_verbosity(root_arguments, true),
         ),
         "Error: Could not initialize corks: {}"
     ));
@@ -413,7 +420,7 @@ fn write_output(
 
         let corks = corks_state.as_ref().expect("Corks state not initialized");
 
-        if corks.verbose().is_yes() {
+        if corks.verbosity().print_messages() {
             println!(
                 "Saving corks in {}",
                 atomic_output_path

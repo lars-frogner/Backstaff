@@ -7,10 +7,7 @@ use crate::{
         ScalarFieldCacher3,
     },
     grid::{fgr, Grid3},
-    io::{
-        snapshot::{fdt, SnapshotProvider3},
-        Verbose,
-    },
+    io::snapshot::{fdt, SnapshotProvider3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -60,6 +57,12 @@ pub fn create_derive_subcommand(_parent_command_name: &'static str) -> Command<'
                 .long("verbose")
                 .help("Print status messages related to computation of derived quantities"),
         )
+        .arg(
+            Arg::new("progress")
+                .short('p')
+                .long("progress")
+                .help("Show progress bar for computation (also implies `verbose`)"),
+        )
         .after_help(&**AVAILABLE_QUANTITY_TABLE_STRING)
 }
 
@@ -98,10 +101,10 @@ where
     }
 
     let continue_on_warnings = arguments.is_present("ignore-warnings");
-    let verbose: Verbose = arguments.is_present("verbose").into();
+    let verbosity = cli_utils::parse_verbosity(arguments, true);
 
     let cached_provider =
-        ScalarFieldCacher3::new_automatic_cacher(provider, max_memory_usage, verbose.clone());
+        ScalarFieldCacher3::new_automatic_cacher(provider, max_memory_usage, verbosity.clone());
 
     DerivedSnapshotProvider3::new(
         cached_provider,
@@ -123,6 +126,6 @@ where
                 }
             }
         },
-        verbose,
+        verbosity,
     )
 }

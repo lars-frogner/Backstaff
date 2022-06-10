@@ -144,8 +144,13 @@ pub fn create_trace_subcommand(_parent_command_name: &'static str) -> Command<'s
                 .help("Print status messages while tracing field lines"),
         )
         .arg(
-            Arg::new("print-parameter-values")
+            Arg::new("progress")
                 .short('p')
+                .long("progress")
+                .help("Show progress bar for tracing (also implies `verbose`)"),
+        )
+        .arg(
+            Arg::new("print-parameter-values")
                 .long("print-parameter-values")
                 .help("Prints the values of all the parameters that will be used")
                 .hide(true),
@@ -166,8 +171,8 @@ pub fn run_trace_subcommand<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    let verbose = arguments.is_present("verbose").into();
-    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbose);
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
+    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
     run_with_selected_tracer(arguments, snapshot, snap_num_in_range, protected_file_types);
 }
 
@@ -551,6 +556,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
         quantity
     );
 
+    let verbosity = cli_utils::parse_verbosity(root_arguments, true);
     let field_lines = FieldLineSet3::trace(
         quantity,
         &snapshot,
@@ -558,7 +564,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
         &tracer,
         &interpolator,
         &stepper_factory,
-        root_arguments.is_present("verbose").into(),
+        verbosity,
     );
     perform_post_tracing_actions(
         root_arguments,
@@ -617,7 +623,7 @@ fn perform_post_tracing_actions<G, P, I>(
         }
     }
 
-    if field_lines.verbose().is_yes() {
+    if field_lines.verbosity().print_messages() {
         println!(
             "Saving field lines in {}",
             atomic_output_path

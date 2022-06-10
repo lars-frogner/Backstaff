@@ -10,7 +10,7 @@ use crate::{
             write::{create_write_subcommand, run_write_subcommand},
             SnapNumInRange,
         },
-        utils,
+        utils as cli_utils,
     },
     exit_with_error,
     geometry::{
@@ -18,10 +18,7 @@ use crate::{
         Idx3, Point3,
     },
     grid::{fgr, Grid3},
-    io::{
-        snapshot::{CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
-        Verbose,
-    },
+    io::snapshot::{CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -154,49 +151,49 @@ pub fn run_extract_subcommand<G, P>(
     let original_lower_bounds = original_grid.lower_bounds();
     let original_upper_bounds = original_grid.upper_bounds();
 
-    let x_bounds = utils::parse_limits_with_min_max(
+    let x_bounds = cli_utils::parse_limits_with_min_max(
         arguments,
         "x-bounds",
-        utils::AllowSameValue::No,
-        utils::AllowInfinity::No,
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
         original_lower_bounds[X],
         original_upper_bounds[X],
     );
-    let y_bounds = utils::parse_limits_with_min_max(
+    let y_bounds = cli_utils::parse_limits_with_min_max(
         arguments,
         "y-bounds",
-        utils::AllowSameValue::No,
-        utils::AllowInfinity::No,
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
         original_lower_bounds[Y],
         original_upper_bounds[Y],
     );
-    let z_bounds = utils::parse_limits_with_min_max(
+    let z_bounds = cli_utils::parse_limits_with_min_max(
         arguments,
         "z-bounds",
-        utils::AllowSameValue::No,
-        utils::AllowInfinity::No,
+        cli_utils::AllowSameValue::No,
+        cli_utils::AllowInfinity::No,
         original_lower_bounds[Z],
         original_upper_bounds[Z],
     );
 
-    let i_range = utils::parse_int_limits_with_min_max(
+    let i_range = cli_utils::parse_int_limits_with_min_max(
         arguments,
         "i-range",
-        utils::AllowSameValue::Yes,
+        cli_utils::AllowSameValue::Yes,
         0,
         original_shape[X] - 1,
     );
-    let j_range = utils::parse_int_limits_with_min_max(
+    let j_range = cli_utils::parse_int_limits_with_min_max(
         arguments,
         "j-range",
-        utils::AllowSameValue::Yes,
+        cli_utils::AllowSameValue::Yes,
         0,
         original_shape[Y] - 1,
     );
-    let k_range = utils::parse_int_limits_with_min_max(
+    let k_range = cli_utils::parse_int_limits_with_min_max(
         arguments,
         "k-range",
-        utils::AllowSameValue::Yes,
+        cli_utils::AllowSameValue::Yes,
         0,
         original_shape[Z] - 1,
     );
@@ -229,9 +226,9 @@ pub fn run_extract_subcommand<G, P>(
         lower_indices, upper_indices
     );
 
-    let verbose: Verbose = arguments.is_present("verbose").into();
+    let verbosity = cli_utils::parse_verbosity(arguments, false);
 
-    if verbose.is_yes() {
+    if verbosity.print_messages() {
         let new_lower_bounds = original_grid.grid_cell_lower_bounds(&lower_indices);
         let new_upper_bounds = original_grid.grid_cell_upper_bounds(&upper_indices);
         println!(
@@ -251,7 +248,8 @@ pub fn run_extract_subcommand<G, P>(
         );
     }
 
-    let provider = ExtractedSnapshotProvider3::new(provider, lower_indices, upper_indices, verbose);
+    let provider =
+        ExtractedSnapshotProvider3::new(provider, lower_indices, upper_indices, verbosity);
 
     run_extract_subcommand_with_derive(
         arguments,
