@@ -1,6 +1,5 @@
 //! Command line interface for outputting snapshot data to file.
 
-use super::SnapNumInRange;
 use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
@@ -112,12 +111,8 @@ pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
-pub fn run_write_subcommand<G, P>(
-    arguments: &ArgMatches,
-    mut provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+pub fn run_write_subcommand<G, P>(arguments: &ArgMatches, mut provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -134,7 +129,7 @@ pub fn run_write_subcommand<G, P>(
 
     let mut write_mesh_file = true;
 
-    if let Some(snap_num_in_range) = snap_num_in_range {
+    if let Some(snap_num_in_range) = io_context.get_snap_num_in_range() {
         exit_on_false!(
             !output_type.is_scratch(),
             "Error: snap-range not supported for scratch files"

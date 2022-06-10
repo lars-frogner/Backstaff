@@ -110,6 +110,37 @@ impl fmt::Display for SnapshotInputType {
     }
 }
 
+/// Represents a snapshot number as part of a range.
+pub struct SnapNumInRange {
+    current_offset: u32,
+    final_offset: u32,
+}
+
+impl SnapNumInRange {
+    pub fn new(start_snap_num: u32, end_snap_num: u32, current_snap_num: u32) -> Self {
+        assert!(
+            end_snap_num >= start_snap_num,
+            "End snap number must be larger than or equal to start snap number."
+        );
+        assert!(
+            current_snap_num >= start_snap_num && current_snap_num <= end_snap_num,
+            "Current snap number must be between start and end snap number."
+        );
+        Self {
+            current_offset: current_snap_num - start_snap_num,
+            final_offset: end_snap_num - current_snap_num,
+        }
+    }
+
+    pub fn offset(&self) -> u32 {
+        self.current_offset
+    }
+
+    pub fn is_final(&self) -> bool {
+        self.current_offset == self.final_offset
+    }
+}
+
 #[macro_export]
 macro_rules! with_new_snapshot_reader {
     ($input_file_path:expr, $endianness:expr, $verbosity:expr, $force_hor_regular:expr, |$reader:ident| $action:expr) => {{

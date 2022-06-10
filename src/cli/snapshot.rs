@@ -24,7 +24,11 @@ use crate::{
     exit_on_error, exit_with_error,
     grid::{fgr, Grid3},
     io::{
-        snapshot::{self, utils::SnapshotInputType, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{
+            self,
+            utils::{SnapNumInRange, SnapshotInputType},
+            CachingSnapshotProvider3, SnapshotProvider3,
+        },
         utils::IOContext,
         Endianness, Verbosity,
     },
@@ -115,7 +119,7 @@ pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command
 }
 
 /// Runs the actions for the `snapshot` subcommand using the given arguments.
-pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
+pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &mut IOContext) {
     let input_file_path = exit_on_error!(
         PathBuf::from_str(
             arguments
@@ -184,6 +188,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
     let force_hor_regular = arguments.is_present("force-horizontally-regular");
 
     for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
+        io_context.set_snap_num_in_range(snap_num_in_range);
         exit_on_error!(
             with_new_snapshot_reader!(
                 file_path,
@@ -191,12 +196,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
                 verbosity.clone(),
                 force_hor_regular,
                 |reader| {
-                    run_snapshot_subcommand_with_derive(
-                        arguments,
-                        reader,
-                        &snap_num_in_range,
-                        io_context,
-                    );
+                    run_snapshot_subcommand_with_derive(arguments, reader, io_context);
                     Ok(())
                 }
             ),
@@ -208,7 +208,6 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
 fn run_snapshot_subcommand_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -216,26 +215,15 @@ fn run_snapshot_subcommand_with_derive<G, P>(
 {
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = derive::create_derive_provider(derive_arguments, provider);
-        run_snapshot_subcommand_with_synthesis(
-            derive_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_subcommand_with_synthesis(derive_arguments, provider, io_context);
     } else {
-        run_snapshot_subcommand_with_synthesis_added_caching(
-            arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
     }
 }
 
 fn run_snapshot_subcommand_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -244,22 +232,16 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
         let provider = synthesize::create_synthesize_provider(synthesize_arguments, provider);
-        run_snapshot_subcommand_for_provider(
-            synthesize_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_subcommand_for_provider(synthesize_arguments, provider, io_context);
         return;
     }
 
-    run_snapshot_subcommand_for_provider(arguments, provider, snap_num_in_range, io_context);
+    run_snapshot_subcommand_for_provider(arguments, provider, io_context);
 }
 
 fn run_snapshot_subcommand_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -269,22 +251,16 @@ fn run_snapshot_subcommand_with_synthesis_added_caching<G, P>(
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
         let provider =
             synthesize::create_synthesize_provider_added_caching(synthesize_arguments, provider);
-        run_snapshot_subcommand_for_provider(
-            synthesize_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_subcommand_for_provider(synthesize_arguments, provider, io_context);
         return;
     }
 
-    run_snapshot_subcommand_for_provider(arguments, provider, snap_num_in_range, io_context);
+    run_snapshot_subcommand_for_provider(arguments, provider, io_context);
 }
 
 fn run_snapshot_subcommand_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -293,18 +269,13 @@ fn run_snapshot_subcommand_for_provider<G, P>(
     if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
         inspect::run_inspect_subcommand(inspect_arguments, provider, io_context);
     } else if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
-        slice::run_slice_subcommand(slice_arguments, provider, snap_num_in_range, io_context);
+        slice::run_slice_subcommand(slice_arguments, provider, io_context);
     } else if let Some(extract_arguments) = arguments.subcommand_matches("extract") {
-        extract::run_extract_subcommand(extract_arguments, provider, snap_num_in_range, io_context);
+        extract::run_extract_subcommand(extract_arguments, provider, io_context);
     } else if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-        resample::run_resample_subcommand(
-            resample_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        resample::run_resample_subcommand(resample_arguments, provider, io_context);
     } else if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        write::run_write_subcommand(write_arguments, provider, snap_num_in_range, io_context);
+        write::run_write_subcommand(write_arguments, provider, io_context);
     } else {
         let corks_arguments = if cfg!(feature = "corks") {
             arguments.subcommand_matches("corks")
@@ -328,58 +299,17 @@ fn run_snapshot_subcommand_for_provider<G, P>(
                 corks::run_corks_subcommand(
                     _corks_arguments,
                     provider,
-                    snap_num_in_range,
                     io_context,
                     &mut corks_state,
                 );
             }
         } else if let Some(_trace_arguments) = trace_arguments {
             #[cfg(feature = "tracing")]
-            crate::cli::tracing::run_trace_subcommand(
-                _trace_arguments,
-                provider,
-                snap_num_in_range,
-                io_context,
-            );
+            crate::cli::tracing::run_trace_subcommand(_trace_arguments, provider, io_context);
         } else if let Some(_ebeam_arguments) = ebeam_arguments {
             #[cfg(feature = "ebeam")]
-            crate::cli::ebeam::run_ebeam_subcommand(
-                _ebeam_arguments,
-                provider,
-                snap_num_in_range,
-                io_context,
-            );
+            crate::cli::ebeam::run_ebeam_subcommand(_ebeam_arguments, provider, io_context);
         }
-    }
-}
-
-pub struct SnapNumInRange {
-    current_offset: u32,
-    final_offset: u32,
-}
-
-impl SnapNumInRange {
-    fn new(start_snap_num: u32, end_snap_num: u32, current_snap_num: u32) -> Self {
-        assert!(
-            end_snap_num >= start_snap_num,
-            "End snap number must be larger than or equal to start snap number."
-        );
-        assert!(
-            current_snap_num >= start_snap_num && current_snap_num <= end_snap_num,
-            "Current snap number must be between start and end snap number."
-        );
-        Self {
-            current_offset: current_snap_num - start_snap_num,
-            final_offset: end_snap_num - current_snap_num,
-        }
-    }
-
-    pub fn offset(&self) -> u32 {
-        self.current_offset
-    }
-
-    pub fn is_final(&self) -> bool {
-        self.current_offset == self.final_offset
     }
 }
 

@@ -10,7 +10,7 @@ use crate::{
     cli::{
         snapshot::{
             derive::create_derive_subcommand, inspect::create_inspect_subcommand,
-            write::create_write_subcommand, SnapNumInRange,
+            write::create_write_subcommand,
         },
         utils,
     },
@@ -102,7 +102,6 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -178,7 +177,6 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
                 new_shape,
                 arguments,
                 provider,
-                snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
@@ -200,7 +198,6 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
                 new_shape,
                 arguments,
                 provider,
-                snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,

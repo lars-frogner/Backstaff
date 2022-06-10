@@ -1,6 +1,5 @@
 //! Command line interface for extracting slices of snapshot quantity fields.
 
-use super::SnapNumInRange;
 use crate::{
     cli::{
         interpolation::poly_fit::{
@@ -144,12 +143,8 @@ where
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
 #[cfg(feature = "pickle")]
-pub fn run_slice_subcommand<G, P>(
-    arguments: &ArgMatches,
-    mut provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+pub fn run_slice_subcommand<G, P>(arguments: &ArgMatches, mut provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -177,7 +172,7 @@ pub fn run_slice_subcommand<G, P>(
 
     let output_type = OutputType::from_path(&output_file_path);
 
-    if let Some(snap_num_in_range) = snap_num_in_range {
+    if let Some(snap_num_in_range) = io_context.get_snap_num_in_range() {
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
             snap_num_in_range.offset(),

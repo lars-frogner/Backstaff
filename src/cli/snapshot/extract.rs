@@ -8,7 +8,6 @@ use crate::{
             inspect::{create_inspect_subcommand, run_inspect_subcommand},
             resample::{create_resample_subcommand, run_resample_subcommand},
             write::{create_write_subcommand, run_write_subcommand},
-            SnapNumInRange,
         },
         utils as cli_utils,
     },
@@ -140,12 +139,8 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
-pub fn run_extract_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+pub fn run_extract_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -254,13 +249,12 @@ pub fn run_extract_subcommand<G, P>(
     let provider =
         ExtractedSnapshotProvider3::new(provider, lower_indices, upper_indices, verbosity);
 
-    run_extract_subcommand_with_derive(arguments, provider, snap_num_in_range, io_context);
+    run_extract_subcommand_with_derive(arguments, provider, io_context);
 }
 
 fn run_extract_subcommand_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -268,26 +262,15 @@ fn run_extract_subcommand_with_derive<G, P>(
 {
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = create_derive_provider(derive_arguments, provider);
-        run_extract_subcommand_with_synthesis(
-            derive_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_extract_subcommand_with_synthesis(derive_arguments, provider, io_context);
     } else {
-        run_extract_subcommand_with_synthesis_added_caching(
-            arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_extract_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
     }
 }
 
 fn run_extract_subcommand_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -297,22 +280,16 @@ fn run_extract_subcommand_with_synthesis<G, P>(
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
         let provider =
             super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
-        run_extract_subcommand_for_provider(
-            synthesize_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_extract_subcommand_for_provider(synthesize_arguments, provider, io_context);
         return;
     }
 
-    run_extract_subcommand_for_provider(arguments, provider, snap_num_in_range, io_context);
+    run_extract_subcommand_for_provider(arguments, provider, io_context);
 }
 
 fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -324,31 +301,25 @@ fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
             synthesize_arguments,
             provider,
         );
-        run_extract_subcommand_for_provider(
-            synthesize_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_extract_subcommand_for_provider(synthesize_arguments, provider, io_context);
         return;
     }
 
-    run_extract_subcommand_for_provider(arguments, provider, snap_num_in_range, io_context);
+    run_extract_subcommand_for_provider(arguments, provider, io_context);
 }
 
 fn run_extract_subcommand_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
 {
     if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-        run_resample_subcommand(resample_arguments, provider, snap_num_in_range, io_context);
+        run_resample_subcommand(resample_arguments, provider, io_context);
     } else if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        run_write_subcommand(write_arguments, provider, snap_num_in_range, io_context);
+        run_write_subcommand(write_arguments, provider, io_context);
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
         run_inspect_subcommand(inspect_arguments, provider, io_context);
     }

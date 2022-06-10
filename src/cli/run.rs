@@ -46,7 +46,7 @@ pub fn run_with_args(arguments: ArgMatches, mut io_context: IOContext) {
     let start_instant = Instant::now();
 
     if let Some(snapshot_arguments) = arguments.subcommand_matches("snapshot") {
-        run_snapshot_subcommand(snapshot_arguments, &io_context);
+        run_snapshot_subcommand(snapshot_arguments, &mut io_context);
     } else if let Some(create_mesh_arguments) = arguments.subcommand_matches("create_mesh") {
         run_create_mesh_subcommand(create_mesh_arguments, &io_context);
     } else if let Some(completions_arguments) = arguments.subcommand_matches("completions") {

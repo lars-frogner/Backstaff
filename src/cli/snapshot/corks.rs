@@ -1,6 +1,5 @@
 //! Command line interface for tracing corks in a set of snapshots.
 
-use super::SnapNumInRange;
 use crate::{
     add_subcommand_combinations,
     cli::{
@@ -123,7 +122,6 @@ pub fn create_corks_subcommand(_parent_command_name: &'static str) -> Command<'s
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
@@ -141,7 +139,6 @@ pub fn run_corks_subcommand<G, P>(
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
@@ -150,19 +147,12 @@ pub fn run_corks_subcommand<G, P>(
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let mut snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
-    run_with_selected_interpolator(
-        arguments,
-        &mut snapshot,
-        snap_num_in_range,
-        io_context,
-        corks_state,
-    );
+    run_with_selected_interpolator(arguments, &mut snapshot, io_context, corks_state);
 }
 
 fn run_with_selected_interpolator<G, P>(
     root_arguments: &ArgMatches,
     snapshot: &mut P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
@@ -191,7 +181,6 @@ fn run_with_selected_interpolator<G, P>(
         root_arguments,
         interpolator_arguments,
         snapshot,
-        snap_num_in_range,
         interpolator,
         io_context,
         corks_state,
@@ -202,7 +191,6 @@ fn run_tracing<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     interpolator: I,
     io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
@@ -223,7 +211,7 @@ fn run_tracing<G, P, I>(
         let corks = corks_state.as_mut().expect("Corks state not initialized");
         advect_with_selected_advector(snapshot, interpolator, corks);
     }
-    write_output(root_arguments, snap_num_in_range, io_context, corks_state);
+    write_output(root_arguments, io_context, corks_state);
 }
 
 fn is_first_iteration(corks_state: &Option<CorksState>) -> bool {
@@ -357,11 +345,9 @@ fn advect_corks<G, P, I, A, St>(
     snapshot.drop_all_fields();
 }
 
-fn should_write_output(snap_num_in_range: &Option<SnapNumInRange>) -> bool {
-    match snap_num_in_range {
-        Some(snap_num_in_range) => {
-            snap_num_in_range.current_offset == snap_num_in_range.final_offset
-        }
+fn should_write_output(io_context: &IOContext) -> bool {
+    match io_context.get_snap_num_in_range() {
+        Some(snap_num_in_range) => snap_num_in_range.is_final(),
         None => {
             eprintln!(
                 "Warning: No snap range specified for cork tracing, using single snapshot only\
@@ -380,11 +366,10 @@ fn write_output(_: &ArgMatches, _: &Option<SnapNumInRange>, _: &[&str], _: &Opti
 #[cfg(any(feature = "json", feature = "pickle"))]
 fn write_output(
     root_arguments: &ArgMatches,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
     corks_state: &Option<CorksState>,
 ) {
-    let write_output = should_write_output(snap_num_in_range);
+    let write_output = should_write_output(io_context);
 
     if write_output || is_first_iteration(corks_state) {
         let output_file_path = exit_on_error!(

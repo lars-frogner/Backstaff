@@ -16,7 +16,7 @@ use self::{
         create_rotated_regular_grid_subcommand, run_resampling_for_rotated_regular_grid,
     },
 };
-use super::SnapNumInRange;
+
 use crate::{
     cli::{
         interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options,
@@ -105,12 +105,8 @@ enum ResampleGridType {
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
-pub fn run_resample_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+pub fn run_resample_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -162,7 +158,6 @@ pub fn run_resample_subcommand<G, P>(
     run_with_selected_method(
         grid_type_arguments,
         provider,
-        snap_num_in_range,
         resample_grid_type,
         default_method,
         &resampled_locations,
@@ -175,7 +170,6 @@ pub fn run_resample_subcommand<G, P>(
 fn run_with_selected_method<G, P>(
     grid_type_arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     default_method: ResamplingMethod,
     resampled_locations: &In3D<ResampledCoordLocation>,
@@ -206,7 +200,6 @@ fn run_with_selected_method<G, P>(
         grid_type_arguments,
         method_arguments,
         provider,
-        snap_num_in_range,
         resample_grid_type,
         resampled_locations,
         resampling_method,
@@ -221,7 +214,6 @@ fn run_with_selected_interpolator<G, P>(
     grid_type_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resample_grid_type: ResampleGridType,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -253,7 +245,6 @@ fn run_with_selected_interpolator<G, P>(
             grid_type_arguments,
             arguments,
             provider,
-            snap_num_in_range,
             resampled_locations,
             resampling_method,
             continue_on_warnings,
@@ -265,7 +256,6 @@ fn run_with_selected_interpolator<G, P>(
             grid_type_arguments,
             arguments,
             provider,
-            snap_num_in_range,
             resampled_locations,
             resampling_method,
             continue_on_warnings,
@@ -277,7 +267,6 @@ fn run_with_selected_interpolator<G, P>(
             grid_type_arguments,
             arguments,
             provider,
-            snap_num_in_range,
             resampled_locations,
             resampling_method,
             continue_on_warnings,
@@ -289,7 +278,6 @@ fn run_with_selected_interpolator<G, P>(
             grid_type_arguments,
             arguments,
             provider,
-            snap_num_in_range,
             resampled_locations,
             resampling_method,
             continue_on_warnings,
@@ -304,7 +292,6 @@ fn resample_to_reshaped_grid<G, P, I>(
     arguments: &ArgMatches,
     new_shape: Option<In3D<usize>>,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -332,7 +319,6 @@ fn resample_to_reshaped_grid<G, P, I>(
                 new_shape,
                 arguments,
                 provider,
-                snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
@@ -354,7 +340,6 @@ fn resample_to_reshaped_grid<G, P, I>(
                 new_shape,
                 arguments,
                 provider,
-                snap_num_in_range,
                 resampled_locations,
                 resampling_method,
                 continue_on_warnings,
@@ -371,7 +356,6 @@ fn resample_to_regular_grid<G, P, I>(
     new_shape: Option<In3D<usize>>,
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -400,7 +384,6 @@ fn resample_to_regular_grid<G, P, I>(
     resample_snapshot_for_grid(
         arguments,
         provider,
-        snap_num_in_range,
         &new_grid,
         IdentityTransformation2::new(),
         resampled_locations,
@@ -416,7 +399,6 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     new_shape: Option<In3D<usize>>,
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -513,7 +495,6 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     resample_snapshot_for_grid(
         arguments,
         provider,
-        snap_num_in_range,
         &new_grid,
         IdentityTransformation2::new(),
         resampled_locations,
@@ -528,7 +509,6 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     grid: RegularGrid3<fgr>,
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     transformation: T,
@@ -548,7 +528,6 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     resample_snapshot_for_grid(
         arguments,
         provider,
-        snap_num_in_range,
         &new_grid,
         transformation,
         resampled_locations,
@@ -658,7 +637,6 @@ fn compute_scaled_grid_shape(shape: &In3D<usize>, scales: &In3D<fgr>) -> In3D<us
 fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     new_grid: &Arc<GOUT>,
     transformation: T,
     resampled_locations: &In3D<ResampledCoordLocation>,
@@ -688,13 +666,12 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
         verbosity,
     );
 
-    run_snapshot_resampling_with_derive(arguments, provider, snap_num_in_range, io_context);
+    run_snapshot_resampling_with_derive(arguments, provider, io_context);
 }
 
 fn run_snapshot_resampling_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -702,26 +679,15 @@ fn run_snapshot_resampling_with_derive<G, P>(
 {
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = create_derive_provider(derive_arguments, provider);
-        run_snapshot_resampling_with_synthesis(
-            derive_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_resampling_with_synthesis(derive_arguments, provider, io_context);
     } else {
-        run_snapshot_resampling_with_synthesis_added_caching(
-            arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_resampling_with_synthesis_added_caching(arguments, provider, io_context);
     }
 }
 
 fn run_snapshot_resampling_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -731,22 +697,16 @@ fn run_snapshot_resampling_with_synthesis<G, P>(
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
         let provider =
             super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
-        run_snapshot_resampling_for_provider(
-            synthesize_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_resampling_for_provider(synthesize_arguments, provider, io_context);
         return;
     }
 
-    run_snapshot_resampling_for_provider(arguments, provider, snap_num_in_range, io_context);
+    run_snapshot_resampling_for_provider(arguments, provider, io_context);
 }
 
 fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
@@ -758,29 +718,23 @@ fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
             synthesize_arguments,
             provider,
         );
-        run_snapshot_resampling_for_provider(
-            synthesize_arguments,
-            provider,
-            snap_num_in_range,
-            io_context,
-        );
+        run_snapshot_resampling_for_provider(synthesize_arguments, provider, io_context);
         return;
     }
 
-    run_snapshot_resampling_for_provider(arguments, provider, snap_num_in_range, io_context);
+    run_snapshot_resampling_for_provider(arguments, provider, io_context);
 }
 
 fn run_snapshot_resampling_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        run_write_subcommand(write_arguments, provider, snap_num_in_range, io_context);
+        run_write_subcommand(write_arguments, provider, io_context);
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
         run_inspect_subcommand(inspect_arguments, provider, io_context);
     }

@@ -22,7 +22,6 @@ use crate::{
             slice::{create_slice_seeder_from_arguments, create_slice_seeder_subcommand},
             volume::{create_volume_seeder_from_arguments, create_volume_seeder_subcommand},
         },
-        snapshot::SnapNumInRange,
         utils as cli_utils,
     },
     exit_on_error, exit_with_error,
@@ -162,18 +161,14 @@ pub fn create_trace_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_trace_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+pub fn run_trace_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
-    run_with_selected_tracer(arguments, snapshot, snap_num_in_range, io_context);
+    run_with_selected_tracer(arguments, snapshot, io_context);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -277,12 +272,8 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_tracer<G, P>(
-    arguments: &ArgMatches,
-    snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+fn run_with_selected_tracer<G, P>(arguments: &ArgMatches, snapshot: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
@@ -302,21 +293,13 @@ fn run_with_selected_tracer<G, P>(
 
     let tracer = BasicFieldLineTracer3::new(tracer_config);
 
-    run_with_selected_stepper_factory(
-        arguments,
-        tracer_arguments,
-        snapshot,
-        snap_num_in_range,
-        tracer,
-        io_context,
-    );
+    run_with_selected_stepper_factory(arguments, tracer_arguments, snapshot, tracer, io_context);
 }
 
 fn run_with_selected_stepper_factory<G, P, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     io_context: &IOContext,
 ) where
@@ -348,7 +331,6 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
             root_arguments,
             stepper_arguments,
             snapshot,
-            snap_num_in_range,
             tracer,
             RKF23StepperFactory3::new(stepper_config),
             io_context,
@@ -357,7 +339,6 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
             root_arguments,
             stepper_arguments,
             snapshot,
-            snap_num_in_range,
             tracer,
             RKF45StepperFactory3::new(stepper_config),
             io_context,
@@ -369,7 +350,6 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     io_context: &IOContext,
@@ -407,7 +387,6 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
         root_arguments,
         interpolator_arguments,
         snapshot,
-        snap_num_in_range,
         tracer,
         stepper_factory,
         interpolator,
@@ -419,7 +398,6 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
@@ -439,7 +417,6 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
         run_tracing(
             root_arguments,
             snapshot,
-            snap_num_in_range,
             tracer,
             stepper_factory,
             interpolator,
@@ -452,7 +429,6 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
         run_tracing(
             root_arguments,
             snapshot,
-            snap_num_in_range,
             tracer,
             stepper_factory,
             interpolator,
@@ -464,7 +440,6 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
         run_tracing(
             root_arguments,
             snapshot,
-            snap_num_in_range,
             tracer,
             stepper_factory,
             interpolator,
@@ -479,7 +454,6 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
 fn run_tracing<G, P, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
     mut snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
@@ -506,7 +480,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
 
     let output_type = OutputType::from_path(&output_file_path);
 
-    if let Some(snap_num_in_range) = snap_num_in_range {
+    if let Some(snap_num_in_range) = io_context.get_snap_num_in_range() {
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
             snap_num_in_range.offset(),

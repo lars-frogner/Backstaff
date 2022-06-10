@@ -10,7 +10,7 @@ use crate::{
     cli::{
         snapshot::{
             derive::create_derive_subcommand, inspect::create_inspect_subcommand,
-            write::create_write_subcommand, SnapNumInRange,
+            write::create_write_subcommand,
         },
         utils as cli_utils,
     },
@@ -142,7 +142,6 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
@@ -257,7 +256,6 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
         grid,
         arguments,
         provider,
-        snap_num_in_range,
         resampled_locations,
         resampling_method,
         transformation,

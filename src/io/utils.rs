@@ -1,6 +1,6 @@
 //! Utilities for input/output.
 
-use super::{Endianness, OverwriteMode, Verbosity};
+use super::{snapshot::utils::SnapNumInRange, Endianness, OverwriteMode, Verbosity};
 use byteorder::{self, ByteOrder, ReadBytesExt};
 use std::{
     collections::HashMap,
@@ -44,6 +44,7 @@ macro_rules! with_io_err_msg {
 pub struct IOContext {
     atomic_output_file_map: Arc<Mutex<AtomicOutputFileMap>>,
     protected_file_types: Vec<String>,
+    snap_num_in_range: Option<SnapNumInRange>,
 }
 
 impl IOContext {
@@ -51,6 +52,7 @@ impl IOContext {
         Self {
             atomic_output_file_map: Arc::new(Mutex::new(AtomicOutputFileMap::new())),
             protected_file_types: Vec::new(),
+            snap_num_in_range: None,
         }
     }
 
@@ -62,6 +64,14 @@ impl IOContext {
 
     pub fn set_protected_file_types(&mut self, protected_file_types: Vec<String>) {
         self.protected_file_types = protected_file_types
+    }
+
+    pub fn set_snap_num_in_range(&mut self, snap_num_in_range: Option<SnapNumInRange>) {
+        self.snap_num_in_range = snap_num_in_range
+    }
+
+    pub fn get_snap_num_in_range(&self) -> Option<&SnapNumInRange> {
+        self.snap_num_in_range.as_ref()
     }
 
     /// Whether the given file path is protected from automatic

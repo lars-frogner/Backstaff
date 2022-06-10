@@ -7,7 +7,6 @@ pub mod simulate;
 
 use self::simulate::{create_simulate_subcommand, run_simulate_subcommand};
 use crate::{
-    cli::snapshot::SnapNumInRange,
     grid::{fgr, Grid3},
     io::{snapshot::SnapshotProvider3, utils::IOContext},
     update_command_graph,
@@ -27,16 +26,12 @@ pub fn create_ebeam_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `ebeam` subcommand using the given arguments.
-pub fn run_ebeam_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+pub fn run_ebeam_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
-        run_simulate_subcommand(simulate_arguments, provider, snap_num_in_range, io_context);
+        run_simulate_subcommand(simulate_arguments, provider, io_context);
     }
 }

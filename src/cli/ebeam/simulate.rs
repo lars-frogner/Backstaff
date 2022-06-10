@@ -27,7 +27,6 @@ use crate::{
             construct_poly_fit_interpolator_config_from_options,
             create_poly_fit_interpolator_subcommand,
         },
-        snapshot::SnapNumInRange,
         tracing::stepping::rkf::{
             construct_rkf_stepper_config_from_options, create_rkf_stepper_subcommand,
         },
@@ -219,18 +218,14 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
 }
 
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
-pub fn run_simulate_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+pub fn run_simulate_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
-    run_with_selected_detector(arguments, snapshot, snap_num_in_range, io_context);
+    run_with_selected_detector(arguments, snapshot, io_context);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -334,12 +329,8 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_detector<G, P>(
-    arguments: &ArgMatches,
-    snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
-    io_context: &IOContext,
-) where
+fn run_with_selected_detector<G, P>(arguments: &ArgMatches, snapshot: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
@@ -349,7 +340,6 @@ fn run_with_selected_detector<G, P>(
             arguments,
             detector_arguments,
             snapshot,
-            snap_num_in_range,
             detector,
             io_context,
         );
@@ -380,7 +370,6 @@ fn run_with_selected_detector<G, P>(
             arguments,
             detector_arguments,
             snapshot,
-            snap_num_in_range,
             detector,
             io_context,
         );
@@ -391,7 +380,6 @@ fn run_with_selected_accelerator<G, P, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     io_context: &IOContext,
 ) where
@@ -436,7 +424,6 @@ fn run_with_selected_accelerator<G, P, D>(
             root_arguments,
             accelerator_arguments,
             snapshot,
-            snap_num_in_range,
             detector,
             accelerator,
             io_context,
@@ -452,7 +439,6 @@ fn run_with_selected_accelerator<G, P, D>(
             root_arguments,
             distribution_arguments,
             snapshot,
-            snap_num_in_range,
             detector,
             accelerator,
             io_context,
@@ -464,7 +450,6 @@ fn run_with_selected_interpolator<G, P, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     io_context: &IOContext)
@@ -501,7 +486,6 @@ where G: Grid3<fgr>,
         root_arguments,
         interpolator_arguments,
         snapshot,
-        snap_num_in_range,
         detector,
         accelerator,
         interpolator,
@@ -513,7 +497,6 @@ fn run_with_selected_stepper_factory<G, P, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: P,
-    snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
     interpolator: I,
@@ -547,7 +530,7 @@ where G: Grid3<fgr>,
 
     let output_type = OutputType::from_path(&output_file_path);
 
-    if let Some(snap_num_in_range) = snap_num_in_range {
+    if let Some(snap_num_in_range) = io_context.get_snap_num_in_range() {
         output_file_path.set_file_name(snapshot::create_new_snapshot_file_name_from_path(
             &output_file_path,
             snap_num_in_range.offset(),
