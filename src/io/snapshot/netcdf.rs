@@ -5,7 +5,7 @@ mod param;
 
 use super::{
     super::{
-        utils::{self, AtomicOutputPath},
+        utils::{self},
         Endianness, OverwriteMode, Verbosity,
     },
     fdt, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES, FALLBACK_SNAP_NUM,
@@ -17,6 +17,7 @@ use crate::{
         In3D,
     },
     grid::{fgr, CoordLocation, Grid3, GridType},
+    io::utils::{close_atomic_output_file, create_atomic_output_file},
     io_result,
     num::BFloat,
     with_io_err_msg,
@@ -349,18 +350,18 @@ where
     let (_, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);
 
-    let atomic_output_path = AtomicOutputPath::new(output_file_path.to_path_buf())?;
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity) {
+    let atomic_output_file = create_atomic_output_file(output_file_path.to_path_buf())?;
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity) {
         return Ok(());
     }
 
-    let output_file_name = atomic_output_path
+    let output_file_name = atomic_output_file
         .target_path()
         .file_name()
         .unwrap()
         .to_string_lossy();
 
-    let mut file = create_file(atomic_output_path.temporary_path())?;
+    let mut file = create_file(atomic_output_file.temporary_path())?;
     let mut root_group = file.root_mut().unwrap();
 
     let new_parameters = provider.create_updated_parameters(
@@ -391,7 +392,7 @@ where
     }
 
     drop(file);
-    atomic_output_path.perform_replace()?;
+    close_atomic_output_file(atomic_output_file)?;
 
     Ok(())
 }

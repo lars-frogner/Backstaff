@@ -5,7 +5,7 @@ mod param;
 
 use super::{
     super::{
-        utils::{self, AtomicOutputPath},
+        utils::{self},
         Endianness, OverwriteMode, Verbosity,
     },
     fdt, SnapshotParameters, SnapshotProvider3, SnapshotReader3, FALLBACK_SNAP_NUM,
@@ -22,6 +22,7 @@ use crate::{
         CoordLocation::{self, Center, LowerEdge},
         Grid3, GridType,
     },
+    io::utils::{close_atomic_output_file, create_atomic_output_file},
     with_io_err_msg,
 };
 use ndarray::prelude::*;
@@ -531,45 +532,45 @@ where
     let has_primary = !included_primary_variable_names.is_empty();
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
 
-    let atomic_param_path = AtomicOutputPath::new(output_param_path.to_path_buf())?;
-    let mut atomic_mesh_path = if write_mesh_file {
-        Some(AtomicOutputPath::new(
-            atomic_param_path
+    let atomic_param_file = create_atomic_output_file(output_param_path.to_path_buf())?;
+    let mut atomic_mesh_file = if write_mesh_file {
+        Some(create_atomic_output_file(
+            atomic_param_file
                 .target_path()
                 .with_file_name(format!("{}.mesh", snap_name)),
         )?)
     } else {
         None
     };
-    let atomic_snap_path = AtomicOutputPath::new(if is_scratch {
-        atomic_param_path
+    let atomic_snap_file = create_atomic_output_file(if is_scratch {
+        atomic_param_file
             .target_path()
             .with_file_name(format!("{}.snap.scr", snap_name))
     } else {
-        atomic_param_path.target_path().with_extension("snap")
+        atomic_param_file.target_path().with_extension("snap")
     })?;
-    let atomic_aux_path = AtomicOutputPath::new(if is_scratch {
-        atomic_param_path
+    let atomic_aux_file = create_atomic_output_file(if is_scratch {
+        atomic_param_file
             .target_path()
             .with_file_name(format!("{}.aux.scr", snap_name))
     } else {
-        atomic_param_path.target_path().with_extension("aux")
+        atomic_param_file.target_path().with_extension("aux")
     })?;
 
     let write_param_file =
-        atomic_param_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
-    let write_mesh_file = if let Some(atomic_mesh_path) = &atomic_mesh_path {
+        atomic_param_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
+    let write_mesh_file = if let Some(atomic_mesh_path) = &atomic_mesh_file {
         atomic_mesh_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity)
     } else {
         false
     };
     let write_snap_file = has_primary
-        && atomic_snap_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
+        && atomic_snap_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
     let write_aux_file = has_auxiliary
-        && atomic_aux_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
+        && atomic_aux_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
 
     if write_param_file {
-        let output_param_file_name = atomic_param_path
+        let output_param_file_name = atomic_param_file
             .target_path()
             .file_name()
             .unwrap()
@@ -587,11 +588,11 @@ where
         }
         utils::write_text_file(
             &new_parameters.native_text_representation(),
-            atomic_param_path.temporary_path(),
+            atomic_param_file.temporary_path(),
         )?;
     }
     if write_mesh_file {
-        let atomic_mesh_path = atomic_mesh_path.as_ref().unwrap();
+        let atomic_mesh_path = atomic_mesh_file.as_ref().unwrap();
         if verbosity.print_messages() {
             println!(
                 "Writing grid to {}",
@@ -608,14 +609,14 @@ where
     let endianness = provider.endianness();
 
     if write_snap_file {
-        let output_snap_file_name = atomic_snap_path
+        let output_snap_file_name = atomic_snap_file
             .target_path()
             .file_name()
             .unwrap()
             .to_string_lossy();
 
         write_3d_snapfile(
-            atomic_snap_path.temporary_path(),
+            atomic_snap_file.temporary_path(),
             &included_primary_variable_names,
             &mut |name| {
                 provider.produce_scalar_field(name).map(|field| {
@@ -630,14 +631,14 @@ where
     }
 
     if write_aux_file {
-        let output_aux_file_name = atomic_aux_path
+        let output_aux_file_name = atomic_aux_file
             .target_path()
             .file_name()
             .unwrap()
             .to_string_lossy();
 
         write_3d_snapfile(
-            atomic_aux_path.temporary_path(),
+            atomic_aux_file.temporary_path(),
             &included_auxiliary_variable_names,
             &mut |name| {
                 provider.produce_scalar_field(name).map(|field| {
@@ -652,16 +653,16 @@ where
     }
 
     if write_param_file {
-        atomic_param_path.perform_replace()?;
+        close_atomic_output_file(atomic_param_file)?;
     }
     if write_mesh_file {
-        atomic_mesh_path.take().unwrap().perform_replace()?;
+        close_atomic_output_file(atomic_mesh_file.take().unwrap())?;
     }
     if write_snap_file {
-        atomic_snap_path.perform_replace()?;
+        close_atomic_output_file(atomic_snap_file)?;
     }
     if write_aux_file {
-        atomic_aux_path.perform_replace()?;
+        close_atomic_output_file(atomic_aux_file)?;
     }
 
     Ok(())

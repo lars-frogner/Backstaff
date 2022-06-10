@@ -13,7 +13,10 @@ use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
     grid::{fgr, Grid3},
-    io::{snapshot::native, utils::AtomicOutputPath},
+    io::{
+        snapshot::native,
+        utils::{close_atomic_output_file, create_atomic_output_file},
+    },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -95,23 +98,23 @@ fn write_mesh_file<G: Grid3<fgr>>(
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
     let verbosity = cli_utils::parse_verbosity(root_arguments, false);
 
-    let atomic_output_path = exit_on_error!(
-        AtomicOutputPath::new(output_file_path),
+    let atomic_output_file = exit_on_error!(
+        create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
     {
         return;
     }
 
     exit_on_error!(
-        native::write_mesh_file_from_grid(&grid, atomic_output_path.temporary_path()),
+        native::write_mesh_file_from_grid(&grid, atomic_output_file.temporary_path()),
         "Error: Could not write mesh file: {}"
     );
 
     exit_on_error!(
-        atomic_output_path.perform_replace(),
+        close_atomic_output_file(atomic_output_file),
         "Error: Could not move temporary output file to target path: {}"
     );
 }

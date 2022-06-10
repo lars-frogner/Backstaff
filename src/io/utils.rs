@@ -2,11 +2,14 @@
 
 use super::{Endianness, OverwriteMode, Verbosity};
 use byteorder::{self, ByteOrder, ReadBytesExt};
+use lazy_static::lazy_static;
 use std::{
+    collections::HashMap,
     fs, io,
     io::{Read, Seek, SeekFrom, Write},
     mem,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 use tempfile::{Builder, TempPath};
 
@@ -38,22 +41,120 @@ macro_rules! with_io_err_msg {
     };
 }
 
-/// Path to a target output file, with an associated temporary path for writing data to.
-/// The temporary file can take the place of the target output file in a single operation.
-pub struct AtomicOutputPath {
-    target_output_file_path: PathBuf,
-    temp_output_file_path: TempPath,
+/// Creates an "atomic" file that can be used for atomic
+/// writing to the given output path.
+pub fn create_atomic_output_file(output_file_path: PathBuf) -> io::Result<AtomicOutputFile> {
+    ATOMIC_OUTPUT_FILE_MAP
+        .lock()
+        .unwrap()
+        .register_output_path(output_file_path)
 }
 
-impl AtomicOutputPath {
-    /// Creates a new atomic output path for the given target file path.
-    pub fn new(output_file_path: PathBuf) -> io::Result<Self> {
-        let target_output_file_path = output_file_path;
+/// Moves the data writted to the given atomic file to its
+/// associated target output path.
+pub fn close_atomic_output_file(atomic_output_file: AtomicOutputFile) -> io::Result<()> {
+    ATOMIC_OUTPUT_FILE_MAP
+        .lock()
+        .unwrap()
+        .move_to_target(atomic_output_file)
+}
+
+/// Removes all temporary files associated with any open
+/// atomic output files. Use for graceful shutown.
+pub fn clean_all_atomic_output_files() {
+    ATOMIC_OUTPUT_FILE_MAP.lock().unwrap().clear()
+}
+
+lazy_static! {
+    /// Globally available map of currently open atomic output files.
+    static ref ATOMIC_OUTPUT_FILE_MAP: Mutex<AtomicOutputFileMap> =
+        Mutex::new(AtomicOutputFileMap::new());
+}
+
+/// Manages temporary files that can be persisted by moving
+/// to an associated target file path when all writing to
+/// the file is completed.
+struct AtomicOutputFileMap {
+    temporary_paths: HashMap<PathBuf, TempPath>,
+}
+
+impl AtomicOutputFileMap {
+    /// Creates a new map for managing atomic output files.
+    fn new() -> Self {
+        Self {
+            temporary_paths: HashMap::new(),
+        }
+    }
+
+    /// Clears the map and deletes all temporary files.
+    fn clear(&mut self) {
+        self.temporary_paths.clear()
+    }
+
+    /// Registers the given target output file path and returns an associated
+    /// atomic output file.
+    fn register_output_path(
+        &mut self,
+        target_output_file_path: PathBuf,
+    ) -> io::Result<AtomicOutputFile> {
+        if self.path_is_registered(&target_output_file_path) {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!(
+                    "Output path {} already has an associated temporary file",
+                    target_output_file_path.to_string_lossy()
+                ),
+            ));
+        }
+
+        let temp_output_file_path = Self::create_temporary_output_file(&target_output_file_path)?;
+
+        self.temporary_paths
+            .insert(target_output_file_path.clone(), temp_output_file_path);
+
+        let temp_output_file_path = self.temporary_paths[&target_output_file_path].to_path_buf();
+        Ok(AtomicOutputFile::new(
+            target_output_file_path,
+            temp_output_file_path,
+        ))
+    }
+
+    /// Moves the temporary file associated with the given atomic output file
+    /// to its target output path.
+    fn move_to_target(&mut self, atomic_output_file: AtomicOutputFile) -> io::Result<()> {
+        let target_output_file_path = atomic_output_file.target_path();
+
+        let temp_output_file_path = self
+            .temporary_paths
+            .remove(target_output_file_path)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "Output path {} has no an associated temporary file",
+                        target_output_file_path.to_string_lossy()
+                    ),
+                )
+            })?;
+
+        if target_output_file_path.exists() {
+            fs::remove_file(&target_output_file_path)?;
+        }
+        io_result!(temp_output_file_path.persist(target_output_file_path))
+    }
+
+    fn path_is_registered(&self, target_output_file_path: &Path) -> bool {
+        self.temporary_paths.contains_key(target_output_file_path)
+    }
+
+    fn create_temporary_output_file(target_output_file_path: &Path) -> io::Result<TempPath> {
         let output_dir = target_output_file_path.parent().ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "No extension for output file")
         })?;
+
         create_directory_if_missing(output_dir)?;
-        let temp_output_file_path = io_result!(Builder::new()
+
+        Ok(io_result!(Builder::new()
             .prefix(".backstaff_tmp")
             .suffix(&format!(
                 "_{}",
@@ -63,11 +164,26 @@ impl AtomicOutputPath {
                     .to_string_lossy()
             ))
             .tempfile_in(output_dir))?
-        .into_temp_path();
-        Ok(Self {
+        .into_temp_path())
+    }
+}
+
+/// Holds a target output path with an associated temporary path for writing data to.
+/// When finished, the temporary file can be moved to the target output path in a
+/// single operation.
+pub struct AtomicOutputFile {
+    target_output_file_path: PathBuf,
+    temp_output_file_path: PathBuf,
+}
+
+impl AtomicOutputFile {
+    /// Creates a new atomic output path for the given target file path.
+    fn new(output_file_path: PathBuf, temp_output_file_path: PathBuf) -> Self {
+        let target_output_file_path = output_file_path;
+        Self {
             target_output_file_path,
             temp_output_file_path,
-        })
+        }
     }
 
     /// Returns the path to the target output file.
@@ -80,8 +196,8 @@ impl AtomicOutputPath {
         &self.temp_output_file_path
     }
 
-    /// Checks whether the current path can be written to, either automatically
-    /// or with user's consent.
+    /// Checks whether the target path is available to write to (by moving the temporary file),
+    /// either automatically or with user's consent.
     pub fn check_if_write_allowed(
         &self,
         overwrite_mode: OverwriteMode,
@@ -94,18 +210,6 @@ impl AtomicOutputPath {
             protected_file_types,
             verbosity,
         )
-    }
-
-    /// Moves the temporary file to the target output file path.
-    pub fn perform_replace(self) -> io::Result<()> {
-        let Self {
-            target_output_file_path,
-            temp_output_file_path,
-        } = self;
-        if target_output_file_path.exists() {
-            fs::remove_file(&target_output_file_path)?;
-        }
-        io_result!(temp_output_file_path.persist(target_output_file_path))
     }
 }
 

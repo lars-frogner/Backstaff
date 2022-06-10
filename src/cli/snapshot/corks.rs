@@ -22,10 +22,7 @@ use crate::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
-    io::{
-        snapshot::{CachingSnapshotProvider3, SnapshotProvider3},
-        utils::AtomicOutputPath,
-    },
+    io::snapshot::{CachingSnapshotProvider3, SnapshotProvider3},
     seeding::Seeder3,
     update_command_graph,
 };
@@ -389,6 +386,8 @@ fn write_output(
     protected_file_types: &[&str],
     corks_state: &Option<CorksState>,
 ) {
+    use crate::io::utils::{close_atomic_output_file, create_atomic_output_file};
+
     let write_output = should_write_output(snap_num_in_range);
 
     if write_output || is_first_iteration(corks_state) {
@@ -405,14 +404,14 @@ fn write_output(
 
         let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
 
-        let atomic_output_path = exit_on_error!(
-            AtomicOutputPath::new(output_file_path),
+        let atomic_output_file = exit_on_error!(
+            create_atomic_output_file(output_file_path),
             "Error: Could not create temporary output file: {}"
         );
 
         let corks = corks_state.as_ref().expect("Corks state not initialized");
 
-        if !atomic_output_path.check_if_write_allowed(
+        if !atomic_output_file.check_if_write_allowed(
             overwrite_mode,
             protected_file_types,
             corks.verbosity(),
@@ -427,7 +426,7 @@ fn write_output(
         if corks.verbosity().print_messages() {
             println!(
                 "Saving corks in {}",
-                atomic_output_path
+                atomic_output_file
                     .target_path()
                     .file_name()
                     .unwrap()
@@ -439,9 +438,9 @@ fn write_output(
             match output_type {
                 OutputType::Cork => unimplemented!(),
                 #[cfg(feature = "pickle")]
-                OutputType::Pickle => corks.save_as_pickle(atomic_output_path.temporary_path()),
+                OutputType::Pickle => corks.save_as_pickle(atomic_output_file.temporary_path()),
                 #[cfg(feature = "json")]
-                OutputType::Json => corks.save_as_json(atomic_output_path.temporary_path()),
+                OutputType::Json => corks.save_as_json(atomic_output_file.temporary_path()),
                 #[cfg(feature = "hdf5")]
                 OutputType::H5Part => unimplemented!(),
             },
@@ -449,7 +448,7 @@ fn write_output(
         );
 
         exit_on_error!(
-            atomic_output_path.perform_replace(),
+            close_atomic_output_file(atomic_output_file),
             "Error: Could not move temporary output file to target path: {}"
         );
     }

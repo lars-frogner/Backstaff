@@ -17,10 +17,7 @@ use crate::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
-    io::{
-        snapshot::{self, SnapshotProvider3},
-        utils::AtomicOutputPath,
-    },
+    io::snapshot::{self, SnapshotProvider3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -153,6 +150,8 @@ pub fn run_slice_subcommand<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
+    use crate::io::utils::{close_atomic_output_file, create_atomic_output_file};
+
     let quantity = arguments
         .value_of("quantity")
         .expect("No value for required argument")
@@ -189,12 +188,12 @@ pub fn run_slice_subcommand<G, P>(
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
     let verbosity = cli_utils::parse_verbosity(arguments, false);
 
-    let atomic_output_path = exit_on_error!(
-        AtomicOutputPath::new(output_file_path),
+    let atomic_output_file = exit_on_error!(
+        create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
     {
         return;
     }
@@ -236,17 +235,17 @@ pub fn run_slice_subcommand<G, P>(
                 "x" => {
                     field
                         .slice_across_x(&interpolator, coord, resampled_coord_locations)
-                        .save_as_pickle(atomic_output_path.temporary_path())
+                        .save_as_pickle(atomic_output_file.temporary_path())
                 }
                 "y" => {
                     field
                         .slice_across_y(&interpolator, coord, resampled_coord_locations)
-                        .save_as_pickle(atomic_output_path.temporary_path())
+                        .save_as_pickle(atomic_output_file.temporary_path())
                 }
                 "z" => {
                     field
                         .slice_across_z(&interpolator, coord, resampled_coord_locations)
-                        .save_as_pickle(atomic_output_path.temporary_path())
+                        .save_as_pickle(atomic_output_file.temporary_path())
                 }
                 invalid => exit_with_error!("Error: Invalid axis: {}", invalid),
             },
@@ -273,14 +272,14 @@ pub fn run_slice_subcommand<G, P>(
             match output_type {
                 OutputType::Pickle => field
                     .regular_slice_across_axis(&interpolator, axis, coord, location)
-                    .save_as_pickle(atomic_output_path.temporary_path()),
+                    .save_as_pickle(atomic_output_file.temporary_path()),
             },
             "Error: Could not save output data: {}"
         );
     }
 
     exit_on_error!(
-        atomic_output_path.perform_replace(),
+        close_atomic_output_file(atomic_output_file),
         "Error: Could not move temporary output file to target path: {}"
     );
 }

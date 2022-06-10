@@ -34,7 +34,7 @@ use crate::{
     },
     io::{
         snapshot::{self, CachingSnapshotProvider3, SnapshotProvider3},
-        utils::AtomicOutputPath,
+        utils::{close_atomic_output_file, create_atomic_output_file, AtomicOutputFile},
     },
     seeding::Seeder3,
     tracing::{
@@ -517,37 +517,37 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
 
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
 
-    let atomic_output_path = exit_on_error!(
-        AtomicOutputPath::new(output_file_path),
+    let atomic_output_file = exit_on_error!(
+        create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
     let verbosity = cli_utils::parse_verbosity(root_arguments, true);
 
-    if !atomic_output_path.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
     {
         return;
     }
 
-    let extra_atomic_output_path = match output_type {
+    let extra_atomic_output_file = match output_type {
         #[cfg(feature = "hdf5")]
         OutputType::H5Part => {
-            let extra_atomic_output_path = exit_on_error!(
-                AtomicOutputPath::new(
-                    atomic_output_path
+            let extra_atomic_output_file = exit_on_error!(
+                create_atomic_output_file(
+                    atomic_output_file
                         .target_path()
                         .with_extension("seeds.h5part")
                 ),
                 "Error: Could not create temporary output file: {}"
             );
-            if !extra_atomic_output_path.check_if_write_allowed(
+            if !extra_atomic_output_file.check_if_write_allowed(
                 overwrite_mode,
                 protected_file_types,
                 &verbosity,
             ) {
                 return;
             }
-            Some(extra_atomic_output_path)
+            Some(extra_atomic_output_file)
         }
         _ => None,
     };
@@ -573,8 +573,8 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     perform_post_tracing_actions(
         root_arguments,
         output_type,
-        atomic_output_path,
-        extra_atomic_output_path,
+        atomic_output_file,
+        extra_atomic_output_file,
         snapshot,
         interpolator,
         field_lines,
@@ -584,8 +584,8 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
 fn perform_post_tracing_actions<G, P, I>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
-    atomic_output_path: AtomicOutputPath,
-    extra_atomic_output_path: Option<AtomicOutputPath>,
+    atomic_output_file: AtomicOutputFile,
+    extra_atomic_output_file: Option<AtomicOutputFile>,
     mut provider: P,
     interpolator: I,
     mut field_lines: FieldLineSet3,
@@ -630,7 +630,7 @@ fn perform_post_tracing_actions<G, P, I>(
     if field_lines.verbosity().print_messages() {
         println!(
             "Saving field lines in {}",
-            atomic_output_path
+            atomic_output_file
                 .target_path()
                 .file_name()
                 .unwrap()
@@ -641,16 +641,16 @@ fn perform_post_tracing_actions<G, P, I>(
     exit_on_error!(
         match output_type {
             OutputType::Fl =>
-                field_lines.save_into_custom_binary(atomic_output_path.temporary_path()),
+                field_lines.save_into_custom_binary(atomic_output_file.temporary_path()),
             #[cfg(feature = "pickle")]
             OutputType::Pickle =>
-                field_lines.save_as_combined_pickles(atomic_output_path.temporary_path()),
+                field_lines.save_as_combined_pickles(atomic_output_file.temporary_path()),
             #[cfg(feature = "json")]
-            OutputType::Json => field_lines.save_as_json(atomic_output_path.temporary_path()),
+            OutputType::Json => field_lines.save_as_json(atomic_output_file.temporary_path()),
             #[cfg(feature = "hdf5")]
             OutputType::H5Part => field_lines.save_as_h5part(
-                atomic_output_path.temporary_path(),
-                extra_atomic_output_path.as_ref().unwrap().temporary_path(),
+                atomic_output_file.temporary_path(),
+                extra_atomic_output_file.as_ref().unwrap().temporary_path(),
                 root_arguments.is_present("drop-h5part-id"),
             ),
         },
@@ -658,12 +658,12 @@ fn perform_post_tracing_actions<G, P, I>(
     );
 
     exit_on_error!(
-        atomic_output_path.perform_replace(),
+        close_atomic_output_file(atomic_output_file),
         "Error: Could not move temporary output file to target path: {}"
     );
-    if let Some(extra_atomic_output_path) = extra_atomic_output_path {
+    if let Some(extra_atomic_output_file) = extra_atomic_output_file {
         exit_on_error!(
-            extra_atomic_output_path.perform_replace(),
+            close_atomic_output_file(extra_atomic_output_file),
             "Error: Could not move temporary output file to target path: {}"
         );
     }

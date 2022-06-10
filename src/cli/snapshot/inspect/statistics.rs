@@ -23,7 +23,7 @@ use crate::{
     },
     io::{
         snapshot::{fdt, SnapshotProvider3},
-        utils::AtomicOutputPath,
+        utils::{close_atomic_output_file, create_atomic_output_file},
         Verbosity,
     },
     num::BFloat,
@@ -265,12 +265,12 @@ pub fn run_statistics_subcommand<G, P>(
 
             let overwrite_mode = utils::overwrite_mode_from_arguments(arguments);
 
-            let atomic_output_path = exit_on_error!(
-                AtomicOutputPath::new(output_file_path),
+            let atomic_output_file = exit_on_error!(
+                create_atomic_output_file(output_file_path),
                 "Error: Could not create temporary output file: {}"
             );
 
-            if !atomic_output_path.check_if_write_allowed(
+            if !atomic_output_file.check_if_write_allowed(
                 overwrite_mode,
                 protected_file_types,
                 verbosity,
@@ -279,7 +279,7 @@ pub fn run_statistics_subcommand<G, P>(
             }
 
             let mut writer = exit_on_error!(
-                File::create(atomic_output_path.temporary_path()),
+                File::create(atomic_output_file.temporary_path()),
                 "Error: Could not create output file: {}"
             );
 
@@ -301,7 +301,7 @@ pub fn run_statistics_subcommand<G, P>(
             );
 
             exit_on_error!(
-                atomic_output_path.perform_replace(),
+                close_atomic_output_file(atomic_output_file),
                 "Error: Could not move temporary output file to target path: {}"
             );
         }
