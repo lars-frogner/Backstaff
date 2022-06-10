@@ -847,7 +847,7 @@ macro_rules! impl_relative_eq_for_grid {
                 }
                 if self
                     .centers()
-                    .relative_eq(other.centers(), epsilon, max_relative)
+                    .relative_ne(other.centers(), epsilon, max_relative)
                 {
                     #[cfg(debug_assertions)]
                     {
