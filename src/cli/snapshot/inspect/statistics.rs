@@ -65,11 +65,12 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .short('s')
                 .long("slice-depths")
                 .require_equals(true)
-                .use_value_delimiter(true).require_value_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_name("Z_COORDS")
                 .help("List of z-coordinates for which horizontal slice statistics should be printed\n\
-                       (comma-separated)")
+                       (comma-separated) [default: none]")
                 .takes_value(true)
                 .multiple_values(true),
         )
@@ -78,7 +79,8 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .short('p')
                 .long("percentages")
                 .require_equals(true)
-                .use_value_delimiter(true).require_value_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .value_name("PERCENTAGES")
                 .help("List of percentages for which to compute percentiles of the quantity values\n\
                        (comma-separated)")
@@ -91,7 +93,8 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .short('v')
                 .long("value-range")
                 .require_equals(true)
-                .use_value_delimiter(true).require_value_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["MIN", "MAX"])
                 .help(
@@ -106,7 +109,8 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .short('x')
                 .long("x-bounds")
                 .require_equals(true)
-                .use_value_delimiter(true).require_value_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(
@@ -121,7 +125,8 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .short('y')
                 .long("y-bounds")
                 .require_equals(true)
-                .use_value_delimiter(true).require_value_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(
@@ -136,7 +141,8 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                 .short('z')
                 .long("z-bounds")
                 .require_equals(true)
-                .use_value_delimiter(true).require_value_delimiter(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
                 .allow_hyphen_values(true)
                 .value_names(&["LOWER", "UPPER"])
                 .help(
