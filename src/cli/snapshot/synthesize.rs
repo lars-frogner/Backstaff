@@ -12,6 +12,7 @@ use crate::{
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
+use std::{env, path::PathBuf};
 
 /// Builds a representation of the `snapshot-synthesize` command line subcommand.
 pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Command<'static> {
@@ -134,6 +135,24 @@ where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
 {
+    match env::var_os("XUVTOP") {
+        Some(ref path) => {
+            if !PathBuf::from(path).is_dir() {
+                exit_with_error!(
+                    "Error: The XUVTOP environment variable is set but points to {}, \
+                            which is not an existing directory",
+                    path.to_string_lossy()
+                )
+            }
+        }
+        None => {
+            exit_with_error!(
+                "Error: The XUVTOP environment variable is not set, \
+                        please set it to the directory of the CHIANTI database"
+            )
+        }
+    }
+
     let line_names = arguments
         .values_of("spectral-lines")
         .map(|values| values.map(|name| name.to_lowercase()).collect::<Vec<_>>())
