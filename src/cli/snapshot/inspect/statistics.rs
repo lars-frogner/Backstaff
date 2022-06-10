@@ -59,7 +59,19 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
 
     Command::new(command_name)
         .about("Print statistics for quantities in the snapshot")
-
+        .arg(
+            Arg::new("percentages")
+                .short('p')
+                .long("percentages")
+                .require_equals(true)
+                .use_value_delimiter(true)
+                .require_value_delimiter(true)
+                .value_name("PERCENTAGES")
+                .help("List of percentages for which to compute percentiles of the quantity values\n\
+                       (comma-separated) [default: none]")
+                .takes_value(true)
+                .multiple_values(true),
+        )
         .arg(
             Arg::new("slice-depths")
                 .short('s')
@@ -73,20 +85,6 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
                        (comma-separated) [default: none]")
                 .takes_value(true)
                 .multiple_values(true),
-        )
-        .arg(
-            Arg::new("percentages")
-                .short('p')
-                .long("percentages")
-                .require_equals(true)
-                .use_value_delimiter(true)
-                .require_value_delimiter(true)
-                .value_name("PERCENTAGES")
-                .help("List of percentages for which to compute percentiles of the quantity values\n\
-                       (comma-separated)")
-                .takes_value(true)
-                .multiple_values(true)
-                .default_value("5,30,50,70,95"),
         )
         .arg(
             Arg::new("value-range")
