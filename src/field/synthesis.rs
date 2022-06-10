@@ -671,7 +671,7 @@ where
             || self.provider.has_variable(variable_name)
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         self.provider.obtain_snap_name_and_num()
     }
 }

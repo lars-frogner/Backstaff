@@ -2,17 +2,15 @@
 
 use super::super::{
     super::{utils, Verbose},
-    ParameterValue, SnapshotParameters,
+    MapOfSnapshotParameters, ParameterValue, SnapshotParameters,
 };
 use crate::geometry::In3D;
-use num;
 use regex::{self, Captures, Regex};
 use std::{
     borrow::Cow,
-    collections::HashMap,
     io,
     path::{Path, PathBuf},
-    str, string,
+    str,
 };
 
 #[cfg(feature = "comparison")]
@@ -26,7 +24,7 @@ use crate::{
 pub struct NativeSnapshotParameters {
     original_path: PathBuf,
     file_text: ParameterFile,
-    parameter_set: ParameterSet,
+    parameter_set: MapOfSnapshotParameters,
 }
 
 impl NativeSnapshotParameters {
@@ -51,21 +49,23 @@ impl NativeSnapshotParameters {
         self.original_path.as_path()
     }
 
-    pub fn determine_snap_num(&self) -> io::Result<i32> {
-        self.parameter_set.get_numerical_param("isnap")
+    pub fn determine_snap_num(&self) -> io::Result<i64> {
+        self.parameter_set.get_as_int("isnap")
     }
 
     pub fn determine_mesh_path(&self) -> io::Result<PathBuf> {
-        Ok(self
-            .original_path
-            .with_file_name(self.parameter_set.get_str_param("meshfile")?))
+        Ok(self.original_path.with_file_name(
+            self.parameter_set
+                .get_as_unquoted_string("meshfile")?
+                .as_ref(),
+        ))
     }
 
     pub fn determine_snap_path(&self) -> io::Result<(PathBuf, PathBuf)> {
         let snap_num = self.determine_snap_num()?;
         let is_scratch = snap_num < 0;
         if is_scratch {
-            let snap_name = self.parameter_set.get_str_param("snapname")?;
+            let snap_name = self.parameter_set.get_as_unquoted_string("snapname")?;
             let snap_path = self
                 .original_path
                 .with_file_name(format!("{}.snap.scr", snap_name));
@@ -79,7 +79,7 @@ impl NativeSnapshotParameters {
                     .unwrap_or(3);
             let snap_path = self.original_path.with_file_name(format!(
                 "{}_{:0width$}.snap",
-                self.parameter_set.get_str_param("snapname")?,
+                self.parameter_set.get_as_unquoted_string("snapname")?,
                 snap_num,
                 width = width as usize
             ));
@@ -88,21 +88,21 @@ impl NativeSnapshotParameters {
         }
     }
 
+    pub fn determine_aux_names(&self) -> io::Result<Vec<String>> {
+        Ok(self
+            .parameter_set
+            .get_as_unquoted_string("aux")?
+            .split_whitespace()
+            .map(|name| name.to_string())
+            .collect())
+    }
+
     pub fn determine_grid_periodicity(&self) -> io::Result<In3D<bool>> {
         self.parameter_set.determine_grid_periodicity()
     }
 
     pub fn determine_if_mhd(&self) -> io::Result<bool> {
-        Ok(self.parameter_set.get_numerical_param::<u8>("do_mhd")? > 0)
-    }
-
-    pub fn determine_aux_names(&self) -> io::Result<Vec<String>> {
-        Ok(self
-            .parameter_set
-            .get_str_param("aux")?
-            .split_whitespace()
-            .map(|name| name.to_string())
-            .collect())
+        self.parameter_set.determine_if_mhd()
     }
 }
 
@@ -112,26 +112,23 @@ impl SnapshotParameters for NativeSnapshotParameters {
     }
 
     fn names(&self) -> Vec<&str> {
-        self.parameter_set.parameter_names()
+        self.parameter_set.names()
     }
 
-    fn get_value(&self, name: &str) -> io::Result<ParameterValue> {
-        self.parameter_set
-            .get_str_param(name)
-            .map(|s| ParameterValue::Str(s.to_owned()))
+    fn get_value(&self, name: &str) -> io::Result<&ParameterValue> {
+        self.parameter_set.get_value(name)
     }
 
     fn set_value(&mut self, name: &str, value: ParameterValue) {
-        let value = value.as_string();
         self.parameter_set
-            .values
+            .parameters_mut()
             .entry(name.to_string())
             .and_modify(|old_value| {
-                self.file_text.replace_parameter_value(name, value.as_str());
+                self.file_text.replace_parameter_value(name, &value);
                 *old_value = value.clone();
             })
             .or_insert_with(|| {
-                self.file_text.append_parameter_value(name, value.as_str());
+                self.file_text.append_parameter_value(name, &value);
                 value
             });
     }
@@ -164,128 +161,42 @@ impl ParameterFile {
     }
 
     /// Parses the parameter file and returns the corresponding parameter set.
-    fn parse(&self) -> ParameterSet {
+    fn parse(&self) -> MapOfSnapshotParameters {
         let regex = Regex::new(r"(?m)^\s*([_\w]+)\s*=\s*(.+?)\s*(?:;|$)").unwrap();
-        ParameterSet {
-            values: regex
+        MapOfSnapshotParameters::new(
+            regex
                 .captures_iter(&self.text)
-                .map(|captures| (captures[1].to_string(), captures[2].to_string()))
+                .map(|captures| {
+                    let name = captures[1].to_string();
+                    let value_string = captures[2].to_string();
+                    let value = ParameterValue::new_string(value_string); // Always use string representation in order to preserve formatting
+                    (name, value)
+                })
                 .collect(),
-        }
+        )
     }
 
     /// Replaces the value of the given parameter with the given new value.
     ///
     /// This does not modify the original file.
-    fn replace_parameter_value(&mut self, name: &str, new_value: &str) {
+    fn replace_parameter_value(&mut self, name: &str, new_value: &ParameterValue) {
         let regex = Regex::new(&format!(
             r"(?m)(^\s*{}\s*=\s*)(.+?)(\s*$)",
             regex::escape(name)
         ))
         .unwrap();
         if let Cow::Owned(new_text) = regex.replace_all(&self.text, |caps: &Captures| {
-            format!("{}{}{}", &caps[1], new_value, &caps[3])
+            format!("{}{}{}", &caps[1], new_value.as_string(), &caps[3])
         }) {
             self.text = new_text;
         }
     }
 
-    fn append_parameter_value(&mut self, name: &str, new_value: &str) {
-        self.text = format!("{}\n{} = {}", self.text, name, new_value);
+    fn append_parameter_value(&mut self, name: &str, new_value: &ParameterValue) {
+        self.text = format!("{}\n{} = {}", self.text, name, new_value.as_string());
     }
 
     fn from_text(text: String) -> Self {
         Self { text }
-    }
-}
-
-/// Set of parameter names and values associated with a parameter file.
-#[derive(Clone, Debug)]
-struct ParameterSet {
-    values: HashMap<String, String>,
-}
-
-impl ParameterSet {
-    /// Returns the number of parameters in the parameter set.
-    fn n_values(&self) -> usize {
-        self.values.len()
-    }
-
-    /// Returns a list of all parameter names in the parameter set.
-    fn parameter_names(&self) -> Vec<&str> {
-        self.values.keys().map(|s| s.as_str()).collect()
-    }
-
-    /// Returns the value of the string parameter with the given name.
-    fn get_str_param<'a, 'b>(&'a self, name: &'b str) -> io::Result<&'a str> {
-        match self.values.get(name) {
-            Some(value) => Ok(value.trim_matches('"')),
-            None => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Parameter {} not found in parameter file", name),
-            )),
-        }
-    }
-
-    /// Returns the value of the numerical parameter with the given name.
-    fn get_numerical_param<T>(&self, name: &str) -> io::Result<T>
-    where
-        T: num::Num + str::FromStr,
-        T::Err: string::ToString,
-    {
-        let str_value = self.get_str_param(name)?;
-        match str_value.parse::<T>() {
-            Ok(value) => Ok(value),
-            Err(err) => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Failed parsing string {} in parameter file: {}",
-                    str_value,
-                    err.to_string()
-                ),
-            )),
-        }
-    }
-
-    /// Uses the available parameters to determine the axes for which the snapshot grid is periodic.
-    fn determine_grid_periodicity(&self) -> io::Result<In3D<bool>> {
-        Ok(In3D::new(
-            self.get_numerical_param::<u8>("periodic_x")? == 1,
-            self.get_numerical_param::<u8>("periodic_y")? == 1,
-            self.get_numerical_param::<u8>("periodic_z")? == 1,
-        ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::ParameterFile;
-    use std::collections::HashMap;
-
-    #[test]
-    fn param_parsing_works() {
-        #![allow(clippy::float_cmp)]
-        let text =
-            "int = 12 \n file_str=\"file.ext\"\nfloat =  -1.02E-07\ninvalid = number\n;comment";
-        let parameter_set = ParameterFile::from_text(text.to_owned()).parse();
-
-        let correct_values: HashMap<_, _> = vec![
-            ("int".to_string(), "12".to_string()),
-            ("file_str".to_string(), "\"file.ext\"".to_string()),
-            ("float".to_string(), "-1.02E-07".to_string()),
-            ("invalid".to_string(), "number".to_string()),
-        ]
-        .into_iter()
-        .collect();
-        assert_eq!(parameter_set.values, correct_values);
-
-        assert_eq!(parameter_set.get_str_param("file_str").unwrap(), "file.ext");
-        assert_eq!(parameter_set.get_numerical_param::<u32>("int").unwrap(), 12);
-        assert_eq!(
-            parameter_set.get_numerical_param::<f32>("float").unwrap(),
-            -1.02e-7
-        );
-        assert!(parameter_set.get_numerical_param::<f32>("invalid").is_err());
     }
 }

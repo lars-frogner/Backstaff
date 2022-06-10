@@ -58,7 +58,7 @@ fn read_snapshot_parameter(group: &Group, name: &str) -> io::Result<ParameterVal
             AttrValue::Longlong(i) => ParameterValue::Int(i),
             AttrValue::Float(f) => ParameterValue::Float(f as fpa),
             AttrValue::Double(f) => ParameterValue::Float(f as fpa),
-            AttrValue::Str(s) => ParameterValue::Str(s),
+            AttrValue::Str(s) => ParameterValue::String(s),
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -91,12 +91,12 @@ pub fn write_snapshot_parameters<P: SnapshotParameters>(
 fn write_single_snapshot_parameter(
     group: &mut GroupMut,
     parameter_name: &str,
-    parameter_value: ParameterValue,
+    parameter_value: &ParameterValue,
 ) -> io::Result<()> {
     match parameter_value {
-        ParameterValue::Str(s) => io_result!(group.add_attribute(parameter_name, s.as_str()))?,
-        ParameterValue::Int(i) => io_result!(group.add_attribute(parameter_name, i))?,
-        ParameterValue::Float(f) => io_result!(group.add_attribute(parameter_name, f))?,
+        ParameterValue::String(s) => io_result!(group.add_attribute(parameter_name, s.as_str()))?,
+        &ParameterValue::Int(i) => io_result!(group.add_attribute(parameter_name, i))?,
+        &ParameterValue::Float(f) => io_result!(group.add_attribute(parameter_name, f))?,
     };
     Ok(())
 }

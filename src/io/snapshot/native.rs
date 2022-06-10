@@ -332,7 +332,7 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
             .contains(&variable_name.to_string())
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         super::extract_name_and_num_from_snapshot_path(self.config.param_file_path())
     }
 }
@@ -520,8 +520,11 @@ where
     P: SnapshotProvider3<G>,
 {
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_param_path);
-    let snap_num = snap_num.unwrap_or(if is_scratch { 1 } else { FALLBACK_SNAP_NUM });
-    let snap_num = format!("{}{}", if is_scratch { "-" } else { "" }, snap_num);
+    let mut signed_snap_num =
+        snap_num.unwrap_or(if is_scratch { 1 } else { FALLBACK_SNAP_NUM }) as i64;
+    if is_scratch {
+        signed_snap_num = -signed_snap_num;
+    }
 
     let (included_primary_variable_names, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);
@@ -575,7 +578,7 @@ where
 
         let new_parameters = provider.create_updated_parameters(
             snap_name.as_str(),
-            snap_num,
+            signed_snap_num,
             &included_auxiliary_variable_names,
             is_mhd,
         );

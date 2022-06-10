@@ -152,7 +152,7 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
             .contains(&variable_name.to_string())
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         super::extract_name_and_num_from_snapshot_path(self.config.file_path())
     }
 }
@@ -342,8 +342,7 @@ where
     P: SnapshotProvider3<G>,
 {
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_file_path);
-    let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM);
-    let snap_num = format!("{}", snap_num);
+    let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM) as i64;
 
     let (_, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);

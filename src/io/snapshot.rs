@@ -21,7 +21,7 @@ use crate::{
     interpolation::Interpolator3,
 };
 use regex::Regex;
-use std::{collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
 
 #[cfg(feature = "comparison")]
 use approx::{AbsDiffEq, RelativeEq};
@@ -42,7 +42,7 @@ pub enum SnapshotFormat {
 }
 
 /// Snapshot number to assume when not inferrable.
-pub const FALLBACK_SNAP_NUM: u32 = 0;
+pub const FALLBACK_SNAP_NUM: u64 = 0;
 
 /// Standard names of coordinate arrays
 pub const COORDINATE_NAMES: [&str; 12] = [
@@ -152,14 +152,14 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
     fn has_variable(&self, variable_name: &str) -> bool;
 
     /// Returns the name and (if available) number of the snapshot.
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>);
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>);
 
     /// Returns the set of snapshot parameters, but modified to account for
     /// changes in the grid, snapshot name and number and included set of quantities.
     fn create_updated_parameters(
         &self,
         snap_name: &str,
-        snap_num: String,
+        signed_snap_num: i64,
         included_auxiliary_variable_names: &[String],
         is_mhd: bool,
     ) -> Self::Parameters {
@@ -169,53 +169,50 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
 
         let mut new_parameters = self.parameters().clone();
 
-        new_parameters.set_value(
-            "snapname",
-            ParameterValue::Str(format!("\"{}\"", snap_name)),
-        );
-        new_parameters.set_value("isnap", ParameterValue::Str(snap_num));
+        new_parameters.set_value("snapname", ParameterValue::new_quoted_string(snap_name));
+        new_parameters.set_value("isnap", ParameterValue::new_int(signed_snap_num));
         new_parameters.set_value(
             "meshfile",
-            ParameterValue::Str(format!("\"{}.mesh\"", snap_name)),
+            ParameterValue::new_quoted_string(&format!("{}.mesh", snap_name)),
         );
 
         new_parameters.set_value(
             "aux",
-            ParameterValue::Str(format!(
-                "\"{}\"",
-                included_auxiliary_variable_names.join(" ")
-            )),
+            ParameterValue::new_quoted_string(&included_auxiliary_variable_names.join(" ")),
         );
 
-        new_parameters.set_value("do_mhd", ParameterValue::Int(if is_mhd { 1 } else { 0 }));
+        new_parameters.set_value(
+            "do_mhd",
+            ParameterValue::new_int(if is_mhd { 1 } else { 0 }),
+        );
 
         new_parameters.set_value(
             "periodic_x",
-            ParameterValue::Int(if grid.is_periodic(X) { 1 } else { 0 }),
+            ParameterValue::new_int(if grid.is_periodic(X) { 1 } else { 0 }),
         );
         new_parameters.set_value(
             "periodic_y",
-            ParameterValue::Int(if grid.is_periodic(Y) { 1 } else { 0 }),
+            ParameterValue::new_int(if grid.is_periodic(Y) { 1 } else { 0 }),
         );
         new_parameters.set_value(
             "periodic_z",
-            ParameterValue::Int(if grid.is_periodic(Z) { 1 } else { 0 }),
+            ParameterValue::new_int(if grid.is_periodic(Z) { 1 } else { 0 }),
         );
 
-        new_parameters.set_value("mx", ParameterValue::Int(shape[X] as i64));
-        new_parameters.set_value("my", ParameterValue::Int(shape[Y] as i64));
-        new_parameters.set_value("mz", ParameterValue::Int(shape[Z] as i64));
+        new_parameters.set_value("mx", ParameterValue::new_int(shape[X] as i64));
+        new_parameters.set_value("my", ParameterValue::new_int(shape[Y] as i64));
+        new_parameters.set_value("mz", ParameterValue::new_int(shape[Z] as i64));
         new_parameters.set_value(
             "dx",
-            ParameterValue::Float(average_grid_cell_extents[X] as fpa),
+            ParameterValue::new_float(average_grid_cell_extents[X]),
         );
         new_parameters.set_value(
             "dy",
-            ParameterValue::Float(average_grid_cell_extents[Y] as fpa),
+            ParameterValue::new_float(average_grid_cell_extents[Y]),
         );
         new_parameters.set_value(
             "dz",
-            ParameterValue::Float(average_grid_cell_extents[Z] as fpa),
+            ParameterValue::new_float(average_grid_cell_extents[Z]),
         );
 
         new_parameters
@@ -227,7 +224,7 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
 pub struct SnapshotProvider3Wrapper<G, P> {
     provider: P,
     snap_name: String,
-    snap_num: Option<u32>,
+    snap_num: Option<u64>,
     parameters: MapOfSnapshotParameters,
     endianness: Endianness,
     all_variable_names: Vec<String>,
@@ -244,7 +241,7 @@ where
     pub fn new(
         provider: P,
         snap_name: String,
-        snap_num: Option<u32>,
+        snap_num: Option<u64>,
         parameters: MapOfSnapshotParameters,
         endianness: Endianness,
         all_variable_names: Vec<String>,
@@ -303,7 +300,7 @@ where
             .contains(&variable_name.to_string())
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         (self.snap_name.clone(), self.snap_num)
     }
 }
@@ -320,7 +317,7 @@ where
     pub fn for_snapshot(
         self,
         snap_name: String,
-        snap_num: Option<u32>,
+        snap_num: Option<u64>,
         parameters: MapOfSnapshotParameters,
     ) -> CustomSnapshotGenerator3<G> {
         let all_variable_names = self.all_variable_names();
@@ -465,13 +462,33 @@ pub trait SnapshotParameters: Clone {
     fn names(&self) -> Vec<&str>;
 
     /// Provides the value of the given snapshot parameter.
-    fn get_value(&self, name: &str) -> io::Result<ParameterValue>;
+    fn get_value(&self, name: &str) -> io::Result<&ParameterValue>;
 
     /// Replaces or adds the given value of the given snapshot parameter.
     fn set_value(&mut self, name: &str, value: ParameterValue);
 
     /// Returns a text representation of the parameters in the native parameter file format.
     fn native_text_representation(&self) -> String;
+
+    /// Provides the value of the given snapshot parameter as a string.
+    fn get_as_string(&self, name: &str) -> io::Result<Cow<str>> {
+        Ok(self.get_value(name)?.as_string())
+    }
+
+    /// Provides the value of the given snapshot parameter as an unquoted string.
+    fn get_as_unquoted_string(&self, name: &str) -> io::Result<Cow<str>> {
+        Ok(self.get_value(name)?.as_unquoted_string())
+    }
+
+    /// Provides the value of the given snapshot parameter as an int if possible.
+    fn get_as_int(&self, name: &str) -> io::Result<i64> {
+        self.get_value(name)?.try_as_int()
+    }
+
+    /// Provides the value of the given snapshot parameter as a float if possible.
+    fn get_as_float(&self, name: &str) -> io::Result<f64> {
+        self.get_value(name)?.try_as_float()
+    }
 
     /// Tries to read the given parameter from the parameter file.
     /// If successful, the value is converted with the given closure and
@@ -609,25 +626,60 @@ macro_rules! impl_relative_eq_for_parameters {
 #[derive(Clone, Debug)]
 /// Value of a snapshot parameter.
 pub enum ParameterValue {
-    Str(String),
+    String(String),
     Int(i64),
     Float(fpa),
 }
 
 impl ParameterValue {
-    /// Return string representation of value.
-    pub fn as_string(&self) -> String {
+    /// Creates a parameter value corresponding to the given string.
+    pub fn new_string(string: String) -> Self {
+        Self::String(string)
+    }
+
+    /// Creates a parameter value corresponding to a quoted version
+    /// of the given string.
+    pub fn new_quoted_string(string: &str) -> Self {
+        Self::String(format!("\"{}\"", string))
+    }
+
+    /// Creates a parameter value corresponding to the given integer.
+    pub fn new_int(integer: i64) -> Self {
+        Self::Int(integer)
+    }
+
+    /// Creates a parameter value corresponding to the given float.
+    pub fn new_float(float: f64) -> Self {
+        Self::Float(float)
+    }
+
+    /// Returns a string representation of the parameter value.
+    pub fn as_string(&self) -> Cow<str> {
         match *self {
-            Self::Str(ref s) => s.clone(),
-            Self::Int(i) => format!("{}", i),
-            Self::Float(f) => format!("{:8.3E}", f),
+            Self::String(ref s) => Cow::from(s),
+            Self::Int(i) => Cow::from(Self::format_int(i)),
+            Self::Float(f) => Cow::from(Self::format_float(f)),
         }
     }
 
-    /// Try interpreting the parameter value as an integer, or return an error if not possible.
+    /// Returns an unquoted string representation of the parameter value.
+    pub fn as_unquoted_string(&self) -> Cow<str> {
+        match *self {
+            Self::String(ref s) => Cow::from(if Self::string_is_quoted(s) {
+                &s[1..s.len() - 1]
+            } else {
+                s
+            }),
+            Self::Int(i) => Cow::from(Self::format_int(i)),
+            Self::Float(f) => Cow::from(Self::format_float(f)),
+        }
+    }
+
+    /// Tries interpreting the parameter value as an integer and
+    /// returns the integer if successful.
     pub fn try_as_int(&self) -> io::Result<i64> {
         match *self {
-            Self::Str(ref s) => match s.parse::<i64>() {
+            Self::String(ref s) => match s.parse::<i64>() {
                 Ok(i) => Ok(i),
                 Err(err) => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -642,10 +694,11 @@ impl ParameterValue {
         }
     }
 
-    /// Try interpreting the parameter value as a float, or return an error if not possible.
+    /// Tries interpreting the parameter value as a float and returns
+    /// the float if successful.
     pub fn try_as_float(&self) -> io::Result<fpa> {
         match *self {
-            Self::Str(ref s) => match s.parse::<fpa>() {
+            Self::String(ref s) => match s.parse::<fpa>() {
                 Ok(f) => Ok(f),
                 Err(err) => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -656,13 +709,46 @@ impl ParameterValue {
             Self::Float(f) => Ok(f),
         }
     }
+
+    /// Converts the parameter value to a string and turns into
+    /// the `Self::String` variant.
+    pub fn turn_into_string_variant(&mut self) {
+        *self = Self::String(self.as_string().to_string());
+    }
+
+    /// Tries to convert the parameter value to an integer and turns into
+    /// the `Self::Int` variant if successful.
+    pub fn try_turn_into_int_variant(&mut self) -> io::Result<()> {
+        *self = Self::Int(self.try_as_int()?);
+        Ok(())
+    }
+
+    /// Tries to convert the parameter value to a float and turns into
+    /// the `Self::Float` variant if successful.
+    pub fn try_turn_into_float_variant(&mut self) -> io::Result<()> {
+        *self = Self::Float(self.try_as_float()?);
+        Ok(())
+    }
+
+    /// Whether the given string surrounded by double quotes.
+    pub fn string_is_quoted(string: &str) -> bool {
+        string.starts_with('"') && string.ends_with('"')
+    }
+
+    fn format_int(integer: i64) -> String {
+        format!("{}", integer)
+    }
+
+    fn format_float(float: f64) -> String {
+        format!("{:15.8E}", float)
+    }
 }
 
 #[cfg(feature = "comparison")]
 macro_rules! compare_parameter_values {
     ($self:expr, $other:expr, |$a:ident, $b:ident| $compare:expr) => {
         match ($self, $other) {
-            (ParameterValue::Str(a), ParameterValue::Str(b)) => a == b,
+            (ParameterValue::String(a), ParameterValue::String(b)) => a == b,
             (ParameterValue::Int(a), ParameterValue::Int(b)) => a == b,
             (ParameterValue::Float(a), ParameterValue::Float(b)) => {
                 #[allow(clippy::needless_borrow)]
@@ -719,42 +805,48 @@ impl RelativeEq for ParameterValue {
     }
 }
 
-#[derive(Clone, Debug, Default)]
 /// Representation of parameters as a `HashMap` of `ParameterValue`s.
-pub struct MapOfSnapshotParameters {
-    parameters: HashMap<String, ParameterValue>,
-}
+#[derive(Clone, Debug, Default)]
+pub struct MapOfSnapshotParameters(HashMap<String, ParameterValue>);
 
 impl MapOfSnapshotParameters {
     pub fn new(parameters: HashMap<String, ParameterValue>) -> Self {
-        Self { parameters }
+        Self(parameters)
+    }
+
+    pub fn parameters(&self) -> &HashMap<String, ParameterValue> {
+        &self.0
+    }
+
+    pub fn parameters_mut(&mut self) -> &mut HashMap<String, ParameterValue> {
+        &mut self.0
     }
 
     pub fn determine_if_mhd(&self) -> io::Result<bool> {
-        Ok(self.get_value("do_mhd")?.try_as_int()? > 0)
+        Ok(self.get_as_int("do_mhd")? > 0)
     }
 
     /// Uses the available parameters to determine the axes for which the snapshot grid is periodic.
     pub fn determine_grid_periodicity(&self) -> io::Result<In3D<bool>> {
         Ok(In3D::new(
-            self.get_value("periodic_x")?.try_as_int()? == 1,
-            self.get_value("periodic_y")?.try_as_int()? == 1,
-            self.get_value("periodic_z")?.try_as_int()? == 1,
+            self.get_as_int("periodic_x")? > 0,
+            self.get_as_int("periodic_y")? > 0,
+            self.get_as_int("periodic_z")? > 0,
         ))
     }
 }
 
 impl SnapshotParameters for MapOfSnapshotParameters {
     fn n_values(&self) -> usize {
-        self.parameters.len()
+        self.parameters().len()
     }
 
     fn names(&self) -> Vec<&str> {
-        self.parameters.keys().map(|s| s.as_str()).collect()
+        self.parameters().keys().map(|s| s.as_str()).collect()
     }
 
-    fn get_value(&self, name: &str) -> io::Result<ParameterValue> {
-        self.parameters.get(name).cloned().ok_or_else(|| {
+    fn get_value(&self, name: &str) -> io::Result<&ParameterValue> {
+        self.parameters().get(name).ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::NotFound,
                 format!("Parameter {} not found", name),
@@ -763,7 +855,7 @@ impl SnapshotParameters for MapOfSnapshotParameters {
     }
 
     fn set_value(&mut self, name: &str, value: ParameterValue) {
-        self.parameters
+        self.parameters_mut()
             .entry(name.to_string())
             .and_modify(|old_value| {
                 *old_value = value.clone();
@@ -773,7 +865,7 @@ impl SnapshotParameters for MapOfSnapshotParameters {
 
     fn native_text_representation(&self) -> String {
         let mut text = String::new();
-        for (name, value) in &self.parameters {
+        for (name, value) in self.parameters() {
             text = format!("{}{} = {}\n", &text, name, value.as_string());
         }
         text
@@ -898,7 +990,7 @@ where
         self.provider.has_variable(variable_name)
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         self.provider.obtain_snap_name_and_num()
     }
 }
@@ -978,7 +1070,7 @@ where
         self.provider.has_variable(variable_name)
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         self.provider.obtain_snap_name_and_num()
     }
 }
@@ -1019,18 +1111,18 @@ where
         self.provider().has_variable(variable_name)
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         self.provider().obtain_snap_name_and_num()
     }
 }
 
 /// Parses the file name of the given path and returns the interpreted
 /// snapshot name and (if detected) number.
-pub fn extract_name_and_num_from_snapshot_path(file_path: &Path) -> (String, Option<u32>) {
+pub fn extract_name_and_num_from_snapshot_path(file_path: &Path) -> (String, Option<u64>) {
     let (snap_name, snap_num_string) = parse_snapshot_file_path(file_path);
     (
         snap_name,
-        snap_num_string.map(|s| s.parse::<u32>().unwrap()),
+        snap_num_string.map(|s| s.parse::<u64>().unwrap()),
     )
 }
 

@@ -486,7 +486,7 @@ where
         Self::verify_variable_availability(&self.provider, variable_name, &|_, _| {})
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u32>) {
+    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
         self.provider.obtain_snap_name_and_num()
     }
 }

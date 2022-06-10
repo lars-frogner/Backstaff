@@ -439,7 +439,7 @@ where
 
 fn print_statistics_report<G, I, W>(
     field: ScalarField3<fdt, G>,
-    snap_name_and_num: (String, Option<u32>),
+    snap_name_and_num: (String, Option<u64>),
     value_range: (fdt, fdt),
     x_range: (fgr, fgr),
     y_range: (fgr, fgr),
