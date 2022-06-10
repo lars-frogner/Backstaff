@@ -62,9 +62,12 @@ pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<fgr>>: Sync {
             variable_name.to_string(),
             self.arc_with_grid(),
             In3D::new(
-                self.produce_scalar_field(&format!("{}x", variable_name))?,
-                self.produce_scalar_field(&format!("{}y", variable_name))?,
-                self.produce_scalar_field(&format!("{}z", variable_name))?,
+                self.produce_scalar_field(&format!("{}x", variable_name))
+                    .or_else(|_| self.produce_scalar_field(&format!("{}xc", variable_name)))?,
+                self.produce_scalar_field(&format!("{}y", variable_name))
+                    .or_else(|_| self.produce_scalar_field(&format!("{}yc", variable_name)))?,
+                self.produce_scalar_field(&format!("{}z", variable_name))
+                    .or_else(|_| self.produce_scalar_field(&format!("{}zc", variable_name)))?,
             ),
         ))
     }
