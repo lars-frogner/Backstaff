@@ -652,7 +652,10 @@ where
     } else {
         Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("Quantity {} not supported", quantity_name),
+            format!(
+                "Quantity {} unavailable and can not be derived",
+                quantity_name
+            ),
         ))
     }
 }
