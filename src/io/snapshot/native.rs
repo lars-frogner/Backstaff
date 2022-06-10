@@ -22,7 +22,7 @@ use crate::{
         CoordLocation::{self, Center, LowerEdge},
         Grid3, GridType,
     },
-    io::utils::{close_atomic_output_file, create_atomic_output_file},
+    io::utils::IOContext,
     with_io_err_msg,
 };
 use ndarray::prelude::*;
@@ -485,6 +485,7 @@ impl NativeSnapshotMetadata {
 pub fn write_new_snapshot<G, P>(
     provider: &mut P,
     output_param_path: &Path,
+    io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
@@ -499,7 +500,7 @@ where
         false,
         true,
         OverwriteMode::Always,
-        &[],
+        io_context,
         verbosity,
     )
 }
@@ -512,7 +513,7 @@ pub fn write_modified_snapshot<G, P>(
     is_scratch: bool,
     write_mesh_file: bool,
     overwrite_mode: OverwriteMode,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
@@ -532,24 +533,27 @@ where
     let has_primary = !included_primary_variable_names.is_empty();
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
 
-    let atomic_param_file = create_atomic_output_file(output_param_path.to_path_buf())?;
+    let atomic_param_file =
+        io_context.create_atomic_output_file(output_param_path.to_path_buf())?;
     let mut atomic_mesh_file = if write_mesh_file {
-        Some(create_atomic_output_file(
-            atomic_param_file
-                .target_path()
-                .with_file_name(format!("{}.mesh", snap_name)),
-        )?)
+        Some(
+            io_context.create_atomic_output_file(
+                atomic_param_file
+                    .target_path()
+                    .with_file_name(format!("{}.mesh", snap_name)),
+            )?,
+        )
     } else {
         None
     };
-    let atomic_snap_file = create_atomic_output_file(if is_scratch {
+    let atomic_snap_file = io_context.create_atomic_output_file(if is_scratch {
         atomic_param_file
             .target_path()
             .with_file_name(format!("{}.snap.scr", snap_name))
     } else {
         atomic_param_file.target_path().with_extension("snap")
     })?;
-    let atomic_aux_file = create_atomic_output_file(if is_scratch {
+    let atomic_aux_file = io_context.create_atomic_output_file(if is_scratch {
         atomic_param_file
             .target_path()
             .with_file_name(format!("{}.aux.scr", snap_name))
@@ -558,16 +562,16 @@ where
     })?;
 
     let write_param_file =
-        atomic_param_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
+        atomic_param_file.check_if_write_allowed(overwrite_mode, io_context, verbosity);
     let write_mesh_file = if let Some(atomic_mesh_path) = &atomic_mesh_file {
-        atomic_mesh_path.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity)
+        atomic_mesh_path.check_if_write_allowed(overwrite_mode, io_context, verbosity)
     } else {
         false
     };
     let write_snap_file = has_primary
-        && atomic_snap_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
+        && atomic_snap_file.check_if_write_allowed(overwrite_mode, io_context, verbosity);
     let write_aux_file = has_auxiliary
-        && atomic_aux_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity);
+        && atomic_aux_file.check_if_write_allowed(overwrite_mode, io_context, verbosity);
 
     if write_param_file {
         let output_param_file_name = atomic_param_file
@@ -653,16 +657,16 @@ where
     }
 
     if write_param_file {
-        close_atomic_output_file(atomic_param_file)?;
+        io_context.close_atomic_output_file(atomic_param_file)?;
     }
     if write_mesh_file {
-        close_atomic_output_file(atomic_mesh_file.take().unwrap())?;
+        io_context.close_atomic_output_file(atomic_mesh_file.take().unwrap())?;
     }
     if write_snap_file {
-        close_atomic_output_file(atomic_snap_file)?;
+        io_context.close_atomic_output_file(atomic_snap_file)?;
     }
     if write_aux_file {
-        close_atomic_output_file(atomic_aux_file)?;
+        io_context.close_atomic_output_file(atomic_aux_file)?;
     }
 
     Ok(())

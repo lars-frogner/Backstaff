@@ -13,6 +13,7 @@ use crate::{
         BoundaryTangents, CubicHermiteSplineInterpolator, CubicHermiteSplineInterpolatorConfig,
         TangentScheme,
     },
+    io::utils::IOContext,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -138,7 +139,7 @@ pub fn create_horizontally_regular_subcommand(
 pub fn run_horizontally_regular_subcommand(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) {
     let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
 
@@ -275,5 +276,5 @@ pub fn run_horizontally_regular_subcommand(
         )),
     );
 
-    super::write_mesh_file(root_arguments, grid, protected_file_types);
+    super::write_mesh_file(root_arguments, grid, io_context);
 }

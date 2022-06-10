@@ -2,14 +2,13 @@
 
 use super::{Endianness, OverwriteMode, Verbosity};
 use byteorder::{self, ByteOrder, ReadBytesExt};
-use lazy_static::lazy_static;
 use std::{
     collections::HashMap,
     fs, io,
     io::{Read, Seek, SeekFrom, Write},
     mem,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 use tempfile::{Builder, TempPath};
 
@@ -41,40 +40,73 @@ macro_rules! with_io_err_msg {
     };
 }
 
-/// Creates an "atomic" file that can be used for atomic
-/// writing to the given output path.
-pub fn create_atomic_output_file(output_file_path: PathBuf) -> io::Result<AtomicOutputFile> {
-    ATOMIC_OUTPUT_FILE_MAP
-        .lock()
-        .unwrap()
-        .register_output_path(output_file_path)
+/// Holds state and information relevant for I/O.
+pub struct IOContext {
+    atomic_output_file_map: Arc<Mutex<AtomicOutputFileMap>>,
+    protected_file_types: Vec<String>,
 }
 
-/// Moves the data writted to the given atomic file to its
-/// associated target output path.
-pub fn close_atomic_output_file(atomic_output_file: AtomicOutputFile) -> io::Result<()> {
-    ATOMIC_OUTPUT_FILE_MAP
-        .lock()
-        .unwrap()
-        .move_to_target(atomic_output_file)
+impl IOContext {
+    pub fn new() -> Self {
+        Self {
+            atomic_output_file_map: Arc::new(Mutex::new(AtomicOutputFileMap::new())),
+            protected_file_types: Vec::new(),
+        }
+    }
+
+    /// Returns a reference counted pointer to the atomic output file map,
+    /// to be used for cleaning temporary files on shutdown.
+    pub fn obtain_atomic_file_map_handle(&self) -> Arc<Mutex<AtomicOutputFileMap>> {
+        self.atomic_output_file_map.clone()
+    }
+
+    pub fn set_protected_file_types(&mut self, protected_file_types: Vec<String>) {
+        self.protected_file_types = protected_file_types
+    }
+
+    /// Whether the given file path is protected from automatic
+    /// overwriting.
+    pub fn file_path_is_protected(&self, file_path: &Path) -> bool {
+        match file_path.extension() {
+            Some(extension) => self
+                .protected_file_types
+                .contains(&extension.to_string_lossy().to_string()),
+            None => false,
+        }
+    }
+
+    /// Creates an "atomic" file that can be used for atomic
+    /// writing to the given output path.
+    pub fn create_atomic_output_file(
+        &self,
+        output_file_path: PathBuf,
+    ) -> io::Result<AtomicOutputFile> {
+        self.atomic_output_file_map
+            .lock()
+            .unwrap()
+            .register_output_path(output_file_path)
+    }
+
+    /// Moves the data writted to the given atomic file to its
+    /// associated target output path.
+    pub fn close_atomic_output_file(&self, atomic_output_file: AtomicOutputFile) -> io::Result<()> {
+        self.atomic_output_file_map
+            .lock()
+            .unwrap()
+            .move_to_target(atomic_output_file)
+    }
 }
 
-/// Removes all temporary files associated with any open
-/// atomic output files. Use for graceful shutown.
-pub fn clean_all_atomic_output_files() {
-    ATOMIC_OUTPUT_FILE_MAP.lock().unwrap().clear()
-}
-
-lazy_static! {
-    /// Globally available map of currently open atomic output files.
-    static ref ATOMIC_OUTPUT_FILE_MAP: Mutex<AtomicOutputFileMap> =
-        Mutex::new(AtomicOutputFileMap::new());
+impl Default for IOContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Manages temporary files that can be persisted by moving
 /// to an associated target file path when all writing to
 /// the file is completed.
-struct AtomicOutputFileMap {
+pub struct AtomicOutputFileMap {
     temporary_paths: HashMap<PathBuf, TempPath>,
 }
 
@@ -87,7 +119,7 @@ impl AtomicOutputFileMap {
     }
 
     /// Clears the map and deletes all temporary files.
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.temporary_paths.clear()
     }
 
@@ -201,15 +233,10 @@ impl AtomicOutputFile {
     pub fn check_if_write_allowed(
         &self,
         overwrite_mode: OverwriteMode,
-        protected_file_types: &[&str],
+        io_context: &IOContext,
         verbosity: &Verbosity,
     ) -> bool {
-        check_if_write_allowed(
-            self.target_path(),
-            overwrite_mode,
-            protected_file_types,
-            verbosity,
-        )
+        check_if_write_allowed(self.target_path(), overwrite_mode, io_context, verbosity)
     }
 }
 
@@ -266,14 +293,11 @@ pub fn user_says_yes(question: &str, default_is_no: bool) -> io::Result<bool> {
 pub fn check_if_write_allowed<P: AsRef<Path>>(
     file_path: P,
     overwrite_mode: OverwriteMode,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> bool {
     let file_path = file_path.as_ref();
-    let is_protected = match file_path.extension() {
-        Some(extension) => protected_file_types.contains(&extension.to_string_lossy().as_ref()),
-        None => false,
-    };
+    let is_protected = io_context.file_path_is_protected(file_path);
     let file_path_string = file_path.to_string_lossy();
     let file_name = file_path.file_name().unwrap().to_string_lossy();
     if file_path.exists() {

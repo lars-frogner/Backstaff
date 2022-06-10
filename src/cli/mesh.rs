@@ -13,10 +13,7 @@ use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
     grid::{fgr, Grid3},
-    io::{
-        snapshot::native,
-        utils::{close_atomic_output_file, create_atomic_output_file},
-    },
+    io::{snapshot::native, utils::IOContext},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -61,27 +58,19 @@ pub fn create_create_mesh_subcommand(_parent_command_name: &'static str) -> Comm
 }
 
 /// Runs the actions for the `create_mesh` subcommand using the given arguments.
-pub fn run_create_mesh_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
+pub fn run_create_mesh_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
     if let Some(regular_arguments) = arguments.subcommand_matches("regular") {
-        run_regular_subcommand(arguments, regular_arguments, protected_file_types);
+        run_regular_subcommand(arguments, regular_arguments, io_context);
     } else if let Some(horizontally_regular_arguments) =
         arguments.subcommand_matches("horizontally_regular")
     {
-        run_horizontally_regular_subcommand(
-            arguments,
-            horizontally_regular_arguments,
-            protected_file_types,
-        );
+        run_horizontally_regular_subcommand(arguments, horizontally_regular_arguments, io_context);
     } else {
         exit_with_error!("Error: No resampling mode specified");
     };
 }
 
-fn write_mesh_file<G: Grid3<fgr>>(
-    root_arguments: &ArgMatches,
-    grid: G,
-    protected_file_types: &[&str],
-) {
+fn write_mesh_file<G: Grid3<fgr>>(root_arguments: &ArgMatches, grid: G, io_context: &IOContext) {
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
             root_arguments
@@ -99,12 +88,11 @@ fn write_mesh_file<G: Grid3<fgr>>(
     let verbosity = cli_utils::parse_verbosity(root_arguments, false);
 
     let atomic_output_file = exit_on_error!(
-        create_atomic_output_file(output_file_path),
+        io_context.create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
-    {
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, &verbosity) {
         return;
     }
 
@@ -114,7 +102,7 @@ fn write_mesh_file<G: Grid3<fgr>>(
     );
 
     exit_on_error!(
-        close_atomic_output_file(atomic_output_file),
+        io_context.close_atomic_output_file(atomic_output_file),
         "Error: Could not move temporary output file to target path: {}"
     );
 }

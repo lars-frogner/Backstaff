@@ -1,6 +1,10 @@
 //! Command line interface for creating a graph of the command hierarchy.
 
-use crate::{cli::utils as cli_utils, exit_on_error, io::utils};
+use crate::{
+    cli::utils as cli_utils,
+    exit_on_error,
+    io::utils::{self, IOContext},
+};
 use clap::{self, Arg, ArgMatches, Command};
 use lazy_static::lazy_static;
 use petgraph::{
@@ -84,7 +88,7 @@ pub fn create_command_graph_subcommand() -> Command<'static> {
 }
 
 /// Runs the actions for the `command_graph` subcommand using the given arguments.
-pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types: &[&str]) {
+pub fn run_command_graph_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
     let output_file_path = exit_on_error!(
         PathBuf::from_str(
             arguments
@@ -111,12 +115,7 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, protected_file_types
         Dot::with_config(&command_graph, &[Config::EdgeNoLabel])
     );
 
-    if !utils::check_if_write_allowed(
-        &output_file_path,
-        overwrite_mode,
-        protected_file_types,
-        &verbosity,
-    ) {
+    if !utils::check_if_write_allowed(&output_file_path, overwrite_mode, io_context, &verbosity) {
         return;
     }
 

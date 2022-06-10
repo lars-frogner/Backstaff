@@ -59,7 +59,7 @@ use crate::{
     },
     io::{
         snapshot::{self, CachingSnapshotProvider3, SnapshotProvider3},
-        utils::{close_atomic_output_file, create_atomic_output_file, AtomicOutputFile},
+        utils::{AtomicOutputFile, IOContext},
     },
     tracing::stepping::rkf::{
         rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig, RKFStepperType,
@@ -223,14 +223,14 @@ pub fn run_simulate_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
-    run_with_selected_detector(arguments, snapshot, snap_num_in_range, protected_file_types);
+    run_with_selected_detector(arguments, snapshot, snap_num_in_range, io_context);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -338,7 +338,7 @@ fn run_with_selected_detector<G, P>(
     arguments: &ArgMatches,
     snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -351,7 +351,7 @@ fn run_with_selected_detector<G, P>(
             snapshot,
             snap_num_in_range,
             detector,
-            protected_file_types,
+            io_context,
         );
     } else {
         let (detector_config, detector_arguments) =
@@ -382,7 +382,7 @@ fn run_with_selected_detector<G, P>(
             snapshot,
             snap_num_in_range,
             detector,
-            protected_file_types,
+            io_context,
         );
     }
 }
@@ -393,7 +393,7 @@ fn run_with_selected_accelerator<G, P, D>(
     snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -439,7 +439,7 @@ fn run_with_selected_accelerator<G, P, D>(
             snap_num_in_range,
             detector,
             accelerator,
-            protected_file_types,
+            io_context,
         );
     } else {
         let accelerator_config =
@@ -455,7 +455,7 @@ fn run_with_selected_accelerator<G, P, D>(
             snap_num_in_range,
             detector,
             accelerator,
-            protected_file_types,
+            io_context,
         );
     };
 }
@@ -467,7 +467,7 @@ fn run_with_selected_interpolator<G, P, D, A>(
     snap_num_in_range: &Option<SnapNumInRange>,
     detector: D,
     accelerator: A,
-    protected_file_types: &[&str])
+    io_context: &IOContext)
 where G: Grid3<fgr>,
       P: CachingSnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
@@ -505,7 +505,7 @@ where G: Grid3<fgr>,
         detector,
         accelerator,
         interpolator,
-        protected_file_types,
+        io_context,
     );
 }
 
@@ -517,7 +517,7 @@ fn run_with_selected_stepper_factory<G, P, D, A, I>(
     detector: D,
     accelerator: A,
     interpolator: I,
-    protected_file_types: &[&str])
+    io_context: &IOContext)
 where G: Grid3<fgr>,
       P: CachingSnapshotProvider3<G>,
       D: ReconnectionSiteDetector,
@@ -560,12 +560,11 @@ where G: Grid3<fgr>,
     let verbosity = cli_utils::parse_verbosity(root_arguments, true);
 
     let atomic_output_file = exit_on_error!(
-        create_atomic_output_file(output_file_path),
+        io_context.create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
-    {
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, &verbosity) {
         return;
     }
 
@@ -573,7 +572,7 @@ where G: Grid3<fgr>,
         #[cfg(feature = "hdf5")]
         OutputType::H5Part => {
             let extra_atomic_output_file = exit_on_error!(
-                create_atomic_output_file(
+                io_context.create_atomic_output_file(
                     atomic_output_file
                         .target_path()
                         .with_extension("sites.h5part")
@@ -582,7 +581,7 @@ where G: Grid3<fgr>,
             );
             if !extra_atomic_output_file.check_if_write_allowed(
                 overwrite_mode,
-                protected_file_types,
+                io_context,
                 &verbosity,
             ) {
                 return;
@@ -643,6 +642,7 @@ where G: Grid3<fgr>,
         output_type,
         atomic_output_file,
         extra_atomic_output_file,
+        io_context,
         snapshot,
         interpolator,
         beams,
@@ -654,6 +654,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
     extra_atomic_output_file: Option<AtomicOutputFile>,
+    io_context: &IOContext,
     mut provider: P,
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
@@ -758,12 +759,12 @@ fn perform_post_simulation_actions<G, P, A, I>(
     );
 
     exit_on_error!(
-        close_atomic_output_file(atomic_output_file),
+        io_context.close_atomic_output_file(atomic_output_file),
         "Error: Could not move temporary output file to target path: {}"
     );
     if let Some(extra_atomic_output_file) = extra_atomic_output_file {
         exit_on_error!(
-            close_atomic_output_file(extra_atomic_output_file),
+            io_context.close_atomic_output_file(extra_atomic_output_file),
             "Error: Could not move temporary output file to target path: {}"
         );
     }

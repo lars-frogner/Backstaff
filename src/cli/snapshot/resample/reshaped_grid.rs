@@ -22,7 +22,7 @@ use crate::{
     },
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::{snapshot::SnapshotProvider3, Verbosity},
+    io::{snapshot::SnapshotProvider3, utils::IOContext, Verbosity},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -92,7 +92,7 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -136,6 +136,6 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
         continue_on_warnings,
         verbosity,
         interpolator,
-        protected_file_types,
+        io_context,
     );
 }

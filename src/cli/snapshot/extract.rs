@@ -18,7 +18,10 @@ use crate::{
         Idx3, Point3,
     },
     grid::{fgr, Grid3},
-    io::snapshot::{CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
+    io::{
+        snapshot::{CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
+        utils::IOContext,
+    },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -141,7 +144,7 @@ pub fn run_extract_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -251,19 +254,14 @@ pub fn run_extract_subcommand<G, P>(
     let provider =
         ExtractedSnapshotProvider3::new(provider, lower_indices, upper_indices, verbosity);
 
-    run_extract_subcommand_with_derive(
-        arguments,
-        provider,
-        snap_num_in_range,
-        protected_file_types,
-    );
+    run_extract_subcommand_with_derive(arguments, provider, snap_num_in_range, io_context);
 }
 
 fn run_extract_subcommand_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
@@ -274,14 +272,14 @@ fn run_extract_subcommand_with_derive<G, P>(
             derive_arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
     } else {
         run_extract_subcommand_with_synthesis_added_caching(
             arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
     }
 }
@@ -290,7 +288,7 @@ fn run_extract_subcommand_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G> + Sync,
@@ -303,24 +301,19 @@ fn run_extract_subcommand_with_synthesis<G, P>(
             synthesize_arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
         return;
     }
 
-    run_extract_subcommand_for_provider(
-        arguments,
-        provider,
-        snap_num_in_range,
-        protected_file_types,
-    );
+    run_extract_subcommand_for_provider(arguments, provider, snap_num_in_range, io_context);
 }
 
 fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
@@ -335,43 +328,28 @@ fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
             synthesize_arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
         return;
     }
 
-    run_extract_subcommand_for_provider(
-        arguments,
-        provider,
-        snap_num_in_range,
-        protected_file_types,
-    );
+    run_extract_subcommand_for_provider(arguments, provider, snap_num_in_range, io_context);
 }
 
 fn run_extract_subcommand_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
 {
     if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-        run_resample_subcommand(
-            resample_arguments,
-            provider,
-            snap_num_in_range,
-            protected_file_types,
-        );
+        run_resample_subcommand(resample_arguments, provider, snap_num_in_range, io_context);
     } else if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        run_write_subcommand(
-            write_arguments,
-            provider,
-            snap_num_in_range,
-            protected_file_types,
-        );
+        run_write_subcommand(write_arguments, provider, snap_num_in_range, io_context);
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-        run_inspect_subcommand(inspect_arguments, provider, protected_file_types);
+        run_inspect_subcommand(inspect_arguments, provider, io_context);
     }
 }

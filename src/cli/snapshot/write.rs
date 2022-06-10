@@ -5,7 +5,10 @@ use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
     grid::{fgr, Grid3},
-    io::snapshot::{self, native, SnapshotProvider3},
+    io::{
+        snapshot::{self, native, SnapshotProvider3},
+        utils::IOContext,
+    },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -113,7 +116,7 @@ pub fn run_write_subcommand<G, P>(
     arguments: &ArgMatches,
     mut provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -167,7 +170,7 @@ pub fn run_write_subcommand<G, P>(
                 native_type == NativeType::Scratch,
                 write_mesh_file,
                 overwrite_mode,
-                protected_file_types,
+                io_context,
                 &verbosity,
             ),
             #[cfg(feature = "netcdf")]
@@ -179,7 +182,7 @@ pub fn run_write_subcommand<G, P>(
                     &output_file_path,
                     strip_metadata,
                     overwrite_mode,
-                    protected_file_types,
+                    io_context,
                     &verbosity,
                 )
             }

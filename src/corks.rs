@@ -535,7 +535,9 @@ pub trait CorkStepper: Sync {
             .try_as_float()? as fco;
 
         snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
-        snapshot.cache_vector_field(MOMENTUM_VARIABLE_NAME)?;
+        snapshot
+            .cache_vector_field(MOMENTUM_VARIABLE_NAME)
+            .or_else(|_| snapshot.cache_vector_field(MOMENTUM_VARIABLE_NAME))?;
 
         let mass_density_field = snapshot.cached_scalar_field(MASS_DENSITY_VARIABLE_NAME);
         let momentum_field = snapshot.cached_vector_field(MOMENTUM_VARIABLE_NAME);

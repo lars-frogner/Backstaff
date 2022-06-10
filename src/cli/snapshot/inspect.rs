@@ -6,7 +6,7 @@ mod statistics;
 use crate::{
     cli::utils as cli_utils,
     grid::{fgr, Grid3},
-    io::snapshot::SnapshotProvider3,
+    io::{snapshot::SnapshotProvider3, utils::IOContext},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -70,11 +70,8 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
-pub fn run_inspect_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    protected_file_types: &[&str],
-) where
+pub fn run_inspect_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -94,7 +91,7 @@ pub fn run_inspect_subcommand<G, P>(
             statistics_arguments,
             provider,
             quantity_names,
-            protected_file_types,
+            io_context,
             &verbosity,
         );
     }

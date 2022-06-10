@@ -27,6 +27,7 @@ use crate::{
             native::{self, NativeGridData},
             SnapshotProvider3,
         },
+        utils::IOContext,
         Verbosity,
     },
     update_command_graph,
@@ -107,7 +108,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -183,7 +184,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
                 continue_on_warnings,
                 verbosity,
                 interpolator,
-                protected_file_types,
+                io_context,
             );
         }
         GridType::HorRegular => {
@@ -205,7 +206,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
                 continue_on_warnings,
                 verbosity,
                 interpolator,
-                protected_file_types,
+                io_context,
             );
         }
     }

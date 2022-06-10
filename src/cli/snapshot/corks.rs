@@ -22,7 +22,10 @@ use crate::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
-    io::snapshot::{CachingSnapshotProvider3, SnapshotProvider3},
+    io::{
+        snapshot::{CachingSnapshotProvider3, SnapshotProvider3},
+        utils::IOContext,
+    },
     seeding::Seeder3,
     update_command_graph,
 };
@@ -121,7 +124,7 @@ pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -139,7 +142,7 @@ pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -151,7 +154,7 @@ pub fn run_corks_subcommand<G, P>(
         arguments,
         &mut snapshot,
         snap_num_in_range,
-        protected_file_types,
+        io_context,
         corks_state,
     );
 }
@@ -160,7 +163,7 @@ fn run_with_selected_interpolator<G, P>(
     root_arguments: &ArgMatches,
     snapshot: &mut P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -190,7 +193,7 @@ fn run_with_selected_interpolator<G, P>(
         snapshot,
         snap_num_in_range,
         interpolator,
-        protected_file_types,
+        io_context,
         corks_state,
     );
 }
@@ -201,7 +204,7 @@ fn run_tracing<G, P, I>(
     snapshot: &mut P,
     snap_num_in_range: &Option<SnapNumInRange>,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -220,12 +223,7 @@ fn run_tracing<G, P, I>(
         let corks = corks_state.as_mut().expect("Corks state not initialized");
         advect_with_selected_advector(snapshot, interpolator, corks);
     }
-    write_output(
-        root_arguments,
-        snap_num_in_range,
-        protected_file_types,
-        corks_state,
-    );
+    write_output(root_arguments, snap_num_in_range, io_context, corks_state);
 }
 
 fn is_first_iteration(corks_state: &Option<CorksState>) -> bool {
@@ -383,11 +381,9 @@ fn write_output(_: &ArgMatches, _: &Option<SnapNumInRange>, _: &[&str], _: &Opti
 fn write_output(
     root_arguments: &ArgMatches,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     corks_state: &Option<CorksState>,
 ) {
-    use crate::io::utils::{close_atomic_output_file, create_atomic_output_file};
-
     let write_output = should_write_output(snap_num_in_range);
 
     if write_output || is_first_iteration(corks_state) {
@@ -405,17 +401,14 @@ fn write_output(
         let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
 
         let atomic_output_file = exit_on_error!(
-            create_atomic_output_file(output_file_path),
+            io_context.create_atomic_output_file(output_file_path),
             "Error: Could not create temporary output file: {}"
         );
 
         let corks = corks_state.as_ref().expect("Corks state not initialized");
 
-        if !atomic_output_file.check_if_write_allowed(
-            overwrite_mode,
-            protected_file_types,
-            corks.verbosity(),
-        ) {
+        if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, corks.verbosity())
+        {
             return;
         }
 
@@ -448,7 +441,7 @@ fn write_output(
         );
 
         exit_on_error!(
-            close_atomic_output_file(atomic_output_file),
+            io_context.close_atomic_output_file(atomic_output_file),
             "Error: Could not move temporary output file to target path: {}"
         );
     }

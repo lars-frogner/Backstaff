@@ -34,7 +34,7 @@ use crate::{
     },
     io::{
         snapshot::{self, CachingSnapshotProvider3, SnapshotProvider3},
-        utils::{close_atomic_output_file, create_atomic_output_file, AtomicOutputFile},
+        utils::{AtomicOutputFile, IOContext},
     },
     seeding::Seeder3,
     tracing::{
@@ -166,14 +166,14 @@ pub fn run_trace_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
-    run_with_selected_tracer(arguments, snapshot, snap_num_in_range, protected_file_types);
+    run_with_selected_tracer(arguments, snapshot, snap_num_in_range, io_context);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -281,7 +281,7 @@ fn run_with_selected_tracer<G, P>(
     arguments: &ArgMatches,
     snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -308,7 +308,7 @@ fn run_with_selected_tracer<G, P>(
         snapshot,
         snap_num_in_range,
         tracer,
-        protected_file_types,
+        io_context,
     );
 }
 
@@ -318,7 +318,7 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
     snapshot: P,
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -351,7 +351,7 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
             snap_num_in_range,
             tracer,
             RKF23StepperFactory3::new(stepper_config),
-            protected_file_types,
+            io_context,
         ),
         RKFStepperType::RKF45 => run_with_selected_interpolator(
             root_arguments,
@@ -360,7 +360,7 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
             snap_num_in_range,
             tracer,
             RKF45StepperFactory3::new(stepper_config),
-            protected_file_types,
+            io_context,
         ),
     }
 }
@@ -372,7 +372,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
     snap_num_in_range: &Option<SnapNumInRange>,
     tracer: Tr,
     stepper_factory: StF,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -411,7 +411,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
         tracer,
         stepper_factory,
         interpolator,
-        protected_file_types,
+        io_context,
     );
 }
 
@@ -423,7 +423,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -444,7 +444,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
             stepper_factory,
             interpolator,
             seeder,
-            protected_file_types,
+            io_context,
         );
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
         let seeder =
@@ -457,7 +457,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
             stepper_factory,
             interpolator,
             seeder,
-            protected_file_types,
+            io_context,
         );
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
         let seeder = create_manual_seeder_from_arguments(seeder_arguments);
@@ -469,7 +469,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
             stepper_factory,
             interpolator,
             seeder,
-            protected_file_types,
+            io_context,
         );
     } else {
         exit_with_error!("Error: No seeder specified")
@@ -484,7 +484,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     stepper_factory: StF,
     interpolator: I,
     seeder: Sd,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -518,14 +518,13 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
 
     let atomic_output_file = exit_on_error!(
-        create_atomic_output_file(output_file_path),
+        io_context.create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
     let verbosity = cli_utils::parse_verbosity(root_arguments, true);
 
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
-    {
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, &verbosity) {
         return;
     }
 
@@ -533,7 +532,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
         #[cfg(feature = "hdf5")]
         OutputType::H5Part => {
             let extra_atomic_output_file = exit_on_error!(
-                create_atomic_output_file(
+                io_context.create_atomic_output_file(
                     atomic_output_file
                         .target_path()
                         .with_extension("seeds.h5part")
@@ -542,7 +541,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
             );
             if !extra_atomic_output_file.check_if_write_allowed(
                 overwrite_mode,
-                protected_file_types,
+                io_context,
                 &verbosity,
             ) {
                 return;
@@ -575,6 +574,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
         output_type,
         atomic_output_file,
         extra_atomic_output_file,
+        io_context,
         snapshot,
         interpolator,
         field_lines,
@@ -586,6 +586,7 @@ fn perform_post_tracing_actions<G, P, I>(
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
     extra_atomic_output_file: Option<AtomicOutputFile>,
+    io_context: &IOContext,
     mut provider: P,
     interpolator: I,
     mut field_lines: FieldLineSet3,
@@ -658,12 +659,12 @@ fn perform_post_tracing_actions<G, P, I>(
     );
 
     exit_on_error!(
-        close_atomic_output_file(atomic_output_file),
+        io_context.close_atomic_output_file(atomic_output_file),
         "Error: Could not move temporary output file to target path: {}"
     );
     if let Some(extra_atomic_output_file) = extra_atomic_output_file {
         exit_on_error!(
-            close_atomic_output_file(extra_atomic_output_file),
+            io_context.close_atomic_output_file(extra_atomic_output_file),
             "Error: Could not move temporary output file to target path: {}"
         );
     }

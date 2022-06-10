@@ -40,6 +40,7 @@ use crate::{
     },
     io::{
         snapshot::{CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
+        utils::IOContext,
         Verbosity,
     },
     update_command_graph,
@@ -108,7 +109,7 @@ pub fn run_resample_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -167,7 +168,7 @@ pub fn run_resample_subcommand<G, P>(
         &resampled_locations,
         continue_on_warnings,
         verbosity,
-        protected_file_types,
+        io_context,
     );
 }
 
@@ -180,7 +181,7 @@ fn run_with_selected_method<G, P>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -212,7 +213,7 @@ fn run_with_selected_method<G, P>(
         has_interpolator_subcommand,
         continue_on_warnings,
         verbosity,
-        protected_file_types,
+        io_context,
     )
 }
 
@@ -227,7 +228,7 @@ fn run_with_selected_interpolator<G, P>(
     has_interpolator_subcommand: bool,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -258,7 +259,7 @@ fn run_with_selected_interpolator<G, P>(
             continue_on_warnings,
             verbosity,
             interpolator,
-            protected_file_types,
+            io_context,
         ),
         ResampleGridType::RotatedRegular => run_resampling_for_rotated_regular_grid(
             grid_type_arguments,
@@ -270,7 +271,7 @@ fn run_with_selected_interpolator<G, P>(
             continue_on_warnings,
             verbosity,
             interpolator,
-            protected_file_types,
+            io_context,
         ),
         ResampleGridType::Reshaped => run_resampling_for_reshaped_grid(
             grid_type_arguments,
@@ -282,7 +283,7 @@ fn run_with_selected_interpolator<G, P>(
             continue_on_warnings,
             verbosity,
             interpolator,
-            protected_file_types,
+            io_context,
         ),
         ResampleGridType::MeshFile => run_resampling_for_mesh_file(
             grid_type_arguments,
@@ -294,7 +295,7 @@ fn run_with_selected_interpolator<G, P>(
             continue_on_warnings,
             verbosity,
             interpolator,
-            protected_file_types,
+            io_context,
         ),
     }
 }
@@ -309,7 +310,7 @@ fn resample_to_reshaped_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -337,7 +338,7 @@ fn resample_to_reshaped_grid<G, P, I>(
                 continue_on_warnings,
                 verbosity,
                 interpolator,
-                protected_file_types,
+                io_context,
             );
         }
         GridType::HorRegular => {
@@ -359,7 +360,7 @@ fn resample_to_reshaped_grid<G, P, I>(
                 continue_on_warnings,
                 verbosity,
                 interpolator,
-                protected_file_types,
+                io_context,
             );
         }
     }
@@ -376,7 +377,7 @@ fn resample_to_regular_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -406,7 +407,7 @@ fn resample_to_regular_grid<G, P, I>(
         resampling_method,
         verbosity,
         interpolator,
-        protected_file_types,
+        io_context,
     );
 }
 
@@ -421,7 +422,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -519,7 +520,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         resampling_method,
         verbosity,
         interpolator,
-        protected_file_types,
+        io_context,
     );
 }
 
@@ -534,7 +535,7 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     _continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     T: PointTransformation2<fgr>,
@@ -554,7 +555,7 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
         resampling_method,
         verbosity,
         interpolator,
-        protected_file_types,
+        io_context,
     );
 }
 
@@ -664,7 +665,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     resampling_method: ResamplingMethod,
     verbosity: Verbosity,
     interpolator: I,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     GIN: Grid3<fgr>,
     P: SnapshotProvider3<GIN>,
@@ -687,19 +688,14 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
         verbosity,
     );
 
-    run_snapshot_resampling_with_derive(
-        arguments,
-        provider,
-        snap_num_in_range,
-        protected_file_types,
-    );
+    run_snapshot_resampling_with_derive(arguments, provider, snap_num_in_range, io_context);
 }
 
 fn run_snapshot_resampling_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -710,14 +706,14 @@ fn run_snapshot_resampling_with_derive<G, P>(
             derive_arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
     } else {
         run_snapshot_resampling_with_synthesis_added_caching(
             arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
     }
 }
@@ -726,7 +722,7 @@ fn run_snapshot_resampling_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -739,24 +735,19 @@ fn run_snapshot_resampling_with_synthesis<G, P>(
             synthesize_arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
         return;
     }
 
-    run_snapshot_resampling_for_provider(
-        arguments,
-        provider,
-        snap_num_in_range,
-        protected_file_types,
-    );
+    run_snapshot_resampling_for_provider(arguments, provider, snap_num_in_range, io_context);
 }
 
 fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -771,36 +762,26 @@ fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
             synthesize_arguments,
             provider,
             snap_num_in_range,
-            protected_file_types,
+            io_context,
         );
         return;
     }
 
-    run_snapshot_resampling_for_provider(
-        arguments,
-        provider,
-        snap_num_in_range,
-        protected_file_types,
-    );
+    run_snapshot_resampling_for_provider(arguments, provider, snap_num_in_range, io_context);
 }
 
 fn run_snapshot_resampling_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        run_write_subcommand(
-            write_arguments,
-            provider,
-            snap_num_in_range,
-            protected_file_types,
-        );
+        run_write_subcommand(write_arguments, provider, snap_num_in_range, io_context);
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-        run_inspect_subcommand(inspect_arguments, provider, protected_file_types);
+        run_inspect_subcommand(inspect_arguments, provider, io_context);
     }
 }

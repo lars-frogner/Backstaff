@@ -4,6 +4,7 @@ use crate::{
     cli::utils,
     geometry::{In3D, Vec3},
     grid::regular::RegularGrid3,
+    io::utils::IOContext,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -77,7 +78,7 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
 pub fn run_regular_subcommand(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) {
     let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
 
@@ -110,5 +111,5 @@ pub fn run_regular_subcommand(
         In3D::same(false),
     );
 
-    super::write_mesh_file(root_arguments, grid, protected_file_types);
+    super::write_mesh_file(root_arguments, grid, io_context);
 }

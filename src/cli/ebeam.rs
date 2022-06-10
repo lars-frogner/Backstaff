@@ -9,7 +9,7 @@ use self::simulate::{create_simulate_subcommand, run_simulate_subcommand};
 use crate::{
     cli::snapshot::SnapNumInRange,
     grid::{fgr, Grid3},
-    io::snapshot::SnapshotProvider3,
+    io::{snapshot::SnapshotProvider3, utils::IOContext},
     update_command_graph,
 };
 use clap::{ArgMatches, Command};
@@ -31,17 +31,12 @@ pub fn run_ebeam_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
-        run_simulate_subcommand(
-            simulate_arguments,
-            provider,
-            snap_num_in_range,
-            protected_file_types,
-        );
+        run_simulate_subcommand(simulate_arguments, provider, snap_num_in_range, io_context);
     }
 }

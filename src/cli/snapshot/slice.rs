@@ -17,7 +17,10 @@ use crate::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
     },
-    io::snapshot::{self, SnapshotProvider3},
+    io::{
+        snapshot::{self, SnapshotProvider3},
+        utils::IOContext,
+    },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -145,13 +148,11 @@ pub fn run_slice_subcommand<G, P>(
     arguments: &ArgMatches,
     mut provider: P,
     snap_num_in_range: &Option<SnapNumInRange>,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    use crate::io::utils::{close_atomic_output_file, create_atomic_output_file};
-
     let quantity = arguments
         .value_of("quantity")
         .expect("No value for required argument")
@@ -189,12 +190,11 @@ pub fn run_slice_subcommand<G, P>(
     let verbosity = cli_utils::parse_verbosity(arguments, false);
 
     let atomic_output_file = exit_on_error!(
-        create_atomic_output_file(output_file_path),
+        io_context.create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, &verbosity)
-    {
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, &verbosity) {
         return;
     }
 
@@ -279,7 +279,7 @@ pub fn run_slice_subcommand<G, P>(
     }
 
     exit_on_error!(
-        close_atomic_output_file(atomic_output_file),
+        io_context.close_atomic_output_file(atomic_output_file),
         "Error: Could not move temporary output file to target path: {}"
     );
 }

@@ -3,7 +3,8 @@ use backstaff::{
     grid::fgr,
     io::{
         snapshot::{fdt, native, utils as snapshot_utils},
-        utils as io_utils, Endianness, Verbosity,
+        utils::{self as io_utils, IOContext},
+        Endianness, Verbosity,
     },
 };
 use lazy_static::lazy_static;
@@ -49,7 +50,7 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    cli::run::run_with_args(COMMAND.clone().get_matches_from(args));
+    cli::run::run_with_args(COMMAND.clone().get_matches_from(args), IOContext::new());
 }
 
 pub fn assert_file_exists<P: AsRef<Path>>(file_path: P) {

@@ -17,7 +17,7 @@ use crate::{
         In3D,
     },
     grid::{fgr, CoordLocation, Grid3, GridType},
-    io::utils::{close_atomic_output_file, create_atomic_output_file},
+    io::utils::IOContext,
     io_result,
     num::BFloat,
     with_io_err_msg,
@@ -312,6 +312,7 @@ impl NetCDFSnapshotReaderConfig {
 pub fn write_new_snapshot<G, P>(
     provider: &mut P,
     output_file_path: &Path,
+    io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
@@ -325,7 +326,7 @@ where
         output_file_path,
         false,
         OverwriteMode::Always,
-        &[],
+        io_context,
         verbosity,
     )
 }
@@ -337,7 +338,7 @@ pub fn write_modified_snapshot<G, P>(
     output_file_path: &Path,
     strip_metadata: bool,
     overwrite_mode: OverwriteMode,
-    protected_file_types: &[&str],
+    io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
@@ -350,8 +351,9 @@ where
     let (_, included_auxiliary_variable_names, is_mhd) =
         provider.classify_variable_names(quantity_names);
 
-    let atomic_output_file = create_atomic_output_file(output_file_path.to_path_buf())?;
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, protected_file_types, verbosity) {
+    let atomic_output_file =
+        io_context.create_atomic_output_file(output_file_path.to_path_buf())?;
+    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, verbosity) {
         return Ok(());
     }
 
@@ -392,7 +394,7 @@ where
     }
 
     drop(file);
-    close_atomic_output_file(atomic_output_file)?;
+    io_context.close_atomic_output_file(atomic_output_file)?;
 
     Ok(())
 }
