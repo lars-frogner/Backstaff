@@ -42,6 +42,8 @@ fn trim_newline(s: &mut String) {
 fn setup_hdf5() {}
 #[cfg(feature = "hdf5")]
 fn setup_hdf5() {
+    println!("cargo:rerun-if-env-changed=HDF5_DIR");
+
     if env::var("HDF5_DIR").is_ok() {
         return;
     }
