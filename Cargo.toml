@@ -23,6 +23,11 @@ tracing = ["seeding"]
 ebeam = ["tracing", "rand", "special"]
 synthesis = ["python", "roman"]
 for-testing = ["approx"]
+all-non-testing = [
+    "cli", "command-graph", "statistics", "serialization", "python",
+    "json", "pickle", "netcdf", "hdf5", "seeding", "corks", "tracing",
+    "ebeam", "synthesis"
+]
 
 [dependencies]
 # Dependencies for core
