@@ -91,7 +91,7 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,

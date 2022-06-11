@@ -139,7 +139,7 @@ pub fn create_horizontally_regular_subcommand(
 pub fn run_horizontally_regular_subcommand(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) {
     let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
 

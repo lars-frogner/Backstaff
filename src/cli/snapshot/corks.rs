@@ -122,7 +122,7 @@ pub fn create_corks_subcommand(_parent_command_name: &'static str) -> Command<'s
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -139,7 +139,7 @@ pub fn run_corks_subcommand<G, P>(
 pub fn run_corks_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -153,7 +153,7 @@ pub fn run_corks_subcommand<G, P>(
 fn run_with_selected_interpolator<G, P>(
     root_arguments: &ArgMatches,
     snapshot: &mut P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -192,7 +192,7 @@ fn run_tracing<G, P, I>(
     arguments: &ArgMatches,
     snapshot: &mut P,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     G: Grid3<fgr>,
@@ -359,14 +359,14 @@ fn should_write_output(io_context: &IOContext) -> bool {
 }
 
 #[cfg(not(any(feature = "json", feature = "pickle")))]
-fn write_output(_: &ArgMatches, _: &Option<SnapNumInRange>, _: &[&str], _: &Option<CorksState>) {
+fn write_output(_: &ArgMatches, _: &mut IOContext, _: &Option<CorksState>) {
     unreachable!()
 }
 
 #[cfg(any(feature = "json", feature = "pickle"))]
 fn write_output(
     root_arguments: &ArgMatches,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
     corks_state: &Option<CorksState>,
 ) {
     let write_output = should_write_output(io_context);
@@ -384,6 +384,7 @@ fn write_output(
         let output_type = OutputType::from_path(&output_file_path);
 
         let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
+        io_context.set_overwrite_mode(overwrite_mode);
 
         let atomic_output_file = exit_on_error!(
             io_context.create_atomic_output_file(output_file_path),
@@ -392,8 +393,7 @@ fn write_output(
 
         let corks = corks_state.as_ref().expect("Corks state not initialized");
 
-        if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, corks.verbosity())
-        {
+        if !atomic_output_file.check_if_write_allowed(io_context, corks.verbosity()) {
             return;
         }
 

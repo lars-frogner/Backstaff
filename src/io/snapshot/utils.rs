@@ -170,13 +170,16 @@ macro_rules! with_new_snapshot_reader {
                 GridType::Regular if !$force_hor_regular => metadata
                     .into_reader::<RegularGrid3<_>>()
                     .and_then(|reader| {
-                        let action = |$reader: NativeSnapshotReader3<RegularGrid3<_>>| $action;
+                        #[allow(unused_mut)]
+                        let mut action = |$reader: NativeSnapshotReader3<RegularGrid3<_>>| $action;
                         action(reader)
                     }),
                 _ => metadata
                     .into_reader::<HorRegularGrid3<_>>()
                     .and_then(|reader| {
-                        let action = |$reader: NativeSnapshotReader3<HorRegularGrid3<_>>| $action;
+                        #[allow(unused_mut)]
+                        let mut action =
+                            |$reader: NativeSnapshotReader3<HorRegularGrid3<_>>| $action;
                         action(reader)
                     }),
             }),
@@ -187,12 +190,14 @@ macro_rules! with_new_snapshot_reader {
             .and_then(|metadata| match metadata.grid_type() {
                 GridType::Regular if !$force_hor_regular => {
                     let reader = metadata.into_reader::<RegularGrid3<_>>();
-                    let action = |$reader: NetCDFSnapshotReader3<RegularGrid3<_>>| $action;
+                    #[allow(unused_mut)]
+                    let mut action = |$reader: NetCDFSnapshotReader3<RegularGrid3<_>>| $action;
                     action(reader)
                 }
                 _ => {
                     let reader = metadata.into_reader::<HorRegularGrid3<_>>();
-                    let action = |$reader: NetCDFSnapshotReader3<HorRegularGrid3<_>>| $action;
+                    #[allow(unused_mut)]
+                    let mut action = |$reader: NetCDFSnapshotReader3<HorRegularGrid3<_>>| $action;
                     action(reader)
                 }
             }),

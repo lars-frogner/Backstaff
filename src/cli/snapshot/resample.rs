@@ -105,8 +105,11 @@ enum ResampleGridType {
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
-pub fn run_resample_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
-where
+pub fn run_resample_subcommand<G, P>(
+    arguments: &ArgMatches,
+    provider: P,
+    io_context: &mut IOContext,
+) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -175,7 +178,7 @@ fn run_with_selected_method<G, P>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -220,7 +223,7 @@ fn run_with_selected_interpolator<G, P>(
     has_interpolator_subcommand: bool,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -297,7 +300,7 @@ fn resample_to_reshaped_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -361,7 +364,7 @@ fn resample_to_regular_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -404,7 +407,7 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -515,7 +518,7 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     _continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     T: PointTransformation2<fgr>,
@@ -643,7 +646,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     resampling_method: ResamplingMethod,
     verbosity: Verbosity,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     GIN: Grid3<fgr>,
     P: SnapshotProvider3<GIN>,
@@ -672,7 +675,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
 fn run_snapshot_resampling_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -688,7 +691,7 @@ fn run_snapshot_resampling_with_derive<G, P>(
 fn run_snapshot_resampling_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -707,7 +710,7 @@ fn run_snapshot_resampling_with_synthesis<G, P>(
 fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -728,7 +731,7 @@ fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
 fn run_snapshot_resampling_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,

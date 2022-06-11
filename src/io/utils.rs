@@ -45,6 +45,7 @@ pub struct IOContext {
     atomic_output_file_map: Arc<Mutex<AtomicOutputFileMap>>,
     protected_file_types: Vec<String>,
     snap_num_in_range: Option<SnapNumInRange>,
+    overwrite_mode: OverwriteMode,
 }
 
 impl IOContext {
@@ -53,6 +54,7 @@ impl IOContext {
             atomic_output_file_map: Arc::new(Mutex::new(AtomicOutputFileMap::new())),
             protected_file_types: Vec::new(),
             snap_num_in_range: None,
+            overwrite_mode: OverwriteMode::Ask,
         }
     }
 
@@ -72,6 +74,14 @@ impl IOContext {
 
     pub fn get_snap_num_in_range(&self) -> Option<&SnapNumInRange> {
         self.snap_num_in_range.as_ref()
+    }
+
+    pub fn set_overwrite_mode(&mut self, overwrite_mode: OverwriteMode) {
+        self.overwrite_mode = overwrite_mode
+    }
+
+    pub fn get_overwrite_mode(&self) -> OverwriteMode {
+        self.overwrite_mode
     }
 
     /// Whether the given file path is protected from automatic
@@ -240,13 +250,8 @@ impl AtomicOutputFile {
 
     /// Checks whether the target path is available to write to (by moving the temporary file),
     /// either automatically or with user's consent.
-    pub fn check_if_write_allowed(
-        &self,
-        overwrite_mode: OverwriteMode,
-        io_context: &IOContext,
-        verbosity: &Verbosity,
-    ) -> bool {
-        check_if_write_allowed(self.target_path(), overwrite_mode, io_context, verbosity)
+    pub fn check_if_write_allowed(&self, io_context: &IOContext, verbosity: &Verbosity) -> bool {
+        check_if_write_allowed(self.target_path(), io_context, verbosity)
     }
 }
 
@@ -302,7 +307,6 @@ pub fn user_says_yes(question: &str, default_is_no: bool) -> io::Result<bool> {
 /// or with user's consent.
 pub fn check_if_write_allowed<P: AsRef<Path>>(
     file_path: P,
-    overwrite_mode: OverwriteMode,
     io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> bool {
@@ -311,7 +315,7 @@ pub fn check_if_write_allowed<P: AsRef<Path>>(
     let file_path_string = file_path.to_string_lossy();
     let file_name = file_path.file_name().unwrap().to_string_lossy();
     if file_path.exists() {
-        let can_overwrite = match overwrite_mode {
+        let can_overwrite = match io_context.get_overwrite_mode() {
             OverwriteMode::Ask | OverwriteMode::Always if is_protected => user_says_yes(
                 &format!(
                     "File {} already exists and is a protected file type, overwrite?",
@@ -340,7 +344,9 @@ pub fn check_if_write_allowed<P: AsRef<Path>>(
             OverwriteMode::Always => true,
             OverwriteMode::Never => false,
         };
-        if !can_overwrite && (verbosity.print_messages() || overwrite_mode != OverwriteMode::Never)
+        if !can_overwrite
+            && (verbosity.print_messages()
+                || io_context.get_overwrite_mode() != OverwriteMode::Never)
         {
             println!("Skipping {}", file_name);
         }

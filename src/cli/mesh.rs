@@ -58,7 +58,7 @@ pub fn create_create_mesh_subcommand(_parent_command_name: &'static str) -> Comm
 }
 
 /// Runs the actions for the `create_mesh` subcommand using the given arguments.
-pub fn run_create_mesh_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
+pub fn run_create_mesh_subcommand(arguments: &ArgMatches, io_context: &mut IOContext) {
     if let Some(regular_arguments) = arguments.subcommand_matches("regular") {
         run_regular_subcommand(arguments, regular_arguments, io_context);
     } else if let Some(horizontally_regular_arguments) =
@@ -70,7 +70,11 @@ pub fn run_create_mesh_subcommand(arguments: &ArgMatches, io_context: &IOContext
     };
 }
 
-fn write_mesh_file<G: Grid3<fgr>>(root_arguments: &ArgMatches, grid: G, io_context: &IOContext) {
+fn write_mesh_file<G: Grid3<fgr>>(
+    root_arguments: &ArgMatches,
+    grid: G,
+    io_context: &mut IOContext,
+) {
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
             root_arguments
@@ -87,12 +91,14 @@ fn write_mesh_file<G: Grid3<fgr>>(root_arguments: &ArgMatches, grid: G, io_conte
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
     let verbosity = cli_utils::parse_verbosity(root_arguments, false);
 
+    io_context.set_overwrite_mode(overwrite_mode);
+
     let atomic_output_file = exit_on_error!(
         io_context.create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, &verbosity) {
+    if !atomic_output_file.check_if_write_allowed(io_context, &verbosity) {
         return;
     }
 

@@ -88,7 +88,7 @@ pub fn create_command_graph_subcommand() -> Command<'static> {
 }
 
 /// Runs the actions for the `command_graph` subcommand using the given arguments.
-pub fn run_command_graph_subcommand(arguments: &ArgMatches, io_context: &IOContext) {
+pub fn run_command_graph_subcommand(arguments: &ArgMatches, io_context: &mut IOContext) {
     let output_file_path = exit_on_error!(
         PathBuf::from_str(
             arguments
@@ -101,6 +101,8 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, io_context: &IOConte
     let include_configuration = arguments.is_present("include-configuration");
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
     let verbosity = cli_utils::parse_verbosity(arguments, false);
+
+    io_context.set_overwrite_mode(overwrite_mode);
 
     let mut command_graph = COMMAND_GRAPH.lock().unwrap().clone();
 
@@ -115,7 +117,7 @@ pub fn run_command_graph_subcommand(arguments: &ArgMatches, io_context: &IOConte
         Dot::with_config(&command_graph, &[Config::EdgeNoLabel])
     );
 
-    if !utils::check_if_write_allowed(&output_file_path, overwrite_mode, io_context, &verbosity) {
+    if !utils::check_if_write_allowed(&output_file_path, io_context, &verbosity) {
         return;
     }
 

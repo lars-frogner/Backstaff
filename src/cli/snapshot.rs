@@ -208,7 +208,7 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &mut IOContex
 fn run_snapshot_subcommand_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -224,7 +224,7 @@ fn run_snapshot_subcommand_with_derive<G, P>(
 fn run_snapshot_subcommand_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -242,7 +242,7 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
 fn run_snapshot_subcommand_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -261,7 +261,7 @@ fn run_snapshot_subcommand_with_synthesis_added_caching<G, P>(
 fn run_snapshot_subcommand_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,

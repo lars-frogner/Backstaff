@@ -48,7 +48,7 @@ pub fn run_with_args(arguments: ArgMatches, mut io_context: IOContext) {
     if let Some(snapshot_arguments) = arguments.subcommand_matches("snapshot") {
         run_snapshot_subcommand(snapshot_arguments, &mut io_context);
     } else if let Some(create_mesh_arguments) = arguments.subcommand_matches("create_mesh") {
-        run_create_mesh_subcommand(create_mesh_arguments, &io_context);
+        run_create_mesh_subcommand(create_mesh_arguments, &mut io_context);
     } else if let Some(completions_arguments) = arguments.subcommand_matches("completions") {
         run_completions_subcommand(completions_arguments);
     } else {
@@ -56,7 +56,7 @@ pub fn run_with_args(arguments: ArgMatches, mut io_context: IOContext) {
         if let Some(command_graph_arguments) = arguments.subcommand_matches("command_graph") {
             super::command_graph::run_command_graph_subcommand(
                 command_graph_arguments,
-                &io_context,
+                &mut io_context,
             );
         }
     }

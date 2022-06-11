@@ -6,7 +6,7 @@ mod param;
 use super::{
     super::{
         utils::{self},
-        Endianness, OverwriteMode, Verbosity,
+        Endianness, Verbosity,
     },
     fdt, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES, FALLBACK_SNAP_NUM,
 };
@@ -325,7 +325,6 @@ where
         &quantity_names,
         output_file_path,
         false,
-        OverwriteMode::Always,
         io_context,
         verbosity,
     )
@@ -337,7 +336,6 @@ pub fn write_modified_snapshot<G, P>(
     quantity_names: &[String],
     output_file_path: &Path,
     strip_metadata: bool,
-    overwrite_mode: OverwriteMode,
     io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
@@ -353,7 +351,7 @@ where
 
     let atomic_output_file =
         io_context.create_atomic_output_file(output_file_path.to_path_buf())?;
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, verbosity) {
+    if !atomic_output_file.check_if_write_allowed(io_context, verbosity) {
         return Ok(());
     }
 

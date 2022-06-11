@@ -26,7 +26,7 @@ pub fn create_ebeam_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `ebeam` subcommand using the given arguments.
-pub fn run_ebeam_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+pub fn run_ebeam_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
 where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,

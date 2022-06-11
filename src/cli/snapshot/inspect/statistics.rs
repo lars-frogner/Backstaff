@@ -184,7 +184,7 @@ pub fn run_statistics_subcommand<G, P>(
     arguments: &ArgMatches,
     provider: P,
     quantity_names: Vec<String>,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
     verbosity: &Verbosity,
 ) where
     G: Grid3<fgr>,
@@ -264,13 +264,14 @@ pub fn run_statistics_subcommand<G, P>(
             );
 
             let overwrite_mode = utils::overwrite_mode_from_arguments(arguments);
+            io_context.set_overwrite_mode(overwrite_mode);
 
             let atomic_output_file = exit_on_error!(
                 io_context.create_atomic_output_file(output_file_path),
                 "Error: Could not create temporary output file: {}"
             );
 
-            if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, verbosity) {
+            if !atomic_output_file.check_if_write_allowed(io_context, verbosity) {
                 return;
             }
 

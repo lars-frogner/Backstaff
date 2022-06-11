@@ -130,21 +130,24 @@ pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 #[cfg(not(feature = "pickle"))]
-pub fn run_slice_subcommand<G, P>(_: &ArgMatches, _: P, _: &Option<SnapNumInRange>, _: &[&str])
+pub fn run_slice_subcommand<G, P>(_: &ArgMatches, _: P, _: &mut IOContext)
 where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
     exit_with_error!(
         "Error: Compile with pickle feature in order to write Pickle files\n\
-                      Tip: Use cargo flag --features=pickle"
+         Tip: Use cargo flag --features=pickle"
     );
 }
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
 #[cfg(feature = "pickle")]
-pub fn run_slice_subcommand<G, P>(arguments: &ArgMatches, mut provider: P, io_context: &IOContext)
-where
+pub fn run_slice_subcommand<G, P>(
+    arguments: &ArgMatches,
+    mut provider: P,
+    io_context: &mut IOContext,
+) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -184,12 +187,14 @@ where
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
     let verbosity = cli_utils::parse_verbosity(arguments, false);
 
+    io_context.set_overwrite_mode(overwrite_mode);
+
     let atomic_output_file = exit_on_error!(
         io_context.create_atomic_output_file(output_file_path),
         "Error: Could not create temporary output file: {}"
     );
 
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, &verbosity) {
+    if !atomic_output_file.check_if_write_allowed(io_context, &verbosity) {
         return;
     }
 

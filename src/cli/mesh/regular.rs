@@ -78,7 +78,7 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
 pub fn run_regular_subcommand(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) {
     let shape = utils::parse_3d_values_no_special(arguments, "shape", Some(1));
 

@@ -139,7 +139,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
-pub fn run_extract_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+pub fn run_extract_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
 where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -255,7 +255,7 @@ where
 fn run_extract_subcommand_with_derive<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
@@ -271,7 +271,7 @@ fn run_extract_subcommand_with_derive<G, P>(
 fn run_extract_subcommand_with_synthesis<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G> + Sync,
@@ -290,7 +290,7 @@ fn run_extract_subcommand_with_synthesis<G, P>(
 fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
@@ -311,7 +311,7 @@ fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
 fn run_extract_subcommand_for_provider<G, P>(
     arguments: &ArgMatches,
     provider: P,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,

@@ -111,8 +111,11 @@ pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
-pub fn run_write_subcommand<G, P>(arguments: &ArgMatches, mut provider: P, io_context: &IOContext)
-where
+pub fn run_write_subcommand<G, P>(
+    arguments: &ArgMatches,
+    mut provider: P,
+    io_context: &mut IOContext,
+) where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
@@ -149,6 +152,8 @@ where
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbosity = cli_utils::parse_verbosity(arguments, false);
 
+    io_context.set_overwrite_mode(overwrite_mode);
+
     let quantity_names =
         super::parse_included_quantity_list(arguments, &provider, continue_on_warnings);
 
@@ -164,7 +169,6 @@ where
                 &output_file_path,
                 native_type == NativeType::Scratch,
                 write_mesh_file,
-                overwrite_mode,
                 io_context,
                 &verbosity,
             ),
@@ -176,7 +180,6 @@ where
                     &quantity_names,
                     &output_file_path,
                     strip_metadata,
-                    overwrite_mode,
                     io_context,
                     &verbosity,
                 )

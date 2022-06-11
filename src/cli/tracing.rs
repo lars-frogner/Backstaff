@@ -161,7 +161,7 @@ pub fn create_trace_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_trace_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &IOContext)
+pub fn run_trace_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
 where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
@@ -272,7 +272,7 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_tracer<G, P>(arguments: &ArgMatches, snapshot: P, io_context: &IOContext)
+fn run_with_selected_tracer<G, P>(arguments: &ArgMatches, snapshot: P, io_context: &mut IOContext)
 where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -301,7 +301,7 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
     arguments: &ArgMatches,
     snapshot: P,
     tracer: Tr,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -352,7 +352,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
     snapshot: P,
     tracer: Tr,
     stepper_factory: StF,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -401,7 +401,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     tracer: Tr,
     stepper_factory: StF,
     interpolator: I,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -458,7 +458,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     stepper_factory: StF,
     interpolator: I,
     seeder: Sd,
-    io_context: &IOContext,
+    io_context: &mut IOContext,
 ) where
     G: Grid3<fgr>,
     P: CachingSnapshotProvider3<G>,
@@ -490,6 +490,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     }
 
     let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
+    io_context.set_overwrite_mode(overwrite_mode);
 
     let atomic_output_file = exit_on_error!(
         io_context.create_atomic_output_file(output_file_path),
@@ -498,7 +499,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
 
     let verbosity = cli_utils::parse_verbosity(root_arguments, true);
 
-    if !atomic_output_file.check_if_write_allowed(overwrite_mode, io_context, &verbosity) {
+    if !atomic_output_file.check_if_write_allowed(io_context, &verbosity) {
         return;
     }
 
@@ -513,11 +514,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
                 ),
                 "Error: Could not create temporary output file: {}"
             );
-            if !extra_atomic_output_file.check_if_write_allowed(
-                overwrite_mode,
-                io_context,
-                &verbosity,
-            ) {
+            if !extra_atomic_output_file.check_if_write_allowed(io_context, &verbosity) {
                 return;
             }
             Some(extra_atomic_output_file)

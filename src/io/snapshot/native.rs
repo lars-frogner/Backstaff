@@ -6,7 +6,7 @@ mod param;
 use super::{
     super::{
         utils::{self},
-        Endianness, OverwriteMode, Verbosity,
+        Endianness, Verbosity,
     },
     fdt, SnapshotParameters, SnapshotProvider3, SnapshotReader3, FALLBACK_SNAP_NUM,
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
@@ -499,7 +499,6 @@ where
         output_param_path,
         false,
         true,
-        OverwriteMode::Always,
         io_context,
         verbosity,
     )
@@ -512,7 +511,6 @@ pub fn write_modified_snapshot<G, P>(
     output_param_path: &Path,
     is_scratch: bool,
     write_mesh_file: bool,
-    overwrite_mode: OverwriteMode,
     io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
@@ -561,17 +559,16 @@ where
         atomic_param_file.target_path().with_extension("aux")
     })?;
 
-    let write_param_file =
-        atomic_param_file.check_if_write_allowed(overwrite_mode, io_context, verbosity);
+    let write_param_file = atomic_param_file.check_if_write_allowed(io_context, verbosity);
     let write_mesh_file = if let Some(atomic_mesh_path) = &atomic_mesh_file {
-        atomic_mesh_path.check_if_write_allowed(overwrite_mode, io_context, verbosity)
+        atomic_mesh_path.check_if_write_allowed(io_context, verbosity)
     } else {
         false
     };
-    let write_snap_file = has_primary
-        && atomic_snap_file.check_if_write_allowed(overwrite_mode, io_context, verbosity);
-    let write_aux_file = has_auxiliary
-        && atomic_aux_file.check_if_write_allowed(overwrite_mode, io_context, verbosity);
+    let write_snap_file =
+        has_primary && atomic_snap_file.check_if_write_allowed(io_context, verbosity);
+    let write_aux_file =
+        has_auxiliary && atomic_aux_file.check_if_write_allowed(io_context, verbosity);
 
     if write_param_file {
         let output_param_file_name = atomic_param_file
