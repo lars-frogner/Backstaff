@@ -41,6 +41,7 @@ macro_rules! with_io_err_msg {
 }
 
 /// Holds state and information relevant for I/O.
+#[derive(Debug)]
 pub struct IOContext {
     atomic_output_file_map: Arc<Mutex<AtomicOutputFileMap>>,
     protected_file_types: Vec<String>,
@@ -126,6 +127,7 @@ impl Default for IOContext {
 /// Manages temporary files that can be persisted by moving
 /// to an associated target file path when all writing to
 /// the file is completed.
+#[derive(Debug)]
 pub struct AtomicOutputFileMap {
     temporary_paths: HashMap<PathBuf, TempPath>,
 }
@@ -223,6 +225,7 @@ impl AtomicOutputFileMap {
 /// Holds a target output path with an associated temporary path for writing data to.
 /// When finished, the temporary file can be moved to the target output path in a
 /// single operation.
+#[derive(Debug)]
 pub struct AtomicOutputFile {
     target_output_file_path: PathBuf,
     temp_output_file_path: PathBuf,

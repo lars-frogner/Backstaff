@@ -111,6 +111,7 @@ impl fmt::Display for SnapshotInputType {
 }
 
 /// Represents a snapshot number as part of a range.
+#[derive(Debug, Clone)]
 pub struct SnapNumInRange {
     current_offset: u32,
     final_offset: u32,
