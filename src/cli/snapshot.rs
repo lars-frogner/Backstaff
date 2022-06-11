@@ -35,7 +35,7 @@ use crate::{
     update_command_graph, with_new_snapshot_reader,
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
-use std::{path::PathBuf, str::FromStr};
+use std::{collections::HashSet, path::PathBuf, str::FromStr};
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
@@ -322,47 +322,57 @@ where
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
-    if let Some(excluded_quantities) = arguments.values_of("excluded-quantities") {
-        let excluded_quantities: Vec<_> = excluded_quantities
-            .into_iter()
-            .filter_map(|name| {
-                let name = name.trim().to_lowercase();
-                if name.is_empty() {
-                    None
-                } else {
-                    Some(name)
-                }
-            })
-            .collect();
-        provider.all_variable_names_except(&excluded_quantities)
-    } else {
-        let included_quantities = arguments
-            .values_of("included-quantities")
-            .expect("No default for included-quantities")
-            .collect::<Vec<_>>();
-        if included_quantities.len() == 1 && included_quantities[0].trim().to_lowercase() == "all" {
-            provider.all_variable_names().to_vec()
-        } else {
-            included_quantities
+    remove_duplicate_quantities(
+        if let Some(excluded_quantities) = arguments.values_of("excluded-quantities") {
+            let excluded_quantities: Vec<_> = excluded_quantities
                 .into_iter()
                 .filter_map(|name| {
                     let name = name.trim().to_lowercase();
                     if name.is_empty() {
                         None
                     } else {
-                        let has_variable = provider.has_variable(&name);
-                        if has_variable {
-                            Some(name)
-                        } else {
-                            eprintln!("Warning: Quantity {} not available", &name);
-                            if !continue_on_warnings {
-                                cli_utils::verify_user_will_continue_or_abort()
-                            }
-                            None
-                        }
+                        Some(name)
                     }
                 })
-                .collect()
-        }
-    }
+                .collect();
+            provider.all_variable_names_except(&excluded_quantities)
+        } else {
+            let included_quantities = arguments
+                .values_of("included-quantities")
+                .expect("No default for included-quantities")
+                .collect::<Vec<_>>();
+            if included_quantities.len() == 1
+                && included_quantities[0].trim().to_lowercase() == "all"
+            {
+                provider.all_variable_names().to_vec()
+            } else {
+                included_quantities
+                    .into_iter()
+                    .filter_map(|name| {
+                        let name = name.trim().to_lowercase();
+                        if name.is_empty() {
+                            None
+                        } else {
+                            let has_variable = provider.has_variable(&name);
+                            if has_variable {
+                                Some(name)
+                            } else {
+                                eprintln!("Warning: Quantity {} not available", &name);
+                                if !continue_on_warnings {
+                                    cli_utils::verify_user_will_continue_or_abort()
+                                }
+                                None
+                            }
+                        }
+                    })
+                    .collect()
+            }
+        },
+    )
+}
+
+fn remove_duplicate_quantities(mut quantity_names: Vec<String>) -> Vec<String> {
+    let mut uniques = HashSet::new();
+    quantity_names.retain(|name| uniques.insert(name.clone()));
+    quantity_names
 }
