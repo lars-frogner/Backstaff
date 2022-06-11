@@ -1,5 +1,5 @@
 use backstaff::{
-    cli, exit_on_error, exit_with_error,
+    cli, exit_on_error,
     grid::fgr,
     io::{
         snapshot::{fdt, native, utils as snapshot_utils},
