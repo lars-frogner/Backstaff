@@ -237,7 +237,7 @@ The following command traces a set of magnetic field lines from 100x100 regularl
 backstaff --timing \
     snapshot photo_tr_001.idl \
     trace -v --extracted-quantities=r,tg field_lines.h5part \
-        basic_tracer --max-length=100.0 \
+        basic_field_line_tracer --max-length=100.0 \
         slice_seeder --axis=z --coord=-2.0 \
             regular --shape=100,100
 ```

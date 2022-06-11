@@ -278,7 +278,7 @@ where
     P: CachingSnapshotProvider3<G>,
 {
     let (tracer_config, tracer_arguments) =
-        if let Some(tracer_arguments) = arguments.subcommand_matches("basic_tracer") {
+        if let Some(tracer_arguments) = arguments.subcommand_matches("basic_field_line_tracer") {
             (
                 construct_basic_field_line_tracer_config_from_options(tracer_arguments),
                 tracer_arguments,
