@@ -124,6 +124,12 @@ impl Default for IOContext {
     }
 }
 
+impl Drop for IOContext {
+    fn drop(&mut self) {
+        self.atomic_output_file_map.lock().unwrap().clear();
+    }
+}
+
 /// Manages temporary files that can be persisted by moving
 /// to an associated target file path when all writing to
 /// the file is completed.
