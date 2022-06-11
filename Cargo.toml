@@ -28,7 +28,7 @@ comparison = ["approx"]
 # Dependencies for core
 atty = "*"
 byteorder = "*"
-ctrlc = "*"
+ctrlc = {version = "*", features = ["termination"]}
 ieee754 = "*"
 indicatif = {version = "*", features = ["rayon"]}
 lazy_static = "*"
