@@ -472,7 +472,7 @@ impl OutputType {
                 #[cfg(not(feature = "pickle"))]
                 exit_with_error!(
                     "Error: Compile with pickle feature in order to write Pickle files\n\
-                                  Tip: Use cargo flag --features=pickle"
+                     Tip: Use cargo flag --features=pickle"
                 );
             }
             "json" => {
@@ -483,7 +483,7 @@ impl OutputType {
                 #[cfg(not(feature = "json"))]
                 exit_with_error!(
                     "Error: Compile with json feature in order to write JSON files\n\
-                                  Tip: Use cargo flag --features=json"
+                     Tip: Use cargo flag --features=json"
                 );
             }
             "h5part" => {

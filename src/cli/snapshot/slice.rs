@@ -319,7 +319,7 @@ impl OutputType {
                 #[cfg(not(feature = "pickle"))]
                 exit_with_error!(
                     "Error: Compile with pickle feature in order to write Pickle files\n\
-                                  Tip: Use cargo flag --features=pickle"
+                     Tip: Use cargo flag --features=pickle"
                 );
             }
             invalid => exit_with_error!(
