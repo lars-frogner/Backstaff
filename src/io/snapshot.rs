@@ -24,7 +24,7 @@ use crate::{
 use regex::Regex;
 use std::{borrow::Cow, collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use approx::{AbsDiffEq, RelativeEq};
 
 /// Floating-point precision assumed for snapshot data.
@@ -338,7 +338,7 @@ pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
     fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>>;
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! snapshots_eq {
     ($self:expr, $other:expr) => {{
@@ -366,7 +366,7 @@ macro_rules! snapshots_eq {
     }};
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! snapshots_abs_diff_eq {
     ($self:expr, $other:expr, $epsilon:expr) => {{
@@ -398,7 +398,7 @@ macro_rules! snapshots_abs_diff_eq {
     }};
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! snapshots_relative_eq {
     ($self:expr, $other:expr, $epsilon:expr, $max_relative:expr) => {{
@@ -527,7 +527,7 @@ pub trait SnapshotParameters: Clone {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! impl_partial_eq_for_parameters {
     ($T:ty) => {
@@ -550,7 +550,7 @@ macro_rules! impl_partial_eq_for_parameters {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! impl_abs_diff_eq_for_parameters {
     ($T:ty) => {
@@ -579,7 +579,7 @@ macro_rules! impl_abs_diff_eq_for_parameters {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! impl_relative_eq_for_parameters {
     ($T:ty) => {
@@ -745,7 +745,7 @@ impl ParameterValue {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! compare_parameter_values {
     ($self:expr, $other:expr, |$a:ident, $b:ident| $compare:expr) => {
         match ($self, $other) {
@@ -770,14 +770,14 @@ macro_rules! compare_parameter_values {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl PartialEq for ParameterValue {
     fn eq(&self, other: &Self) -> bool {
         compare_parameter_values!(self, other, |a, b| a == b)
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl AbsDiffEq for ParameterValue {
     type Epsilon = <fpa as AbsDiffEq>::Epsilon;
 
@@ -790,7 +790,7 @@ impl AbsDiffEq for ParameterValue {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl RelativeEq for ParameterValue {
     fn default_max_relative() -> Self::Epsilon {
         fpa::default_max_relative()
@@ -873,13 +873,13 @@ impl SnapshotParameters for MapOfSnapshotParameters {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_parameters!(MapOfSnapshotParameters);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_parameters!(MapOfSnapshotParameters);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_parameters!(MapOfSnapshotParameters);
 
 /// Wrapper for a `SnapshotProvider3` that resamples the provided fields

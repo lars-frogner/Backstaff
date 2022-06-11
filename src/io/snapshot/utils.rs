@@ -12,10 +12,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use crate::snapshots_relative_eq;
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use approx::RelativeEq;
 
 /// Type of an input snapshot file (or set of files).
@@ -277,7 +277,7 @@ macro_rules! with_new_snapshot_grid {
 
 /// Reads the snapshot at the given path and compares for
 /// approximate equality to the given snapshot.
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 pub fn read_snapshot_eq_given_snapshot<G, R>(
     input_file_path: PathBuf,
     endianness: Endianness,
@@ -302,7 +302,7 @@ where
 
 /// Reads the snapshots at the given paths and compares them
 /// for approximate equality.
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 pub fn read_snapshots_eq(
     input_file_path_1: PathBuf,
     input_file_path_2: PathBuf,
@@ -331,7 +331,7 @@ pub fn read_snapshots_eq(
 /// Reads the field values of the snapshot at the given path and
 /// compares for equality to the corresponding given field values
 /// using the given closure.
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 pub fn read_snapshot_has_given_fields_custom_eq<'a>(
     input_file_path: PathBuf,
     endianness: Endianness,
@@ -361,7 +361,7 @@ pub fn read_snapshot_has_given_fields_custom_eq<'a>(
 
 /// Reads the grid of the snapshot at the given path and compares
 /// for approximate equality to the given grid.
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 pub fn read_snapshot_grid_eq_given_grid<G>(
     input_file_path: PathBuf,
     endianness: Endianness,
@@ -380,7 +380,7 @@ where
 
 /// Reads the grids of the snapshots at the given paths and compares
 /// them for approximate equality.
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 pub fn read_snapshot_grids_eq(
     input_file_path_1: PathBuf,
     input_file_path_2: PathBuf,

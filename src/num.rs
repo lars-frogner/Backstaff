@@ -4,7 +4,7 @@ use ieee754;
 use num;
 use std::{cmp, fmt};
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use approx::{AbsDiffEq, RelativeEq};
 
 /// Floating point marker trait for easier control over trait bounds.
@@ -47,11 +47,11 @@ impl<K, V: PartialOrd> Ord for KeyValueOrderableByValue<K, V> {
 }
 
 /// Wrapper for the slice type that implements comparison traits.
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComparableSlice<'a, T>(pub &'a [T]);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<'a, T> AbsDiffEq for ComparableSlice<'a, T>
 where
     T: AbsDiffEq,
@@ -71,7 +71,7 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<'a, T> RelativeEq for ComparableSlice<'a, T>
 where
     T: RelativeEq,

@@ -34,10 +34,10 @@ use serde::Serialize;
 #[cfg(feature = "pickle")]
 use crate::io::utils::save_data_as_pickle;
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use approx::{AbsDiffEq, RelativeEq};
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use crate::num::ComparableSlice;
 
 /// Defines the properties of a provider of 3D scalar fields.
@@ -2001,7 +2001,7 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_partial_eq_for_field {
     ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
         impl<$F, $G, $H> PartialEq<$T<$F, $H>> for $T<$F, $G>
@@ -2019,7 +2019,7 @@ macro_rules! impl_partial_eq_for_field {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_abs_diff_eq_for_field {
     ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
         impl<$F, $G, $H> AbsDiffEq<$T<$F, $H>> for $T<$F, $G>
@@ -2047,7 +2047,7 @@ macro_rules! impl_abs_diff_eq_for_field {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_relative_eq_for_field {
     ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
         impl<$F, $G, $H> RelativeEq<$T<$F, $H>> for $T<$F, $G>
@@ -2098,13 +2098,13 @@ macro_rules! impl_relative_eq_for_field {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
 
 /// A 3D vector field.
@@ -2565,13 +2565,13 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
 
 /// A 2D vector field.

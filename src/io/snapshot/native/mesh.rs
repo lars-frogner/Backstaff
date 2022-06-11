@@ -11,7 +11,7 @@ use crate::{
 };
 use std::{collections::VecDeque, io, io::BufRead, path::Path};
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use approx::RelativeEq;
 
 /// Data for a grid representing a Bifrost mesh file.
@@ -255,7 +255,7 @@ pub fn parse_mesh_file(mesh_path: &Path, verbosity: &Verbosity) -> io::Result<Na
 
 /// Parses the mesh files at the given paths and compares
 /// the resulting grids for approximate equality.
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 pub fn parsed_mesh_files_eq(
     mesh_path_1: &Path,
     mesh_path_2: &Path,

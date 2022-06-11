@@ -730,7 +730,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
         )
     }
 
-    #[cfg(feature = "comparison")]
+    #[cfg(feature = "for-testing")]
     fn derivatives_equal<H, C>(&self, other: &H, coords_equal: C) -> bool
     where
         H: Grid3<F>,
@@ -750,7 +750,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! impl_partial_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
@@ -771,7 +771,7 @@ macro_rules! impl_partial_eq_for_grid {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! impl_abs_diff_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
@@ -798,7 +798,7 @@ macro_rules! impl_abs_diff_eq_for_grid {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! impl_relative_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
@@ -1098,7 +1098,7 @@ pub trait Grid2<F: BFloat>: Clone + Sync + Send {
         Some(wrapped_point)
     }
 
-    #[cfg(feature = "comparison")]
+    #[cfg(feature = "for-testing")]
     fn derivatives_equal<H, C>(&self, other: &H, coords_equal: C) -> bool
     where
         H: Grid2<F>,

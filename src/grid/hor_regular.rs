@@ -11,7 +11,7 @@ use crate::{
 };
 use std::iter;
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use crate::{impl_abs_diff_eq_for_grid, impl_partial_eq_for_grid, impl_relative_eq_for_grid};
 
 /// A 3D grid which is regular in x and y but non-uniform in z.
@@ -228,13 +228,13 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_grid!(HorRegularGrid3<F>, Grid3);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_grid!(HorRegularGrid3<F>, Grid3);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_grid!(HorRegularGrid3<F>, Grid3);
 
 /// A 2D grid which is regular in x but non-uniform in y.
@@ -319,13 +319,13 @@ impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_grid!(HorRegularGrid2<F>, Grid2);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_grid!(HorRegularGrid2<F>, Grid2);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_grid!(HorRegularGrid2<F>, Grid2);
 
 /// A 1D non-uniform grid.

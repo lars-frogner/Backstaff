@@ -13,7 +13,7 @@ use std::{
     str,
 };
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use crate::{
     impl_abs_diff_eq_for_parameters, impl_partial_eq_for_parameters,
     impl_relative_eq_for_parameters,
@@ -138,13 +138,13 @@ impl SnapshotParameters for NativeSnapshotParameters {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_parameters!(NativeSnapshotParameters);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_parameters!(NativeSnapshotParameters);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_parameters!(NativeSnapshotParameters);
 
 /// Representation of a parameter file.

@@ -11,7 +11,7 @@ use crate::{
 };
 use std::iter;
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use crate::{impl_abs_diff_eq_for_grid, impl_partial_eq_for_grid, impl_relative_eq_for_grid};
 
 /// A regular 3D grid.
@@ -274,13 +274,13 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_grid!(RegularGrid3<F>, Grid3);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_grid!(RegularGrid3<F>, Grid3);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_grid!(RegularGrid3<F>, Grid3);
 
 /// A regular 2D grid.
@@ -438,13 +438,13 @@ impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_partial_eq_for_grid!(RegularGrid2<F>, Grid2);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_for_grid!(RegularGrid2<F>, Grid2);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_for_grid!(RegularGrid2<F>, Grid2);
 
 /// A regular 1D grid.

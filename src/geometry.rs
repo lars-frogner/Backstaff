@@ -12,10 +12,10 @@ use std::{
 #[cfg(feature = "serialization")]
 use serde::Serialize;
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use approx::{AbsDiffEq, RelativeEq};
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 use crate::num::ComparableSlice;
 
 /// Denotes the x-, y- or z-dimension.
@@ -216,7 +216,7 @@ impl<T: fmt::Display> fmt::Display for In3D<T> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<T> AbsDiffEq for In3D<T>
 where
     T: AbsDiffEq,
@@ -235,7 +235,7 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<T> RelativeEq for In3D<T>
 where
     T: RelativeEq,
@@ -257,7 +257,7 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_abs_diff_eq {
     ($T:ident <$F:ident>, $SUBT:ident) => {
         impl<$F> AbsDiffEq for $T<$F>
@@ -278,7 +278,7 @@ macro_rules! impl_abs_diff_eq {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_relative_eq {
     ($T:ident <$F:ident>, $SUBT:ident) => {
         impl<$F> RelativeEq for $T<$F>
@@ -302,28 +302,28 @@ macro_rules! impl_relative_eq {
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_abs_diff_eq_3d {
     ($T:ident <$F:ident>) => {
         impl_abs_diff_eq!($T<$F>, In3D);
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_relative_eq_3d {
     ($T:ident <$F:ident>) => {
         impl_relative_eq!($T<$F>, In3D);
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_abs_diff_eq_2d {
     ($T:ident <$F:ident>) => {
         impl_abs_diff_eq!($T<$F>, In2D);
     };
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 macro_rules! impl_relative_eq_2d {
     ($T:ident <$F:ident>) => {
         impl_relative_eq!($T<$F>, In2D);
@@ -426,7 +426,7 @@ impl<T: fmt::Display> fmt::Display for In2D<T> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<T> AbsDiffEq for In2D<T>
 where
     T: AbsDiffEq,
@@ -444,7 +444,7 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<T> RelativeEq for In2D<T>
 where
     T: RelativeEq,
@@ -739,10 +739,10 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec3<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_3d!(Vec3<F>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_3d!(Vec3<F>);
 
 /// A 2D vector.
@@ -1011,10 +1011,10 @@ impl<F: BFloat + fmt::Display> fmt::Display for Vec2<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_2d!(Vec2<F>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_2d!(Vec2<F>);
 
 /// A 3D spatial coordinate.
@@ -1229,10 +1229,10 @@ impl<F: BFloat + fmt::Display> fmt::Display for Point3<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_3d!(Point3<F>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_3d!(Point3<F>);
 
 /// A 2D spatial coordinate.
@@ -1439,10 +1439,10 @@ impl<F: BFloat + fmt::Display> fmt::Display for Point2<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_abs_diff_eq_2d!(Point2<F>);
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl_relative_eq_2d!(Point2<F>);
 
 /// A 3D index.
@@ -1735,7 +1735,7 @@ impl<F: BFloat> IndexMut<Dim3> for Coords3<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<F> AbsDiffEq for Coords3<F>
 where
     F: AbsDiffEq,
@@ -1757,7 +1757,7 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<F> RelativeEq for Coords3<F>
 where
     F: RelativeEq,
@@ -1829,7 +1829,7 @@ impl<F: BFloat> IndexMut<Dim2> for Coords2<F> {
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<F> AbsDiffEq for Coords2<F>
 where
     F: AbsDiffEq,
@@ -1849,7 +1849,7 @@ where
     }
 }
 
-#[cfg(feature = "comparison")]
+#[cfg(feature = "for-testing")]
 impl<F> RelativeEq for Coords2<F>
 where
     F: RelativeEq,
