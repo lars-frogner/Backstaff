@@ -16,6 +16,7 @@ pub fn setup_io() -> IOContext {
     let atomic_output_file_map = io_context.obtain_atomic_file_map_handle();
     ctrlc::set_handler(move || {
         atomic_output_file_map.lock().unwrap().clear();
+        ::std::process::exit(0);
     })
     .expect("Error setting Ctrl-C handler");
 
