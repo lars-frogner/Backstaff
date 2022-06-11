@@ -43,6 +43,7 @@ rayon = "*"
 regex = "*"
 sysinfo = { version = "*", default-features = false }
 tempfile = "*"
+quit = "*"
 
 # Dependencies for cli
 chrono = { version = "*", optional = true }

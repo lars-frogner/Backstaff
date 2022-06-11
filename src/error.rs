@@ -1,8 +1,17 @@
+#[cfg(not(feature = "for-testing"))]
 #[macro_export]
 macro_rules! exit_with_error {
     ($($print_arg:tt)*) => {{
         eprintln!($($print_arg)*);
-        ::std::process::exit(1);
+        quit::with_code(1);
+    }};
+}
+
+#[cfg(feature = "for-testing")]
+#[macro_export]
+macro_rules! exit_with_error {
+    ($($print_arg:tt)*) => {{
+        panic!($($print_arg)*);
     }};
 }
 
