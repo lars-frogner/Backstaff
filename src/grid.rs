@@ -756,7 +756,7 @@ macro_rules! impl_partial_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
         impl<$F, G> ::std::cmp::PartialEq<G> for $T<$F>
         where
-            $F: crate::num::BFloat,
+            $F: $crate::num::BFloat,
             G: $GT<$F>,
         {
             fn eq(&self, other: &G) -> bool {
@@ -777,7 +777,7 @@ macro_rules! impl_abs_diff_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
         impl<$F, G> approx::AbsDiffEq<G> for $T<$F>
         where
-            $F: crate::num::BFloat + approx::AbsDiffEq,
+            $F: $crate::num::BFloat + approx::AbsDiffEq,
             $F::Epsilon: Copy,
             G: $GT<$F>,
         {
@@ -804,7 +804,7 @@ macro_rules! impl_relative_eq_for_grid {
     ($T:ident <$F:ident>, $GT:ident) => {
         impl<$F, G> approx::RelativeEq<G> for $T<$F>
         where
-            $F: crate::num::BFloat + approx::RelativeEq,
+            $F: $crate::num::BFloat + approx::RelativeEq,
             $F::Epsilon: Copy,
             G: $GT<$F>,
         {

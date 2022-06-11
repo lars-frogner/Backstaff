@@ -3,6 +3,7 @@
 use crate::{
     compute_derived_quantity,
     constants::{AMU, CLIGHT, KBOLTZMANN},
+    exit_on_none,
     field::{
         CachingScalarFieldProvider3, ScalarField2, ScalarField3, ScalarFieldProvider3, VectorField3,
     },

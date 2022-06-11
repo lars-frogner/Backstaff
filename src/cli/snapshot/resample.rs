@@ -26,7 +26,7 @@ use crate::{
         },
         utils as cli_utils,
     },
-    exit_with_error,
+    exit_on_error, exit_on_false, exit_with_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Coords3,

@@ -9,6 +9,7 @@ pub mod utils;
 
 use super::{Endianness, Verbosity};
 use crate::{
+    exit_on_false,
     field::{
         CachingScalarFieldProvider3, CustomScalarFieldGenerator3, ResampledCoordLocation,
         ResamplingMethod, ScalarField3, ScalarFieldCacher3, ScalarFieldProvider3,
@@ -341,7 +342,7 @@ pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
 #[macro_export]
 macro_rules! snapshots_eq {
     ($self:expr, $other:expr) => {{
-        use crate::io::snapshot::{SnapshotProvider3, SnapshotReader3};
+        use $crate::io::snapshot::{SnapshotProvider3, SnapshotReader3};
 
         let all_variable_names_self = $self.all_variable_names();
         let all_variable_names_other = $other.all_variable_names();
@@ -369,8 +370,8 @@ macro_rules! snapshots_eq {
 #[macro_export]
 macro_rules! snapshots_abs_diff_eq {
     ($self:expr, $other:expr, $epsilon:expr) => {{
-        use crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
         use approx::AbsDiffEq;
+        use $crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
 
         let all_variable_names_self = $self.all_variable_names();
         let all_variable_names_other = $other.all_variable_names();
@@ -401,8 +402,8 @@ macro_rules! snapshots_abs_diff_eq {
 #[macro_export]
 macro_rules! snapshots_relative_eq {
     ($self:expr, $other:expr, $epsilon:expr, $max_relative:expr) => {{
-        use crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
         use approx::RelativeEq;
+        use $crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
 
         let all_variable_names_self = $self.all_variable_names();
         let all_variable_names_other = $other.all_variable_names();
@@ -532,7 +533,7 @@ macro_rules! impl_partial_eq_for_parameters {
     ($T:ty) => {
         impl<P> ::std::cmp::PartialEq<P> for $T
         where
-            P: crate::io::snapshot::SnapshotParameters,
+            P: $crate::io::snapshot::SnapshotParameters,
         {
             fn eq(&self, other: &P) -> bool {
                 if self.n_values() != other.n_values() {
@@ -555,12 +556,12 @@ macro_rules! impl_abs_diff_eq_for_parameters {
     ($T:ty) => {
         impl<P> approx::AbsDiffEq<P> for $T
         where
-            P: crate::io::snapshot::SnapshotParameters,
+            P: $crate::io::snapshot::SnapshotParameters,
         {
-            type Epsilon = <crate::io::snapshot::ParameterValue as approx::AbsDiffEq>::Epsilon;
+            type Epsilon = <$crate::io::snapshot::ParameterValue as approx::AbsDiffEq>::Epsilon;
 
             fn default_epsilon() -> Self::Epsilon {
-                crate::io::snapshot::ParameterValue::default_epsilon()
+                $crate::io::snapshot::ParameterValue::default_epsilon()
             }
 
             fn abs_diff_eq(&self, other: &P, epsilon: Self::Epsilon) -> bool {
@@ -584,10 +585,10 @@ macro_rules! impl_relative_eq_for_parameters {
     ($T:ty) => {
         impl<P> approx::RelativeEq<P> for $T
         where
-            P: crate::io::snapshot::SnapshotParameters,
+            P: $crate::io::snapshot::SnapshotParameters,
         {
             fn default_max_relative() -> Self::Epsilon {
-                crate::io::snapshot::ParameterValue::default_max_relative()
+                $crate::io::snapshot::ParameterValue::default_max_relative()
             }
 
             fn relative_eq(

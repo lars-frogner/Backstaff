@@ -2,6 +2,7 @@
 
 use crate::{
     cli::utils as cli_utils,
+    exit_with_error,
     field::{
         synthesis::{EmissivitySnapshotProvider3, SYNTHESIZABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,

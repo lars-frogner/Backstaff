@@ -496,7 +496,7 @@ where
 #[macro_export]
 macro_rules! compute_derived_quantity {
     ($name:ident, |$dep_name:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        crate::field::quantities::compute_quantity_unary(
+        $crate::field::quantities::compute_quantity_unary(
             stringify!($name),
             $provider,
             stringify!($dep_name),
@@ -505,7 +505,7 @@ macro_rules! compute_derived_quantity {
         )
     };
     ($name:ident, with indices |$indices:ident, $dep_name:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        crate::field::quantities::compute_quantity_unary_with_indices(
+        $crate::field::quantities::compute_quantity_unary_with_indices(
             stringify!($name),
             $provider,
             stringify!($dep_name),
@@ -514,7 +514,7 @@ macro_rules! compute_derived_quantity {
         )
     };
     ($name:ident, |$dep_name_1:ident, $dep_name_2:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        crate::field::quantities::compute_quantity_binary(
+        $crate::field::quantities::compute_quantity_binary(
             stringify!($name),
             $provider,
             stringify!($dep_name_1),
@@ -524,7 +524,7 @@ macro_rules! compute_derived_quantity {
         )
     };
     ($name:ident, |$dep_name_1:ident, $dep_name_2:ident, $dep_name_3:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        crate::field::quantities::compute_quantity_tertiary(
+        $crate::field::quantities::compute_quantity_tertiary(
             stringify!($name),
             $provider,
             stringify!($dep_name_1),

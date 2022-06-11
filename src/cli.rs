@@ -22,10 +22,9 @@ pub mod ebeam;
 
 #[macro_export]
 macro_rules! update_command_graph {
-    ($parent_command_name:expr,
-    $child_command_name:expr) => {
+    ($parent_command_name:expr, $child_command_name:expr) => {
         #[cfg(feature = "command-graph")]
-        crate::cli::command_graph::insert_command_graph_edge(
+        $crate::cli::command_graph::insert_command_graph_edge(
             $parent_command_name,
             $child_command_name,
         );

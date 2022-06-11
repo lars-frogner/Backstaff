@@ -1,7 +1,7 @@
 //! Utilities for creating the command line interface.
 
 use crate::{
-    exit_on_error,
+    exit_on_error, exit_on_false, exit_with_error,
     geometry::{Dim2, Dim3, In2D, In3D},
     grid::{fgr, Grid3},
     io::{
@@ -27,7 +27,7 @@ pub type CommandCreator = fn(&'static str) -> Command<'static>;
 macro_rules! add_subcommand_combinations {
     ($command:expr, $command_name:expr, $subcommand_required:expr; $($child_subcommand_names:tt $(if $cfg_condition:expr)?),+) => {{
         let mut nested_subcommand_names = Vec::new();
-        let mut subcommand_creators = Vec::<crate::cli::utils::CommandCreator>::new();
+        let mut subcommand_creators = Vec::<$crate::cli::utils::CommandCreator>::new();
 
         $(
             $( #[cfg(feature = $cfg_condition)] )*
@@ -45,7 +45,7 @@ macro_rules! add_subcommand_combinations {
             .zip(subcommand_creators.into_iter())
             .collect::<::std::collections::HashMap<_, _>>();
 
-        crate::cli::utils::add_subcommand_combinations_with_map(
+        $crate::cli::utils::add_subcommand_combinations_with_map(
             $command,
             $command_name,
             &nested_subcommand_names,

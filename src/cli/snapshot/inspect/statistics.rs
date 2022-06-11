@@ -8,7 +8,7 @@ use crate::{
         },
         utils,
     },
-    exit_on_error,
+    exit_on_error, exit_with_error,
     field::{self, ResampledCoordLocation, ScalarField3},
     geometry::{
         CoordRefs3,

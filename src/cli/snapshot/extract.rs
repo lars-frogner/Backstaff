@@ -11,7 +11,7 @@ use crate::{
         },
         utils as cli_utils,
     },
-    exit_with_error,
+    exit_on_false, exit_on_none,
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, Point3,

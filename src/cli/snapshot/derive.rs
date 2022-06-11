@@ -2,6 +2,7 @@
 
 use crate::{
     cli::utils as cli_utils,
+    exit_on_error, exit_with_error,
     field::{
         quantities::{DerivedSnapshotProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,

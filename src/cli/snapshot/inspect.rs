@@ -5,6 +5,7 @@ mod statistics;
 
 use crate::{
     cli::utils as cli_utils,
+    exit_with_error,
     grid::{fgr, Grid3},
     io::{snapshot::SnapshotProvider3, utils::IOContext},
     update_command_graph,

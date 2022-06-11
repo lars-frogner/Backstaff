@@ -15,6 +15,7 @@ use crate::{
         utils as cli_utils,
     },
     corks::{ConstantCorkAdvector, CorkAdvector, CorkSet, CorkStepper, HeunCorkStepper},
+    exit_on_error, exit_with_error,
     field::ScalarFieldCacher3,
     grid::{fgr, Grid3},
     interpolation::{

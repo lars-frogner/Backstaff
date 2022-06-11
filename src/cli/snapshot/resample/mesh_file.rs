@@ -14,7 +14,7 @@ use crate::{
         },
         utils,
     },
-    exit_on_error, exit_with_error,
+    exit_on_error,
     field::{ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Dim3::{X, Y, Z},

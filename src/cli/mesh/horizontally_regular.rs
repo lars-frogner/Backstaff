@@ -2,7 +2,7 @@
 
 use crate::{
     cli::utils,
-    exit_on_false,
+    exit_on_error, exit_on_false,
     geometry::{
         Coords3,
         Dim3::{X, Y, Z},

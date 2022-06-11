@@ -2,6 +2,7 @@
 
 use super::{fdt, SnapshotReader3};
 use crate::{
+    exit_with_error,
     grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3},
     io::{snapshot::SnapshotProvider3, Endianness, Verbosity},
 };
@@ -145,21 +146,21 @@ impl SnapNumInRange {
 #[macro_export]
 macro_rules! with_new_snapshot_reader {
     ($input_file_path:expr, $endianness:expr, $verbosity:expr, $force_hor_regular:expr, |$reader:ident| $action:expr) => {{
-        type SnapshotInputType = crate::io::snapshot::utils::SnapshotInputType;
-        type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
-        type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
-        type NativeSnapshotReader3<G> = crate::io::snapshot::native::NativeSnapshotReader3<G>;
+        type SnapshotInputType = $crate::io::snapshot::utils::SnapshotInputType;
+        type NativeSnapshotReaderConfig = $crate::io::snapshot::native::NativeSnapshotReaderConfig;
+        type NativeSnapshotMetadata = $crate::io::snapshot::native::NativeSnapshotMetadata;
+        type NativeSnapshotReader3<G> = $crate::io::snapshot::native::NativeSnapshotReader3<G>;
 
         #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotReaderConfig = crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
+        type NetCDFSnapshotReaderConfig = $crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
         #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotMetadata = crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
+        type NetCDFSnapshotMetadata = $crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
         #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotReader3<G> = crate::io::snapshot::netcdf::NetCDFSnapshotReader3<G>;
+        type NetCDFSnapshotReader3<G> = $crate::io::snapshot::netcdf::NetCDFSnapshotReader3<G>;
 
-        type GridType = crate::grid::GridType;
-        type RegularGrid3<F> = crate::grid::regular::RegularGrid3<F>;
-        type HorRegularGrid3<F> = crate::grid::hor_regular::HorRegularGrid3<F>;
+        type GridType = $crate::grid::GridType;
+        type RegularGrid3<F> = $crate::grid::regular::RegularGrid3<F>;
+        type HorRegularGrid3<F> = $crate::grid::hor_regular::HorRegularGrid3<F>;
 
         let input_type = SnapshotInputType::from_path(&$input_file_path);
 
@@ -218,18 +219,18 @@ macro_rules! with_new_snapshot_reader {
 #[macro_export]
 macro_rules! with_new_snapshot_grid {
     ($input_file_path:expr, $endianness:expr, $verbosity:expr, $force_hor_regular:expr, |$grid:ident| $action:expr) => {{
-        type SnapshotInputType = crate::io::snapshot::utils::SnapshotInputType;
-        type NativeSnapshotReaderConfig = crate::io::snapshot::native::NativeSnapshotReaderConfig;
-        type NativeSnapshotMetadata = crate::io::snapshot::native::NativeSnapshotMetadata;
+        type SnapshotInputType = $crate::io::snapshot::utils::SnapshotInputType;
+        type NativeSnapshotReaderConfig = $crate::io::snapshot::native::NativeSnapshotReaderConfig;
+        type NativeSnapshotMetadata = $crate::io::snapshot::native::NativeSnapshotMetadata;
 
         #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotReaderConfig = crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
+        type NetCDFSnapshotReaderConfig = $crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
         #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotMetadata = crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
+        type NetCDFSnapshotMetadata = $crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
 
-        type GridType = crate::grid::GridType;
-        type RegularGrid3<F> = crate::grid::regular::RegularGrid3<F>;
-        type HorRegularGrid3<F> = crate::grid::hor_regular::HorRegularGrid3<F>;
+        type GridType = $crate::grid::GridType;
+        type RegularGrid3<F> = $crate::grid::regular::RegularGrid3<F>;
+        type HorRegularGrid3<F> = $crate::grid::hor_regular::HorRegularGrid3<F>;
 
         let input_type = SnapshotInputType::from_path(&$input_file_path);
 

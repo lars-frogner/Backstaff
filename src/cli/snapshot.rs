@@ -21,7 +21,7 @@ use self::{
 use crate::{
     add_subcommand_combinations,
     cli::utils as cli_utils,
-    exit_on_error, exit_with_error,
+    exit_on_error, exit_on_false, exit_with_error,
     grid::{fgr, Grid3},
     io::{
         snapshot::{
