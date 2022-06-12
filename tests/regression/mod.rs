@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::common;
 use lazy_static::lazy_static;
 use std::{
