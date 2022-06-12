@@ -2002,6 +2002,34 @@ where
 }
 
 #[cfg(feature = "for-testing")]
+#[macro_export]
+macro_rules! find_largest_field_value_difference {
+    ($T:ident <$F:ident>, $field_1:expr, $field_2:expr) => {{
+        let mut abs_diff_values = $field_1.values() - $field_2.values();
+        let abs_diff_buffer = abs_diff_values.as_slice_memory_order_mut().unwrap();
+        abs_diff_buffer
+            .iter_mut()
+            .for_each(|diff| *diff = <$F as num::Float>::abs(*diff));
+        let abs_diff_field = $T::new(
+            $field_1.name().to_string(),
+            $field_1.arc_with_grid(),
+            $field_1.locations().clone(),
+            abs_diff_values,
+        );
+        let (indices_of_largest_difference, _) =
+            abs_diff_field.find_maximum().expect("No finite values");
+        (
+            $field_1
+                .grid()
+                .centers()
+                .point(&indices_of_largest_difference),
+            $field_1.value(&indices_of_largest_difference),
+            $field_2.value(&indices_of_largest_difference),
+        )
+    }};
+}
+
+#[cfg(feature = "for-testing")]
 macro_rules! impl_partial_eq_for_field {
     ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
         impl<$F, $G, $H> PartialEq<$T<$F, $H>> for $T<$F, $G>
@@ -2088,8 +2116,12 @@ macro_rules! impl_relative_eq_for_field {
                 }
                 if self_values.relative_ne(&other_values, epsilon, max_relative) {
                     #[cfg(debug_assertions)]
-                    println!("Values for {} not equal", self.name());
-                    dbg!(self_values, other_values);
+                    {
+                        println!("Values for {} not equal", self.name());
+                        let (position, self_value, other_value) =
+                            $crate::find_largest_field_value_difference!($T<$F>, self, other);
+                        dbg!(position, self_value, other_value);
+                    }
                     return false;
                 }
                 true

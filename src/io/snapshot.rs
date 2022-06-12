@@ -454,6 +454,66 @@ macro_rules! snapshots_relative_eq {
     }};
 }
 
+#[cfg(feature = "for-testing")]
+#[macro_export]
+macro_rules! snapshot_field_values_relative_eq {
+    ($self:expr, $other:expr, $epsilon:expr, $max_relative:expr) => {{
+        use approx::RelativeEq;
+        use $crate::{
+            field::ScalarField3,
+            io::snapshot::{fdt, SnapshotProvider3, SnapshotReader3},
+            num::ComparableSlice,
+        };
+
+        let all_variable_names_self = $self.all_variable_names();
+        let all_variable_names_other = $other.all_variable_names();
+        if all_variable_names_self.len() != all_variable_names_other.len() {
+            #[cfg(debug_assertions)]
+            {
+                println!("Number of variables not equal");
+                dbg!(
+                    all_variable_names_self.len(),
+                    all_variable_names_other.len()
+                );
+            }
+            Ok(false)
+        } else {
+            let mut all_equal = true;
+            for name in all_variable_names_self.iter() {
+                if all_variable_names_other.contains(name) {
+                    let self_field = $self.read_scalar_field(name)?;
+                    let other_field = $other.read_scalar_field(name)?;
+                    let self_values =
+                        ComparableSlice(self_field.values().as_slice_memory_order().unwrap());
+                    let other_values =
+                        ComparableSlice(other_field.values().as_slice_memory_order().unwrap());
+
+                    all_equal = self_values.relative_eq(
+                        &other_values,
+                        $epsilon as fdt,
+                        $max_relative as fdt,
+                    );
+                    #[cfg(debug_assertions)]
+                    if !all_equal {
+                        println!("Field values for {} not equal", name);
+                        let (position, self_value, other_value) =
+                            $crate::find_largest_field_value_difference!(ScalarField3<fdt>, self_field, other_field);
+                        dbg!(position, self_value, other_value);
+                    }
+                } else {
+                    #[cfg(debug_assertions)]
+                    println!("Field {} not present in other", name);
+                    all_equal = false;
+                }
+                if !all_equal {
+                    break;
+                }
+            }
+            Ok(all_equal)
+        }
+    }};
+}
+
 /// Parameters associated with a snapshot.
 pub trait SnapshotParameters: Clone {
     /// Returns the number of parameters associated with the snapshot.

@@ -13,7 +13,7 @@ use std::{
 };
 
 #[cfg(feature = "for-testing")]
-use crate::snapshots_relative_eq;
+use crate::{snapshot_field_values_relative_eq, snapshots_relative_eq};
 
 #[cfg(feature = "for-testing")]
 use approx::RelativeEq;
@@ -304,6 +304,31 @@ where
     })
 }
 
+/// Reads the snapshot at the given path and compares for
+/// approximate equality to the given snapshot.
+#[cfg(feature = "for-testing")]
+pub fn read_snapshot_values_eq_given_snapshot_values<G, R>(
+    input_file_path: PathBuf,
+    endianness: Endianness,
+    verbosity: Verbosity,
+    reference_snapshot_reader: &R,
+    epsilon: fdt,
+    max_relative: fdt,
+) -> io::Result<bool>
+where
+    G: Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
+    R: SnapshotReader3<G>,
+{
+    with_new_snapshot_reader!(input_file_path, endianness, verbosity, |snapshot_reader| {
+        snapshot_field_values_relative_eq!(
+            snapshot_reader,
+            reference_snapshot_reader,
+            epsilon,
+            max_relative
+        )
+    })
+}
+
 /// Reads the snapshots at the given paths and compares them
 /// for approximate equality.
 #[cfg(feature = "for-testing")]
@@ -321,6 +346,34 @@ pub fn read_snapshots_eq(
         verbosity.clone(),
         |snapshot_reader| {
             read_snapshot_eq_given_snapshot(
+                input_file_path_1,
+                endianness,
+                verbosity,
+                &snapshot_reader,
+                epsilon,
+                max_relative,
+            )
+        }
+    )
+}
+
+/// Reads the snapshots at the given paths and compares them
+/// for approximate equality.
+#[cfg(feature = "for-testing")]
+pub fn read_snapshot_values_eq(
+    input_file_path_1: PathBuf,
+    input_file_path_2: PathBuf,
+    endianness: Endianness,
+    verbosity: Verbosity,
+    epsilon: fdt,
+    max_relative: fdt,
+) -> io::Result<bool> {
+    with_new_snapshot_reader!(
+        input_file_path_2,
+        endianness,
+        verbosity.clone(),
+        |snapshot_reader| {
+            read_snapshot_values_eq_given_snapshot_values(
                 input_file_path_1,
                 endianness,
                 verbosity,
