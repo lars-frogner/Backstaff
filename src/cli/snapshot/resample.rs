@@ -438,7 +438,10 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         let lower_edges_z = &grid.lower_edges()[Z];
 
         let size_z = lower_edges_z.len();
-        let stride = f32::floor((size_z as f32) / TARGET_CONTROL_SIZE as f32) as usize;
+        let stride = usize::max(
+            1,
+            f32::floor((size_z as f32) / TARGET_CONTROL_SIZE as f32) as usize,
+        );
         let mut control_coords: Vec<_> = lower_edges_z.iter().copied().step_by(stride).collect();
         let mut control_grid_cell_extents: Vec<_> = lower_edges_z
             .iter()
