@@ -97,3 +97,6 @@ regex = { version = "*", optional = true }
 [profile.release-lto]
 inherits = "release"
 lto = "thin"
+
+[profile.test.package."*"]
+opt-level = 3
