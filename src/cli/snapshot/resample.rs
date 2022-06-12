@@ -46,7 +46,7 @@ use crate::{
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
-use std::sync::Arc;
+use std::{iter, sync::Arc};
 
 /// Builds a representation of the `snapshot-resample` command line subcommand.
 pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command<'static> {
@@ -446,12 +446,17 @@ fn resample_to_horizontally_regular_grid<G, P, I>(
         let mut control_grid_cell_extents: Vec<_> = lower_edges_z
             .iter()
             .step_by(stride)
-            .zip(lower_edges_z.iter().skip(1).step_by(stride))
+            .zip(
+                lower_edges_z
+                    .iter()
+                    .skip(1)
+                    .chain(iter::once(&upper_bound_z))
+                    .step_by(stride),
+            )
             .map(|(lower_edge, upper_edge)| upper_edge - lower_edge)
             .collect();
         *control_coords.last_mut().unwrap() = upper_bound_z;
-        *control_grid_cell_extents.last_mut().unwrap() =
-            lower_edges_z[size_z - 1] - lower_edges_z[size_z - 2];
+        *control_grid_cell_extents.last_mut().unwrap() = upper_bound_z - lower_edges_z[size_z - 1];
 
         let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig {
             order: 1,
