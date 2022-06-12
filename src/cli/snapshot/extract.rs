@@ -40,7 +40,9 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
             "Extract a subdomain of the snapshot.\n\
              Creates new snapshot that is restricted to a specified subgrid of the\n\
              original one, with identical values. The subgrid can be specified\n\
-             with coordinate bounds, index ranges or a combination of these.",
+             with coordinate bounds, index ranges or a combination of these.
+             If the specified subgrid extends outside the original grid, the
+             parts outside will be ignored.",
         )
         .arg(
             Arg::new("x-bounds")
@@ -95,7 +97,8 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .help("Range of indices to extract along the x-axis (inclusive)\n")
                 .takes_value(true)
                 .number_of_values(2)
-                .default_value("min,max"),
+                .default_value("min,max")
+                .conflicts_with("x-bounds"),
         )
         .arg(
             Arg::new("j-range")
@@ -108,7 +111,8 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .help("Range of indices to extract along the y-axis (inclusive)\n")
                 .takes_value(true)
                 .number_of_values(2)
-                .default_value("min,max"),
+                .default_value("min,max")
+                .conflicts_with("y-bounds"),
         )
         .arg(
             Arg::new("k-range")
@@ -121,7 +125,8 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
                 .help("Range of indices to extract along the z-axis (inclusive)\n")
                 .takes_value(true)
                 .number_of_values(2)
-                .default_value("min,max"),
+                .default_value("min,max")
+                .conflicts_with("z-bounds"),
         )
         .arg(
             Arg::new("verbose")
@@ -213,7 +218,9 @@ where
         original_lower_bounds
     );
 
-    let lower_indices = lower_indices.max_with(&lower_indices_from_bounds);
+    let lower_indices = lower_indices
+        .max_with(&lower_indices_from_bounds)
+        .min_with(&Idx3::with_each_component(|dim| original_shape[dim] - 1));
     let upper_indices = upper_indices.min_with(&upper_indices_from_bounds);
 
     exit_on_false!(
