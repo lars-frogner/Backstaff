@@ -138,6 +138,33 @@ where
     );
 }
 
+pub fn assert_snapshot_field_values_equal<P1, P2>(file_path_1: P1, file_path_2: P2)
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    let file_path_1 = file_path_1.as_ref();
+    let file_path_2 = file_path_2.as_ref();
+
+    let equal = exit_on_error!(
+        snapshot_utils::read_snapshot_values_eq(
+            file_path_1.to_path_buf(),
+            file_path_2.to_path_buf(),
+            ENDIANNESS,
+            Verbosity::Quiet,
+            fdt::EPSILON,
+            <fdt as approx::RelativeEq>::default_max_relative(),
+        ),
+        "Error: Could not read snapshot files for comparison: {}"
+    );
+    assert!(
+        equal,
+        "Values for snapshot files {} and {} not equal",
+        file_path_1.to_string_lossy(),
+        file_path_2.to_string_lossy()
+    );
+}
+
 #[derive(Debug, Clone)]
 pub struct Test {
     output_dir: PathBuf,
