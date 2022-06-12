@@ -496,9 +496,9 @@ macro_rules! snapshot_field_values_relative_eq {
                     #[cfg(debug_assertions)]
                     if !all_equal {
                         println!("Field values for {} not equal", name);
-                        let (position, self_value, other_value) =
+                        let (indices, position, self_value, other_value) =
                             $crate::find_largest_field_value_difference!(ScalarField3<fdt>, self_field, other_field);
-                        dbg!(position, self_value, other_value);
+                        dbg!(indices, position, self_value, other_value);
                     }
                 } else {
                     #[cfg(debug_assertions)]

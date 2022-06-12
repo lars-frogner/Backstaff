@@ -2019,6 +2019,7 @@ macro_rules! find_largest_field_value_difference {
         let (indices_of_largest_difference, _) =
             abs_diff_field.find_maximum().expect("No finite values");
         (
+            indices_of_largest_difference.clone(),
             $field_1
                 .grid()
                 .centers()
@@ -2118,9 +2119,9 @@ macro_rules! impl_relative_eq_for_field {
                     #[cfg(debug_assertions)]
                     {
                         println!("Values for {} not equal", self.name());
-                        let (position, self_value, other_value) =
+                        let (indices, position, self_value, other_value) =
                             $crate::find_largest_field_value_difference!($T<$F>, self, other);
-                        dbg!(position, self_value, other_value);
+                        dbg!(indices, position, self_value, other_value);
                     }
                     return false;
                 }
