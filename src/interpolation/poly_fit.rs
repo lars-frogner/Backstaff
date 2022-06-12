@@ -1608,11 +1608,6 @@ impl Interpolator3 for PolyFitInterpolator3 {
             .point_is_inside_cell(interp_point, interp_indices);
 
         if !is_inside {
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
-            );
-
             return self
                 .interp_scalar_field(field, interp_point)
                 .expect_inside_or_moved();
@@ -1752,11 +1747,6 @@ impl Interpolator3 for PolyFitInterpolator3 {
             .point_is_inside_cell(interp_point, interp_indices);
 
         if !is_inside {
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
-            );
-
             return self
                 .interp_vector_field(field, interp_point)
                 .expect_inside_or_moved();
@@ -1912,11 +1902,6 @@ impl Interpolator2 for PolyFitInterpolator2 {
             .point_is_inside_cell(interp_point, interp_indices);
 
         if !is_inside {
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
-            );
-
             return self
                 .interp_scalar_field(field, interp_point)
                 .expect_inside_or_moved();
@@ -2056,11 +2041,6 @@ impl Interpolator2 for PolyFitInterpolator2 {
             .point_is_inside_cell(interp_point, interp_indices);
 
         if !is_inside {
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "Warning (line {} in {}): Incorrect \"known\" cell indices in interpolation, using correct indices", line!(), file!()
-            );
-
             return self
                 .interp_vector_field(field, interp_point)
                 .expect_inside_or_moved();
@@ -2214,11 +2194,6 @@ impl Interpolator1 for PolyFitInterpolator1 {
         let is_inside = field.grid().coord_is_inside_cell(interp_coord, interp_idx);
 
         if !is_inside {
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "Warning (line {} in {}): Incorrect \"known\" cell index in interpolation, using correct index", line!(), file!()
-            );
-
             return self
                 .interp_scalar_field(field, interp_coord)
                 .expect_inside_or_moved();
