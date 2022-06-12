@@ -218,7 +218,7 @@ macro_rules! with_new_snapshot_reader {
 
 #[macro_export]
 macro_rules! with_new_snapshot_grid {
-    ($input_file_path:expr, $endianness:expr, $verbosity:expr, $force_hor_regular:expr, |$grid:ident| $action:expr) => {{
+    ($input_file_path:expr, $verbosity:expr, |$grid:ident| $action:expr) => {{
         type SnapshotInputType = $crate::io::snapshot::utils::SnapshotInputType;
         type NativeSnapshotReaderConfig = $crate::io::snapshot::native::NativeSnapshotReaderConfig;
         type NativeSnapshotMetadata = $crate::io::snapshot::native::NativeSnapshotMetadata;
@@ -235,32 +235,36 @@ macro_rules! with_new_snapshot_grid {
         let input_type = SnapshotInputType::from_path(&$input_file_path);
 
         match input_type {
-            SnapshotInputType::Native(_) => NativeSnapshotMetadata::new(
-                NativeSnapshotReaderConfig::new($input_file_path, $endianness, $verbosity),
-            )
-            .and_then(|metadata| match metadata.grid_type() {
-                GridType::Regular if !$force_hor_regular => {
-                    let grid = metadata.into_grid::<RegularGrid3<_>>();
-                    let action = |$grid: RegularGrid3<_>| $action;
-                    action(grid)
-                }
-                _ => {
-                    let grid = metadata.into_grid::<HorRegularGrid3<_>>();
-                    let action = |$grid: HorRegularGrid3<_>| $action;
-                    action(grid)
-                }
-            }),
+            SnapshotInputType::Native(_) => {
+                NativeSnapshotMetadata::new(NativeSnapshotReaderConfig::new(
+                    $input_file_path,
+                    $crate::io::Endianness::Native,
+                    $verbosity,
+                ))
+                .and_then(|metadata| match metadata.grid_type() {
+                    GridType::Regular => {
+                        let grid = metadata.into_grid::<RegularGrid3<_>>();
+                        let action = |$grid: RegularGrid3<_>| $action;
+                        action(grid)
+                    }
+                    GridType::HorRegular => {
+                        let grid = metadata.into_grid::<HorRegularGrid3<_>>();
+                        let action = |$grid: HorRegularGrid3<_>| $action;
+                        action(grid)
+                    }
+                })
+            }
             #[cfg(feature = "netcdf")]
             SnapshotInputType::NetCDF => NetCDFSnapshotMetadata::new(
                 NetCDFSnapshotReaderConfig::new($input_file_path, $verbosity),
             )
             .and_then(|metadata| match metadata.grid_type() {
-                GridType::Regular if !$force_hor_regular => {
+                GridType::Regular => {
                     let grid = metadata.into_grid::<RegularGrid3<_>>();
                     let action = |$grid: RegularGrid3<_>| $action;
                     action(grid)
                 }
-                _ => {
+                GridType::HorRegular => {
                     let grid = metadata.into_grid::<HorRegularGrid3<_>>();
                     let action = |$grid: HorRegularGrid3<_>| $action;
                     action(grid)
@@ -364,7 +368,6 @@ pub fn read_snapshot_has_given_fields_custom_eq<'a>(
 #[cfg(feature = "for-testing")]
 pub fn read_snapshot_grid_eq_given_grid<G>(
     input_file_path: PathBuf,
-    endianness: Endianness,
     verbosity: Verbosity,
     reference_snapshot_grid: &G,
     epsilon: fgr,
@@ -373,7 +376,7 @@ pub fn read_snapshot_grid_eq_given_grid<G>(
 where
     G: Grid3<fgr> + RelativeEq<RegularGrid3<fgr>> + RelativeEq<HorRegularGrid3<fgr>>,
 {
-    with_new_snapshot_grid!(input_file_path, endianness, verbosity, |snapshot_grid| {
+    with_new_snapshot_grid!(input_file_path, verbosity, |snapshot_grid| {
         Ok(snapshot_grid.relative_eq(reference_snapshot_grid, epsilon, max_relative))
     })
 }
@@ -384,24 +387,17 @@ where
 pub fn read_snapshot_grids_eq(
     input_file_path_1: PathBuf,
     input_file_path_2: PathBuf,
-    endianness: Endianness,
     verbosity: Verbosity,
     epsilon: fgr,
     max_relative: fgr,
 ) -> io::Result<bool> {
-    with_new_snapshot_grid!(
-        input_file_path_2,
-        endianness,
-        verbosity.clone(),
-        |snapshot_grid| {
-            read_snapshot_grid_eq_given_grid(
-                input_file_path_1,
-                endianness,
-                verbosity,
-                &snapshot_grid,
-                epsilon,
-                max_relative,
-            )
-        }
-    )
+    with_new_snapshot_grid!(input_file_path_2, verbosity.clone(), |snapshot_grid| {
+        read_snapshot_grid_eq_given_grid(
+            input_file_path_1,
+            verbosity,
+            &snapshot_grid,
+            epsilon,
+            max_relative,
+        )
+    })
 }
