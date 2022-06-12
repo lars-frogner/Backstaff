@@ -408,11 +408,7 @@ fn run_with_selected_accelerator<G, P, D>(
         println!("{:#?}", distribution_config);
     }
 
-    if let Some(_accelerator_arguments) =
-        distribution_arguments.subcommand_matches("dc_power_law_accelerator")
-    {
-        unimplemented!()
-    } else if let Some(accelerator_arguments) =
+    if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("simple_power_law_accelerator")
     {
         let accelerator_config = construct_simple_power_law_accelerator_config_from_options(
