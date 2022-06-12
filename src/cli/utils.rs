@@ -123,7 +123,7 @@ where
     <T as FromStr>::Err: std::fmt::Display,
 {
     exit_on_error!(
-        value_string.parse(),
+        value_string.trim().parse(),
         "Error: Could not parse value for {0}: {1}",
         argument_name
     )
@@ -489,7 +489,7 @@ where
             .and_then(|special_values| special_values.get(string).cloned())
             .unwrap_or_else(|| {
                 exit_on_error!(
-                    string.parse::<F>(),
+                    string.trim().parse::<F>(),
                     "Error: Could not parse value in {0}: {1}",
                     argument_name
                 )
@@ -600,7 +600,7 @@ where
             "min" => min_value,
             "max" => max_value,
             values_str => exit_on_error!(
-                values_str.parse::<I>(),
+                values_str.trim().parse::<I>(),
                 "Error: Could not parse value in {0}: {1}",
                 argument_name
             ),

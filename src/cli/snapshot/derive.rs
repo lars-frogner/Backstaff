@@ -94,6 +94,7 @@ where
         arguments
             .value_of("max-memory-usage")
             .expect("No value for argument with default")
+            .trim()
             .parse::<f32>(),
         "Error: Could not parse value of max-memory-usage: {}"
     );

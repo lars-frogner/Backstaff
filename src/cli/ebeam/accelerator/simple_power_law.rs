@@ -248,7 +248,7 @@ where
     {
         "inf" => SimplePowerLawAccelerationConfig::DEFAULT_MAX_MASS_DENSITY,
         mass_density_str => exit_on_error!(
-            mass_density_str.parse::<f64>(),
+            mass_density_str.trim().parse::<f64>(),
             "Error: Could not parse value of max-mass-density: {}"
         ),
     };

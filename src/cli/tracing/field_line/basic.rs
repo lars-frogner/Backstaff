@@ -99,7 +99,7 @@ pub fn construct_basic_field_line_tracer_config_from_options(
     {
         "inf" => None,
         length_str => Some(exit_on_error!(
-            length_str.parse::<f64>(),
+            length_str.trim().parse::<f64>(),
             "Error: Could not parse value of max-length: {}"
         )),
     };
