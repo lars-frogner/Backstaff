@@ -37,6 +37,7 @@ use std::{
 
 pub use mesh::{
     create_grid_from_mesh_file, parse_mesh_file, write_mesh_file_from_grid, NativeGridData,
+    NATIVE_COORD_PRECISION, NATIVE_COORD_WIDTH,
 };
 pub use param::NativeSnapshotParameters;
 

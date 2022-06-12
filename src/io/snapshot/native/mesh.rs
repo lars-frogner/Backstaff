@@ -14,6 +14,11 @@ use std::{collections::VecDeque, io, io::BufRead, path::Path};
 #[cfg(feature = "for-testing")]
 use approx::RelativeEq;
 
+/// Width of formatted coordinate values in native mesh files.
+pub const NATIVE_COORD_WIDTH: usize = 15;
+/// Precision of formatted coordinate values in native mesh files.
+pub const NATIVE_COORD_PRECISION: usize = 8;
+
 /// Data for a grid representing a Bifrost mesh file.
 #[derive(Debug, Clone)]
 pub struct NativeGridData {
@@ -109,7 +114,14 @@ where
     let format_slice = |slice: &[fgr]| {
         slice
             .iter()
-            .map(|&coord| format!("{:width$.precision$E}", coord, width = 15, precision = 8))
+            .map(|&coord| {
+                format!(
+                    "{:width$.precision$E}",
+                    coord,
+                    width = NATIVE_COORD_WIDTH,
+                    precision = NATIVE_COORD_PRECISION
+                )
+            })
             .collect::<Vec<_>>()
             .join("")
     };
