@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use backstaff::{
     cli, exit_on_error,
     grid::fgr,
@@ -26,8 +28,8 @@ macro_rules! def_test {
         fn $name() {
             let test = common::Test::new(stringify!($name));
 
-            $( let $in_ident = test.input_path($in_str); )*
-            $( let $out_ident = test.output_path($out_str); )*
+            $( let $in_ident = test.input_path(PathBuf::from($in_str)); )*
+            $( let $out_ident = test.output_path(PathBuf::from($out_str)); )*
 
             let test_body = |$( $in_ident, )* $( $out_ident, )*| $test_body;
 
@@ -152,12 +154,12 @@ impl Test {
         Self { output_dir }
     }
 
-    pub fn input_path<S: AsRef<str>>(&self, file_name: S) -> PathBuf {
-        CONTEXT.input_path(file_name)
+    pub fn input_path<P: AsRef<Path>>(&self, file_path: P) -> PathBuf {
+        CONTEXT.input_path(file_path)
     }
 
-    pub fn output_path<S: AsRef<str>>(&self, file_name: S) -> PathBuf {
-        self.output_dir().join(file_name.as_ref())
+    pub fn output_path<P: AsRef<Path>>(&self, file_path: P) -> PathBuf {
+        self.output_dir().join(file_path)
     }
 
     fn output_dir(&self) -> &Path {
@@ -184,20 +186,20 @@ impl TestContext {
         }
     }
 
-    pub fn input_path<S: AsRef<str>>(&self, file_name: S) -> PathBuf {
-        self.base_input_dir().join(file_name.as_ref())
+    pub fn input_path<P: AsRef<Path>>(&self, file_path: P) -> PathBuf {
+        self.base_input_dir().join(file_path)
     }
 
     pub fn output_dir<S: AsRef<str>>(&self, test_name: S) -> PathBuf {
         self.base_output_dir().join(test_name.as_ref())
     }
 
-    pub fn output_path<S1, S2>(&self, test_name: S1, file_name: S2) -> PathBuf
+    pub fn output_path<S, P>(&self, test_name: S, file_path: P) -> PathBuf
     where
-        S1: AsRef<str>,
-        S2: AsRef<str>,
+        S: AsRef<str>,
+        P: AsRef<Path>,
     {
-        self.output_dir(test_name).join(file_name.as_ref())
+        self.output_dir(test_name).join(file_path)
     }
 
     pub fn prepared_output_dir<S: AsRef<str>>(&self, test_name: S) -> io::Result<PathBuf> {
