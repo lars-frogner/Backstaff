@@ -27,6 +27,18 @@ pub enum Dim3 {
 }
 
 impl Dim3 {
+    /// Returns an `Option` with the dimension corresponding to
+    /// the given `'x'`, `'y'` or `'z'` character and `None` for any
+    /// other character.
+    pub fn from_char(dim: char) -> Option<Self> {
+        match dim {
+            'x' => Some(Self::X),
+            'y' => Some(Self::Y),
+            'z' => Some(Self::Z),
+            _ => None,
+        }
+    }
+
     /// Creates an array for iterating over the x-, y- and z-dimensions.
     pub fn slice() -> [Self; 3] {
         [Self::X, Self::Y, Self::Z]
@@ -76,6 +88,17 @@ pub enum Dim2 {
 }
 
 impl Dim2 {
+    /// Returns an `Option` with the dimension corresponding to
+    /// the given `'x'` or `'y'` character and `None` for any
+    /// other character.
+    pub fn from_char(dim: char) -> Option<Self> {
+        match dim {
+            'x' => Some(Self::X),
+            'y' => Some(Self::Y),
+            _ => None,
+        }
+    }
+
     /// Creates an array for iterating over the x- and y-dimensions.
     pub fn slice() -> [Self; 2] {
         [Self::X, Self::Y]
@@ -165,6 +188,12 @@ impl<T> In3D<T> {
         T: Copy,
     {
         (self[X], self[Y], self[Z])
+    }
+
+    /// Consumes the instance and returns a new tuple containing the three components.
+    pub fn into_tuple(self) -> (T, T, T) {
+        let Self([x, y, z]) = self;
+        (x, y, z)
     }
 }
 
@@ -375,12 +404,18 @@ impl<T> In2D<T> {
         Self([a.clone(), a])
     }
 
-    /// Creates a new tuple containing copies of the three components.
+    /// Creates a new tuple containing copies of the two components.
     pub fn to_tuple(&self) -> (T, T)
     where
         T: Copy,
     {
         (self[Dim2::X], self[Dim2::Y])
+    }
+
+    /// Consumes the instance and returns a new tuple containing the two components.
+    pub fn into_tuple(self) -> (T, T) {
+        let Self([x, y]) = self;
+        (x, y)
     }
 }
 
@@ -805,6 +840,14 @@ impl<F: BFloat> Vec2<F> {
         Self::new(
             F::from(other[Dim2::X]).expect("Conversion failed"),
             F::from(other[Dim2::Y]).expect("Conversion failed"),
+        )
+    }
+
+    /// Creates a new vector from the given components, which may have different types.
+    pub fn from_components<U: BFloat, V: BFloat>(x: U, y: V) -> Self {
+        Self::new(
+            F::from(x).expect("Conversion failed"),
+            F::from(y).expect("Conversion failed"),
         )
     }
 
@@ -2220,6 +2263,13 @@ pub trait PointTransformation2<F: BFloat>: Sync {
     /// Returns the transformed version of the given 2D point.
     fn transform(&self, point: &Point2<F>) -> Point2<F>;
 
+    /// Returns the transformed version of the given 2D vector.
+    ///
+    /// The result may be different from that obtained by calling `transform`
+    /// on a corresponding point, because vectors are not affected by
+    /// translation.
+    fn transform_vec(&self, vector: &Vec2<F>) -> Vec2<F>;
+
     /// Returns the horizontally transformed version of the given 3D point.
     fn transform_horizontally(&self, point: &Point3<F>) -> Point3<F> {
         let transformed_hor_point = self.transform(&point.without_z());
@@ -2257,6 +2307,10 @@ impl<F: BFloat> PointTransformation2<F> for IdentityTransformation2<F> {
     fn transform(&self, point: &Point2<F>) -> Point2<F> {
         point.clone()
     }
+
+    fn transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        vector.clone()
+    }
 }
 
 /// Transformation for rotating 2D points about the origin.
@@ -2289,6 +2343,11 @@ impl<F: BFloat> PointTransformation2<F> for RotationTransformation2<F> {
             + &self.rotated_y_axis_unit_vec * point[Dim2::Y])
             .to_point2()
     }
+
+    fn transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        &self.rotated_x_axis_unit_vec * vector[Dim2::X]
+            + &self.rotated_y_axis_unit_vec * vector[Dim2::Y]
+    }
 }
 
 /// Transformation for translating 2D points.
@@ -2307,6 +2366,10 @@ impl<F: BFloat> TranslationTransformation2<F> {
 impl<F: BFloat> PointTransformation2<F> for TranslationTransformation2<F> {
     fn transform(&self, point: &Point2<F>) -> Point2<F> {
         point + &self.translation
+    }
+
+    fn transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        vector.clone()
     }
 }
 
@@ -2332,5 +2395,9 @@ impl<F: BFloat> RotationAndTranslationTransformation2<F> {
 impl<F: BFloat> PointTransformation2<F> for RotationAndTranslationTransformation2<F> {
     fn transform(&self, point: &Point2<F>) -> Point2<F> {
         self.translation.transform(&self.rotation.transform(point))
+    }
+
+    fn transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        self.rotation.transform_vec(vector)
     }
 }
