@@ -2417,6 +2417,145 @@ where
     }
 }
 
+/// A 3D vector field where on vector component is always zero.
+///
+/// Holds the grid and values of two components of a 3D vector field,
+/// as well as the specific coordinates where the component values are defined.
+/// The arrays of component values are laid out in column-major order in memory.
+#[derive(Clone, Debug)]
+pub struct ReducedVectorField3<F, G> {
+    name: String,
+    grid: Arc<G>,
+    components: In2D<Option<ScalarField3<F, G>>>, // Wrap fields in `Option` to make them takeable
+}
+
+impl<F, G> ReducedVectorField3<F, G>
+where
+    F: BFloat,
+    G: Grid3<fgr>,
+{
+    /// Creates a new reduced vector field given a name, a grid, and the scalar fields
+    /// representing the component values.
+    pub fn new(name: String, grid: Arc<G>, components: In2D<ScalarField3<F, G>>) -> Self {
+        let (mut x_components, mut y_components) = components.into_tuple();
+        x_components.set_grid(Arc::clone(&grid));
+        y_components.set_grid(Arc::clone(&grid));
+        Self {
+            name,
+            grid,
+            components: In2D::new(Some(x_components), Some(y_components)),
+        }
+    }
+
+    /// Returns a reference to the name of the field.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns a reference to the grid.
+    pub fn grid(&self) -> &G {
+        self.grid.as_ref()
+    }
+
+    /// Returns a new atomic reference counted pointer to the grid.
+    pub fn arc_with_grid(&self) -> Arc<G> {
+        Arc::clone(&self.grid)
+    }
+
+    /// Returns a reference to the scalar field representing the specified
+    /// vector field component.
+    pub fn component(&self, dim: Dim2) -> &ScalarField3<F, G> {
+        self.components[dim].as_ref().unwrap()
+    }
+
+    /// Consumes the vector field and returns the scalar fields representing
+    /// the vector components.
+    pub fn into_components(self) -> In2D<ScalarField3<F, G>> {
+        let (x_components, y_components) = self.components.into_tuple();
+        In2D::new(x_components.unwrap(), y_components.unwrap())
+    }
+
+    /// Returns a set of references to the coordinates where the field
+    /// values of the specified component are defined.
+    pub fn coords(&self, dim: Dim2) -> CoordRefs3<fgr> {
+        self.component(dim).coords()
+    }
+
+    /// Returns a set of references to the coordinates where the field
+    /// values of each component are defined.
+    pub fn all_coords(&self) -> In2D<CoordRefs3<fgr>> {
+        In2D::with_each_component(|dim| self.coords(dim))
+    }
+
+    /// Returns a reference to the 2D array of field values for the
+    /// specified component.
+    pub fn values(&self, dim: Dim2) -> &Array3<F> {
+        self.component(dim).values()
+    }
+
+    /// Returns a mutable reference to the 2D array of field values.
+    pub fn values_mut(&mut self, dim: Dim2) -> &mut Array3<F> {
+        self.components[dim].as_mut().unwrap().values_mut()
+    }
+
+    /// Returns a reference to the 2D array of field values for each component.
+    pub fn all_values(&self) -> In2D<&Array3<F>> {
+        In2D::with_each_component(|dim| self.values(dim))
+    }
+
+    /// Returns the field vector at the given 3D index.
+    pub fn vector(&self, indices: &Idx3<usize>) -> Vec2<F> {
+        Vec2::new(
+            self.values(Dim2::X)[[indices[X], indices[Y], indices[Z]]],
+            self.values(Dim2::Y)[[indices[X], indices[Y], indices[Z]]],
+        )
+    }
+
+    /// Returns a reference to the coordinate locations specifying
+    /// where in the grid cell the values of the given component are defined.
+    pub fn locations(&self, dim: Dim2) -> &In3D<CoordLocation> {
+        self.component(dim).locations()
+    }
+
+    /// Returns the 3D shape of the grid.
+    pub fn shape(&self) -> &In3D<usize> {
+        self.grid.shape()
+    }
+
+    /// Applies the given 2D transformation to the field vectors.
+    pub fn transform_vectors<T>(&mut self, transformation: &T, verbosity: &Verbosity)
+    where
+        T: PointTransformation2<fgr>,
+    {
+        let mut x_components = self.components[Dim2::X].take().unwrap();
+        let mut y_components = self.components[Dim2::Y].take().unwrap();
+
+        let x_component_buffer = x_components
+            .values_mut()
+            .as_slice_memory_order_mut()
+            .unwrap();
+        let y_component_buffer = y_components
+            .values_mut()
+            .as_slice_memory_order_mut()
+            .unwrap();
+        let n_values = x_component_buffer.len();
+
+        x_component_buffer
+            .par_iter_mut()
+            .zip(y_component_buffer.par_iter_mut())
+            .progress_with(verbosity.create_progress_bar(n_values))
+            .for_each(|(x_component, y_component)| {
+                let vector = Vec2::from_components(*x_component, *y_component);
+                let transformed_vector = transformation.transform_vec(&vector);
+                *x_component = F::from(transformed_vector[Dim2::X]).unwrap();
+                *y_component = F::from(transformed_vector[Dim2::Y]).unwrap();
+            });
+
+        self.components[Dim2::X] = Some(x_components);
+        self.components[Dim2::Y] = Some(y_components);
+    }
+}
+
 /// A 2D scalar field.
 ///
 /// Holds the grid and values of a 2D scalar field, as well as the

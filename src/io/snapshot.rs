@@ -11,16 +11,18 @@ use super::{Endianness, Verbosity};
 use crate::{
     exit_on_false,
     field::{
-        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, ResampledCoordLocation,
-        ResamplingMethod, ScalarField3, ScalarFieldCacher3, ScalarFieldProvider3,
+        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, ReducedVectorField3,
+        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldCacher3,
+        ScalarFieldProvider3,
     },
     geometry::{
-        Dim3::{X, Y, Z},
-        Idx3, In3D, PointTransformation2,
+        Dim3::{self, X, Y, Z},
+        Idx3, In2D, In3D, PointTransformation2,
     },
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
 };
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::{borrow::Cow, collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
 
@@ -952,6 +954,7 @@ pub struct ResampledSnapshotProvider3<GOLD, G, P, T, I> {
     interpolator: I,
     resampling_method: ResamplingMethod,
     verbosity: Verbosity,
+    stored_resampled_fields: HashMap<String, ScalarField3<fdt, G>>,
     phantom: PhantomData<GOLD>,
 }
 
@@ -980,6 +983,7 @@ where
             interpolator,
             resampling_method,
             verbosity,
+            stored_resampled_fields: HashMap::new(),
             phantom: PhantomData,
         }
     }
@@ -1003,10 +1007,10 @@ where
 
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
         let field = self.provider.provide_scalar_field(variable_name)?;
-        if self.verbosity.print_messages() {
-            println!("Resampling {}", variable_name);
-        }
         Ok(if T::IS_IDENTITY {
+            if self.verbosity.print_messages() {
+                println!("Resampling {}", variable_name);
+            }
             field.resampled_to_grid(
                 self.arc_with_grid(),
                 self.resampled_locations.clone(),
@@ -1014,15 +1018,72 @@ where
                 self.resampling_method,
                 &self.verbosity,
             )
+        } else if let Some(resampled_field) = self
+            .stored_resampled_fields
+            .remove(&variable_name.to_string())
+        {
+            if self.verbosity.print_messages() {
+                println!("Using cached {}", variable_name);
+            }
+            resampled_field
         } else {
-            field.resampled_to_transformed_grid(
+            if self.verbosity.print_messages() {
+                println!("Resampling {}", variable_name);
+            }
+            let resampled_field = field.resampled_to_transformed_grid(
                 self.arc_with_grid(),
                 &self.transformation,
                 self.resampled_locations.clone(),
                 &self.interpolator,
                 self.resampling_method,
                 &self.verbosity,
-            )
+            );
+
+            if let Some((vector_name, dim @ (X | Y), component_names)) =
+                quantity_is_vector_component(variable_name)
+            {
+                let other_hor_component_name =
+                    component_names[if dim == X { Y } else { X }].as_str();
+                let resampled_other_hor_component_field =
+                    self.produce_scalar_field(other_hor_component_name)?;
+
+                let components = if dim == X {
+                    In2D::new(resampled_field, resampled_other_hor_component_field)
+                } else {
+                    In2D::new(resampled_other_hor_component_field, resampled_field)
+                };
+
+                if self.verbosity.print_messages() {
+                    println!("Transforming {} vectors", &vector_name);
+                }
+
+                let mut hor_vector_field =
+                    ReducedVectorField3::new(vector_name, self.arc_with_grid(), components);
+
+                // Warning if the locations of the two components are not the same
+                todo!();
+
+                hor_vector_field.transform_vectors(&self.transformation, &self.verbosity);
+
+                let (transformed_x_components, transformed_y_components) =
+                    hor_vector_field.into_components().into_tuple();
+
+                let (transformed_resampled_field, transformed_resampled_other_hor_component_field) =
+                    if dim == X {
+                        (transformed_x_components, transformed_y_components)
+                    } else {
+                        (transformed_y_components, transformed_x_components)
+                    };
+
+                self.stored_resampled_fields.insert(
+                    other_hor_component_name.to_string(),
+                    transformed_resampled_other_hor_component_field,
+                );
+
+                transformed_resampled_field
+            } else {
+                resampled_field
+            }
         })
     }
 }
@@ -1235,17 +1296,34 @@ pub fn create_new_snapshot_file_name_from_path(
     }
 }
 
+lazy_static! {
+    static ref SNAPSHOT_FILE_STEM_REGEX: Regex = Regex::new(r"^(.+?)_(\d+)$").unwrap();
+    static ref VECTOR_COMPONENT_REGEX: Regex = Regex::new(r"^(.+?)([xyz])(c?)$").unwrap();
+}
+
 fn parse_snapshot_file_path(file_path: &Path) -> (String, Option<String>) {
     let file_path = match file_path.extension() {
         Some(extension) if extension == "scr" => Path::new(file_path.file_stem().unwrap()),
         _ => file_path,
     };
     let file_stem = file_path.file_stem().unwrap().to_string_lossy().to_string();
-    let regex = Regex::new(r"^(.+?)_(\d+)$").unwrap();
-    regex
+    SNAPSHOT_FILE_STEM_REGEX
         .captures(&file_stem)
         .map(|caps| (caps[1].to_string(), Some(caps[2].to_string())))
         .unwrap_or_else(|| (file_stem, None))
+}
+
+/// If the given variable name is a vector component, return the name of the
+/// vector quantity, the dimension of the component and the name of all the
+/// component quantities.
+fn quantity_is_vector_component(variable_name: &str) -> Option<(String, Dim3, In3D<String>)> {
+    VECTOR_COMPONENT_REGEX.captures(variable_name).map(|caps| {
+        let vector_name = caps[1].to_string();
+        let dim = Dim3::from_char(caps[2].chars().next().unwrap()).unwrap();
+        let component_names =
+            In3D::with_each_component(|dim| format!("{}{}{}", &vector_name, dim, &caps[3]));
+        (vector_name, dim, component_names)
+    })
 }
 
 /// For input strings of the format |<enclosed substring>|, returns the
