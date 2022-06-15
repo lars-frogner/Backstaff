@@ -17,8 +17,9 @@ use num;
 use std::{collections::HashMap, process, str::FromStr};
 
 lazy_static! {
-    static ref DEFAULT_PROGRESS_STYLE: ProgressStyle =
-        ProgressStyle::default_bar().template("{bar:40}  {percent}% | ETA: {eta}");
+    static ref DEFAULT_PROGRESS_STYLE: ProgressStyle = ProgressStyle::default_bar()
+        .template("[{bar:40}]  {percent}% | ETA: {eta}")
+        .progress_chars("=> ");
 }
 
 pub type CommandCreator = fn(&'static str) -> Command<'static>;
