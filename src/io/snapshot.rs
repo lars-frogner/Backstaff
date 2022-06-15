@@ -1044,8 +1044,21 @@ where
             {
                 let other_hor_component_name =
                     component_names[if dim == X { Y } else { X }].as_str();
-                let resampled_other_hor_component_field =
-                    self.produce_scalar_field(other_hor_component_name)?;
+
+                if self.verbosity.print_messages() {
+                    println!("Resampling {}", other_hor_component_name);
+                }
+                let resampled_other_hor_component_field = self
+                    .provider
+                    .provide_scalar_field(other_hor_component_name)?
+                    .resampled_to_transformed_grid(
+                        self.arc_with_grid(),
+                        &self.transformation,
+                        self.resampled_locations.clone(),
+                        &self.interpolator,
+                        self.resampling_method,
+                        &self.verbosity,
+                    );
 
                 let components = if dim == X {
                     In2D::new(resampled_field, resampled_other_hor_component_field)
@@ -1057,11 +1070,17 @@ where
                     println!("Transforming {} vectors", &vector_name);
                 }
 
+                if self.resampled_locations[X] != self.resampled_locations[Y] {
+                    eprintln!(
+                        "Warning: Transformation will assume that the horizontal \
+                         components of {} are defined at the same location within \
+                         the grid cell, which they are not",
+                        &vector_name
+                    );
+                }
+
                 let mut hor_vector_field =
                     ReducedVectorField3::new(vector_name, self.arc_with_grid(), components);
-
-                // Warning if the locations of the two components are not the same
-                todo!();
 
                 hor_vector_field.transform_vectors(&self.transformation, &self.verbosity);
 
