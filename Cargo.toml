@@ -22,7 +22,7 @@ seeding = ["rand"]
 corks = ["seeding"]
 tracing = ["seeding"]
 ebeam = ["tracing", "rand", "special"]
-synthesis = ["python", "roman"]
+synthesis = ["derivation", "python", "roman"]
 for-testing = ["approx"]
 all-non-testing = [
     "cli", "command-graph", "statistics", "serialization", "python",
