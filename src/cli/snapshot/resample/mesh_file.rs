@@ -8,10 +8,7 @@ use super::{
 use crate::{
     add_subcommand_combinations,
     cli::{
-        snapshot::{
-            derive::create_derive_subcommand, inspect::create_inspect_subcommand,
-            write::create_write_subcommand,
-        },
+        snapshot::{inspect::create_inspect_subcommand, write::create_write_subcommand},
         utils,
     },
     exit_on_error,
@@ -34,6 +31,9 @@ use crate::{
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{path::PathBuf, str::FromStr};
+
+#[cfg(feature = "derivation")]
+use crate::cli::snapshot::derive::create_derive_subcommand;
 
 #[cfg(feature = "synthesis")]
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
@@ -92,7 +92,7 @@ pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Comman
 
     add_subcommand_combinations!(
         command, command_name, true;
-        derive,
+        derive if "derivation",
         synthesize if "synthesis",
         (write, inspect)
     )

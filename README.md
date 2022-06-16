@@ -15,12 +15,13 @@ Rust is highly suited for this project, for a number of reasons. It is a low-lev
 The code consists of a core API as well as a set of optional features, some of which are included by default.
 
 Currently the available features are:
-* `cli`: A module exposing a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
+* `cli`: Exposes a command line interface (CLI) for applying the various tools in the library. This feature is included by default, but can be disabled if you only want to use the API.
 * `statistics`: Support for printing snapshot statistics. This feature is included by default. Disabling it will remove the `snapshot-inspect-statistics` subcommand from the CLI.
-* `tracing`: A module for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
-* `corks`: A module for tracing corks. Including it will add the `snapshot-corks` subcommand to the CLI.
-* `synthesis`: A module for synthesising optically thin spectral lines. Including it will add the `snapshot-synthesize` subcommand to the CLI.
-* `ebeam`: A module for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI.
+* `derivation`: Support for computing derived quantities. Including it will add the `snapshot-derive` subcommand to the CLI.
+* `tracing`: Support for tracing field lines. Including it will add the `snapshot-trace` subcommand to the CLI.
+* `corks`: Support for tracing corks. Including it will add the `snapshot-corks` subcommand to the CLI.
+* `synthesis`: Support for synthesising optically thin spectral lines. Including it will add the `snapshot-synthesize` subcommand to the CLI.
+* `ebeam`: Support for simulating electron beams. Including it will add the `snapshot-ebeam` subcommand to the CLI.
 * `json`: Support for serialization of certain output, like traced field lines, into JSON format.
 * `pickle`: Support for serialization of certain output, like field slices or traced field lines, into Python's [`pickle`](https://docs.python.org/3/library/pickle.html) format.
 * `hdf5`: Support for the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) format, in particular for writing field line data using the [H5Part](https://dav.lbl.gov/archive/Research/AcceleratorSAPP/) conventions.

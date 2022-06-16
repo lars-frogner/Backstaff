@@ -9,10 +9,7 @@ use super::{
 use crate::{
     add_subcommand_combinations,
     cli::{
-        snapshot::{
-            derive::create_derive_subcommand, inspect::create_inspect_subcommand,
-            write::create_write_subcommand,
-        },
+        snapshot::{inspect::create_inspect_subcommand, write::create_write_subcommand},
         utils,
     },
     field::{ResampledCoordLocation, ResamplingMethod},
@@ -26,6 +23,9 @@ use crate::{
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
+
+#[cfg(feature = "derivation")]
+use crate::cli::snapshot::derive::create_derive_subcommand;
 
 #[cfg(feature = "synthesis")]
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
@@ -76,7 +76,7 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
 
     add_subcommand_combinations!(
         command, command_name, true;
-        derive,
+        derive if "derivation",
         synthesize if "synthesis",
         (write, inspect)
     )

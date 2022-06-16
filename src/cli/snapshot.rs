@@ -1,11 +1,13 @@
 //! Command line interface for actions related to snapshots.
 
-mod derive;
 mod extract;
 mod inspect;
 mod resample;
 mod slice;
 mod write;
+
+#[cfg(feature = "derivation")]
+mod derive;
 
 #[cfg(feature = "corks")]
 mod corks;
@@ -14,9 +16,9 @@ mod corks;
 mod synthesize;
 
 use self::{
-    derive::create_derive_subcommand, extract::create_extract_subcommand,
-    inspect::create_inspect_subcommand, resample::create_resample_subcommand,
-    slice::create_slice_subcommand, write::create_write_subcommand,
+    extract::create_extract_subcommand, inspect::create_inspect_subcommand,
+    resample::create_resample_subcommand, slice::create_slice_subcommand,
+    write::create_write_subcommand,
 };
 use crate::{
     add_subcommand_combinations,
@@ -36,6 +38,9 @@ use crate::{
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{collections::HashSet, path::PathBuf, str::FromStr};
+
+#[cfg(feature = "derivation")]
+use self::derive::create_derive_subcommand;
 
 #[cfg(feature = "tracing")]
 use super::tracing::create_trace_subcommand;
@@ -112,7 +117,7 @@ pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command
 
     add_subcommand_combinations!(
         command, command_name, true;
-        derive,
+        derive if "derivation",
         synthesize if "synthesis",
         (inspect, slice, extract, resample, write, corks if "corks", trace if "tracing", ebeam if "ebeam")
     )
@@ -213,12 +218,14 @@ fn run_snapshot_subcommand_with_derive<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
+    #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
         let provider = derive::create_derive_provider(derive_arguments, provider);
         run_snapshot_subcommand_with_synthesis(derive_arguments, provider, io_context);
-    } else {
-        run_snapshot_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
+        return;
     }
+
+    run_snapshot_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
 }
 
 fn run_snapshot_subcommand_with_synthesis<G, P>(

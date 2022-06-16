@@ -4,14 +4,14 @@ use crate::{
     add_subcommand_combinations,
     cli::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
-        snapshot::{
-            derive::create_derive_subcommand, inspect::create_inspect_subcommand,
-            write::create_write_subcommand,
-        },
+        snapshot::{inspect::create_inspect_subcommand, write::create_write_subcommand},
     },
     update_command_graph,
 };
 use clap::Command;
+
+#[cfg(feature = "derivation")]
+use crate::cli::snapshot::derive::create_derive_subcommand;
 
 #[cfg(feature = "synthesis")]
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
@@ -40,7 +40,7 @@ pub fn create_sample_averaging_subcommand(_parent_command_name: &'static str) ->
     add_subcommand_combinations!(
         command, command_name, true;
         poly_fit_interpolator,
-        derive,
+        derive if "derivation",
         synthesize if "synthesis",
         (write, inspect)
     )

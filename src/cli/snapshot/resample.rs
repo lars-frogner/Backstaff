@@ -20,10 +20,7 @@ use self::{
 use crate::{
     cli::{
         interpolation::poly_fit::construct_poly_fit_interpolator_config_from_options,
-        snapshot::{
-            derive::create_derive_provider, inspect::run_inspect_subcommand,
-            write::run_write_subcommand,
-        },
+        snapshot::{inspect::run_inspect_subcommand, write::run_write_subcommand},
         utils as cli_utils,
     },
     exit_on_error, exit_on_false, exit_with_error,
@@ -688,12 +685,14 @@ fn run_snapshot_resampling_with_derive<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G>,
 {
+    #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
-        let provider = create_derive_provider(derive_arguments, provider);
+        let provider = super::derive::create_derive_provider(derive_arguments, provider);
         run_snapshot_resampling_with_synthesis(derive_arguments, provider, io_context);
-    } else {
-        run_snapshot_resampling_with_synthesis_added_caching(arguments, provider, io_context);
+        return;
     }
+
+    run_snapshot_resampling_with_synthesis_added_caching(arguments, provider, io_context);
 }
 
 fn run_snapshot_resampling_with_synthesis<G, P>(

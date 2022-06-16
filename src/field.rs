@@ -1,5 +1,6 @@
 //! Scalar and vector fields.
 
+#[cfg(feature = "derivation")]
 pub mod quantities;
 
 #[cfg(feature = "synthesis")]

@@ -4,7 +4,6 @@ use crate::{
     add_subcommand_combinations,
     cli::{
         snapshot::{
-            derive::{create_derive_provider, create_derive_subcommand},
             inspect::{create_inspect_subcommand, run_inspect_subcommand},
             resample::{create_resample_subcommand, run_resample_subcommand},
             write::{create_write_subcommand, run_write_subcommand},
@@ -24,6 +23,9 @@ use crate::{
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
+
+#[cfg(feature = "derivation")]
+use crate::cli::snapshot::derive::create_derive_subcommand;
 
 #[cfg(feature = "synthesis")]
 use crate::cli::snapshot::synthesize::create_synthesize_subcommand;
@@ -137,7 +139,7 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
 
     add_subcommand_combinations!(
         command, command_name, true;
-        derive,
+        derive if "derivation",
         synthesize if "synthesis",
         (resample, write, inspect)
     )
@@ -267,12 +269,14 @@ fn run_extract_subcommand_with_derive<G, P>(
     G: Grid3<fgr>,
     P: SnapshotProvider3<G> + Sync,
 {
+    #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
-        let provider = create_derive_provider(derive_arguments, provider);
+        let provider = super::derive::create_derive_provider(derive_arguments, provider);
         run_extract_subcommand_with_synthesis(derive_arguments, provider, io_context);
-    } else {
-        run_extract_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
+        return;
     }
+
+    run_extract_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
 }
 
 fn run_extract_subcommand_with_synthesis<G, P>(

@@ -563,7 +563,7 @@ fn $fn_name() {
 };
 }
 
-#[cfg(all(feature = "cli", feature = "for-testing"))]
+#[cfg(all(feature = "cli", feature = "for-testing", feature = "derivation"))]
 create_combination_test!(derive_combinations_work, vec!["derive"]);
 
 #[cfg(all(feature = "cli", feature = "for-testing", feature = "synthesis"))]
