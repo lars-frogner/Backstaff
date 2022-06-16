@@ -62,6 +62,7 @@ impl RegressionTest {
         }
     }
 
+    #[cfg(feature = "for-testing")]
     pub fn assert_mesh_files_equal(&self) {
         if let RegressionTestAction::Compare = CONTEXT.action {
             common::assert_mesh_files_equal(self.actual_output_path(), self.expected_output_path());

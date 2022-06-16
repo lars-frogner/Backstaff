@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use backstaff::{
-    cli, exit_on_error,
+    exit_on_error,
     grid::fgr,
     io::{
         snapshot::{fdt, native, utils as snapshot_utils},
@@ -17,24 +17,50 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(feature = "cli")]
+use backstaff::cli;
+
 #[macro_export]
 macro_rules! def_test {
     (
         IN[$($in_ident:ident = $in_str:expr),*]
         OUT[$($out_ident:ident = $out_str:expr),*]
-        fn $name:ident $test_body:expr
+        fn $name:ident() $test_body:expr
     ) => {
         #[test]
         fn $name() {
             let test = common::Test::new(stringify!($name));
 
-            $( let $in_ident = test.input_path(PathBuf::from($in_str)); )*
-            $( let $out_ident = test.output_path(PathBuf::from($out_str)); )*
+            $( let $in_ident = test.input_path(::std::path::PathBuf::from($in_str)); )*
+            $( let $out_ident = test.output_path(::std::path::PathBuf::from($out_str)); )*
 
             let test_body = |$( $in_ident, )* $( $out_ident, )*| $test_body;
 
             test_body(
                 $( path_str!($in_ident), )* $( path_str!($out_ident), )*
+            );
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! def_bench {
+    (
+        IN[$($in_ident:ident = $in_str:expr),*]
+        OUT[$($out_ident:ident = $out_str:expr),*]
+        fn $name:ident ($bencher:ident: &mut Bencher) $bench_body:expr
+    ) => {
+        #[bench]
+        fn $name($bencher: &mut test::Bencher) {
+            let test = common::Test::new(stringify!($name));
+
+            $( let $in_ident = test.input_path(::std::path::PathBuf::from($in_str)); )*
+            $( let $out_ident = test.output_path(::std::path::PathBuf::from($out_str)); )*
+
+            let bench_body = | $( $in_ident, )* $( $out_ident, )* $bencher: &mut Bencher| $bench_body;
+
+            bench_body(
+                $( path_str!($in_ident), )* $( path_str!($out_ident), )* $bencher
             );
         }
     };
@@ -47,6 +73,7 @@ macro_rules! path_str {
     };
 }
 
+#[cfg(feature = "cli")]
 pub fn run<I, T>(args: I)
 where
     I: IntoIterator<Item = T>,
@@ -85,6 +112,7 @@ where
     );
 }
 
+#[cfg(feature = "for-testing")]
 pub fn assert_mesh_files_equal<P1, P2>(mesh_path_1: P1, mesh_path_2: P2)
 where
     P1: AsRef<Path>,
@@ -111,6 +139,7 @@ where
     );
 }
 
+#[cfg(feature = "for-testing")]
 pub fn assert_snapshot_files_equal<P1, P2>(file_path_1: P1, file_path_2: P2)
 where
     P1: AsRef<Path>,
@@ -138,6 +167,7 @@ where
     );
 }
 
+#[cfg(feature = "for-testing")]
 pub fn assert_snapshot_field_values_equal<P1, P2>(file_path_1: P1, file_path_2: P2)
 where
     P1: AsRef<Path>,
@@ -259,6 +289,9 @@ impl TestContext {
 
 lazy_static! {
     pub static ref CONTEXT: TestContext = TestContext::new();
+}
+#[cfg(feature = "cli")]
+lazy_static! {
     static ref COMMAND: clap::Command<'static> = cli::build::build().no_binary_name(true);
 }
 

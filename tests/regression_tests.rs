@@ -1,9 +1,12 @@
 mod common;
 mod regression;
 
-use common::run;
 use regression::{Actual, Expected, RegressionTest};
 
+#[cfg(feature = "cli")]
+use common::run;
+
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 #[test]
 fn regular_mesh_is_correct() {
     let test = RegressionTest::for_output_file("regular.mesh");
@@ -20,6 +23,7 @@ fn regular_mesh_is_correct() {
     test.assert_mesh_files_equal();
 }
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 #[test]
 fn hor_regular_mesh_is_correct() {
     let test = RegressionTest::for_output_file("hor_regular.mesh");

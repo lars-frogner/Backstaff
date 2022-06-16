@@ -9,6 +9,8 @@ use backstaff::{
     io::{snapshot::native::NATIVE_COORD_PRECISION, Verbosity},
     with_new_snapshot_grid,
 };
+
+#[cfg(feature = "cli")]
 use common::run;
 
 const MINIMAL_NATIVE_MESH: &str = "minimal.mesh";
@@ -18,10 +20,11 @@ const MINIMAL_REGULAR_NATIVE_SNAP: &str = "minimal_regular_001.idl";
 const REALISTIC_NATIVE_SNAP: &str = "realistic_042.idl";
 const REALISTIC_REGULAR_NATIVE_SNAP: &str = "realistic_regular_042.idl";
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 def_test!(
 IN[]
 OUT[regular="regular.mesh", hor_regular="hor_regular.mesh"]
-fn regular_hor_regular_mesh_is_regular {
+fn regular_hor_regular_mesh_is_regular() {
     const SHAPE: &str = "--shape=11,8,10";
     const X_BOUNDS: &str = "--x-bounds=-10.1,0";
     const Y_BOUNDS: &str = "--y-bounds=0.1,3";
@@ -45,10 +48,11 @@ fn regular_hor_regular_mesh_is_regular {
     common::assert_mesh_files_equal(regular, hor_regular);
 });
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
-fn write_preserves_native_input_snapshot {
+fn write_preserves_native_input_snapshot() {
     run(["snapshot",
          input_snapshot,
          "write",
@@ -57,11 +61,11 @@ fn write_preserves_native_input_snapshot {
     common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
 });
 
-#[cfg(feature = "netcdf")]
+#[cfg(all(feature = "cli", feature = "for-testing", feature = "netcdf"))]
 def_test!(
 IN[input_snapshot=MINIMAL_NETCDF_SNAP]
 OUT[output_snapshot=MINIMAL_NETCDF_SNAP]
-fn write_preserves_netcdf_input_snapshot {
+fn write_preserves_netcdf_input_snapshot() {
     run(["snapshot",
          input_snapshot,
          "write",
@@ -70,11 +74,11 @@ fn write_preserves_netcdf_input_snapshot {
     common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
 });
 
-#[cfg(feature = "netcdf")]
+#[cfg(all(feature = "cli", feature = "for-testing", feature = "netcdf"))]
 def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_NETCDF_SNAP]
-fn conversion_to_netcdf_preserves_native_input_snapshot {
+fn conversion_to_netcdf_preserves_native_input_snapshot() {
     run(["snapshot",
          input_snapshot,
          "write",
@@ -83,11 +87,11 @@ fn conversion_to_netcdf_preserves_native_input_snapshot {
     common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
 });
 
-#[cfg(feature = "netcdf")]
+#[cfg(all(feature = "cli", feature = "for-testing", feature = "netcdf"))]
 def_test!(
 IN[input_snapshot=MINIMAL_NETCDF_SNAP]
 OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
-fn conversion_to_native_preserves_netcdf_input_snapshot {
+fn conversion_to_native_preserves_netcdf_input_snapshot() {
     run(["snapshot",
          input_snapshot,
          "write",
@@ -96,11 +100,12 @@ fn conversion_to_native_preserves_netcdf_input_snapshot {
     common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
 });
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[  tmp_1="tmp_101.idl",     tmp_2="tmp_102.idl",     tmp_3="tmp_103.idl",
     final_1="final_042.idl", final_2="final_043.idl", final_3="final_044.idl"]
-fn snap_num_mapping_works {
+fn snap_num_mapping_works() {
     for output_snapshot in [tmp_1, tmp_2, tmp_3] {
         run(["snapshot",
              input_snapshot,
@@ -120,10 +125,11 @@ fn snap_num_mapping_works {
     }
 });
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
-fn extract_with_original_bounds_preserves_input_snapshot {
+fn extract_with_original_bounds_preserves_input_snapshot() {
     run(["snapshot",
          input_snapshot,
          "extract",
@@ -133,10 +139,11 @@ fn extract_with_original_bounds_preserves_input_snapshot {
     common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
 });
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
-fn extract_with_too_large_subgrid_preserves_input_snapshot {
+fn extract_with_too_large_subgrid_preserves_input_snapshot() {
     let (lower_bounds, upper_bounds, extents) = exit_on_error!(
         with_new_snapshot_grid!(PathBuf::from(input_snapshot), Verbosity::Quiet, |snapshot_grid| {
             Ok((snapshot_grid.lower_bounds().clone(), snapshot_grid.upper_bounds().clone(), snapshot_grid.extents().clone()))
@@ -164,10 +171,11 @@ fn extract_with_too_large_subgrid_preserves_input_snapshot {
     common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
 });
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 def_test!(
 IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn extract_gives_same_result_for_general_grid_interpretation {
+fn extract_gives_same_result_for_general_grid_interpretation() {
     const I_RANGE_ARG: &str = "--i-range=5,12";
     const J_RANGE_ARG: &str = "--j-range=2,16";
     const K_RANGE_ARG: &str = "--k-range=3,13";
@@ -195,8 +203,11 @@ fn extract_gives_same_result_for_general_grid_interpretation {
 
 macro_rules! define_test_for_each_resampling_method {
     ($test_macro:ident) => {
+        #[cfg(all(feature = "cli", feature = "for-testing"))]
         $test_macro!(sample_averaging);
+        #[cfg(all(feature = "cli", feature = "for-testing"))]
         $test_macro!(direct_sampling);
+        #[cfg(all(feature = "cli", feature = "for-testing"))]
         $test_macro!(cell_averaging);
     };
 }
@@ -205,7 +216,7 @@ macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(
 IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn [<resampling_regular_to_regular_with_ $resampling_method _gives_same_result_for_general_grid_interpretation>] {
+fn [<resampling_regular_to_regular_with_ $resampling_method _gives_same_result_for_general_grid_interpretation>] () {
     const X_BOUNDS_ARG: &str = "--x-bounds=5,12";
     const Y_BOUNDS_ARG: &str = "--y-bounds=2,16";
     const Z_BOUNDS_ARG: &str = "--z-bounds=-6.5,1.0";
@@ -239,7 +250,7 @@ macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(
 IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn [<resampling_regular_to_reshaped_with_ $resampling_method _gives_same_result_for_general_grid_interpretation>] {
+fn [<resampling_regular_to_reshaped_with_ $resampling_method _gives_same_result_for_general_grid_interpretation>] () {
     const SCALES_ARG: &str = "--scales=0.6,0.5,0.8";
     run(["snapshot",
          input_snapshot,
@@ -267,7 +278,7 @@ macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
-fn [<resampling_to_reshaped_of_same_shape_with_ $resampling_method _preserves_input_snapshot>] {
+fn [<resampling_to_reshaped_of_same_shape_with_ $resampling_method _preserves_input_snapshot>] () {
     run(["snapshot",
         input_snapshot,
         "resample",
@@ -288,7 +299,7 @@ macro_rules! resampling_test {
         def_test!(
         IN[input_mesh=MINIMAL_NATIVE_MESH, input_snapshot=MINIMAL_NATIVE_SNAP]
         OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
-        fn [<resampling_to_original_mesh_file_with_ $resampling_method _preserves_input_snapshot>] {
+        fn [<resampling_to_original_mesh_file_with_ $resampling_method _preserves_input_snapshot>] () {
             run(["snapshot",
                     input_snapshot,
                     "resample",
@@ -309,7 +320,7 @@ macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(
 IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
-fn [<resampling_regular_to_regular_of_same_bounds_and_shape_with_ $resampling_method _preserves_input_snapshot>] {
+fn [<resampling_regular_to_regular_of_same_bounds_and_shape_with_ $resampling_method _preserves_input_snapshot>] () {
     run(["snapshot",
         input_snapshot,
         "resample",
@@ -327,7 +338,7 @@ macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(
 IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
-fn [<resampling_regular_to_regular_of_same_shape_and_shifted_bounds_with_ $resampling_method _preserves_input_snapshot>] {
+fn [<resampling_regular_to_regular_of_same_shape_and_shifted_bounds_with_ $resampling_method _preserves_input_snapshot>] () {
     let (upper_bounds, extents) = exit_on_error!(
         with_new_snapshot_grid!(PathBuf::from(input_snapshot), Verbosity::Quiet, |snapshot_grid| {
             Ok((snapshot_grid.upper_bounds().clone(), snapshot_grid.extents().clone()))
@@ -356,7 +367,7 @@ macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(
 IN[input_mesh=MINIMAL_NATIVE_MESH, input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn [<resampling_to_reshaped_and_reshaped_original_mesh_file_with_ $resampling_method _gives_same_result>] {
+fn [<resampling_to_reshaped_and_reshaped_original_mesh_file_with_ $resampling_method _gives_same_result>] () {
     const SHAPE_ARG: &str ="--shape=15,9,12";
     run(["snapshot",
         input_snapshot,
@@ -386,7 +397,7 @@ macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn [<resampling_to_regular_and_rotated_regular_without_rotation_with_ $resampling_method _gives_same_result>] {
+fn [<resampling_to_regular_and_rotated_regular_without_rotation_with_ $resampling_method _gives_same_result>] () {
     let (lower_bounds, upper_bounds, extents) = exit_on_error!(
         with_new_snapshot_grid!(PathBuf::from(input_snapshot), Verbosity::Quiet, |snapshot_grid| {
             Ok((snapshot_grid.lower_bounds().clone(), snapshot_grid.upper_bounds().clone(), snapshot_grid.extents().clone()))
@@ -450,7 +461,7 @@ OUT[output_snapshot="snapshot_001.idl",
     output_corks_pickle="corks.pickle",
     output_corks_json="corks.json",
     output_field_lines="lines.fl"]
-fn $fn_name {
+fn $fn_name() {
     macro_rules! snapshot {
         () => { vec!["-N", "snapshot", input_snapshot] };
     }
@@ -552,7 +563,8 @@ fn $fn_name {
 };
 }
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 create_combination_test!(derive_combinations_work, vec!["derive"]);
 
-#[cfg(feature = "synthesis")]
+#[cfg(all(feature = "cli", feature = "for-testing", feature = "synthesis"))]
 create_combination_test!(synthesize_combinations_work, vec!["synthesize"]);
