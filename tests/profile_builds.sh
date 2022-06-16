@@ -1,5 +1,4 @@
 #!/bin/zsh
-set -e
 
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; )"
 PROJECT_DIR="$(dirname $SCRIPT_DIR)"
@@ -19,6 +18,20 @@ FEATURE_SETS=(
     'ALL'
 )
 
+ERR_FILE=/tmp/.profile_builds_err.txt
+
+case "$(uname -s)" in
+    Darwin*)    MACHINE=Mac;;
+    *)          MACHINE=LINUX
+esac
+
+if [[ "MACHINE" = "Mac" ]]; then
+    MEM_UNIT=kB
+else
+    MEM_UNIT=MB
+fi
+TIMEFMT="Took %U, max memory usage was %M $MEM_UNIT"
+
 for FEATURE_SET in "${FEATURE_SETS[@]}"; do
     if [[ "$FEATURE_SET" = "NONE" ]]; then
         FEATURE_MSG='no features'
@@ -33,8 +46,16 @@ for FEATURE_SET in "${FEATURE_SETS[@]}"; do
     echo -n "Building with $FEATURE_MSG... "
     cargo clean
 
-    TIMEFMT='Took %U, max memory usage was %M MB'
-    time bash $PROJECT_DIR/setup_backstaff --no-to-all build --release $FEATURE_ARGS > /dev/null 2>&1
+    time bash $PROJECT_DIR/setup_backstaff --no-to-all build --release $FEATURE_ARGS > /dev/null 2> $ERR_FILE
+
+    if [[ ! "$?" = 0 ]]; then
+        echo Failed >&2
+        cat $ERR_FILE
+        rm -f $ERR_FILE
+        exit 1
+    fi
+
+    rm -f $ERR_FILE
 
     if [[ -f "$PROJECT_DIR/target/release/backstaff" ]]; then
         echo "Binary size is $(du -h "$PROJECT_DIR/target/release/backstaff" | cut -f1)"
