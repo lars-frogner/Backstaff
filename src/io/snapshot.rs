@@ -1082,7 +1082,8 @@ where
                 let mut hor_vector_field =
                     ReducedVectorField3::new(vector_name, self.arc_with_grid(), components);
 
-                hor_vector_field.transform_vectors(&self.transformation, &self.verbosity);
+                let inverse_transformation = self.transformation.inverse();
+                hor_vector_field.transform_vectors(&inverse_transformation, &self.verbosity);
 
                 let (transformed_x_components, transformed_y_components) =
                     hor_vector_field.into_components().into_tuple();
