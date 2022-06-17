@@ -3,7 +3,6 @@
 use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_on_false, exit_with_error,
-    grid::{fgr, Grid3},
     io::{
         snapshot::{self, native, SnapshotProvider3},
         utils::IOContext,
@@ -111,13 +110,9 @@ pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
-pub fn run_write_subcommand<G, P>(
-    arguments: &ArgMatches,
-    mut provider: P,
-    io_context: &mut IOContext,
-) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+pub fn run_write_subcommand<P>(arguments: &ArgMatches, mut provider: P, io_context: &mut IOContext)
+where
+    P: SnapshotProvider3,
 {
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(

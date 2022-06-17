@@ -180,15 +180,14 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
 }
 
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
-pub fn run_statistics_subcommand<G, P>(
+pub fn run_statistics_subcommand<P>(
     arguments: &ArgMatches,
     provider: P,
     quantity_names: Vec<String>,
     io_context: &mut IOContext,
     verbosity: &Verbosity,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let grid = provider.grid();
     let lower_bounds = grid.lower_bounds();
@@ -325,7 +324,7 @@ pub fn run_statistics_subcommand<G, P>(
     }
 }
 
-fn print_statistics_reports<G, P, I, W>(
+fn print_statistics_reports<P, I, W>(
     mut provider: P,
     quantity_names: &[String],
     value_range: (fdt, fdt),
@@ -339,8 +338,7 @@ fn print_statistics_reports<G, P, I, W>(
     writer: &mut W,
 ) -> io::Result<()>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
     W: Write,
 {
@@ -444,8 +442,8 @@ where
     }
 }
 
-fn print_statistics_report<G, I, W>(
-    field: ScalarField3<fdt, G>,
+fn print_statistics_report<I, W>(
+    field: ScalarField3<fdt>,
     snap_name_and_num: (String, Option<u64>),
     value_range: (fdt, fdt),
     x_range: (fgr, fgr),
@@ -458,7 +456,6 @@ fn print_statistics_report<G, I, W>(
     writer: &mut W,
 ) -> io::Result<()>
 where
-    G: Grid3<fgr>,
     I: Interpolator3,
     W: Write,
 {
@@ -690,15 +687,14 @@ where
     Ok(())
 }
 
-fn print_slice_statistics_report<G, I, W>(
-    field: &ScalarField3<fdt, G>,
+fn print_slice_statistics_report<I, W>(
+    field: &ScalarField3<fdt>,
     z_coord: fgr,
     quantile_p_values: Option<&[f64]>,
     interpolator: &I,
     writer: &mut W,
 ) -> io::Result<()>
 where
-    G: Grid3<fgr>,
     I: Interpolator3,
     W: Write,
 {

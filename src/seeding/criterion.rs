@@ -2,7 +2,7 @@
 
 use super::IndexSeeder3;
 use crate::{
-    field::{self, ScalarField3, VectorField3},
+    field::{self, FieldGrid3, ScalarField3, VectorField3},
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, Point3, Vec3,
@@ -39,17 +39,15 @@ impl CriterionSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `C`: Function type taking a floating point value and returning a boolean value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn on_scalar_field_values<F, G, C, S>(
-        field: &ScalarField3<F, G>,
+    pub fn on_scalar_field_values<F, C, S>(
+        field: &ScalarField3<F>,
         evaluate_criterion: &C,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
-        G: Grid3<fgr>,
         C: Fn(F) -> bool + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {
@@ -95,19 +93,17 @@ impl CriterionSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a floating point value and returning a boolean value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn on_centered_scalar_field_values<F, G, I, C, S>(
-        field: &ScalarField3<F, G>,
+    pub fn on_centered_scalar_field_values<F, I, C, S>(
+        field: &ScalarField3<F>,
         interpolator: &I,
         evaluate_criterion: &C,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(F) -> bool + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
@@ -156,19 +152,17 @@ impl CriterionSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a boolean value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn on_centered_vector_field_values<F, G, I, C, S>(
-        field: &VectorField3<F, G>,
+    pub fn on_centered_vector_field_values<F, I, C, S>(
+        field: &VectorField3<F>,
         interpolator: &I,
         evaluate_criterion: &C,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> bool + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
@@ -227,11 +221,7 @@ impl IndexSeeder3 for CriterionSeeder3 {
         self.seed_indices.retain(predicate);
     }
 
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fgr>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
+    fn to_point_seeder(&self, grid: &FieldGrid3) -> Vec<Point3<fgr>> {
         self.seed_indices
             .par_iter()
             .map(|indices| Point3::from(&grid.centers().point(indices)))

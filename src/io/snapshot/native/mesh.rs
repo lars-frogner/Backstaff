@@ -2,6 +2,7 @@
 
 use super::super::{super::utils, Verbosity};
 use crate::{
+    field::FieldGrid3,
     geometry::{
         Coords3,
         Dim3::{X, Y, Z},
@@ -47,15 +48,11 @@ pub struct NativeGridData {
 /// # Type parameters
 ///
 /// - `P`: A type that can be treated as a reference to a `Path`.
-/// - `G`: Type of the grid.
-pub fn create_grid_from_mesh_file<G>(
+pub fn create_grid_from_mesh_file(
     mesh_path: &Path,
     is_periodic: In3D<bool>,
     verbosity: &Verbosity,
-) -> io::Result<G>
-where
-    G: Grid3<fgr>,
-{
+) -> io::Result<FieldGrid3> {
     let NativeGridData {
         detected_grid_type,
         center_coords,
@@ -64,19 +61,13 @@ where
         down_derivatives,
     } = parse_mesh_file(mesh_path, verbosity)?;
 
-    if detected_grid_type != G::TYPE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Wrong reader type for the specified mesh file",
-        ));
-    }
-
-    Ok(G::from_coords(
+    Ok(FieldGrid3::from_coords_unchecked(
         center_coords,
         lower_edge_coords,
         is_periodic,
         Some(up_derivatives),
         Some(down_derivatives),
+        detected_grid_type,
     ))
 }
 

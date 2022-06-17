@@ -7,7 +7,6 @@ use crate::{
         synthesis::{EmissivitySnapshotProvider3, SYNTHESIZABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,
     },
-    grid::{fgr, Grid3},
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
     io::snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
     update_command_graph,
@@ -134,13 +133,12 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
 }
 
 /// Creates an `EmissivitySnapshotProvider3` for the given arguments and snapshot provider.
-pub fn create_synthesize_provider<G, P>(
+pub fn create_synthesize_provider<P>(
     arguments: &ArgMatches,
     provider: P,
-) -> EmissivitySnapshotProvider3<G, P, PolyFitInterpolator2>
+) -> EmissivitySnapshotProvider3<P, PolyFitInterpolator2>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     match env::var_os("XUVTOP") {
         Some(ref path) => {
@@ -245,13 +243,12 @@ where
     )
 }
 
-pub fn create_synthesize_provider_added_caching<G, P>(
+pub fn create_synthesize_provider_added_caching<P>(
     arguments: &ArgMatches,
     provider: P,
-) -> EmissivitySnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>, PolyFitInterpolator2>
+) -> EmissivitySnapshotProvider3<ScalarFieldCacher3<fdt, P>, PolyFitInterpolator2>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, true);
     let cached_provider = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);

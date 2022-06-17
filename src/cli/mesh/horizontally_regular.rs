@@ -8,7 +8,7 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{self, fgr, hor_regular::HorRegularGrid3, Grid3},
+    grid::{self, fgr, hor_regular::HorRegularGrid3, Grid3, GridType},
     interpolation::cubic_hermite_spline::{
         BoundaryTangents, CubicHermiteSplineInterpolator, CubicHermiteSplineInterpolatorConfig,
         TangentScheme,
@@ -260,7 +260,7 @@ pub fn run_horizontally_regular_subcommand(
     );
     let (up_derivatives_z, down_derivatives_z) = grid::compute_up_and_down_derivatives(&centers_z);
 
-    let grid = HorRegularGrid3::from_coords(
+    let grid = HorRegularGrid3::from_coords_unchecked(
         Coords3::new(centers_x, centers_y, centers_z),
         Coords3::new(lower_edges_x, lower_edges_y, lower_edges_z),
         In3D::same(false),
@@ -274,6 +274,7 @@ pub fn run_horizontally_regular_subcommand(
             derivatives_y,
             down_derivatives_z,
         )),
+        GridType::HorRegular,
     );
 
     super::write_mesh_file(root_arguments, grid, io_context);

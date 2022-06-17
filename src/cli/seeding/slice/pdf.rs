@@ -6,7 +6,7 @@ use crate::{
     cli::utils,
     exit_on_error,
     geometry::Point2,
-    grid::{fgr, Grid3},
+    grid::fgr,
     interpolation::Interpolator3,
     io::snapshot::{fdt, SnapshotProvider3},
     seeding::slice::SliceSeeder3,
@@ -65,7 +65,7 @@ pub fn create_value_pdf_subcommand(_parent_command_name: &'static str) -> Comman
 }
 
 /// Creates a slice PDF seeder based on the provided arguments.
-pub fn create_slice_pdf_seeder_from_arguments<G, P, I, S>(
+pub fn create_slice_pdf_seeder_from_arguments<P, I, S>(
     arguments: &ArgMatches,
     parameters: &CommonSliceSeederParameters,
     provider: &mut P,
@@ -73,8 +73,7 @@ pub fn create_slice_pdf_seeder_from_arguments<G, P, I, S>(
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
     S: Fn(&Point2<fgr>) -> bool + Sync,
 {

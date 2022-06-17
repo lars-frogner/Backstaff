@@ -6,7 +6,7 @@ use crate::{
         ScalarFieldProvider3, VectorField3,
     },
     geometry::{Idx3, In3D},
-    grid::{fgr, CoordLocation, Grid3},
+    grid::{CoordLocation, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
@@ -21,7 +21,9 @@ use crate::{
 use lazy_static::lazy_static;
 use rayon::prelude::*;
 use regex::Regex;
-use std::{collections::HashMap, io, marker::PhantomData, sync::Arc};
+use std::{collections::HashMap, io, sync::Arc};
+
+use super::FieldGrid3;
 
 lazy_static! {
     static ref DERIVABLE_QUANTITIES: HashMap<&'static str, (&'static str, Vec<&'static str>)> =
@@ -169,19 +171,17 @@ fn create_available_quantity_table_string() -> String {
 
 /// Computer of derived quantities from Bifrost 3D simulation snapshots.
 #[derive(Clone, Debug)]
-pub struct DerivedSnapshotProvider3<G, P> {
+pub struct DerivedSnapshotProvider3<P> {
     provider: P,
     derived_quantity_names: Vec<String>,
     all_variable_names: Vec<String>,
-    cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt, G>>>,
+    cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt>>>,
     verbosity: Verbosity,
-    phantom: PhantomData<G>,
 }
 
-impl<G, P> DerivedSnapshotProvider3<G, P>
+impl<P> DerivedSnapshotProvider3<P>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     /// Creates a computer of derived 3D quantities.
     pub fn new(
@@ -204,7 +204,6 @@ where
             all_variable_names,
             cached_scalar_fields: HashMap::new(),
             verbosity,
-            phantom: PhantomData,
         }
     }
 
@@ -216,7 +215,7 @@ where
     fn produce_uncached_scalar_field(
         &mut self,
         variable_name: &str,
-    ) -> io::Result<ScalarField3<fdt, G>> {
+    ) -> io::Result<ScalarField3<fdt>> {
         if self.provider.has_variable(variable_name) {
             self.provider.produce_scalar_field(variable_name)
         } else {
@@ -361,20 +360,19 @@ where
     }
 }
 
-impl<G, P> ScalarFieldProvider3<fdt, G> for DerivedSnapshotProvider3<G, P>
+impl<P> ScalarFieldProvider3<fdt> for DerivedSnapshotProvider3<P>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
-    fn grid(&self) -> &G {
+    fn grid(&self) -> &FieldGrid3 {
         self.provider.grid()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         self.provider.arc_with_grid()
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.cached_scalar_field(variable_name).clone())
         } else {
@@ -382,10 +380,7 @@ where
         }
     }
 
-    fn provide_scalar_field(
-        &mut self,
-        variable_name: &str,
-    ) -> io::Result<Arc<ScalarField3<fdt, G>>> {
+    fn provide_scalar_field(&mut self, variable_name: &str) -> io::Result<Arc<ScalarField3<fdt>>> {
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.arc_with_cached_scalar_field(variable_name).clone())
         } else {
@@ -394,10 +389,9 @@ where
     }
 }
 
-impl<G, P> CachingScalarFieldProvider3<fdt, G> for DerivedSnapshotProvider3<G, P>
+impl<P> CachingScalarFieldProvider3<fdt> for DerivedSnapshotProvider3<P>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.cached_scalar_fields.contains_key(variable_name)
@@ -428,7 +422,7 @@ where
         self.provider.cache_vector_field(variable_name)
     }
 
-    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt, G>> {
+    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt>> {
         if let Some(field) = self.cached_scalar_fields.get(variable_name) {
             if self.verbosity.print_messages() {
                 println!("Using cached {}", variable_name);
@@ -439,7 +433,7 @@ where
         }
     }
 
-    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt, G>> {
+    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt>> {
         self.provider.arc_with_cached_vector_field(variable_name)
     }
 
@@ -464,10 +458,9 @@ where
     }
 }
 
-impl<G, P> SnapshotProvider3<G> for DerivedSnapshotProvider3<G, P>
+impl<P> SnapshotProvider3 for DerivedSnapshotProvider3<P>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     type Parameters = P::Parameters;
 
@@ -537,14 +530,13 @@ macro_rules! compute_derived_quantity {
 }
 
 /// Computes the derived quantity field with the given name.
-fn compute_quantity<G, P>(
+fn compute_quantity<P>(
     provider: &mut P,
     quantity_name: &str,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt, G>>
+) -> io::Result<ScalarField3<fdt>>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let grid = provider.arc_with_grid();
 
@@ -660,16 +652,15 @@ where
     }
 }
 
-pub fn compute_quantity_unary<G, P, C>(
+pub fn compute_quantity_unary<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
     compute: C,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt, G>>
+) -> io::Result<ScalarField3<fdt>>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
     C: Fn(fdt) -> fdt + Sync,
 {
     let field = provider.produce_scalar_field(dep_name)?;
@@ -694,16 +685,15 @@ where
     ))
 }
 
-pub fn compute_centered_quantity_unary<G, P, C>(
+pub fn compute_centered_quantity_unary<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
     compute: C,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt, G>>
+) -> io::Result<ScalarField3<fdt>>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
     C: Fn(&mut fdt) + Sync + Send,
 {
     let center_locations = In3D::same(CoordLocation::Center);
@@ -738,16 +728,15 @@ where
     Ok(centered_field)
 }
 
-pub fn compute_quantity_unary_with_indices<G, P, C>(
+pub fn compute_quantity_unary_with_indices<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
     compute: C,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt, G>>
+) -> io::Result<ScalarField3<fdt>>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
     C: Fn(&Idx3<usize>, fdt) -> fdt + Sync,
 {
     let field = provider.produce_scalar_field(dep_name)?;
@@ -779,17 +768,16 @@ where
     ))
 }
 
-pub fn compute_quantity_binary<G, P, C>(
+pub fn compute_quantity_binary<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name_1: &str,
     dep_name_2: &str,
     compute: C,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt, G>>
+) -> io::Result<ScalarField3<fdt>>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
     C: Fn(fdt, fdt) -> fdt + Sync,
 {
     let mut field_1 = provider.produce_scalar_field(dep_name_1)?;
@@ -803,7 +791,7 @@ where
 
         io_result!(interpolator.verify_grid(provider.grid()))?;
 
-        let resample_to_center = |field: &mut ScalarField3<_, _>| {
+        let resample_to_center = |field: &mut ScalarField3<_>| {
             if field.locations() != &center_locations {
                 if verbosity.print_messages() {
                     println!("Resampling {} to grid cell centers", field.name());
@@ -846,7 +834,7 @@ where
     ))
 }
 
-pub fn compute_quantity_tertiary<G, P, C>(
+pub fn compute_quantity_tertiary<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name_1: &str,
@@ -854,10 +842,9 @@ pub fn compute_quantity_tertiary<G, P, C>(
     dep_name_3: &str,
     compute: C,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt, G>>
+) -> io::Result<ScalarField3<fdt>>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
     C: Fn(fdt, fdt, fdt) -> fdt + Sync,
 {
     let mut field_1 = provider.produce_scalar_field(dep_name_1)?;
@@ -872,7 +859,7 @@ where
 
         io_result!(interpolator.verify_grid(provider.grid()))?;
 
-        let resample_to_center = |field: &mut ScalarField3<_, _>| {
+        let resample_to_center = |field: &mut ScalarField3<_>| {
             if field.locations() != &center_locations {
                 if verbosity.print_messages() {
                     println!("Resampling {} to grid cell centers", field.name());

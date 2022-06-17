@@ -15,7 +15,7 @@ use crate::{
     cli::utils,
     exit_with_error,
     geometry::{Dim2, Dim3, Point2},
-    grid::{fgr, Grid3},
+    grid::fgr,
     interpolation::Interpolator3,
     io::snapshot::SnapshotProvider3,
     seeding::slice::SliceSeeder3,
@@ -99,14 +99,13 @@ pub fn create_slice_seeder_subcommand(_parent_command_name: &'static str) -> Com
 }
 
 /// Creates a slice seeder based on the provided arguments.
-pub fn create_slice_seeder_from_arguments<G, P, I>(
+pub fn create_slice_seeder_from_arguments<P, I>(
     arguments: &ArgMatches,
     provider: &mut P,
     interpolator: &I,
 ) -> SliceSeeder3
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     let axis = utils::get_value_from_required_constrained_argument(

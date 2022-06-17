@@ -7,7 +7,6 @@ pub mod simulate;
 
 use self::simulate::{create_simulate_subcommand, run_simulate_subcommand};
 use crate::{
-    grid::{fgr, Grid3},
     io::{snapshot::SnapshotProvider3, utils::IOContext},
     update_command_graph,
 };
@@ -26,10 +25,9 @@ pub fn create_ebeam_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `ebeam` subcommand using the given arguments.
-pub fn run_ebeam_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
+pub fn run_ebeam_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
         run_simulate_subcommand(simulate_arguments, provider, io_context);

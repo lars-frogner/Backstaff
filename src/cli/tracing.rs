@@ -26,7 +26,6 @@ use crate::{
     },
     exit_on_error, exit_with_error,
     field::ScalarFieldCacher3,
-    grid::{fgr, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
@@ -161,10 +160,9 @@ pub fn create_trace_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_trace_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
+pub fn run_trace_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
@@ -272,10 +270,9 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_tracer<G, P>(arguments: &ArgMatches, snapshot: P, io_context: &mut IOContext)
+fn run_with_selected_tracer<P>(arguments: &ArgMatches, snapshot: P, io_context: &mut IOContext)
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     let (tracer_config, tracer_arguments) =
         if let Some(tracer_arguments) = arguments.subcommand_matches("basic_field_line_tracer") {
@@ -296,15 +293,14 @@ where
     run_with_selected_stepper_factory(arguments, tracer_arguments, snapshot, tracer, io_context);
 }
 
-fn run_with_selected_stepper_factory<G, P, Tr>(
+fn run_with_selected_stepper_factory<P, Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
     tracer: Tr,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -346,7 +342,7 @@ fn run_with_selected_stepper_factory<G, P, Tr>(
     }
 }
 
-fn run_with_selected_interpolator<G, P, Tr, StF>(
+fn run_with_selected_interpolator<P, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
@@ -354,8 +350,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
     stepper_factory: StF,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -394,7 +389,7 @@ fn run_with_selected_interpolator<G, P, Tr, StF>(
     );
 }
 
-fn run_with_selected_seeder<G, P, Tr, StF, I>(
+fn run_with_selected_seeder<P, Tr, StF, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: P,
@@ -403,8 +398,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -451,7 +445,7 @@ fn run_with_selected_seeder<G, P, Tr, StF, I>(
     };
 }
 
-fn run_tracing<G, P, Tr, StF, I, Sd>(
+fn run_tracing<P, Tr, StF, I, Sd>(
     root_arguments: &ArgMatches,
     mut snapshot: P,
     tracer: Tr,
@@ -460,8 +454,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     seeder: Sd,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -552,7 +545,7 @@ fn run_tracing<G, P, Tr, StF, I, Sd>(
     );
 }
 
-fn perform_post_tracing_actions<G, P, I>(
+fn perform_post_tracing_actions<P, I>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
@@ -562,8 +555,7 @@ fn perform_post_tracing_actions<G, P, I>(
     interpolator: I,
     mut field_lines: FieldLineSet3,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     if let Some(extra_fixed_scalars) = root_arguments

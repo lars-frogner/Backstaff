@@ -2,10 +2,9 @@
 
 use super::{fgr, Seeder3};
 use crate::{
+    field::FieldGrid3,
     geometry::{Idx3, Point3},
-    grid::Grid3,
     io::utils,
-    num::BFloat,
 };
 use rayon::{self, prelude::*};
 use std::{
@@ -115,11 +114,7 @@ impl Seeder3 for ManualSeeder3 {
         self.seed_points.retain(predicate);
     }
 
-    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
+    fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>> {
         self.seed_points.to_index_seeder(grid)
     }
 }

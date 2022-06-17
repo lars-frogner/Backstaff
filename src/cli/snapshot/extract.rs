@@ -15,7 +15,7 @@ use crate::{
         Dim3::{X, Y, Z},
         Idx3, Point3,
     },
-    grid::{fgr, Grid3},
+    grid::Grid3,
     io::{
         snapshot::{CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
         utils::IOContext,
@@ -146,10 +146,9 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
-pub fn run_extract_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
+pub fn run_extract_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let original_grid = provider.grid();
     let original_shape = original_grid.shape();
@@ -261,13 +260,12 @@ where
     run_extract_subcommand_with_derive(arguments, provider, io_context);
 }
 
-fn run_extract_subcommand_with_derive<G, P>(
+fn run_extract_subcommand_with_derive<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3 + Sync,
 {
     #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
@@ -279,13 +277,12 @@ fn run_extract_subcommand_with_derive<G, P>(
     run_extract_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
 }
 
-fn run_extract_subcommand_with_synthesis<G, P>(
+fn run_extract_subcommand_with_synthesis<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G> + Sync,
+    P: CachingSnapshotProvider3 + Sync,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
@@ -298,13 +295,12 @@ fn run_extract_subcommand_with_synthesis<G, P>(
     run_extract_subcommand_for_provider(arguments, provider, io_context);
 }
 
-fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
+fn run_extract_subcommand_with_synthesis_added_caching<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3 + Sync,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
@@ -319,13 +315,12 @@ fn run_extract_subcommand_with_synthesis_added_caching<G, P>(
     run_extract_subcommand_for_provider(arguments, provider, io_context);
 }
 
-fn run_extract_subcommand_for_provider<G, P>(
+fn run_extract_subcommand_for_provider<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G> + Sync,
+    P: SnapshotProvider3 + Sync,
 {
     if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
         run_resample_subcommand(resample_arguments, provider, io_context);

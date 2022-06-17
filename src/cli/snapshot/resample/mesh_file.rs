@@ -17,13 +17,10 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{fgr, hor_regular::HorRegularGrid3, regular::RegularGrid3, Grid3, GridType},
+    grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{
-            native::{self, NativeGridData},
-            SnapshotProvider3,
-        },
+        snapshot::{native, SnapshotProvider3},
         utils::IOContext,
         Verbosity,
     },
@@ -98,7 +95,7 @@ pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Comman
     )
 }
 
-pub fn run_resampling_for_mesh_file<G, P, I>(
+pub fn run_resampling_for_mesh_file<P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -109,8 +106,7 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     let mesh_file_path = exit_on_error!(
@@ -122,18 +118,16 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         "Error: Could not interpret path to mesh file: {}"
     );
 
-    let NativeGridData {
-        detected_grid_type,
-        center_coords,
-        lower_edge_coords,
-        up_derivatives,
-        down_derivatives,
-    } = exit_on_error!(
-        native::parse_mesh_file(&mesh_file_path, &verbosity),
+    let mesh_file_grid = exit_on_error!(
+        native::create_grid_from_mesh_file(
+            &mesh_file_path,
+            provider.grid().periodicity().clone(),
+            &verbosity
+        ),
         "Error: Could not parse mesh file: {}"
     );
 
-    let mesh_file_shape = center_coords.shape();
+    let mesh_file_shape = mesh_file_grid.shape();
     let original_shape = provider.grid().shape();
 
     let unscaled_shape =
@@ -163,48 +157,16 @@ pub fn run_resampling_for_mesh_file<G, P, I>(
         Some(shape)
     };
 
-    match detected_grid_type {
-        GridType::Regular => {
-            let grid = RegularGrid3::from_coords(
-                center_coords,
-                lower_edge_coords,
-                provider.grid().periodicity().clone(),
-                Some(up_derivatives),
-                Some(down_derivatives),
-            );
-            super::resample_to_regular_grid(
-                grid,
-                new_shape,
-                arguments,
-                provider,
-                resampled_locations,
-                resampling_method,
-                continue_on_warnings,
-                verbosity,
-                interpolator,
-                io_context,
-            );
-        }
-        GridType::HorRegular => {
-            let grid = HorRegularGrid3::from_coords(
-                center_coords,
-                lower_edge_coords,
-                provider.grid().periodicity().clone(),
-                Some(up_derivatives),
-                Some(down_derivatives),
-            );
-            super::resample_to_horizontally_regular_grid(
-                grid,
-                new_shape,
-                arguments,
-                provider,
-                resampled_locations,
-                resampling_method,
-                continue_on_warnings,
-                verbosity,
-                interpolator,
-                io_context,
-            );
-        }
-    }
+    super::resample_to_grid(
+        mesh_file_grid,
+        new_shape,
+        arguments,
+        provider,
+        resampled_locations,
+        resampling_method,
+        continue_on_warnings,
+        verbosity,
+        interpolator,
+        io_context,
+    );
 }

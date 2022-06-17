@@ -11,7 +11,7 @@ use super::{Endianness, Verbosity};
 use crate::{
     exit_on_false,
     field::{
-        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, ReducedVectorField3,
+        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, FieldGrid3, ReducedVectorField3,
         ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldCacher3,
         ScalarFieldProvider3,
     },
@@ -24,7 +24,7 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{borrow::Cow, collections::HashMap, io, marker::PhantomData, path::Path, str, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, io, path::Path, str, sync::Arc};
 
 #[cfg(feature = "for-testing")]
 use approx::{AbsDiffEq, RelativeEq};
@@ -85,7 +85,7 @@ pub const PRIMARY_VARIABLE_NAMES_HD: [&str; 5] = [
 ];
 
 /// Defines the properties of a provider of 3D Bifrost snapshot variables.
-pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
+pub trait SnapshotProvider3: ScalarFieldProvider3<fdt> {
     type Parameters: SnapshotParameters;
 
     /// Returns a reference to the parameters associated with the snapshot.
@@ -224,20 +224,18 @@ pub trait SnapshotProvider3<G: Grid3<fgr>>: ScalarFieldProvider3<fdt, G> {
 
 /// Wrapper for a `ScalarFieldProvider3` that uses provided information
 /// about the snapshot to implement `SnapshotProvider3`.
-pub struct SnapshotProvider3Wrapper<G, P> {
+pub struct SnapshotProvider3Wrapper<P> {
     provider: P,
     snap_name: String,
     snap_num: Option<u64>,
     parameters: MapOfSnapshotParameters,
     endianness: Endianness,
     all_variable_names: Vec<String>,
-    phantom: PhantomData<G>,
 }
 
-impl<G, P> SnapshotProvider3Wrapper<G, P>
+impl<P> SnapshotProvider3Wrapper<P>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
 {
     /// Creates a new wrapper for the given provider with
     /// the given snapshot information.
@@ -256,33 +254,30 @@ where
             parameters,
             endianness,
             all_variable_names,
-            phantom: PhantomData,
         }
     }
 }
 
-impl<G, P> ScalarFieldProvider3<fdt, G> for SnapshotProvider3Wrapper<G, P>
+impl<P> ScalarFieldProvider3<fdt> for SnapshotProvider3Wrapper<P>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
 {
-    fn grid(&self) -> &G {
+    fn grid(&self) -> &FieldGrid3 {
         self.provider.grid()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         self.provider.arc_with_grid()
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         self.provider.produce_scalar_field(variable_name)
     }
 }
 
-impl<G, P> SnapshotProvider3<G> for SnapshotProvider3Wrapper<G, P>
+impl<P> SnapshotProvider3 for SnapshotProvider3Wrapper<P>
 where
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<fdt, G>,
+    P: ScalarFieldProvider3<fdt>,
 {
     type Parameters = MapOfSnapshotParameters;
 
@@ -308,13 +303,9 @@ where
     }
 }
 
-pub type CustomSnapshotGenerator3<G> =
-    SnapshotProvider3Wrapper<G, CustomScalarFieldGenerator3<fdt, G>>;
+pub type CustomSnapshotGenerator3 = SnapshotProvider3Wrapper<CustomScalarFieldGenerator3<fdt>>;
 
-impl<G> CustomScalarFieldGenerator3<fdt, G>
-where
-    G: Grid3<fgr>,
-{
+impl CustomScalarFieldGenerator3<fdt> {
     /// Creates a wrapped version of the generator that
     /// implements the `SnapshotProvider3` trait.
     pub fn for_snapshot(
@@ -322,7 +313,7 @@ where
         snap_name: String,
         snap_num: Option<u64>,
         parameters: MapOfSnapshotParameters,
-    ) -> CustomSnapshotGenerator3<G> {
+    ) -> CustomSnapshotGenerator3 {
         let all_variable_names = self.all_variable_names();
         SnapshotProvider3Wrapper::new(
             self,
@@ -335,9 +326,9 @@ where
     }
 }
 
-pub trait SnapshotReader3<G: Grid3<fgr>>: SnapshotProvider3<G> {
+pub trait SnapshotReader3: SnapshotProvider3 {
     /// Reads the field of the specified 3D scalar variable and returns it by value.
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>>;
+    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt>>;
 }
 
 #[cfg(feature = "for-testing")]
@@ -946,29 +937,26 @@ impl_relative_eq_for_parameters!(MapOfSnapshotParameters);
 
 /// Wrapper for a `SnapshotProvider3` that resamples the provided fields
 /// to a given grid.
-pub struct ResampledSnapshotProvider3<GOLD, G, P, T, I> {
+pub struct ResampledSnapshotProvider3<P, T, I> {
     provider: P,
-    new_grid: Arc<G>,
+    new_grid: Arc<FieldGrid3>,
     transformation: T,
     resampled_locations: In3D<ResampledCoordLocation>,
     interpolator: I,
     resampling_method: ResamplingMethod,
     verbosity: Verbosity,
-    stored_resampled_fields: HashMap<String, ScalarField3<fdt, G>>,
-    phantom: PhantomData<GOLD>,
+    stored_resampled_fields: HashMap<String, ScalarField3<fdt>>,
 }
 
-impl<GOLD, G, P, T, I> ResampledSnapshotProvider3<GOLD, G, P, T, I>
+impl<P, T, I> ResampledSnapshotProvider3<P, T, I>
 where
-    GOLD: Grid3<fgr>,
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<GOLD>,
+    P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
     pub fn new(
         provider: P,
-        new_grid: Arc<G>,
+        new_grid: Arc<FieldGrid3>,
         transformation: T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: I,
@@ -984,28 +972,25 @@ where
             resampling_method,
             verbosity,
             stored_resampled_fields: HashMap::new(),
-            phantom: PhantomData,
         }
     }
 }
 
-impl<GOLD, G, P, T, I> ScalarFieldProvider3<fdt, G> for ResampledSnapshotProvider3<GOLD, G, P, T, I>
+impl<P, T, I> ScalarFieldProvider3<fdt> for ResampledSnapshotProvider3<P, T, I>
 where
-    GOLD: Grid3<fgr>,
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<GOLD>,
+    P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
-    fn grid(&self) -> &G {
+    fn grid(&self) -> &FieldGrid3 {
         self.new_grid.as_ref()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.new_grid)
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         let field = self.provider.provide_scalar_field(variable_name)?;
         Ok(if T::IS_IDENTITY {
             if self.verbosity.print_messages() {
@@ -1108,11 +1093,9 @@ where
     }
 }
 
-impl<GOLD, G, P, T, I> SnapshotProvider3<G> for ResampledSnapshotProvider3<GOLD, G, P, T, I>
+impl<P, T, I> SnapshotProvider3 for ResampledSnapshotProvider3<P, T, I>
 where
-    GOLD: Grid3<fgr>,
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<GOLD>,
+    P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
@@ -1141,17 +1124,16 @@ where
 
 /// Wrapper for a `SnapshotProvider3` that extracts a subdomain of the
 /// provided fields.
-pub struct ExtractedSnapshotProvider3<G, P> {
+pub struct ExtractedSnapshotProvider3<P> {
     provider: P,
-    new_grid: Arc<G>,
+    new_grid: Arc<FieldGrid3>,
     lower_indices: Idx3<usize>,
     verbosity: Verbosity,
 }
 
-impl<G, P> ExtractedSnapshotProvider3<G, P>
+impl<P> ExtractedSnapshotProvider3<P>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     pub fn new(
         provider: P,
@@ -1169,20 +1151,19 @@ where
     }
 }
 
-impl<G, P> ScalarFieldProvider3<fdt, G> for ExtractedSnapshotProvider3<G, P>
+impl<P> ScalarFieldProvider3<fdt> for ExtractedSnapshotProvider3<P>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
-    fn grid(&self) -> &G {
+    fn grid(&self) -> &FieldGrid3 {
         self.new_grid.as_ref()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.new_grid)
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         let field = self.provider.provide_scalar_field(variable_name)?;
         if self.verbosity.print_messages() {
             println!("Extracting {} in subgrid", variable_name);
@@ -1191,10 +1172,9 @@ where
     }
 }
 
-impl<G, P> SnapshotProvider3<G> for ExtractedSnapshotProvider3<G, P>
+impl<P> SnapshotProvider3 for ExtractedSnapshotProvider3<P>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     type Parameters = P::Parameters;
 
@@ -1220,22 +1200,13 @@ where
 }
 
 /// A provider of 3D Bifrost snapshot variables that also supports caching.
-pub trait CachingSnapshotProvider3<G: Grid3<fgr>>:
-    CachingScalarFieldProvider3<fdt, G> + SnapshotProvider3<G>
-{
-}
+pub trait CachingSnapshotProvider3: CachingScalarFieldProvider3<fdt> + SnapshotProvider3 {}
 
-impl<G, C> CachingSnapshotProvider3<G> for C
-where
-    G: Grid3<fgr>,
-    C: CachingScalarFieldProvider3<fdt, G> + SnapshotProvider3<G>,
-{
-}
+impl<C> CachingSnapshotProvider3 for C where C: CachingScalarFieldProvider3<fdt> + SnapshotProvider3 {}
 
-impl<G, P> SnapshotProvider3<G> for ScalarFieldCacher3<fdt, G, P>
+impl<P> SnapshotProvider3 for ScalarFieldCacher3<fdt, P>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     type Parameters = P::Parameters;
 

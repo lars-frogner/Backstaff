@@ -3,7 +3,7 @@
 use crate::{
     field::{ScalarField3, VectorField3},
     geometry::{Idx3, Point3, Vec3},
-    grid::{fgr, Grid3, GridPointQuery3},
+    grid::{Grid3, GridPointQuery3},
     interpolation::Interpolator3,
     io::{
         snapshot::{
@@ -103,17 +103,16 @@ impl Cork {
         }
     }
 
-    fn new_from_fields<G, I>(
+    fn new_from_fields<I>(
         mut position: Point3<fco>,
         current_time_idx: usize,
         number_of_scalar_quantities: usize,
         number_of_vector_quantities: usize,
-        mass_density_field: &ScalarField3<fdt, G>,
-        momentum_field: &VectorField3<fdt, G>,
+        mass_density_field: &ScalarField3<fdt>,
+        momentum_field: &VectorField3<fdt>,
         interpolator: &I,
     ) -> Self
     where
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         let (position_indices, velocity) = evaluate_velocity(
@@ -187,13 +186,12 @@ impl Cork {
         self.last_position_indices = position_indices;
     }
 
-    fn add_scalar_quantity_value<G, I>(
+    fn add_scalar_quantity_value<I>(
         &mut self,
         quantity_idx: usize,
-        field: &ScalarField3<fdt, G>,
+        field: &ScalarField3<fdt>,
         interpolator: &I,
     ) where
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.is_terminated() {
@@ -213,13 +211,12 @@ impl Cork {
         );
     }
 
-    fn add_vector_quantity_value<G, I>(
+    fn add_vector_quantity_value<I>(
         &mut self,
         quantity_idx: usize,
-        field: &VectorField3<fdt, G>,
+        field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.is_terminated() {
@@ -279,10 +276,9 @@ impl CorkSet {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
-    pub fn new<Po, G, P, I>(
+    pub fn new<Po, P, I>(
         number_of_corks: usize,
         initial_positions: Po,
         initial_snapshot: &mut P,
@@ -293,8 +289,7 @@ impl CorkSet {
     ) -> io::Result<Self>
     where
         Po: IntoParallelIterator<Item = Point3<fco>>,
-        G: Grid3<fgr>,
-        P: CachingSnapshotProvider3<G>,
+        P: CachingSnapshotProvider3,
         I: Interpolator3,
     {
         initial_snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
@@ -387,14 +382,13 @@ impl CorkSet {
     }
 
     #[allow(dead_code)]
-    fn create_cork<G, I>(
+    fn create_cork<I>(
         &mut self,
         position: Point3<fco>,
-        mass_density_field: &ScalarField3<fdt, G>,
-        momentum_field: &VectorField3<fdt, G>,
+        mass_density_field: &ScalarField3<fdt>,
+        momentum_field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         self.corks.push(Cork::new_from_fields(
@@ -426,10 +420,9 @@ impl CorkSet {
         self.corks.par_iter_mut().for_each(updater);
     }
 
-    fn sample_field_values<G, P, I>(&mut self, provider: &mut P, interpolator: &I) -> io::Result<()>
+    fn sample_field_values<P, I>(&mut self, provider: &mut P, interpolator: &I) -> io::Result<()>
     where
-        G: Grid3<fgr>,
-        P: SnapshotProvider3<G>,
+        P: SnapshotProvider3,
         I: Interpolator3,
     {
         if self.verbosity().print_messages() {
@@ -507,26 +500,24 @@ impl Serialize for CorkSet {
 
 /// Defines a method for stepping corks forward in time.
 pub trait CorkStepper: Sync {
-    fn step_one_cork<G, I>(
+    fn step_one_cork<I>(
         &self,
         cork: &mut Cork,
         step_duration: fco,
-        mass_density_field: &ScalarField3<fdt, G>,
-        momentum_field: &VectorField3<fdt, G>,
+        mass_density_field: &ScalarField3<fdt>,
+        momentum_field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        G: Grid3<fgr>,
         I: Interpolator3;
 
-    fn step_all_corks<G, P, I>(
+    fn step_all_corks<P, I>(
         &self,
         corks: &mut CorkSet,
         snapshot: &mut P,
         interpolator: &I,
     ) -> io::Result<()>
     where
-        G: Grid3<fgr>,
-        P: CachingSnapshotProvider3<G>,
+        P: CachingSnapshotProvider3,
         I: Interpolator3,
     {
         let step_duration = snapshot
@@ -565,15 +556,14 @@ pub trait CorkStepper: Sync {
 }
 
 impl CorkStepper for HeunCorkStepper {
-    fn step_one_cork<G, I>(
+    fn step_one_cork<I>(
         &self,
         cork: &mut Cork,
         step_duration: fco,
-        mass_density_field: &ScalarField3<fdt, G>,
-        momentum_field: &VectorField3<fdt, G>,
+        mass_density_field: &ScalarField3<fdt>,
+        momentum_field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if cork.is_terminated() {
@@ -631,11 +621,10 @@ pub trait CorkAdvector {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
     /// - `S`: Type of stepper.
-    fn advect_corks<G, P, I, S>(
+    fn advect_corks<P, I, S>(
         &self,
         corks: &mut CorkSet,
         snapshot: &mut P,
@@ -643,14 +632,13 @@ pub trait CorkAdvector {
         stepper: &S,
     ) -> io::Result<()>
     where
-        G: Grid3<fgr>,
-        P: CachingSnapshotProvider3<G>,
+        P: CachingSnapshotProvider3,
         I: Interpolator3,
         S: CorkStepper;
 }
 
 impl CorkAdvector for ConstantCorkAdvector {
-    fn advect_corks<G, P, I, S>(
+    fn advect_corks<P, I, S>(
         &self,
         corks: &mut CorkSet,
         snapshot: &mut P,
@@ -658,8 +646,7 @@ impl CorkAdvector for ConstantCorkAdvector {
         stepper: &S,
     ) -> io::Result<()>
     where
-        G: Grid3<fgr>,
-        P: CachingSnapshotProvider3<G>,
+        P: CachingSnapshotProvider3,
         I: Interpolator3,
         S: CorkStepper,
     {
@@ -667,14 +654,13 @@ impl CorkAdvector for ConstantCorkAdvector {
     }
 }
 
-fn evaluate_velocity<G, I>(
+fn evaluate_velocity<I>(
     position: &mut Point3<fco>,
-    mass_density_field: &ScalarField3<fdt, G>,
-    momentum_field: &VectorField3<fdt, G>,
+    mass_density_field: &ScalarField3<fdt>,
+    momentum_field: &VectorField3<fdt>,
     interpolator: &I,
 ) -> Option<(Idx3<usize>, Vec3<fco>)>
 where
-    G: Grid3<fgr>,
     I: Interpolator3,
 {
     let interp_point = position.converted();

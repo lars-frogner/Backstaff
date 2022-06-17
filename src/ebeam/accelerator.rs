@@ -5,7 +5,6 @@ use super::{
 };
 use crate::{
     field::CachingScalarFieldProvider3,
-    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::{snapshot::fdt, Verbosity},
     tracing::stepping::StepperFactory3,
@@ -19,7 +18,7 @@ pub trait Accelerator {
 
     /// Generates a set of distributions with associated acceleration data in the given snapshot,
     /// at the 3D indices produced by the given seeder.
-    fn generate_distributions<G, P, D, I, StF>(
+    fn generate_distributions<P, D, I, StF>(
         &self,
         snapshot: &mut P,
         detector: D,
@@ -31,8 +30,7 @@ pub trait Accelerator {
         Self::AccelerationDataCollectionType,
     )>
     where
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
         D: ReconnectionSiteDetector,
         I: Interpolator3,
         StF: StepperFactory3 + Sync;

@@ -2,7 +2,7 @@
 
 use super::Seeder3;
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{FieldGrid3, ScalarField3, VectorField3},
     geometry::{
         Dim2,
         Dim3::{self, X, Y, Z},
@@ -40,17 +40,15 @@ impl SliceSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn regular<G, S>(
-        grid: &G,
+    pub fn regular<S>(
+        grid: &FieldGrid3,
         axis: Dim3,
         coord: fgr,
         shape: In2D<usize>,
         satisfies_constraints: &S,
     ) -> Self
     where
-        G: Grid3<fgr>,
         S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         let slice_grid = grid.regular_slice_across_axis(axis).reshaped(shape);
@@ -81,17 +79,15 @@ impl SliceSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn random<G, S>(
-        grid: &G,
+    pub fn random<S>(
+        grid: &FieldGrid3,
         axis: Dim3,
         coord: fgr,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
     where
-        G: Grid3<fgr>,
         S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         Self::stratified(
@@ -123,10 +119,9 @@ impl SliceSeeder3 {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `C`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn stratified<G, S>(
-        grid: &G,
+    pub fn stratified<S>(
+        grid: &FieldGrid3,
         axis: Dim3,
         coord: fgr,
         shape: In2D<usize>,
@@ -135,7 +130,6 @@ impl SliceSeeder3 {
         satisfies_constraints: &S,
     ) -> Self
     where
-        G: Grid3<fgr>,
         S: Fn(&Point2<fgr>) -> bool + Sync,
     {
         assert_ne!(
@@ -201,12 +195,11 @@ impl SliceSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn scalar_field_pdf<F, G, I, C, S>(
-        field: &ScalarField3<F, G>,
+    pub fn scalar_field_pdf<F, I, C, S>(
+        field: &ScalarField3<F>,
         interpolator: &I,
         axis: Dim3,
         coord: fgr,
@@ -216,7 +209,6 @@ impl SliceSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(F) -> F,
         S: Fn(&Point2<fgr>) -> bool + Sync,
@@ -274,12 +266,11 @@ impl SliceSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn vector_field_pdf<F, G, I, C, S>(
-        field: &VectorField3<F, G>,
+    pub fn vector_field_pdf<F, I, C, S>(
+        field: &VectorField3<F>,
         interpolator: &I,
         axis: Dim3,
         coord: fgr,
@@ -289,7 +280,6 @@ impl SliceSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> F,
         S: Fn(&Point2<fgr>) -> bool + Sync,
@@ -400,11 +390,7 @@ impl Seeder3 for SliceSeeder3 {
         self.seed_points.retain(predicate);
     }
 
-    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
+    fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>> {
         self.seed_points.to_index_seeder(grid)
     }
 }

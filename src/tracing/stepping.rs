@@ -6,7 +6,6 @@ use super::ftr;
 use crate::{
     field::VectorField3,
     geometry::{Point3, Vec3},
-    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
 };
@@ -66,13 +65,12 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn place<F, G, I, D, C>(
+    fn place<F, I, D, C>(
         &mut self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         direction_computer: &D,
         position: &Point3<ftr>,
@@ -80,7 +78,6 @@ pub trait Stepper3: Clone {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
@@ -105,20 +102,18 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn step<F, G, I, D, C>(
+    fn step<F, I, D, C>(
         &mut self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         direction_computer: &D,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
@@ -143,20 +138,18 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
     /// - `I`: Type of interpolator.
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn step_dense_output<F, G, I, D, C>(
+    fn step_dense_output<F, I, D, C>(
         &mut self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         direction_computer: &D,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;

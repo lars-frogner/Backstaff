@@ -24,7 +24,7 @@ use crate::{
         utils as cli_utils,
     },
     exit_on_error, exit_on_false, exit_with_error,
-    field::{ResampledCoordLocation, ResamplingMethod},
+    field::{FieldGrid3, ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Coords3,
         Dim3::{self, X, Y, Z},
@@ -102,13 +102,9 @@ enum ResampleGridType {
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
-pub fn run_resample_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    io_context: &mut IOContext,
-) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+pub fn run_resample_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
+where
+    P: SnapshotProvider3,
 {
     let resampled_locations = match arguments
         .value_of("sample-location")
@@ -167,7 +163,7 @@ pub fn run_resample_subcommand<G, P>(
     );
 }
 
-fn run_with_selected_method<G, P>(
+fn run_with_selected_method<P>(
     grid_type_arguments: &ArgMatches,
     provider: P,
     resample_grid_type: ResampleGridType,
@@ -177,8 +173,7 @@ fn run_with_selected_method<G, P>(
     verbosity: Verbosity,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let (resampling_method, method_arguments, has_interpolator_subcommand) = if let Some(
         method_arguments,
@@ -210,7 +205,7 @@ fn run_with_selected_method<G, P>(
     )
 }
 
-fn run_with_selected_interpolator<G, P>(
+fn run_with_selected_interpolator<P>(
     grid_type_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -222,8 +217,7 @@ fn run_with_selected_interpolator<G, P>(
     verbosity: Verbosity,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let (interpolator_config, arguments) = if has_interpolator_subcommand {
         if let Some(interpolator_arguments) = arguments.subcommand_matches("poly_fit_interpolator")
@@ -288,71 +282,8 @@ fn run_with_selected_interpolator<G, P>(
     }
 }
 
-fn resample_to_reshaped_grid<G, P, I>(
-    arguments: &ArgMatches,
-    new_shape: Option<In3D<usize>>,
-    provider: P,
-    resampled_locations: &In3D<ResampledCoordLocation>,
-    resampling_method: ResamplingMethod,
-    continue_on_warnings: bool,
-    verbosity: Verbosity,
-    interpolator: I,
-    io_context: &mut IOContext,
-) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
-    I: Interpolator3,
-{
-    let grid = provider.grid();
-
-    match grid.grid_type() {
-        GridType::Regular => {
-            let grid = RegularGrid3::from_coords(
-                grid.centers().clone(),
-                grid.lower_edges().clone(),
-                grid.periodicity().clone(),
-                grid.up_derivatives().cloned(),
-                grid.down_derivatives().cloned(),
-            );
-            resample_to_regular_grid(
-                grid,
-                new_shape,
-                arguments,
-                provider,
-                resampled_locations,
-                resampling_method,
-                continue_on_warnings,
-                verbosity,
-                interpolator,
-                io_context,
-            );
-        }
-        GridType::HorRegular => {
-            let grid = HorRegularGrid3::from_coords(
-                grid.centers().clone(),
-                grid.lower_edges().clone(),
-                grid.periodicity().clone(),
-                grid.up_derivatives().cloned(),
-                grid.down_derivatives().cloned(),
-            );
-            resample_to_horizontally_regular_grid(
-                grid,
-                new_shape,
-                arguments,
-                provider,
-                resampled_locations,
-                resampling_method,
-                continue_on_warnings,
-                verbosity,
-                interpolator,
-                io_context,
-            );
-        }
-    }
-}
-
-fn resample_to_regular_grid<G, P, I>(
-    mut grid: RegularGrid3<fgr>,
+fn resample_to_grid<P, I>(
+    mut grid: FieldGrid3,
     new_shape: Option<In3D<usize>>,
     arguments: &ArgMatches,
     provider: P,
@@ -363,17 +294,14 @@ fn resample_to_regular_grid<G, P, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     if let Some(new_shape) = new_shape {
-        grid = RegularGrid3::from_bounds(
-            new_shape,
-            grid.lower_bounds().clone(),
-            grid.upper_bounds().clone(),
-            grid.periodicity().clone(),
-        );
+        grid = match grid.detected_grid_type() {
+            GridType::Regular => create_reshaped_regular_version_of_grid(grid, new_shape),
+            GridType::HorRegular => create_reshaped_hor_regular_version_of_grid(grid, new_shape),
+        };
     }
 
     verify_new_grid_bounds(provider.grid(), &grid);
@@ -394,127 +322,8 @@ fn resample_to_regular_grid<G, P, I>(
     );
 }
 
-fn resample_to_horizontally_regular_grid<G, P, I>(
-    mut grid: HorRegularGrid3<fgr>,
-    new_shape: Option<In3D<usize>>,
-    arguments: &ArgMatches,
-    provider: P,
-    resampled_locations: &In3D<ResampledCoordLocation>,
-    resampling_method: ResamplingMethod,
-    continue_on_warnings: bool,
-    verbosity: Verbosity,
-    interpolator: I,
-    io_context: &mut IOContext,
-) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
-    I: Interpolator3,
-{
-    const MIN_NUMBER_OF_VERTICAL_GRID_CELLS: usize = 10; // Grid will be unstable for smaller values
-    const TARGET_CONTROL_SIZE: usize = 100;
-
-    if let Some(new_shape) = new_shape {
-        exit_on_false!(
-            new_shape[Z] >= MIN_NUMBER_OF_VERTICAL_GRID_CELLS,
-            "Error: The number of grid cells in the z-direction must be at least {}\n\
-             Tip: Resample to a regular grid instead",
-            MIN_NUMBER_OF_VERTICAL_GRID_CELLS
-        );
-
-        let horizontal_grid = RegularGrid3::from_bounds(
-            new_shape.clone(),
-            grid.lower_bounds().clone(),
-            grid.upper_bounds().clone(),
-            grid.periodicity().clone(),
-        );
-        let horizontal_centers = horizontal_grid.centers();
-        let horizontal_lower_edges = horizontal_grid.lower_edges();
-
-        let lower_bound_z = grid.lower_bounds()[Z];
-        let upper_bound_z = grid.upper_bounds()[Z];
-        let lower_edges_z = &grid.lower_edges()[Z];
-
-        let size_z = lower_edges_z.len();
-        let stride = usize::max(
-            1,
-            f32::floor((size_z as f32) / TARGET_CONTROL_SIZE as f32) as usize,
-        );
-        let mut control_coords: Vec<_> = lower_edges_z.iter().copied().step_by(stride).collect();
-        let mut control_grid_cell_extents: Vec<_> = lower_edges_z
-            .iter()
-            .step_by(stride)
-            .zip(
-                lower_edges_z
-                    .iter()
-                    .skip(1)
-                    .chain(iter::once(&upper_bound_z))
-                    .step_by(stride),
-            )
-            .map(|(lower_edge, upper_edge)| upper_edge - lower_edge)
-            .collect();
-        *control_coords.last_mut().unwrap() = upper_bound_z;
-        *control_grid_cell_extents.last_mut().unwrap() = upper_bound_z - lower_edges_z[size_z - 1];
-
-        let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig {
-            order: 1,
-            ..PolyFitInterpolatorConfig::default()
-        });
-        let (new_centers_z, new_lower_edges_z) = exit_on_error!(
-            grid::create_new_grid_coords_from_control_extents(
-                new_shape[Z],
-                lower_bound_z,
-                upper_bound_z,
-                &control_coords,
-                &control_grid_cell_extents,
-                &interpolator,
-            ),
-            "Error: Could not compute new z-coordinates for grid: {}"
-        );
-
-        let mut up_derivatives = horizontal_grid.up_derivatives().unwrap().clone();
-        let mut down_derivatives = horizontal_grid.down_derivatives().unwrap().clone();
-        let (up_derivatives_z, down_derivatives_z) =
-            grid::compute_up_and_down_derivatives(&new_centers_z);
-        up_derivatives[Z] = up_derivatives_z;
-        down_derivatives[Z] = down_derivatives_z;
-
-        grid = HorRegularGrid3::from_coords(
-            Coords3::new(
-                horizontal_centers[X].clone(),
-                horizontal_centers[Y].clone(),
-                new_centers_z,
-            ),
-            Coords3::new(
-                horizontal_lower_edges[X].clone(),
-                horizontal_lower_edges[Y].clone(),
-                new_lower_edges_z,
-            ),
-            grid.periodicity().clone(),
-            Some(up_derivatives),
-            Some(down_derivatives),
-        );
-    }
-
-    verify_new_grid_bounds(provider.grid(), &grid);
-
-    correct_periodicity_for_new_grid(provider.grid(), &mut grid, continue_on_warnings);
-
-    let new_grid = Arc::new(grid);
-    resample_snapshot_for_grid(
-        arguments,
-        provider,
-        &new_grid,
-        IdentityTransformation2::new(),
-        resampled_locations,
-        resampling_method,
-        verbosity,
-        interpolator,
-        io_context,
-    );
-}
-
-fn resample_to_transformed_regular_grid<G, P, T, I>(
-    grid: RegularGrid3<fgr>,
+fn resample_to_transformed_grid<P, T, I>(
+    grid: FieldGrid3,
     arguments: &ArgMatches,
     provider: P,
     resampled_locations: &In3D<ResampledCoordLocation>,
@@ -525,9 +334,8 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
     T: PointTransformation2<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     verify_new_transformed_grid_bounds(provider.grid(), &grid, &transformation);
@@ -546,24 +354,117 @@ fn resample_to_transformed_regular_grid<G, P, T, I>(
     );
 }
 
-fn verify_new_grid_bounds<GIN, GOUT>(original_grid: &GIN, new_grid: &GOUT)
-where
-    GIN: Grid3<fgr>,
-    GOUT: Grid3<fgr>,
-{
+fn create_reshaped_regular_version_of_grid(grid: FieldGrid3, new_shape: In3D<usize>) -> FieldGrid3 {
+    RegularGrid3::from_bounds(
+        new_shape,
+        grid.lower_bounds().clone(),
+        grid.upper_bounds().clone(),
+        grid.periodicity().clone(),
+    )
+    .into()
+}
+
+fn create_reshaped_hor_regular_version_of_grid(
+    grid: FieldGrid3,
+    new_shape: In3D<usize>,
+) -> FieldGrid3 {
+    const MIN_NUMBER_OF_VERTICAL_GRID_CELLS: usize = 10; // Grid will be unstable for smaller values
+    const TARGET_CONTROL_SIZE: usize = 100;
+
+    exit_on_false!(
+        new_shape[Z] >= MIN_NUMBER_OF_VERTICAL_GRID_CELLS,
+        "Error: The number of grid cells in the z-direction must be at least {}\n\
+         Tip: Resample to a regular grid instead",
+        MIN_NUMBER_OF_VERTICAL_GRID_CELLS
+    );
+
+    let horizontal_grid = RegularGrid3::from_bounds(
+        new_shape.clone(),
+        grid.lower_bounds().clone(),
+        grid.upper_bounds().clone(),
+        grid.periodicity().clone(),
+    );
+    let horizontal_centers = horizontal_grid.centers();
+    let horizontal_lower_edges = horizontal_grid.lower_edges();
+
+    let lower_bound_z = grid.lower_bounds()[Z];
+    let upper_bound_z = grid.upper_bounds()[Z];
+    let lower_edges_z = &grid.lower_edges()[Z];
+
+    let size_z = lower_edges_z.len();
+    let stride = usize::max(
+        1,
+        f32::floor((size_z as f32) / TARGET_CONTROL_SIZE as f32) as usize,
+    );
+    let mut control_coords: Vec<_> = lower_edges_z.iter().copied().step_by(stride).collect();
+    let mut control_grid_cell_extents: Vec<_> = lower_edges_z
+        .iter()
+        .step_by(stride)
+        .zip(
+            lower_edges_z
+                .iter()
+                .skip(1)
+                .chain(iter::once(&upper_bound_z))
+                .step_by(stride),
+        )
+        .map(|(lower_edge, upper_edge)| upper_edge - lower_edge)
+        .collect();
+    *control_coords.last_mut().unwrap() = upper_bound_z;
+    *control_grid_cell_extents.last_mut().unwrap() = upper_bound_z - lower_edges_z[size_z - 1];
+
+    let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig {
+        order: 1,
+        ..PolyFitInterpolatorConfig::default()
+    });
+    let (new_centers_z, new_lower_edges_z) = exit_on_error!(
+        grid::create_new_grid_coords_from_control_extents(
+            new_shape[Z],
+            lower_bound_z,
+            upper_bound_z,
+            &control_coords,
+            &control_grid_cell_extents,
+            &interpolator,
+        ),
+        "Error: Could not compute new z-coordinates for grid: {}"
+    );
+
+    let mut up_derivatives = horizontal_grid.up_derivatives().unwrap().clone();
+    let mut down_derivatives = horizontal_grid.down_derivatives().unwrap().clone();
+    let (up_derivatives_z, down_derivatives_z) =
+        grid::compute_up_and_down_derivatives(&new_centers_z);
+    up_derivatives[Z] = up_derivatives_z;
+    down_derivatives[Z] = down_derivatives_z;
+
+    HorRegularGrid3::from_coords_unchecked(
+        Coords3::new(
+            horizontal_centers[X].clone(),
+            horizontal_centers[Y].clone(),
+            new_centers_z,
+        ),
+        Coords3::new(
+            horizontal_lower_edges[X].clone(),
+            horizontal_lower_edges[Y].clone(),
+            new_lower_edges_z,
+        ),
+        grid.periodicity().clone(),
+        Some(up_derivatives),
+        Some(down_derivatives),
+        GridType::HorRegular,
+    )
+}
+
+fn verify_new_grid_bounds(original_grid: &FieldGrid3, new_grid: &FieldGrid3) {
     exit_on_false!(
         original_grid.contains_grid(new_grid),
         "Error: The resampled grid extends outside a non-periodic boundary of the original grid"
     );
 }
 
-fn verify_new_transformed_grid_bounds<GIN, GOUT, T>(
-    original_grid: &GIN,
-    new_grid: &GOUT,
+fn verify_new_transformed_grid_bounds<T>(
+    original_grid: &FieldGrid3,
+    new_grid: &FieldGrid3,
     transformation: &T,
 ) where
-    GIN: Grid3<fgr>,
-    GOUT: Grid3<fgr>,
     T: PointTransformation2<fgr>,
 {
     exit_on_false!(
@@ -572,9 +473,9 @@ fn verify_new_transformed_grid_bounds<GIN, GOUT, T>(
     );
 }
 
-fn correct_periodicity_for_new_grid<GIN: Grid3<fgr>, GOUT: Grid3<fgr>>(
-    original_grid: &GIN,
-    new_grid: &mut GOUT,
+fn correct_periodicity_for_new_grid(
+    original_grid: &FieldGrid3,
+    new_grid: &mut FieldGrid3,
     continue_on_warnings: bool,
 ) {
     // A coordinate difference must exceed this fraction of a grid cell
@@ -642,10 +543,10 @@ fn compute_scaled_grid_shape(shape: &In3D<usize>, scales: &In3D<fgr>) -> In3D<us
     })
 }
 
-fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
+fn resample_snapshot_for_grid<P, T, I>(
     arguments: &ArgMatches,
     provider: P,
-    new_grid: &Arc<GOUT>,
+    new_grid: &Arc<FieldGrid3>,
     transformation: T,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -653,9 +554,7 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    GIN: Grid3<fgr>,
-    P: SnapshotProvider3<GIN>,
-    GOUT: Grid3<fgr>,
+    P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
     I: Interpolator3,
 {
@@ -677,13 +576,12 @@ fn resample_snapshot_for_grid<GIN, P, GOUT, T, I>(
     run_snapshot_resampling_with_derive(arguments, provider, io_context);
 }
 
-fn run_snapshot_resampling_with_derive<G, P>(
+fn run_snapshot_resampling_with_derive<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
@@ -695,13 +593,12 @@ fn run_snapshot_resampling_with_derive<G, P>(
     run_snapshot_resampling_with_synthesis_added_caching(arguments, provider, io_context);
 }
 
-fn run_snapshot_resampling_with_synthesis<G, P>(
+fn run_snapshot_resampling_with_synthesis<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
@@ -714,13 +611,12 @@ fn run_snapshot_resampling_with_synthesis<G, P>(
     run_snapshot_resampling_for_provider(arguments, provider, io_context);
 }
 
-fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
+fn run_snapshot_resampling_with_synthesis_added_caching<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
@@ -735,13 +631,12 @@ fn run_snapshot_resampling_with_synthesis_added_caching<G, P>(
     run_snapshot_resampling_for_provider(arguments, provider, io_context);
 }
 
-fn run_snapshot_resampling_for_provider<G, P>(
+fn run_snapshot_resampling_for_provider<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     if let Some(write_arguments) = arguments.subcommand_matches("write") {
         run_write_subcommand(write_arguments, provider, io_context);

@@ -1,6 +1,9 @@
 //! Structured grids with uniform spacing in all dimensions.
 
-use super::{CoordLocation, Grid1, Grid2, Grid3, GridType};
+use super::{
+    hor_regular::{HorRegularGrid2, HorRegularGrid3, NonUniformGrid1},
+    CoordLocation, Grid1, Grid2, Grid3, GridType,
+};
 use crate::{
     geometry::{
         CoordRefs2, CoordRefs3, Coords2, Coords3, Dim2,
@@ -111,15 +114,16 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
     type YSliceGrid = RegularGrid2<F>;
     type ZSliceGrid = RegularGrid2<F>;
 
-    const TYPE: GridType = GridType::Regular;
-
-    fn from_coords(
+    fn from_coords_unchecked(
         centers: Coords3<F>,
         lower_edges: Coords3<F>,
         is_periodic: In3D<bool>,
         up_derivatives: Option<Coords3<F>>,
         down_derivatives: Option<Coords3<F>>,
+        grid_type: GridType,
     ) -> Self {
+        assert_eq!(grid_type, GridType::Regular);
+
         let size_x = centers[X].len();
         let size_y = centers[Y].len();
         let size_z = centers[Z].len();
@@ -177,6 +181,10 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
             cell_extents: Vec3::new(cell_extent_x, cell_extent_y, cell_extent_z),
             coord_derivatives: [up_derivatives, down_derivatives],
         }
+    }
+
+    fn detected_grid_type(&self) -> GridType {
+        GridType::Regular
     }
 
     fn shape(&self) -> &In3D<usize> {
@@ -271,6 +279,37 @@ impl<F: BFloat> Grid3<F> for RegularGrid3<F> {
                     }),
             )
             .collect()
+    }
+}
+
+impl<F: BFloat> From<RegularGrid3<F>> for HorRegularGrid3<F> {
+    fn from(regular_grid: RegularGrid3<F>) -> Self {
+        let RegularGrid3 {
+            coords,
+            is_periodic,
+            shape,
+            lower_bounds,
+            upper_bounds,
+            extents,
+            cell_extents,
+            coord_derivatives,
+        } = regular_grid;
+        Self::from_regular_grid_data(
+            coords,
+            is_periodic,
+            shape,
+            lower_bounds,
+            upper_bounds,
+            extents,
+            cell_extents,
+            coord_derivatives,
+        )
+    }
+}
+
+impl<F: BFloat> From<&RegularGrid3<F>> for HorRegularGrid3<F> {
+    fn from(regular_grid: &RegularGrid3<F>) -> Self {
+        regular_grid.clone().into()
     }
 }
 
@@ -438,6 +477,34 @@ impl<F: BFloat> Grid2<F> for RegularGrid2<F> {
     }
 }
 
+impl<F: BFloat> From<RegularGrid2<F>> for HorRegularGrid2<F> {
+    fn from(regular_grid: RegularGrid2<F>) -> Self {
+        let RegularGrid2 {
+            coords,
+            is_periodic,
+            shape,
+            lower_bounds,
+            upper_bounds,
+            extents,
+            cell_extents: _,
+        } = regular_grid;
+        Self::from_regular_grid_data(
+            coords,
+            is_periodic,
+            shape,
+            lower_bounds,
+            upper_bounds,
+            extents,
+        )
+    }
+}
+
+impl<F: BFloat> From<&RegularGrid2<F>> for HorRegularGrid2<F> {
+    fn from(regular_grid: &RegularGrid2<F>) -> Self {
+        regular_grid.clone().into()
+    }
+}
+
 #[cfg(feature = "for-testing")]
 impl_partial_eq_for_grid!(RegularGrid2<F>, Grid2);
 
@@ -512,6 +579,27 @@ impl<F: BFloat> Grid1<F> for RegularGrid1<F> {
     }
 }
 
+impl<F: BFloat> From<RegularGrid1<F>> for NonUniformGrid1<F> {
+    fn from(regular_grid: RegularGrid1<F>) -> Self {
+        let RegularGrid1 {
+            coords,
+            is_periodic: _,
+            size,
+            lower_bound,
+            upper_bound,
+            extent,
+            cell_extent: _,
+        } = regular_grid;
+        Self::from_regular_grid_data(coords, size, lower_bound, upper_bound, extent)
+    }
+}
+
+impl<F: BFloat> From<&RegularGrid1<F>> for NonUniformGrid1<F> {
+    fn from(regular_grid: &RegularGrid1<F>) -> Self {
+        regular_grid.clone().into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -543,7 +631,8 @@ mod tests {
             In3D::new(false, false, false),
             None,
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             grid.find_grid_cell(&Point3::new(

@@ -3,7 +3,6 @@
 use crate::{
     exit_on_error, exit_on_false, exit_with_error,
     geometry::{Dim2, Dim3, In2D, In3D},
-    grid::{fgr, Grid3},
     io::{
         snapshot::{fpa, SnapshotParameters, SnapshotProvider3},
         utils as io_utils, OverwriteMode, Verbosity,
@@ -388,7 +387,7 @@ where
     })
 }
 
-pub fn get_value_from_param_file_argument_with_default<G, P, T, C>(
+pub fn get_value_from_param_file_argument_with_default<P, T, C>(
     reader: &P,
     arguments: &ArgMatches,
     argument_name: &str,
@@ -397,8 +396,7 @@ pub fn get_value_from_param_file_argument_with_default<G, P, T, C>(
     default_value: T,
 ) -> T
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     T: From<fpa> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,
@@ -415,7 +413,7 @@ where
     })
 }
 
-pub fn get_values_from_param_file_argument_with_defaults<G, P, T, C>(
+pub fn get_values_from_param_file_argument_with_defaults<P, T, C>(
     reader: &P,
     arguments: &ArgMatches,
     argument_name: &str,
@@ -424,8 +422,7 @@ pub fn get_values_from_param_file_argument_with_defaults<G, P, T, C>(
     default_values: &[T],
 ) -> Vec<T>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     T: From<fpa> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
     C: Fn(T) -> T,

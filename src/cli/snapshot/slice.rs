@@ -11,7 +11,7 @@ use crate::{
     exit_on_error, exit_with_error,
     field::ResampledCoordLocation,
     geometry::Dim3,
-    grid::{fgr, CoordLocation, Grid3},
+    grid::{fgr, CoordLocation},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
@@ -130,10 +130,9 @@ pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 #[cfg(not(feature = "pickle"))]
-pub fn run_slice_subcommand<G, P>(_: &ArgMatches, _: P, _: &mut IOContext)
+pub fn run_slice_subcommand<P>(_: &ArgMatches, _: P, _: &mut IOContext)
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     exit_with_error!(
         "Error: Compile with pickle feature in order to write Pickle files\n\
@@ -143,13 +142,9 @@ where
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
 #[cfg(feature = "pickle")]
-pub fn run_slice_subcommand<G, P>(
-    arguments: &ArgMatches,
-    mut provider: P,
-    io_context: &mut IOContext,
-) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+pub fn run_slice_subcommand<P>(arguments: &ArgMatches, mut provider: P, io_context: &mut IOContext)
+where
+    P: SnapshotProvider3,
 {
     let quantity = arguments
         .value_of("quantity")

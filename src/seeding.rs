@@ -6,9 +6,9 @@ pub mod slice;
 pub mod volume;
 
 use crate::{
+    field::FieldGrid3,
     geometry::{Idx3, Point3},
     grid::{fgr, Grid3},
-    num::BFloat,
 };
 use rayon::prelude::*;
 
@@ -26,10 +26,7 @@ pub trait Seeder3:
 
     /// Creates a list of seed indices from the seed points by looking up the grid cells
     /// of the given grid containing the seed points.
-    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
-    where
-        F: BFloat,
-        G: Grid3<F>;
+    fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>>;
 }
 
 /// Defines the properties of a 3D seed index generator.
@@ -46,10 +43,7 @@ pub trait IndexSeeder3:
 
     /// Creates a list of seed points from the seed indices by indexing the center coordinates
     /// of the given grid.
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fgr>>
-    where
-        F: BFloat,
-        G: Grid3<F>;
+    fn to_point_seeder(&self, grid: &FieldGrid3) -> Vec<Point3<fgr>>;
 }
 
 // Let a vector of points work as a seeder.
@@ -65,11 +59,7 @@ impl Seeder3 for Vec<Point3<fgr>> {
         self.retain(predicate);
     }
 
-    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
+    fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>> {
         self.iter()
             .map(|point| {
                 grid.find_closest_grid_cell(&Point3::from(point))
@@ -92,11 +82,7 @@ impl IndexSeeder3 for Vec<Idx3<usize>> {
         self.retain(predicate);
     }
 
-    fn to_point_seeder<F, G>(&self, grid: &G) -> Vec<Point3<fgr>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
+    fn to_point_seeder(&self, grid: &FieldGrid3) -> Vec<Point3<fgr>> {
         self.par_iter()
             .map(|indices| Point3::from(&grid.centers().point(indices)))
             .collect()

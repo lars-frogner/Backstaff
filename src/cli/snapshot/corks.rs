@@ -17,7 +17,6 @@ use crate::{
     corks::{ConstantCorkAdvector, CorkAdvector, CorkSet, CorkStepper, HeunCorkStepper},
     exit_on_error, exit_with_error,
     field::ScalarFieldCacher3,
-    grid::{fgr, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
@@ -120,14 +119,13 @@ pub fn create_corks_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 #[cfg(not(any(feature = "json", feature = "pickle")))]
-pub fn run_corks_subcommand<G, P>(
+pub fn run_corks_subcommand<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     exit_with_error!(
         "Error: Compile with json and/or pickle feature in order to write cork output\n\
@@ -137,28 +135,26 @@ pub fn run_corks_subcommand<G, P>(
 
 /// Runs the actions for the `snapshot-corks` subcommand using the given arguments.
 #[cfg(any(feature = "json", feature = "pickle"))]
-pub fn run_corks_subcommand<G, P>(
+pub fn run_corks_subcommand<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let mut snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
     run_with_selected_interpolator(arguments, &mut snapshot, io_context, corks_state);
 }
 
-fn run_with_selected_interpolator<G, P>(
+fn run_with_selected_interpolator<P>(
     root_arguments: &ArgMatches,
     snapshot: &mut P,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         root_arguments.subcommand_matches("poly_fit_interpolator")
@@ -188,7 +184,7 @@ fn run_with_selected_interpolator<G, P>(
     );
 }
 
-fn run_tracing<G, P, I>(
+fn run_tracing<P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut P,
@@ -196,8 +192,7 @@ fn run_tracing<G, P, I>(
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator3,
 {
     if is_first_iteration(corks_state) {
@@ -219,15 +214,14 @@ fn is_first_iteration(corks_state: &Option<CorksState>) -> bool {
     corks_state.is_none()
 }
 
-fn initialize_with_selected_seeder<G, P, I>(
+fn initialize_with_selected_seeder<P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut P,
     interpolator: I,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator3,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
@@ -269,15 +263,14 @@ fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, V
     (scalar_quantity_names, vector_quantity_names)
 }
 
-fn initialize_corks<G, P, I, Sd>(
+fn initialize_corks<P, I, Sd>(
     root_arguments: &ArgMatches,
     snapshot: &mut P,
     interpolator: I,
     seeder: Sd,
     corks_state: &mut Option<CorksState>,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator3,
     Sd: Seeder3,
 {
@@ -299,10 +292,9 @@ fn initialize_corks<G, P, I, Sd>(
     snapshot.drop_all_fields();
 }
 
-fn advect_with_selected_advector<G, P, I>(snapshot: &mut P, interpolator: I, corks: &mut CorkSet)
+fn advect_with_selected_advector<P, I>(snapshot: &mut P, interpolator: I, corks: &mut CorkSet)
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator3,
 {
     let advector = ConstantCorkAdvector;
@@ -310,14 +302,13 @@ where
     advect_with_selected_stepper(snapshot, interpolator, advector, corks);
 }
 
-fn advect_with_selected_stepper<G, P, I, A>(
+fn advect_with_selected_stepper<P, I, A>(
     snapshot: &mut P,
     interpolator: I,
     advector: A,
     corks: &mut CorkSet,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator3,
     A: CorkAdvector,
 {
@@ -326,15 +317,14 @@ fn advect_with_selected_stepper<G, P, I, A>(
     advect_corks(snapshot, interpolator, advector, stepper, corks);
 }
 
-fn advect_corks<G, P, I, A, St>(
+fn advect_corks<P, I, A, St>(
     snapshot: &mut P,
     interpolator: I,
     advector: A,
     stepper: St,
     corks: &mut CorkSet,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator3,
     A: CorkAdvector,
     St: CorkStepper,

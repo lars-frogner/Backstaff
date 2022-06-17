@@ -10,7 +10,6 @@ use super::{
 use crate::{
     field::VectorField3,
     geometry::{Point3, Vec3},
-    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     num::BFloat,
     tracing::ftr,
@@ -96,15 +95,14 @@ impl RKFStepper3 for RKF23Stepper3 {
         &mut self.0
     }
 
-    fn attempt_step<F, G, I, D>(
+    fn attempt_step<F, I, D>(
         &self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         direction_computer: &D,
     ) -> StepperResult<StepAttempt3>
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
     {
@@ -205,9 +203,9 @@ impl RKFStepper3 for RKF23Stepper3 {
 }
 
 impl Stepper3 for RKF23Stepper3 {
-    fn place<F, G, I, D, C>(
+    fn place<F, I, D, C>(
         &mut self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         direction_computer: &D,
         position: &Point3<ftr>,
@@ -215,7 +213,6 @@ impl Stepper3 for RKF23Stepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -223,16 +220,15 @@ impl Stepper3 for RKF23Stepper3 {
         self.place_with_callback(field, interpolator, direction_computer, position, callback)
     }
 
-    fn step<F, G, I, D, C>(
+    fn step<F, I, D, C>(
         &mut self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         direction_computer: &D,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -240,16 +236,15 @@ impl Stepper3 for RKF23Stepper3 {
         self.step_with_callback(field, interpolator, direction_computer, callback)
     }
 
-    fn step_dense_output<F, G, I, D, C>(
+    fn step_dense_output<F, I, D, C>(
         &mut self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         direction_computer: &D,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,

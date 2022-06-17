@@ -15,7 +15,7 @@ use crate::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
-    grid::{fgr, Grid3},
+    grid::Grid3,
     interpolation::Interpolator3,
     io::{snapshot::fdt, utils, Verbosity},
     num::BFloat,
@@ -326,14 +326,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
-    where G: Grid3<fgr>,
-          P: CachingScalarFieldProvider3<fdt, G>,
+    pub fn generate_unpropagated<P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
+    where P: CachingScalarFieldProvider3<fdt>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
@@ -386,14 +384,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<G, P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
-    where G: Grid3<fgr>,
-          P: CachingScalarFieldProvider3<fdt, G>,
+    pub fn generate_propagated<P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
+    where P: CachingScalarFieldProvider3<fdt>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
@@ -479,10 +475,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given scalar field at the initial position for each beam.
-    pub fn extract_fixed_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {
@@ -511,10 +506,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given vector field at the initial position for each beam.
-    pub fn extract_fixed_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {
@@ -543,10 +537,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given scalar field at each position for each beam.
-    pub fn extract_varying_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_varying_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {
@@ -582,10 +575,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given vector field at each position for each beam.
-    pub fn extract_varying_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_varying_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {
@@ -757,7 +749,7 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
 }
 
 impl<D: Distribution> PropagatedElectronBeam<D> {
-    fn generate<G, P, I, S>(
+    fn generate<P, I, S>(
         mut distribution: D,
         snapshot: &P,
         acceleration_map: &Array3<bool>,
@@ -765,8 +757,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
         stepper: S,
     ) -> Option<Self>
     where
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
         I: Interpolator3,
         S: Stepper3,
     {

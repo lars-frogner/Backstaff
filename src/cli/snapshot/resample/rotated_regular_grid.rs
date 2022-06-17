@@ -139,7 +139,7 @@ pub fn create_rotated_regular_grid_subcommand(
     )
 }
 
-pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
+pub fn run_resampling_for_rotated_regular_grid<P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -150,8 +150,7 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     let original_grid = provider.grid();
@@ -252,8 +251,9 @@ pub fn run_resampling_for_rotated_regular_grid<G, P, I>(
         new_lower_bounds,
         new_upper_bounds,
         In3D::same(false), // Discard periodicity information
-    );
-    super::resample_to_transformed_regular_grid(
+    )
+    .into();
+    super::resample_to_transformed_grid(
         grid,
         arguments,
         provider,

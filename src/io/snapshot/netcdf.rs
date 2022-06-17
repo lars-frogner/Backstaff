@@ -11,12 +11,12 @@ use super::{
     fdt, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES, FALLBACK_SNAP_NUM,
 };
 use crate::{
-    field::{ScalarField3, ScalarFieldProvider3},
+    field::{FieldGrid3, ScalarField3, ScalarFieldProvider3},
     geometry::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{fgr, CoordLocation, Grid3, GridType},
+    grid::{CoordLocation, Grid3, GridType},
     io::utils::IOContext,
     io_result,
     num::BFloat,
@@ -44,16 +44,16 @@ pub struct NetCDFSnapshotReaderConfig {
 
 /// Reader for NetCDF files associated with Bifrost 3D simulation snapshots.
 #[derive(Debug)]
-pub struct NetCDFSnapshotReader3<G> {
+pub struct NetCDFSnapshotReader3 {
     config: NetCDFSnapshotReaderConfig,
     file: File,
-    grid: Arc<G>,
+    grid: Arc<FieldGrid3>,
     parameters: NetCDFSnapshotParameters,
     endianness: Endianness,
     all_variable_names: Vec<String>,
 }
 
-impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
+impl NetCDFSnapshotReader3 {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
         let file = open_file(&config.file_path)?;
@@ -61,7 +61,7 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
         let parameters = read_netcdf_snapshot_parameters(&file, config.verbosity())?;
 
         let is_periodic = parameters.determine_grid_periodicity()?;
-        let (grid, endianness) = mesh::read_grid::<G>(&file, is_periodic, config.verbosity())?;
+        let (grid, endianness) = mesh::read_grid(&file, is_periodic, config.verbosity())?;
 
         Ok(Self::new_from_parameters_and_grid(
             config, file, parameters, grid, endianness,
@@ -82,7 +82,7 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
         config: NetCDFSnapshotReaderConfig,
         file: File,
         parameters: NetCDFSnapshotParameters,
-        grid: G,
+        grid: FieldGrid3,
         endianness: Endianness,
     ) -> Self {
         let root_group = file.root().unwrap();
@@ -118,21 +118,21 @@ impl<G: Grid3<fgr>> NetCDFSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NetCDFSnapshotReader3<G> {
-    fn grid(&self) -> &G {
+impl ScalarFieldProvider3<fdt> for NetCDFSnapshotReader3 {
+    fn grid(&self) -> &FieldGrid3 {
         self.grid.as_ref()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.grid)
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         self.read_scalar_field(variable_name)
     }
 }
 
-impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
+impl SnapshotProvider3 for NetCDFSnapshotReader3 {
     type Parameters = NetCDFSnapshotParameters;
 
     fn parameters(&self) -> &Self::Parameters {
@@ -157,8 +157,8 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NetCDFSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fgr>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+impl SnapshotReader3 for NetCDFSnapshotReader3 {
+    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         if self.config.verbosity.print_messages() {
             println!(
                 "Reading {} from {}",
@@ -166,7 +166,7 @@ impl<G: Grid3<fgr>> SnapshotReader3<G> for NetCDFSnapshotReader3<G> {
                 self.config.file_path.file_name().unwrap().to_string_lossy()
             );
         }
-        let (values, locations, endianness) = read_snapshot_3d_variable::<fdt, G>(
+        let (values, locations, endianness) = read_snapshot_3d_variable::<fdt>(
             &self.file.root().unwrap(),
             self.grid(),
             variable_name,
@@ -235,7 +235,7 @@ impl NetCDFSnapshotMetadata {
     }
 
     /// Creates a new snapshot reader from this metadata.
-    pub fn into_reader<G: Grid3<fgr>>(self) -> NetCDFSnapshotReader3<G> {
+    pub fn into_reader(self) -> NetCDFSnapshotReader3 {
         let (reader_config, file, parameters, grid, endianness) = self.into_parameters_and_grid();
 
         NetCDFSnapshotReader3::new_from_parameters_and_grid(
@@ -248,18 +248,18 @@ impl NetCDFSnapshotMetadata {
     }
 
     /// Creates a new grid from this metadata.
-    pub fn into_grid<G: Grid3<fgr>>(self) -> G {
+    pub fn into_grid(self) -> FieldGrid3 {
         let (_, _, _, grid, _) = self.into_parameters_and_grid();
         grid
     }
 
-    fn into_parameters_and_grid<G: Grid3<fgr>>(
+    fn into_parameters_and_grid(
         self,
     ) -> (
         NetCDFSnapshotReaderConfig,
         File,
         NetCDFSnapshotParameters,
-        G,
+        FieldGrid3,
         Endianness,
     ) {
         let Self {
@@ -271,7 +271,7 @@ impl NetCDFSnapshotMetadata {
         } = self;
 
         let NetCDFGridData {
-            detected_grid_type: _,
+            detected_grid_type,
             center_coords,
             lower_edge_coords,
             up_derivatives,
@@ -279,12 +279,13 @@ impl NetCDFSnapshotMetadata {
             endianness,
         } = grid_data;
 
-        let grid = G::from_coords(
+        let grid = FieldGrid3::from_coords_unchecked(
             center_coords,
             lower_edge_coords,
             is_periodic,
             up_derivatives,
             down_derivatives,
+            detected_grid_type,
         );
         (reader_config, file, parameters, grid, endianness)
     }
@@ -309,15 +310,14 @@ impl NetCDFSnapshotReaderConfig {
 }
 
 /// Writes data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_new_snapshot<G, P>(
+pub fn write_new_snapshot<P>(
     provider: &mut P,
     output_file_path: &Path,
     io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let quantity_names = provider.all_variable_names().to_vec();
     write_modified_snapshot(
@@ -331,7 +331,7 @@ where
 }
 
 /// Writes modified data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_modified_snapshot<G, P>(
+pub fn write_modified_snapshot<P>(
     provider: &mut P,
     quantity_names: &[String],
     output_file_path: &Path,
@@ -340,8 +340,7 @@ pub fn write_modified_snapshot<G, P>(
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_file_path);
     let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM) as i64;
@@ -447,9 +446,9 @@ fn read_snapshot_1d_variable<F: Numeric + BFloat + Default>(
 }
 
 /// Reads the given 3D variable from the given NetCDF group.
-fn read_snapshot_3d_variable<F: Numeric + BFloat + Default, G: Grid3<fgr>>(
+fn read_snapshot_3d_variable<F: Numeric + BFloat + Default>(
     group: &Group,
-    grid: &G,
+    grid: &FieldGrid3,
     name: &str,
 ) -> io::Result<(Array3<F>, In3D<CoordLocation>, Endianness)> {
     let var = group.variable(name).ok_or_else(|| {
@@ -544,10 +543,7 @@ pub fn create_file(path: &Path) -> io::Result<MutableFile> {
 }
 
 /// Writes a representation of the given 3D scalar field to the given NetCDF group.
-pub fn write_3d_scalar_field<G: Grid3<fgr>>(
-    group: &mut GroupMut,
-    field: &ScalarField3<fdt, G>,
-) -> io::Result<()> {
+pub fn write_3d_scalar_field(group: &mut GroupMut, field: &ScalarField3<fdt>) -> io::Result<()> {
     let field_name = field.name();
     let locations = field.locations();
     let dimension_names = [

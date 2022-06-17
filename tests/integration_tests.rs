@@ -171,36 +171,6 @@ fn extract_with_too_large_subgrid_preserves_input_snapshot() {
     common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
 });
 
-#[cfg(all(feature = "cli", feature = "for-testing"))]
-def_test!(
-IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
-OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn extract_gives_same_result_for_general_grid_interpretation() {
-    const I_RANGE_ARG: &str = "--i-range=5,12";
-    const J_RANGE_ARG: &str = "--j-range=2,16";
-    const K_RANGE_ARG: &str = "--k-range=3,13";
-    run(["snapshot",
-         input_snapshot,
-         "extract",
-         I_RANGE_ARG,
-         J_RANGE_ARG,
-         K_RANGE_ARG,
-         "write",
-         output_snapshot_1,
-    ]);
-    run(["snapshot",
-         input_snapshot,
-         "--force-horizontally-regular",
-         "extract",
-         I_RANGE_ARG,
-         J_RANGE_ARG,
-         K_RANGE_ARG,
-         "write",
-         output_snapshot_2,
-    ]);
-    common::assert_snapshot_files_equal(output_snapshot_1, output_snapshot_2);
-});
-
 macro_rules! define_test_for_each_resampling_method {
     ($test_macro:ident) => {
         #[cfg(all(feature = "cli", feature = "for-testing"))]
@@ -211,68 +181,6 @@ macro_rules! define_test_for_each_resampling_method {
         $test_macro!(cell_averaging);
     };
 }
-
-macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
-def_test!(
-IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
-OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn [<resampling_regular_to_regular_with_ $resampling_method _gives_same_result_for_general_grid_interpretation>] () {
-    const X_BOUNDS_ARG: &str = "--x-bounds=5,12";
-    const Y_BOUNDS_ARG: &str = "--y-bounds=2,16";
-    const Z_BOUNDS_ARG: &str = "--z-bounds=-6.5,1.0";
-    run(["snapshot",
-         input_snapshot,
-         "resample",
-         "regular_grid",
-         X_BOUNDS_ARG,
-         Y_BOUNDS_ARG,
-         Z_BOUNDS_ARG,
-         "write",
-         output_snapshot_1,
-    ]);
-    run(["snapshot",
-         input_snapshot,
-         "--force-horizontally-regular",
-         "resample",
-         "regular_grid",
-         X_BOUNDS_ARG,
-         Y_BOUNDS_ARG,
-         Z_BOUNDS_ARG,
-         "write",
-         output_snapshot_2,
-    ]);
-    common::assert_snapshot_files_equal(output_snapshot_1, output_snapshot_2);
-});
-}};}
-define_test_for_each_resampling_method!(resampling_test);
-
-macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
-def_test!(
-IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
-OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
-fn [<resampling_regular_to_reshaped_with_ $resampling_method _gives_same_result_for_general_grid_interpretation>] () {
-    const SCALES_ARG: &str = "--scales=0.6,0.5,0.8";
-    run(["snapshot",
-         input_snapshot,
-         "resample",
-         "reshaped_grid",
-         SCALES_ARG,
-         "write",
-         output_snapshot_1,
-    ]);
-    run(["snapshot",
-         input_snapshot,
-         "--force-horizontally-regular",
-         "resample",
-         "reshaped_grid",
-         SCALES_ARG,
-         "write",
-         output_snapshot_2,
-    ]);
-    common::assert_snapshot_files_equal(output_snapshot_1, output_snapshot_2);
-});
-}};}
-define_test_for_each_resampling_method!(resampling_test);
 
 macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
 def_test!(

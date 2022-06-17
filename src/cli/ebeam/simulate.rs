@@ -51,7 +51,6 @@ use crate::{
     },
     exit_on_error, exit_with_error,
     field::ScalarFieldCacher3,
-    grid::{fgr, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         Interpolator3,
@@ -218,13 +217,9 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
 }
 
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
-pub fn run_simulate_subcommand<G, P>(
-    arguments: &ArgMatches,
-    provider: P,
-    io_context: &mut IOContext,
-) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+pub fn run_simulate_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
+where
+    P: SnapshotProvider3,
 {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
     let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
@@ -332,10 +327,9 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_detector<G, P>(arguments: &ArgMatches, snapshot: P, io_context: &mut IOContext)
+fn run_with_selected_detector<P>(arguments: &ArgMatches, snapshot: P, io_context: &mut IOContext)
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
         let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
@@ -379,15 +373,14 @@ where
     }
 }
 
-fn run_with_selected_accelerator<G, P, D>(
+fn run_with_selected_accelerator<P, D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
     detector: D,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     D: ReconnectionSiteDetector,
 {
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
@@ -445,15 +438,14 @@ fn run_with_selected_accelerator<G, P, D>(
     };
 }
 
-fn run_with_selected_interpolator<G, P, D, A>(
+fn run_with_selected_interpolator<P, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: P,
     detector: D,
     accelerator: A,
     io_context: &mut IOContext)
-where G: Grid3<fgr>,
-      P: CachingSnapshotProvider3<G>,
+where P: CachingSnapshotProvider3,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -492,7 +484,7 @@ where G: Grid3<fgr>,
     );
 }
 
-fn run_with_selected_stepper_factory<G, P, D, A, I>(
+fn run_with_selected_stepper_factory<P, D, A, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: P,
@@ -500,8 +492,7 @@ fn run_with_selected_stepper_factory<G, P, D, A, I>(
     accelerator: A,
     interpolator: I,
     io_context: &mut IOContext)
-where G: Grid3<fgr>,
-      P: CachingSnapshotProvider3<G>,
+where P: CachingSnapshotProvider3,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,
@@ -629,7 +620,7 @@ where G: Grid3<fgr>,
     );
 }
 
-fn perform_post_simulation_actions<G, P, A, I>(
+fn perform_post_simulation_actions<P, A, I>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
@@ -639,8 +630,7 @@ fn perform_post_simulation_actions<G, P, A, I>(
     interpolator: I,
     mut beams: ElectronBeamSwarm<A>,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     A: Accelerator,
     I: Interpolator3,
 {

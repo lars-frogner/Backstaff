@@ -2,7 +2,7 @@
 
 use super::Seeder3;
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{FieldGrid3, ScalarField3, VectorField3},
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, In3D, Point3, Vec3,
@@ -161,13 +161,12 @@ impl VolumeSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid for the field.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn scalar_field_pdf<F, G, I, C, S>(
+    pub fn scalar_field_pdf<F, I, C, S>(
         grid: &RegularGrid3<fgr>,
-        field: &ScalarField3<F, G>,
+        field: &ScalarField3<F>,
         interpolator: &I,
         compute_pdf_value: &C,
         n_seeds: usize,
@@ -175,7 +174,6 @@ impl VolumeSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(F) -> F + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
@@ -229,13 +227,12 @@ impl VolumeSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid for the field.
     /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn vector_field_pdf<F, G, I, C, S>(
+    pub fn vector_field_pdf<F, I, C, S>(
         grid: &RegularGrid3<fgr>,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interpolator: &I,
         compute_pdf_value: &C,
         n_seeds: usize,
@@ -243,7 +240,6 @@ impl VolumeSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        G: Grid3<fgr>,
         I: Interpolator3,
         C: Fn(&Vec3<F>) -> F + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
@@ -320,11 +316,7 @@ impl Seeder3 for VolumeSeeder3 {
         self.seed_points.retain(predicate);
     }
 
-    fn to_index_seeder<F, G>(&self, grid: &G) -> Vec<Idx3<usize>>
-    where
-        F: BFloat,
-        G: Grid3<F>,
-    {
+    fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>> {
         self.seed_points.to_index_seeder(grid)
     }
 }

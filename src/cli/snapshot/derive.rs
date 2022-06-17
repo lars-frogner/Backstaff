@@ -7,7 +7,6 @@ use crate::{
         quantities::{DerivedSnapshotProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
         ScalarFieldCacher3,
     },
-    grid::{fgr, Grid3},
     io::snapshot::{fdt, SnapshotProvider3},
     update_command_graph,
 };
@@ -68,13 +67,12 @@ pub fn create_derive_subcommand(_parent_command_name: &'static str) -> Command<'
 }
 
 /// Creates a `DerivedSnapshotProvider3` for the given arguments and snapshot provider.
-pub fn create_derive_provider<G, P>(
+pub fn create_derive_provider<P>(
     arguments: &ArgMatches,
     provider: P,
-) -> DerivedSnapshotProvider3<G, ScalarFieldCacher3<fdt, G, P>>
+) -> DerivedSnapshotProvider3<ScalarFieldCacher3<fdt, P>>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let derived_quantity_names = arguments
         .values_of("quantities")

@@ -6,7 +6,7 @@ use super::{feb, BeamPropertiesCollection};
 use crate::{
     field::CachingScalarFieldProvider3,
     geometry::{Idx3, Point3, Vec3},
-    grid::{fgr, Grid3},
+    grid::fgr,
     interpolation::Interpolator3,
     io::snapshot::fdt,
     tracing::{ftr, stepping::SteppingSense},
@@ -56,7 +56,7 @@ pub trait Distribution {
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
-    fn propagate<G, P, I>(
+    fn propagate<P, I>(
         &mut self,
         snapshot: &P,
         acceleration_map: &Array3<bool>,
@@ -65,7 +65,6 @@ pub trait Distribution {
         new_position: &Point3<ftr>,
     ) -> PropagationResult
     where
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
         I: Interpolator3;
 }

@@ -77,26 +77,47 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
     type YSliceGrid: Grid2<F>;
     type ZSliceGrid: Grid2<F>;
 
-    /// The specific type of the grid.
-    const TYPE: GridType;
-
     /// Creates a new grid given the coordinates of the cell centers and lower edges,
     /// as well as which dimensions are periodic.
     ///
     /// Optionally, the upward and downward derivatives of the coordinates can be
     /// passed in to be stored with the grid. They are not used for computations.
+    ///
+    /// The coordinates are verified to be compatible with the relevant grid type.
+    /// If they are not, an error is returned.
     fn from_coords(
         center_coords: Coords3<F>,
         lower_edge_coords: Coords3<F>,
         is_periodic: In3D<bool>,
         up_derivatives: Option<Coords3<F>>,
         down_derivatives: Option<Coords3<F>>,
+    ) -> io::Result<Self> {
+        let detected_grid_type =
+            verify_coordinate_arrays(&center_coords, &lower_edge_coords, false)?;
+
+        Ok(Self::from_coords_unchecked(
+            center_coords,
+            lower_edge_coords,
+            is_periodic,
+            up_derivatives,
+            down_derivatives,
+            detected_grid_type,
+        ))
+    }
+
+    /// Like `from_coords`, but does not verify that the coordinates conform to
+    /// a supported grid type. Instead takes the grid type as an argument.
+    fn from_coords_unchecked(
+        center_coords: Coords3<F>,
+        lower_edge_coords: Coords3<F>,
+        is_periodic: In3D<bool>,
+        up_derivatives: Option<Coords3<F>>,
+        down_derivatives: Option<Coords3<F>>,
+        grid_type: GridType,
     ) -> Self;
 
-    /// Returns the type of the grid.
-    fn grid_type(&self) -> GridType {
-        Self::TYPE
-    }
+    /// Returns the type of the grid as detected from the coordinates.
+    fn detected_grid_type(&self) -> GridType;
 
     /// Returns the 3D shape of the grid.
     fn shape(&self) -> &In3D<usize>;
@@ -173,7 +194,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                 is_periodic[dim] && start_indices[dim] == 0 && end_indices[dim] == shape[dim] - 1;
         }
 
-        Self::from_coords(
+        Self::from_coords_unchecked(
             self.centers().subcoords(start_indices, end_indices),
             self.lower_edges().subcoords(start_indices, end_indices),
             is_periodic,
@@ -181,6 +202,7 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
                 .map(|coords| coords.subcoords(start_indices, end_indices)),
             self.down_derivatives()
                 .map(|coords| coords.subcoords(start_indices, end_indices)),
+            self.detected_grid_type(),
         )
     }
 

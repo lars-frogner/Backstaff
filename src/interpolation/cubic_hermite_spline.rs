@@ -58,10 +58,9 @@ impl CubicHermiteSplineInterpolator {
         t * t * (t - 1.0)
     }
 
-    fn compute_tangent<F, G>(&self, field: &ScalarField1<F, G>, index: usize) -> fgr
+    fn compute_tangent<F>(&self, field: &ScalarField1<F>, index: usize) -> fgr
     where
         F: BFloat,
-        G: Grid1<fgr>,
     {
         let size = field.size();
         let coords = field.coords();
@@ -97,15 +96,9 @@ impl CubicHermiteSplineInterpolator {
         }
     }
 
-    fn interp<F, G>(
-        &self,
-        field: &ScalarField1<F, G>,
-        interp_coord: fgr,
-        mut interp_index: usize,
-    ) -> fip
+    fn interp<F>(&self, field: &ScalarField1<F>, interp_coord: fgr, mut interp_index: usize) -> fip
     where
         F: BFloat,
-        G: Grid1<fgr>,
     {
         assert!(field.size() >= 2);
         assert!(interp_index < field.size());
@@ -146,14 +139,13 @@ impl CubicHermiteSplineInterpolator {
 }
 
 impl Interpolator1 for CubicHermiteSplineInterpolator {
-    fn interp_scalar_field<F, G>(
+    fn interp_scalar_field<F>(
         &self,
-        field: &ScalarField1<F, G>,
+        field: &ScalarField1<F>,
         interp_coord: fgr,
     ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
-        G: Grid1<fgr>,
     {
         let grid_point_query = field.grid().find_grid_cell(interp_coord);
         match grid_point_query {
@@ -170,27 +162,25 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
         }
     }
 
-    fn interp_scalar_field_known_cell<F, G>(
+    fn interp_scalar_field_known_cell<F>(
         &self,
-        field: &ScalarField1<F, G>,
+        field: &ScalarField1<F>,
         interp_coord: fgr,
         interp_index: usize,
     ) -> fip
     where
         F: BFloat,
-        G: Grid1<fgr>,
     {
         self.interp(field, interp_coord, interp_index)
     }
 
-    fn interp_extrap_scalar_field<F, G>(
+    fn interp_extrap_scalar_field<F>(
         &self,
-        field: &ScalarField1<F, G>,
+        field: &ScalarField1<F>,
         interp_coord: fgr,
     ) -> GridPointQuery1<fgr, fip>
     where
         F: BFloat,
-        G: Grid1<fgr>,
     {
         let grid_point_query = field.grid().find_closest_grid_cell(interp_coord);
         match grid_point_query {

@@ -2,11 +2,8 @@
 
 use super::super::accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand;
 use crate::{
-    cli::utils,
-    ebeam::distribution::power_law::PowerLawDistributionConfig,
-    grid::{fgr, Grid3},
-    io::snapshot::SnapshotProvider3,
-    update_command_graph,
+    cli::utils, ebeam::distribution::power_law::PowerLawDistributionConfig,
+    io::snapshot::SnapshotProvider3, update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
@@ -84,13 +81,12 @@ pub fn create_power_law_distribution_subcommand(
 
 /// Determines power-law distribution parameters based on
 /// provided options and values in parameter file.
-pub fn construct_power_law_distribution_config_from_options<G, P>(
+pub fn construct_power_law_distribution_config_from_options<P>(
     arguments: &ArgMatches,
     provider: &P,
 ) -> PowerLawDistributionConfig
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
         provider,

@@ -10,7 +10,6 @@ use crate::{
         Dim3::{X, Y, Z},
         Point3, Vec3,
     },
-    grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::snapshot::fdt,
     tracing::{self, ftr, TracerResult},
@@ -66,7 +65,7 @@ impl BasicFieldLineTracer3 {
 impl FieldLineTracer3 for BasicFieldLineTracer3 {
     type Data = BasicFieldLineData3;
 
-    fn trace<G, P, I, S>(
+    fn trace<P, I, S>(
         &self,
         field_name: &str,
         snapshot: &P,
@@ -75,8 +74,7 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
         I: Interpolator3,
         S: Stepper3,
     {

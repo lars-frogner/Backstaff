@@ -4,9 +4,9 @@ pub mod cubic_hermite_spline;
 pub mod poly_fit;
 
 use crate::{
-    field::{ScalarField1, ScalarField2, ScalarField3, VectorField2, VectorField3},
+    field::{FieldGrid3, ScalarField1, ScalarField2, ScalarField3, VectorField2, VectorField3},
     geometry::{Idx2, Idx3, Point2, Point3, Vec2, Vec3},
-    grid::{fgr, Grid1, Grid2, Grid3, GridPointQuery1, GridPointQuery2, GridPointQuery3},
+    grid::{fgr, GridPointQuery1, GridPointQuery2, GridPointQuery3},
     num::BFloat,
 };
 
@@ -28,13 +28,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// A `Result<(), String>` which is either
     /// - `Ok`: The grid is valid.
     /// - `Err`: Contains a message describing why the grid is invalid.
-    ///
-    /// # Type parameters
-    ///
-    /// - `G`: Type of grid.
-    fn verify_grid<G>(&self, grid: &G) -> Result<(), String>
-    where
-        G: Grid3<fgr>;
+    fn verify_grid(&self, grid: &FieldGrid3) -> Result<(), String>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -56,15 +50,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_scalar_field<F, G>(
+    fn interp_scalar_field<F: BFloat>(
         &self,
-        field: &ScalarField3<F, G>,
+        field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, fip>
-    where
-        F: BFloat,
-        G: Grid3<fgr>;
+    ) -> GridPointQuery3<fgr, fip>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -82,20 +72,12 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    ///
-    /// # Panics
-    ///
-    /// If the interpolation coordinate does not lie within the specified grid cell.
-    fn interp_scalar_field_known_cell<F, G>(
+    fn interp_scalar_field_known_cell<F: BFloat>(
         &self,
-        field: &ScalarField3<F, G>,
+        field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
-    ) -> fip
-    where
-        F: BFloat,
-        G: Grid3<fgr>;
+    ) -> fip;
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -118,15 +100,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_extrap_scalar_field<F, G>(
+    fn interp_extrap_scalar_field<F: BFloat>(
         &self,
-        field: &ScalarField3<F, G>,
+        field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, fip>
-    where
-        F: BFloat,
-        G: Grid3<fgr>;
+    ) -> GridPointQuery3<fgr, fip>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -148,15 +126,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_vector_field<F, G>(
+    fn interp_vector_field<F: BFloat>(
         &self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, Vec3<fip>>
-    where
-        F: BFloat,
-        G: Grid3<fgr>;
+    ) -> GridPointQuery3<fgr, Vec3<fip>>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -174,20 +148,12 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    ///
-    /// # Panics
-    ///
-    /// If the interpolation coordinate does not lie within the specified grid cell.
-    fn interp_vector_field_known_cell<F, G>(
+    fn interp_vector_field_known_cell<F: BFloat>(
         &self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interp_point: &Point3<fgr>,
         interp_indices: &Idx3<usize>,
-    ) -> Vec3<fip>
-    where
-        F: BFloat,
-        G: Grid3<fgr>;
+    ) -> Vec3<fip>;
 
     /// Computes the interpolated or extrapolated value of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -210,15 +176,11 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_extrap_vector_field<F, G>(
+    fn interp_extrap_vector_field<F: BFloat>(
         &self,
-        field: &VectorField3<F, G>,
+        field: &VectorField3<F>,
         interp_point: &Point3<fgr>,
-    ) -> GridPointQuery3<fgr, Vec3<fip>>
-    where
-        F: BFloat,
-        G: Grid3<fgr>;
+    ) -> GridPointQuery3<fgr, Vec3<fip>>;
 }
 
 /// Defines the properties of a 2D interpolator.
@@ -243,15 +205,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_scalar_field<F, G>(
+    fn interp_scalar_field<F: BFloat>(
         &self,
-        field: &ScalarField2<F, G>,
+        field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, fip>
-    where
-        F: BFloat,
-        G: Grid2<fgr>;
+    ) -> GridPointQuery2<fgr, fip>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -269,20 +227,12 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    ///
-    /// # Panics
-    ///
-    /// If the interpolation coordinate does not lie within the specified grid cell.
-    fn interp_scalar_field_known_cell<F, G>(
+    fn interp_scalar_field_known_cell<F: BFloat>(
         &self,
-        field: &ScalarField2<F, G>,
+        field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
-    ) -> fip
-    where
-        F: BFloat,
-        G: Grid2<fgr>;
+    ) -> fip;
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -305,15 +255,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_extrap_scalar_field<F, G>(
+    fn interp_extrap_scalar_field<F: BFloat>(
         &self,
-        field: &ScalarField2<F, G>,
+        field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, fip>
-    where
-        F: BFloat,
-        G: Grid2<fgr>;
+    ) -> GridPointQuery2<fgr, fip>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -335,15 +281,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_vector_field<F, G>(
+    fn interp_vector_field<F: BFloat>(
         &self,
-        field: &VectorField2<F, G>,
+        field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, Vec2<fip>>
-    where
-        F: BFloat,
-        G: Grid2<fgr>;
+    ) -> GridPointQuery2<fgr, Vec2<fip>>;
 
     /// Computes the interpolated vector of a vector field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -361,20 +303,12 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    ///
-    /// # Panics
-    ///
-    /// If the interpolation coordinate does not lie within the specified grid cell.
-    fn interp_vector_field_known_cell<F, G>(
+    fn interp_vector_field_known_cell<F: BFloat>(
         &self,
-        field: &VectorField2<F, G>,
+        field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
         interp_indices: &Idx2<usize>,
-    ) -> Vec2<fip>
-    where
-        F: BFloat,
-        G: Grid2<fgr>;
+    ) -> Vec2<fip>;
 
     /// Computes the interpolated or extrapolated value of a vector field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -397,15 +331,11 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_extrap_vector_field<F, G>(
+    fn interp_extrap_vector_field<F: BFloat>(
         &self,
-        field: &VectorField2<F, G>,
+        field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
-    ) -> GridPointQuery2<fgr, Vec2<fip>>
-    where
-        F: BFloat,
-        G: Grid2<fgr>;
+    ) -> GridPointQuery2<fgr, Vec2<fip>>;
 }
 
 /// Defines the properties of a 1D interpolator.
@@ -430,15 +360,11 @@ pub trait Interpolator1: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_scalar_field<F, G>(
+    fn interp_scalar_field<F: BFloat>(
         &self,
-        field: &ScalarField1<F, G>,
+        field: &ScalarField1<F>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, fip>
-    where
-        F: BFloat,
-        G: Grid1<fgr>;
+    ) -> GridPointQuery1<fgr, fip>;
 
     /// Computes the interpolated value of a scalar field at the given coordinate
     /// known to lie inside the grid cell with the given indices.
@@ -456,20 +382,12 @@ pub trait Interpolator1: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    ///
-    /// # Panics
-    ///
-    /// If the interpolation coordinate does not lie within the specified grid cell.
-    fn interp_scalar_field_known_cell<F, G>(
+    fn interp_scalar_field_known_cell<F: BFloat>(
         &self,
-        field: &ScalarField1<F, G>,
+        field: &ScalarField1<F>,
         interp_coord: fgr,
         interp_index: usize,
-    ) -> fip
-    where
-        F: BFloat,
-        G: Grid1<fgr>;
+    ) -> fip;
 
     /// Computes the interpolated or extrapolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
@@ -492,13 +410,9 @@ pub trait Interpolator1: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `G`: Type of grid.
-    fn interp_extrap_scalar_field<F, G>(
+    fn interp_extrap_scalar_field<F: BFloat>(
         &self,
-        field: &ScalarField1<F, G>,
+        field: &ScalarField1<F>,
         interp_coord: fgr,
-    ) -> GridPointQuery1<fgr, fip>
-    where
-        F: BFloat,
-        G: Grid1<fgr>;
+    ) -> GridPointQuery1<fgr, fip>;
 }

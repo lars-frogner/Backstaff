@@ -11,7 +11,7 @@ use crate::{
         snapshot::{inspect::create_inspect_subcommand, write::create_write_subcommand},
         utils as cli_utils,
     },
-    field::{ResampledCoordLocation, ResamplingMethod},
+    field::{FieldGrid3, ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Dim3::{X, Y, Z},
         In3D, Vec3,
@@ -123,7 +123,7 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
     )
 }
 
-pub fn run_resampling_for_regular_grid<G, P, I>(
+pub fn run_resampling_for_regular_grid<P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -134,8 +134,7 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     let original_grid = provider.grid();
@@ -195,13 +194,14 @@ pub fn run_resampling_for_regular_grid<G, P, I>(
 
     let shape = super::compute_scaled_grid_shape(&unscaled_shape, &scales);
 
-    let grid = RegularGrid3::from_bounds(
+    let grid: FieldGrid3 = RegularGrid3::from_bounds(
         shape,
         new_lower_bounds,
         new_upper_bounds,
         original_grid.periodicity().clone(),
-    );
-    super::resample_to_regular_grid(
+    )
+    .into();
+    super::resample_to_grid(
         grid,
         None,
         arguments,

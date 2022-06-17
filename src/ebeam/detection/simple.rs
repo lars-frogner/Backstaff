@@ -5,7 +5,6 @@ use crate::{
     exit_on_error,
     field::CachingScalarFieldProvider3,
     geometry::Dim3,
-    grid::{fgr, Grid3},
     io::{
         snapshot::{fdt, fpa, SnapshotParameters, SnapshotProvider3},
         Verbosity,
@@ -42,14 +41,9 @@ impl SimpleReconnectionSiteDetector {
 impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
     type Seeder = CriterionSeeder3;
 
-    fn detect_reconnection_sites<G, P>(
-        &self,
-        provider: &mut P,
-        verbosity: &Verbosity,
-    ) -> Self::Seeder
+    fn detect_reconnection_sites<P>(&self, provider: &mut P, verbosity: &Verbosity) -> Self::Seeder
     where
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
     {
         let reconnection_factor_field = exit_on_error!(
             provider.provide_scalar_field("krec"),
@@ -81,10 +75,9 @@ impl SimpleReconnectionSiteDetectorConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<G, P>(provider: &P) -> Self
+    pub fn with_defaults_from_param_file<P>(provider: &P) -> Self
     where
-        G: Grid3<fgr>,
-        P: SnapshotProvider3<G>,
+        P: SnapshotProvider3,
     {
         let reconnection_factor_threshold = provider
             .parameters()

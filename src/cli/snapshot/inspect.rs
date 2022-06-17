@@ -6,7 +6,6 @@ mod statistics;
 use crate::{
     cli::utils as cli_utils,
     exit_with_error,
-    grid::{fgr, Grid3},
     io::{snapshot::SnapshotProvider3, utils::IOContext},
     update_command_graph,
 };
@@ -71,10 +70,9 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
-pub fn run_inspect_subcommand<G, P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
+pub fn run_inspect_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbosity = cli_utils::parse_verbosity(arguments, false);

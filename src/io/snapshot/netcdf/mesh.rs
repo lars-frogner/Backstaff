@@ -2,6 +2,7 @@
 
 use super::super::super::{Endianness, Verbosity};
 use crate::{
+    field::FieldGrid3,
     geometry::{
         Coords3,
         Dim3::{X, Y, Z},
@@ -25,11 +26,11 @@ pub struct NetCDFGridData {
 }
 
 /// Tries to construct a grid from the data in the given NetCDF group.
-pub fn read_grid<G: Grid3<fgr>>(
+pub fn read_grid(
     file: &File,
     is_periodic: In3D<bool>,
     verbosity: &Verbosity,
-) -> io::Result<(G, Endianness)> {
+) -> io::Result<(FieldGrid3, Endianness)> {
     let NetCDFGridData {
         detected_grid_type,
         center_coords,
@@ -39,20 +40,14 @@ pub fn read_grid<G: Grid3<fgr>>(
         endianness,
     } = read_grid_data(file, verbosity)?;
 
-    if detected_grid_type != G::TYPE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Wrong reader type for the grid in the specified NetCDF file".to_string(),
-        ));
-    }
-
     Ok((
-        G::from_coords(
+        FieldGrid3::from_coords_unchecked(
             center_coords,
             lower_edge_coords,
             is_periodic,
             up_derivatives,
             down_derivatives,
+            detected_grid_type,
         ),
         endianness,
     ))

@@ -422,7 +422,7 @@ impl Distribution for PowerLawDistribution {
         }
     }
 
-    fn propagate<G, P, I>(
+    fn propagate<P, I>(
         &mut self,
         snapshot: &P,
         acceleration_map: &Array3<bool>,
@@ -431,8 +431,7 @@ impl Distribution for PowerLawDistribution {
         new_position: &Point3<ftr>,
     ) -> PropagationResult
     where
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
         I: Interpolator3,
     {
         let mut deposition_position = new_position - displacement * 0.5;
@@ -546,10 +545,9 @@ impl PowerLawDistributionConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<G, P>(reader: &P) -> Self
+    pub fn with_defaults_from_param_file<P>(reader: &P) -> Self
     where
-        G: Grid3<fgr>,
-        P: SnapshotProvider3<G>,
+        P: SnapshotProvider3,
     {
         let min_residual_factor = reader
             .parameters()

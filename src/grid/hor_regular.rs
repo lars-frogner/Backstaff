@@ -21,6 +21,7 @@ pub struct HorRegularGrid3<F> {
     grid_cell_extents_z: Vec<F>,
     regular_z_coords: [Vec<F>; 2],
     is_periodic: In3D<bool>,
+    grid_type: GridType,
     shape: In3D<usize>,
     lower_bounds: Vec3<F>,
     upper_bounds: Vec3<F>,
@@ -29,21 +30,49 @@ pub struct HorRegularGrid3<F> {
     coord_derivatives: [Option<Coords3<F>>; 2],
 }
 
-impl<F: BFloat> HorRegularGrid3<F> {}
+impl<F: BFloat> HorRegularGrid3<F> {
+    pub fn from_regular_grid_data(
+        coords: [Coords3<F>; 2],
+        is_periodic: In3D<bool>,
+        shape: In3D<usize>,
+        lower_bounds: Vec3<F>,
+        upper_bounds: Vec3<F>,
+        extents: Vec3<F>,
+        cell_extents: Vec3<F>,
+        coord_derivatives: [Option<Coords3<F>>; 2],
+    ) -> Self {
+        let grid_cell_extents_z = vec![cell_extents[Z]; shape[Z]];
+        let regular_z_coords = [coords[0][Z].clone(), coords[1][Z].clone()];
+        let hor_grid_cell_extents = Vec2::new(cell_extents[X], cell_extents[Y]);
+        let grid_type = GridType::Regular;
+        Self {
+            coords,
+            grid_cell_extents_z,
+            regular_z_coords,
+            is_periodic,
+            grid_type,
+            shape,
+            lower_bounds,
+            upper_bounds,
+            extents,
+            hor_grid_cell_extents,
+            coord_derivatives,
+        }
+    }
+}
 
 impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
     type XSliceGrid = HorRegularGrid2<F>;
     type YSliceGrid = HorRegularGrid2<F>;
     type ZSliceGrid = RegularGrid2<F>;
 
-    const TYPE: GridType = GridType::HorRegular;
-
-    fn from_coords(
+    fn from_coords_unchecked(
         centers: Coords3<F>,
         lower_edges: Coords3<F>,
         is_periodic: In3D<bool>,
         up_derivatives: Option<Coords3<F>>,
         down_derivatives: Option<Coords3<F>>,
+        grid_type: GridType,
     ) -> Self {
         assert!(
             !is_periodic[Z],
@@ -106,6 +135,7 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
             grid_cell_extents_z,
             regular_z_coords: [regular_centers_z, regular_lower_edges_z],
             is_periodic,
+            grid_type,
             shape: In3D::new(size_x, size_y, size_z),
             lower_bounds: Vec3::new(lower_bound_x, lower_bound_y, lower_bound_z),
             upper_bounds: Vec3::new(upper_bound_x, upper_bound_y, upper_bound_z),
@@ -113,6 +143,10 @@ impl<F: BFloat> Grid3<F> for HorRegularGrid3<F> {
             hor_grid_cell_extents: Vec2::new(grid_cell_extent_x, grid_cell_extent_y),
             coord_derivatives: [up_derivatives, down_derivatives],
         }
+    }
+
+    fn detected_grid_type(&self) -> GridType {
+        self.grid_type
     }
 
     fn shape(&self) -> &In3D<usize> {
@@ -249,6 +283,28 @@ pub struct HorRegularGrid2<F> {
     extents: Vec2<F>,
 }
 
+impl<F: BFloat> HorRegularGrid2<F> {
+    pub fn from_regular_grid_data(
+        coords: [Coords2<F>; 2],
+        is_periodic: In2D<bool>,
+        shape: In2D<usize>,
+        lower_bounds: Vec2<F>,
+        upper_bounds: Vec2<F>,
+        extents: Vec2<F>,
+    ) -> Self {
+        let regular_y_coords = [coords[0][Dim2::Y].clone(), coords[1][Dim2::Y].clone()];
+        Self {
+            coords,
+            regular_y_coords,
+            is_periodic,
+            shape,
+            lower_bounds,
+            upper_bounds,
+            extents,
+        }
+    }
+}
+
 impl<F: BFloat> Grid2<F> for HorRegularGrid2<F> {
     const TYPE: GridType = GridType::HorRegular;
 
@@ -337,6 +393,26 @@ pub struct NonUniformGrid1<F> {
     lower_bound: F,
     upper_bound: F,
     extent: F,
+}
+
+impl<F: BFloat> NonUniformGrid1<F> {
+    pub fn from_regular_grid_data(
+        coords: [Vec<F>; 2],
+        size: usize,
+        lower_bound: F,
+        upper_bound: F,
+        extent: F,
+    ) -> Self {
+        let regular_coords = coords.clone();
+        Self {
+            coords,
+            regular_coords,
+            size,
+            lower_bound,
+            upper_bound,
+            extent,
+        }
+    }
 }
 
 impl<F: BFloat> Grid1<F> for NonUniformGrid1<F> {
@@ -429,7 +505,8 @@ mod tests {
             In3D::new(false, false, false),
             None,
             None,
-        );
+        )
+        .unwrap();
         assert_eq!(
             grid.find_grid_cell(&Point3::new(
                 xdn[mx - 1] + dx + 1e-12,

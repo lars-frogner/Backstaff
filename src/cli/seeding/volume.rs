@@ -90,14 +90,13 @@ pub fn create_volume_seeder_subcommand(_parent_command_name: &'static str) -> Co
 }
 
 /// Creates a volume seeder based on the provided arguments.
-pub fn create_volume_seeder_from_arguments<G, P, I>(
+pub fn create_volume_seeder_from_arguments<P, I>(
     arguments: &ArgMatches,
     provider: &mut P,
     interpolator: &I,
 ) -> VolumeSeeder3
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     let original_grid = provider.grid();

@@ -9,7 +9,7 @@ use super::{
 use crate::{
     field::{CachingScalarFieldProvider3, ScalarField3, VectorField3},
     geometry::{Dim3, Point3, Vec3},
-    grid::{fgr, Grid3},
+    grid::Grid3,
     interpolation::Interpolator3,
     io::{snapshot::fdt, utils, Endianness, Verbosity},
     num::BFloat,
@@ -59,11 +59,10 @@ pub trait FieldLineTracer3 {
     ///
     /// # Type parameters
     ///
-    /// - `G`: Type of grid.
     /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
     /// - `St`: Type of stepper.
-    fn trace<G, P, I, St>(
+    fn trace<P, I, St>(
         &self,
         field_name: &str,
         snapshot: &P,
@@ -72,8 +71,7 @@ pub trait FieldLineTracer3 {
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
         I: Interpolator3,
         St: Stepper3;
 }
@@ -138,11 +136,10 @@ impl FieldLineSet3 {
     ///
     /// - `Sd`: Type of seeder.
     /// - `Tr`: Type of field line tracer.
-    /// - `G`: Type of grid.
     /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn trace<Sd, Tr, G, P, I, StF>(
+    pub fn trace<Sd, Tr, P, I, StF>(
         field_name: &str,
         snapshot: &P,
         seeder: Sd,
@@ -156,8 +153,7 @@ impl FieldLineSet3 {
         Tr: FieldLineTracer3 + Sync,
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-        G: Grid3<fgr>,
-        P: CachingScalarFieldProvider3<fdt, G>,
+        P: CachingScalarFieldProvider3<fdt>,
         I: Interpolator3,
         StF: StepperFactory3 + Sync,
     {
@@ -204,10 +200,9 @@ impl FieldLineSet3 {
     }
 
     /// Extracts and stores the value of the given scalar field at the initial position for each field line.
-    pub fn extract_fixed_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {
@@ -239,10 +234,9 @@ impl FieldLineSet3 {
     }
 
     /// Extracts and stores the value of the given vector field at the initial position for each field line.
-    pub fn extract_fixed_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_fixed_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {
@@ -274,10 +268,9 @@ impl FieldLineSet3 {
     }
 
     /// Extracts and stores the value of the given scalar field at each position for each field line.
-    pub fn extract_varying_scalars<F, G, I>(&mut self, field: &ScalarField3<F, G>, interpolator: &I)
+    pub fn extract_varying_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {
@@ -317,10 +310,9 @@ impl FieldLineSet3 {
     }
 
     /// Extracts and stores the value of the given vector field at each position for each field line.
-    pub fn extract_varying_vectors<F, G, I>(&mut self, field: &VectorField3<F, G>, interpolator: &I)
+    pub fn extract_varying_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        G: Grid3<fgr>,
         I: Interpolator3,
     {
         if self.verbosity.print_messages() {

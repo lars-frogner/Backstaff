@@ -12,7 +12,11 @@ use crate::{
         Dim3::{self, X, Y, Z},
         Idx2, Idx3, In2D, In3D, Point3, PointTransformation2, SimplePolygon2, Vec2, Vec3,
     },
-    grid::{fgr, regular::RegularGrid2, CoordLocation, Grid1, Grid2, Grid3, GridPointQuery3},
+    grid::{
+        fgr,
+        hor_regular::{HorRegularGrid2, HorRegularGrid3, NonUniformGrid1},
+        CoordLocation, Grid1, Grid2, Grid3, GridPointQuery3,
+    },
     interpolation::Interpolator3,
     io::Verbosity,
     num::{BFloat, KeyValueOrderableByValue},
@@ -42,23 +46,23 @@ use approx::{AbsDiffEq, RelativeEq};
 use crate::num::ComparableSlice;
 
 /// Defines the properties of a provider of 3D scalar fields.
-pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<fgr>>: Sync {
+pub trait ScalarFieldProvider3<F: BFloat>: Sync {
     /// Returns a reference to the grid.
-    fn grid(&self) -> &G;
+    fn grid(&self) -> &FieldGrid3;
 
     /// Returns a new atomic reference counted pointer to the grid.
-    fn arc_with_grid(&self) -> Arc<G>;
+    fn arc_with_grid(&self) -> Arc<FieldGrid3>;
 
     /// Produces the field of the specified 3D scalar variable and returns it by value.
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F, G>>;
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F>>;
 
     /// Provides a reference to the field of the specified 3D scalar variable.
-    fn provide_scalar_field(&mut self, variable_name: &str) -> io::Result<Arc<ScalarField3<F, G>>> {
+    fn provide_scalar_field(&mut self, variable_name: &str) -> io::Result<Arc<ScalarField3<F>>> {
         Ok(Arc::new(self.produce_scalar_field(variable_name)?))
     }
 
     /// Produces the field of the specified 3D vector variable and returns it by value.
-    fn produce_vector_field(&mut self, variable_name: &str) -> io::Result<VectorField3<F, G>> {
+    fn produce_vector_field(&mut self, variable_name: &str) -> io::Result<VectorField3<F>> {
         Ok(VectorField3::new(
             variable_name.to_string(),
             self.arc_with_grid(),
@@ -74,17 +78,16 @@ pub trait ScalarFieldProvider3<F: BFloat, G: Grid3<fgr>>: Sync {
     }
 
     /// Provides a reference to the field of the specified 3D vector variable.
-    fn provide_vector_field(&mut self, variable_name: &str) -> io::Result<Arc<VectorField3<F, G>>> {
+    fn provide_vector_field(&mut self, variable_name: &str) -> io::Result<Arc<VectorField3<F>>> {
         Ok(Arc::new(self.produce_vector_field(variable_name)?))
     }
 }
 
 /// Defines the properties of a `ScalarFieldProvider3` wrapper that can
 /// be used to cache provided fields.
-pub trait CachingScalarFieldProvider3<F, G>: ScalarFieldProvider3<F, G>
+pub trait CachingScalarFieldProvider3<F>: ScalarFieldProvider3<F>
 where
     F: BFloat,
-    G: Grid3<fgr>,
 {
     /// Whether the scalar field representing the given variable is cached.
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool;
@@ -101,24 +104,24 @@ where
     /// Returns a reference to an `Arc` with the scalar field representing the given variable.
     ///
     /// Panics if the field is not cached.
-    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<F, G>>;
+    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<F>>;
 
     /// Returns a reference to the scalar field representing the given variable.
     ///
     /// Panics if the field is not cached.
-    fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<F, G> {
+    fn cached_scalar_field(&self, variable_name: &str) -> &ScalarField3<F> {
         self.arc_with_cached_scalar_field(variable_name).as_ref()
     }
 
     /// Returns a reference to an `Arc` with the vector field representing the given variable.
     ///
     /// Panics if the field is not cached.
-    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<F, G>>;
+    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<F>>;
 
     /// Returns a reference to the vector field representing the given variable.
     ///
     /// Panics if the field is not cached.
-    fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<F, G> {
+    fn cached_vector_field(&self, variable_name: &str) -> &VectorField3<F> {
         self.arc_with_cached_vector_field(variable_name).as_ref()
     }
 
@@ -156,21 +159,20 @@ impl<T> CachedField<T> {
 
 /// Wrapper for `ScalarFieldProvider3` that automatically caches provided variables.
 #[derive(Debug)]
-pub struct ScalarFieldCacher3<F, G, P> {
+pub struct ScalarFieldCacher3<F, P> {
     provider: P,
     max_memory_usage_fraction: f32,
     verbosity: Verbosity,
     system: System,
-    scalar_fields: HashMap<String, CachedField<ScalarField3<F, G>>>,
-    vector_fields: HashMap<String, Arc<VectorField3<F, G>>>,
+    scalar_fields: HashMap<String, CachedField<ScalarField3<F>>>,
+    vector_fields: HashMap<String, Arc<VectorField3<F>>>,
     request_counts: HashMap<String, u64>,
 }
 
-impl<F, G, P> ScalarFieldCacher3<F, G, P>
+impl<F, P> ScalarFieldCacher3<F, P>
 where
     F: BFloat,
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<F, G>,
+    P: ScalarFieldProvider3<F>,
 {
     /// Creates a new snapshot cacher from the given provider.
     pub fn new_manual_cacher(provider: P, verbosity: Verbosity) -> Self {
@@ -231,25 +233,24 @@ where
     }
 }
 
-impl<F, G, P> ScalarFieldProvider3<F, G> for ScalarFieldCacher3<F, G, P>
+impl<F, P> ScalarFieldProvider3<F> for ScalarFieldCacher3<F, P>
 where
     F: BFloat,
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<F, G>,
+    P: ScalarFieldProvider3<F>,
 {
-    fn grid(&self) -> &G {
+    fn grid(&self) -> &FieldGrid3 {
         self.provider.grid()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         self.provider.arc_with_grid()
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F>> {
         Ok(self.provide_scalar_field(variable_name)?.as_ref().clone())
     }
 
-    fn provide_scalar_field(&mut self, variable_name: &str) -> io::Result<Arc<ScalarField3<F, G>>> {
+    fn provide_scalar_field(&mut self, variable_name: &str) -> io::Result<Arc<ScalarField3<F>>> {
         let request_count = self.increment_request_count(variable_name);
 
         let (field, variable_to_replace) = match self.scalar_fields.entry(variable_name.to_string())
@@ -334,11 +335,10 @@ where
     }
 }
 
-impl<F, G, P> CachingScalarFieldProvider3<F, G> for ScalarFieldCacher3<F, G, P>
+impl<F, P> CachingScalarFieldProvider3<F> for ScalarFieldCacher3<F, P>
 where
     F: BFloat,
-    G: Grid3<fgr>,
-    P: ScalarFieldProvider3<F, G>,
+    P: ScalarFieldProvider3<F>,
 {
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.scalar_fields.contains_key(variable_name)
@@ -373,7 +373,7 @@ where
         Ok(())
     }
 
-    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<F, G>> {
+    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<F>> {
         let field = self
             .scalar_fields
             .get(variable_name)
@@ -385,7 +385,7 @@ where
         field
     }
 
-    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<F, G>> {
+    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<F>> {
         let field = self
             .vector_fields
             .get(variable_name)
@@ -427,16 +427,15 @@ pub type FieldValueComputer<F> = Box<dyn Fn(fgr, fgr, fgr) -> F + Sync>;
 
 /// Object for generating general 3D scalar fields by computing values
 /// using provided closures.
-pub struct CustomScalarFieldGenerator3<F, G> {
-    grid: Arc<G>,
+pub struct CustomScalarFieldGenerator3<F> {
+    grid: Arc<FieldGrid3>,
     variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
     verbosity: Verbosity,
 }
 
-impl<F, G> CustomScalarFieldGenerator3<F, G>
+impl<F> CustomScalarFieldGenerator3<F>
 where
     F: BFloat,
-    G: Grid3<fgr>,
 {
     /// Creates a new generator of 3D scalar fields.
     ///
@@ -445,7 +444,7 @@ where
     /// be provided. Each closure computes a value given a point on the
     /// grid.
     pub fn new_with_variables(
-        grid: Arc<G>,
+        grid: Arc<FieldGrid3>,
         variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
         verbosity: Verbosity,
     ) -> Self {
@@ -456,7 +455,7 @@ where
         }
     }
 
-    pub fn new(grid: Arc<G>, verbosity: Verbosity) -> Self {
+    pub fn new(grid: Arc<FieldGrid3>, verbosity: Verbosity) -> Self {
         Self::new_with_variables(grid, HashMap::new(), verbosity)
     }
 
@@ -483,7 +482,7 @@ where
         self.variable_computers.keys().cloned().collect()
     }
 
-    fn compute_field(&self, variable_name: &str) -> io::Result<ScalarField3<F, G>> {
+    fn compute_field(&self, variable_name: &str) -> io::Result<ScalarField3<F>> {
         let variable_name = variable_name.to_string();
 
         if self.verbosity.print_messages() {
@@ -501,7 +500,7 @@ where
         let grid = self.grid();
         let grid_shape = grid.shape();
 
-        let coords = ScalarField3::<F, G>::coords_from_grid(grid, locations);
+        let coords = ScalarField3::<F>::coords_from_grid(grid, locations);
 
         let mut values = Array3::uninit(grid_shape.to_tuple().f());
         let values_buffer = values.as_slice_memory_order_mut().unwrap();
@@ -524,21 +523,20 @@ where
     }
 }
 
-impl<F, G> ScalarFieldProvider3<F, G> for CustomScalarFieldGenerator3<F, G>
+impl<F> ScalarFieldProvider3<F> for CustomScalarFieldGenerator3<F>
 where
     F: BFloat,
-    G: Grid3<fgr>,
     FieldValueComputer<F>: Sync,
 {
-    fn grid(&self) -> &G {
+    fn grid(&self) -> &FieldGrid3 {
         self.grid.as_ref()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.grid)
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F>> {
         self.compute_field(variable_name)
     }
 }
@@ -608,15 +606,24 @@ pub enum ResamplingMethod {
     DirectSampling,
 }
 
+/// The type of grid held by 3D fields.
+pub type FieldGrid3 = HorRegularGrid3<fgr>;
+
+/// The type of grid held by 2D fields.
+pub type FieldGrid2 = HorRegularGrid2<fgr>;
+
+/// The type of grid held by 1D fields.
+pub type FieldGrid1 = NonUniformGrid1<fgr>;
+
 /// A 3D scalar field.
 ///
 /// Holds the grid and values of a 3D scalar field, as well as the
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct ScalarField3<F, G> {
+pub struct ScalarField3<F> {
     name: String,
-    grid: Arc<G>,
+    grid: Arc<FieldGrid3>,
     locations: In3D<CoordLocation>,
     values: Array3<F>,
 }
@@ -627,16 +634,15 @@ macro_rules! sliding_window {
     };
 }
 
-impl<F, G> ScalarField3<F, G>
+impl<F> ScalarField3<F>
 where
     F: BFloat,
-    G: Grid3<fgr>,
 {
     /// Creates a new scalar field given a name, a grid, the values and
     /// coordinate locations specifying where in the grid cell the values are defined.
     pub fn new(
         name: String,
-        grid: Arc<G>,
+        grid: Arc<FieldGrid3>,
         locations: In3D<CoordLocation>,
         values: Array3<F>,
     ) -> Self {
@@ -662,12 +668,12 @@ where
     }
 
     /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
+    pub fn grid(&self) -> &FieldGrid3 {
         self.grid.as_ref()
     }
 
     /// Returns a new atomic reference counted pointer to the grid.
-    pub fn arc_with_grid(&self) -> Arc<G> {
+    pub fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.grid)
     }
 
@@ -724,7 +730,7 @@ where
 
     /// Creates a new scalar field restricted to slices of the coordinate arrays of
     /// the original field.
-    pub fn subfield(&self, subgrid: Arc<G>, start_indices: &Idx3<usize>) -> Self {
+    pub fn subfield(&self, subgrid: Arc<FieldGrid3>, start_indices: &Idx3<usize>) -> Self {
         let subgrid_shape = subgrid.shape();
 
         let buffer = self.values.slice(s![
@@ -792,16 +798,15 @@ where
 
     /// Resamples the scalar field onto the given grid using the given method and
     /// returns the resampled field.
-    pub fn resampled_to_grid<H, I>(
+    pub fn resampled_to_grid<I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         method: ResamplingMethod,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H>
+    ) -> ScalarField3<F>
     where
-        H: Grid3<fgr>,
         I: Interpolator3,
     {
         match method {
@@ -828,17 +833,16 @@ where
     ///
     /// The horizontal components of the grid are transformed with respect to the original
     /// grid using the given point transformation prior to resampling.
-    pub fn resampled_to_transformed_grid<H, T, I>(
+    pub fn resampled_to_transformed_grid<T, I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         method: ResamplingMethod,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H>
+    ) -> ScalarField3<F>
     where
-        H: Grid3<fgr>,
         T: PointTransformation2<fgr>,
         I: Interpolator3,
     {
@@ -878,15 +882,14 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_grid_with_sample_averaging<H, I>(
+    pub fn resampled_to_grid_with_sample_averaging<I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H>
+    ) -> ScalarField3<F>
     where
-        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let overlying_grid = grid;
@@ -1015,16 +1018,15 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_transformed_grid_with_sample_averaging<H, T, I>(
+    pub fn resampled_to_transformed_grid_with_sample_averaging<T, I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H>
+    ) -> ScalarField3<F>
     where
-        H: Grid3<fgr>,
         T: PointTransformation2<fgr>,
         I: Interpolator3,
     {
@@ -1199,12 +1201,12 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_grid_with_cell_averaging<H: Grid3<fgr>>(
+    pub fn resampled_to_grid_with_cell_averaging(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         resampled_locations: In3D<ResampledCoordLocation>,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H> {
+    ) -> ScalarField3<F> {
         let overlying_grid = grid;
         let overlying_locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
@@ -1308,15 +1310,14 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_transformed_grid_with_cell_averaging<H, T>(
+    pub fn resampled_to_transformed_grid_with_cell_averaging<T>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H>
+    ) -> ScalarField3<F>
     where
-        H: Grid3<fgr>,
         T: PointTransformation2<fgr>,
     {
         const MIN_INTERSECTION_AREA: fgr = 1e-6;
@@ -1468,15 +1469,14 @@ where
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
     /// more noisy result than weighted averaging.
-    pub fn resampled_to_grid_with_direct_sampling<H, I>(
+    pub fn resampled_to_grid_with_direct_sampling<I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H>
+    ) -> ScalarField3<F>
     where
-        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let locations =
@@ -1517,16 +1517,15 @@ where
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
     /// more noisy result than weighted averaging.
-    pub fn resampled_to_transformed_grid_with_direct_sampling<H, T, I>(
+    pub fn resampled_to_transformed_grid_with_direct_sampling<T, I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &I,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F, H>
+    ) -> ScalarField3<F>
     where
-        H: Grid3<fgr>,
         T: PointTransformation2<fgr>,
         I: Interpolator3,
     {
@@ -1571,7 +1570,7 @@ where
         interpolator: &I,
         x_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F, G::XSliceGrid>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
@@ -1590,7 +1589,7 @@ where
         interpolator: &I,
         y_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F, G::YSliceGrid>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
@@ -1609,13 +1608,13 @@ where
         interpolator: &I,
         z_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F, G::ZSliceGrid>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
         let slice_grid = self.grid.slice_across_z();
         self.create_slice_across_z(
-            Arc::new(slice_grid),
+            Arc::new(slice_grid.into()),
             interpolator,
             z_coord,
             resampled_location,
@@ -1629,13 +1628,13 @@ where
         axis: Dim3,
         coord: fgr,
         location: CoordLocation,
-    ) -> ScalarField2<F, RegularGrid2<fgr>>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
         let slice_grid = self.grid.regular_slice_across_axis(axis);
         self.create_regular_slice_across_axis(
-            Arc::new(slice_grid),
+            Arc::new(slice_grid.into()),
             interpolator,
             axis,
             coord,
@@ -1643,8 +1642,8 @@ where
         )
     }
 
-    fn compute_overlying_grid_cell_corners_for_resampling<H: Grid3<fgr>>(
-        overlying_grid: &H,
+    fn compute_overlying_grid_cell_corners_for_resampling(
+        overlying_grid: &FieldGrid3,
         overlying_grid_cell_idx: usize,
     ) -> (Point3<fgr>, Point3<fgr>) {
         let overlying_indices =
@@ -1766,8 +1765,8 @@ where
         )
     }
 
-    fn coords_from_grid<'a, 'b, H: Grid3<fgr>>(
-        grid: &'a H,
+    fn coords_from_grid<'a, 'b>(
+        grid: &'a FieldGrid3,
         locations: &'b In3D<CoordLocation>,
     ) -> CoordRefs3<'a, fgr> {
         CoordRefs3::new(
@@ -1777,7 +1776,7 @@ where
         )
     }
 
-    fn set_grid(&mut self, new_grid: Arc<G>) {
+    fn set_grid(&mut self, new_grid: Arc<FieldGrid3>) {
         let grid_shape = new_grid.shape();
         let values_shape = self.values.shape();
         assert!(
@@ -1791,11 +1790,11 @@ where
 
     fn create_slice_across_x<I>(
         &self,
-        slice_grid: Arc<G::XSliceGrid>,
+        slice_grid: Arc<FieldGrid2>,
         interpolator: &I,
         x_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F, G::XSliceGrid>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
@@ -1812,11 +1811,11 @@ where
 
     fn create_slice_across_y<I>(
         &self,
-        slice_grid: Arc<G::YSliceGrid>,
+        slice_grid: Arc<FieldGrid2>,
         interpolator: &I,
         y_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F, G::YSliceGrid>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
@@ -1833,11 +1832,11 @@ where
 
     fn create_slice_across_z<I>(
         &self,
-        slice_grid: Arc<G::ZSliceGrid>,
+        slice_grid: Arc<FieldGrid2>,
         interpolator: &I,
         z_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F, G::ZSliceGrid>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
@@ -1854,12 +1853,12 @@ where
 
     fn create_regular_slice_across_axis<I>(
         &self,
-        slice_grid: Arc<RegularGrid2<fgr>>,
+        slice_grid: Arc<FieldGrid2>,
         interpolator: &I,
         axis: Dim3,
         coord: fgr,
         location: CoordLocation,
-    ) -> ScalarField2<F, RegularGrid2<fgr>>
+    ) -> ScalarField2<F>
     where
         I: Interpolator3,
     {
@@ -2033,14 +2032,12 @@ macro_rules! find_largest_field_value_difference {
 
 #[cfg(feature = "for-testing")]
 macro_rules! impl_partial_eq_for_field {
-    ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
-        impl<$F, $G, $H> PartialEq<$T<$F, $H>> for $T<$F, $G>
+    ($T:ident <$F:ident>) => {
+        impl<$F> PartialEq<$T<$F>> for $T<$F>
         where
             $F: BFloat,
-            $G: $GT<$GTF> + PartialEq<$H>,
-            $H: $GT<$GTF> + PartialEq<$G>,
         {
-            fn eq(&self, other: &$T<$F, $H>) -> bool {
+            fn eq(&self, other: &$T<$F>) -> bool {
                 self.locations() == other.locations()
                     && self.grid() == other.grid()
                     && self.values() == other.values()
@@ -2051,14 +2048,12 @@ macro_rules! impl_partial_eq_for_field {
 
 #[cfg(feature = "for-testing")]
 macro_rules! impl_abs_diff_eq_for_field {
-    ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
-        impl<$F, $G, $H> AbsDiffEq<$T<$F, $H>> for $T<$F, $G>
+    ($T:ident <$F:ident>) => {
+        impl<$F> AbsDiffEq<$T<$F>> for $T<$F>
         where
             $F: BFloat + AbsDiffEq,
             $F::Epsilon: Copy,
-            $G: $GT<$GTF> + AbsDiffEq<$H>,
-            $H: $GT<$GTF> + AbsDiffEq<$G>,
-            <$G as AbsDiffEq<$H>>::Epsilon: ::std::convert::From<<$F as AbsDiffEq>::Epsilon>,
+            fgr: From<<$F as AbsDiffEq>::Epsilon>,
         {
             type Epsilon = <$F as AbsDiffEq>::Epsilon;
 
@@ -2066,7 +2061,7 @@ macro_rules! impl_abs_diff_eq_for_field {
                 $F::default_epsilon()
             }
 
-            fn abs_diff_eq(&self, other: &$T<$F, $H>, epsilon: Self::Epsilon) -> bool {
+            fn abs_diff_eq(&self, other: &$T<$F>, epsilon: Self::Epsilon) -> bool {
                 let self_values = ComparableSlice(self.values().as_slice_memory_order().unwrap());
                 let other_values = ComparableSlice(other.values().as_slice_memory_order().unwrap());
                 self.locations() == other.locations()
@@ -2079,14 +2074,12 @@ macro_rules! impl_abs_diff_eq_for_field {
 
 #[cfg(feature = "for-testing")]
 macro_rules! impl_relative_eq_for_field {
-    ($T:ident <$F:ident, $G:ident>, $H:ident, $GT:ident <$GTF:ident>) => {
-        impl<$F, $G, $H> RelativeEq<$T<$F, $H>> for $T<$F, $G>
+    ($T:ident <$F:ident>) => {
+        impl<$F> RelativeEq<$T<$F>> for $T<$F>
         where
             $F: BFloat + RelativeEq,
             $F::Epsilon: Copy,
-            $G: $GT<$GTF> + RelativeEq<$H>,
-            $H: $GT<$GTF> + RelativeEq<$G>,
-            <$G as AbsDiffEq<$H>>::Epsilon: ::std::convert::From<<$F as AbsDiffEq>::Epsilon>,
+            fgr: From<<$F as AbsDiffEq>::Epsilon>,
         {
             fn default_max_relative() -> Self::Epsilon {
                 $F::default_max_relative()
@@ -2094,7 +2087,7 @@ macro_rules! impl_relative_eq_for_field {
 
             fn relative_eq(
                 &self,
-                other: &$T<$F, $H>,
+                other: &$T<$F>,
                 epsilon: Self::Epsilon,
                 max_relative: Self::Epsilon,
             ) -> bool {
@@ -2133,13 +2126,13 @@ macro_rules! impl_relative_eq_for_field {
 }
 
 #[cfg(feature = "for-testing")]
-impl_partial_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
+impl_partial_eq_for_field!(ScalarField3<F>);
 
 #[cfg(feature = "for-testing")]
-impl_abs_diff_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
+impl_abs_diff_eq_for_field!(ScalarField3<F>);
 
 #[cfg(feature = "for-testing")]
-impl_relative_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
+impl_relative_eq_for_field!(ScalarField3<F>);
 
 /// A 3D vector field.
 ///
@@ -2147,20 +2140,19 @@ impl_relative_eq_for_field!(ScalarField3<F, G>, H, Grid3<fgr>);
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct VectorField3<F, G> {
+pub struct VectorField3<F> {
     name: String,
-    grid: Arc<G>,
-    components: In3D<ScalarField3<F, G>>,
+    grid: Arc<FieldGrid3>,
+    components: In3D<ScalarField3<F>>,
 }
 
-impl<F, G> VectorField3<F, G>
+impl<F> VectorField3<F>
 where
     F: BFloat,
-    G: Grid3<fgr>,
 {
     /// Creates a new vector field given a name, a grid, and the scalar fields
     /// representing the component values.
-    pub fn new(name: String, grid: Arc<G>, mut components: In3D<ScalarField3<F, G>>) -> Self {
+    pub fn new(name: String, grid: Arc<FieldGrid3>, mut components: In3D<ScalarField3<F>>) -> Self {
         components[X].set_grid(Arc::clone(&grid));
         components[Y].set_grid(Arc::clone(&grid));
         components[Z].set_grid(Arc::clone(&grid));
@@ -2177,18 +2169,18 @@ where
     }
 
     /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
+    pub fn grid(&self) -> &FieldGrid3 {
         self.grid.as_ref()
     }
 
     /// Returns a new atomic reference counted pointer to the grid.
-    pub fn arc_with_grid(&self) -> Arc<G> {
+    pub fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.grid)
     }
 
     /// Returns a reference to the scalar field representing the specified
     /// vector field component.
-    pub fn component(&self, dim: Dim3) -> &ScalarField3<F, G> {
+    pub fn component(&self, dim: Dim3) -> &ScalarField3<F> {
         &self.components[dim]
     }
 
@@ -2250,14 +2242,13 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_grid_with_sample_averaging<H, I>(
+    pub fn resampled_to_grid_with_sample_averaging<I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         interpolator: &I,
         verbosity: &Verbosity,
-    ) -> VectorField3<F, H>
+    ) -> VectorField3<F>
     where
-        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let components = In3D::with_each_component(|dim| {
@@ -2278,11 +2269,11 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_grid_with_cell_averaging<H: Grid3<fgr>>(
+    pub fn resampled_to_grid_with_cell_averaging(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         verbosity: &Verbosity,
-    ) -> VectorField3<F, H> {
+    ) -> VectorField3<F> {
         let components = In3D::with_each_component(|dim| {
             self.components[dim].resampled_to_grid_with_cell_averaging(
                 Arc::clone(&grid),
@@ -2300,14 +2291,13 @@ where
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
     /// more noisy result than weighted averaging.
-    pub fn resampled_to_grid_with_direct_sampling<H, I>(
+    pub fn resampled_to_grid_with_direct_sampling<I>(
         &self,
-        grid: Arc<H>,
+        grid: Arc<FieldGrid3>,
         interpolator: &I,
         verbosity: &Verbosity,
-    ) -> VectorField3<F, H>
+    ) -> VectorField3<F>
     where
-        H: Grid3<fgr>,
         I: Interpolator3,
     {
         let components = In3D::with_each_component(|dim| {
@@ -2333,7 +2323,7 @@ where
         interpolator: &I,
         x_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> PlaneVectorField3<F, G::XSliceGrid>
+    ) -> PlaneVectorField3<F>
     where
         I: Interpolator3,
     {
@@ -2355,7 +2345,7 @@ where
         interpolator: &I,
         y_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> PlaneVectorField3<F, G::YSliceGrid>
+    ) -> PlaneVectorField3<F>
     where
         I: Interpolator3,
     {
@@ -2377,11 +2367,11 @@ where
         interpolator: &I,
         z_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> PlaneVectorField3<F, G::ZSliceGrid>
+    ) -> PlaneVectorField3<F>
     where
         I: Interpolator3,
     {
-        let slice_grid = Arc::new(self.grid.slice_across_z());
+        let slice_grid = Arc::new(self.grid.slice_across_z().into());
         let slice_field_components = In3D::with_each_component(|dim| {
             self.components[dim].create_slice_across_z(
                 Arc::clone(&slice_grid),
@@ -2400,11 +2390,11 @@ where
         axis: Dim3,
         coord: fgr,
         location: CoordLocation,
-    ) -> PlaneVectorField3<F, RegularGrid2<fgr>>
+    ) -> PlaneVectorField3<F>
     where
         I: Interpolator3,
     {
-        let slice_grid = Arc::new(self.grid.regular_slice_across_axis(axis));
+        let slice_grid = Arc::new(self.grid.regular_slice_across_axis(axis).into());
         let slice_field_components = In3D::with_each_component(|dim| {
             self.components[dim].create_regular_slice_across_axis(
                 Arc::clone(&slice_grid),
@@ -2424,20 +2414,19 @@ where
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct ReducedVectorField3<F, G> {
+pub struct ReducedVectorField3<F> {
     name: String,
-    grid: Arc<G>,
-    components: In2D<Option<ScalarField3<F, G>>>, // Wrap fields in `Option` to make them takeable
+    grid: Arc<FieldGrid3>,
+    components: In2D<Option<ScalarField3<F>>>, // Wrap fields in `Option` to make them takeable
 }
 
-impl<F, G> ReducedVectorField3<F, G>
+impl<F> ReducedVectorField3<F>
 where
     F: BFloat,
-    G: Grid3<fgr>,
 {
     /// Creates a new reduced vector field given a name, a grid, and the scalar fields
     /// representing the component values.
-    pub fn new(name: String, grid: Arc<G>, components: In2D<ScalarField3<F, G>>) -> Self {
+    pub fn new(name: String, grid: Arc<FieldGrid3>, components: In2D<ScalarField3<F>>) -> Self {
         let (mut x_components, mut y_components) = components.into_tuple();
         x_components.set_grid(Arc::clone(&grid));
         y_components.set_grid(Arc::clone(&grid));
@@ -2454,24 +2443,24 @@ where
     }
 
     /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
+    pub fn grid(&self) -> &FieldGrid3 {
         self.grid.as_ref()
     }
 
     /// Returns a new atomic reference counted pointer to the grid.
-    pub fn arc_with_grid(&self) -> Arc<G> {
+    pub fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.grid)
     }
 
     /// Returns a reference to the scalar field representing the specified
     /// vector field component.
-    pub fn component(&self, dim: Dim2) -> &ScalarField3<F, G> {
+    pub fn component(&self, dim: Dim2) -> &ScalarField3<F> {
         self.components[dim].as_ref().unwrap()
     }
 
     /// Consumes the vector field and returns the scalar fields representing
     /// the vector components.
-    pub fn into_components(self) -> In2D<ScalarField3<F, G>> {
+    pub fn into_components(self) -> In2D<ScalarField3<F>> {
         let (x_components, y_components) = self.components.into_tuple();
         In2D::new(x_components.unwrap(), y_components.unwrap())
     }
@@ -2563,9 +2552,9 @@ where
 /// specific coordinates where the values are defined.
 /// The array of values is laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct ScalarField2<F, G> {
+pub struct ScalarField2<F> {
     name: String,
-    grid: Arc<G>,
+    grid: Arc<FieldGrid2>,
     locations: In2D<CoordLocation>,
     values: Array2<F>,
 }
@@ -2576,16 +2565,15 @@ struct ScalarFieldSerializeData2<F> {
     values: Array2<F>,
 }
 
-impl<F, G> ScalarField2<F, G>
+impl<F> ScalarField2<F>
 where
     F: BFloat,
-    G: Grid2<fgr>,
 {
     /// Creates a new scalar field given a name, a grid, the values and
     /// coordinate locations specifying where in the grid cell the values are defined.
     pub fn new(
         name: String,
-        grid: Arc<G>,
+        grid: Arc<FieldGrid2>,
         locations: In2D<CoordLocation>,
         values: Array2<F>,
     ) -> Self {
@@ -2603,12 +2591,12 @@ where
     }
 
     /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
+    pub fn grid(&self) -> &FieldGrid2 {
         self.grid.as_ref()
     }
 
     /// Returns a new atomic reference counted pointer to the grid.
-    pub fn arc_with_grid(&self) -> Arc<G> {
+    pub fn arc_with_grid(&self) -> Arc<FieldGrid2> {
         Arc::clone(&self.grid)
     }
 
@@ -2727,7 +2715,7 @@ where
         save_data_as_pickle(output_file_path, &data)
     }
 
-    fn set_grid(&mut self, new_grid: Arc<G>) {
+    fn set_grid(&mut self, new_grid: Arc<FieldGrid2>) {
         let grid_shape = new_grid.shape();
         let values_shape = self.values.shape();
         assert!(
@@ -2739,13 +2727,13 @@ where
 }
 
 #[cfg(feature = "for-testing")]
-impl_partial_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
+impl_partial_eq_for_field!(ScalarField2<F>);
 
 #[cfg(feature = "for-testing")]
-impl_abs_diff_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
+impl_abs_diff_eq_for_field!(ScalarField2<F>);
 
 #[cfg(feature = "for-testing")]
-impl_relative_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
+impl_relative_eq_for_field!(ScalarField2<F>);
 
 /// A 2D vector field.
 ///
@@ -2753,20 +2741,19 @@ impl_relative_eq_for_field!(ScalarField2<F, G>, H, Grid2<fgr>);
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct VectorField2<F, G> {
+pub struct VectorField2<F> {
     name: String,
-    grid: Arc<G>,
-    components: In2D<ScalarField2<F, G>>,
+    grid: Arc<FieldGrid2>,
+    components: In2D<ScalarField2<F>>,
 }
 
-impl<F, G> VectorField2<F, G>
+impl<F> VectorField2<F>
 where
     F: BFloat,
-    G: Grid2<fgr>,
 {
     /// Creates a new vector field given a name, a grid, and the scalar fields
     /// representing the component values.
-    pub fn new(name: String, grid: Arc<G>, mut components: In2D<ScalarField2<F, G>>) -> Self {
+    pub fn new(name: String, grid: Arc<FieldGrid2>, mut components: In2D<ScalarField2<F>>) -> Self {
         components[Dim2::X].set_grid(Arc::clone(&grid));
         components[Dim2::Y].set_grid(Arc::clone(&grid));
         Self {
@@ -2782,18 +2769,18 @@ where
     }
 
     /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
+    pub fn grid(&self) -> &FieldGrid2 {
         self.grid.as_ref()
     }
 
     /// Returns a new atomic reference counted pointer to the grid.
-    pub fn arc_with_grid(&self) -> Arc<G> {
+    pub fn arc_with_grid(&self) -> Arc<FieldGrid2> {
         Arc::clone(&self.grid)
     }
 
     /// Returns a reference to the scalar field representing the specified
     /// vector field component.
-    pub fn component(&self, dim: Dim2) -> &ScalarField2<F, G> {
+    pub fn component(&self, dim: Dim2) -> &ScalarField2<F> {
         &self.components[dim]
     }
 
@@ -2851,20 +2838,19 @@ where
 /// as well as the specific coordinates where the component values are defined.
 /// The arrays of component values are laid out in column-major order in memory.
 #[derive(Clone, Debug)]
-pub struct PlaneVectorField3<F, G> {
+pub struct PlaneVectorField3<F> {
     name: String,
-    grid: Arc<G>,
-    components: In3D<ScalarField2<F, G>>,
+    grid: Arc<FieldGrid2>,
+    components: In3D<ScalarField2<F>>,
 }
 
-impl<F, G> PlaneVectorField3<F, G>
+impl<F> PlaneVectorField3<F>
 where
     F: BFloat,
-    G: Grid2<fgr>,
 {
     /// Creates a new vector field given a name, a grid, and the scalar fields
     /// representing the component values.
-    pub fn new(name: String, grid: Arc<G>, mut components: In3D<ScalarField2<F, G>>) -> Self {
+    pub fn new(name: String, grid: Arc<FieldGrid2>, mut components: In3D<ScalarField2<F>>) -> Self {
         components[X].set_grid(Arc::clone(&grid));
         components[Y].set_grid(Arc::clone(&grid));
         components[Z].set_grid(Arc::clone(&grid));
@@ -2881,18 +2867,18 @@ where
     }
 
     /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
+    pub fn grid(&self) -> &FieldGrid2 {
         self.grid.as_ref()
     }
 
     /// Returns a new atomic reference counted pointer to the grid.
-    pub fn arc_with_grid(&self) -> Arc<G> {
+    pub fn arc_with_grid(&self) -> Arc<FieldGrid2> {
         Arc::clone(&self.grid)
     }
 
     /// Returns a reference to the scalar field representing the specified
     /// vector field component.
-    pub fn component(&self, dim: Dim3) -> &ScalarField2<F, G> {
+    pub fn component(&self, dim: Dim3) -> &ScalarField2<F> {
         &self.components[dim]
     }
 
@@ -2951,9 +2937,9 @@ where
 /// Holds the grid and values of a 1D scalar field, as well as the
 /// specific coordinates where the values are defined.
 #[derive(Clone, Debug)]
-pub struct ScalarField1<F, G> {
+pub struct ScalarField1<F> {
     name: String,
-    grid: Arc<G>,
+    grid: Arc<FieldGrid1>,
     location: CoordLocation,
     values: Array1<F>,
 }
@@ -2964,14 +2950,18 @@ struct ScalarFieldSerializeData1<F> {
     values: Array1<F>,
 }
 
-impl<F, G> ScalarField1<F, G>
+impl<F> ScalarField1<F>
 where
     F: BFloat,
-    G: Grid1<fgr>,
 {
     /// Creates a new scalar field given a name, a grid, the values and
     /// coordinate location specifying where in the grid cell the values are defined.
-    pub fn new(name: String, grid: Arc<G>, location: CoordLocation, values: Array1<F>) -> Self {
+    pub fn new(
+        name: String,
+        grid: Arc<FieldGrid1>,
+        location: CoordLocation,
+        values: Array1<F>,
+    ) -> Self {
         Self {
             name,
             grid,
@@ -2986,12 +2976,12 @@ where
     }
 
     /// Returns a reference to the grid.
-    pub fn grid(&self) -> &G {
+    pub fn grid(&self) -> &FieldGrid1 {
         self.grid.as_ref()
     }
 
     /// Returns a new atomic reference counted pointer to the grid.
-    pub fn arc_with_grid(&self) -> Arc<G> {
+    pub fn arc_with_grid(&self) -> Arc<FieldGrid1> {
         Arc::clone(&self.grid)
     }
 

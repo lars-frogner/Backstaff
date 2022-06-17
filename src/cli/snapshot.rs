@@ -24,7 +24,6 @@ use crate::{
     add_subcommand_combinations,
     cli::utils as cli_utils,
     exit_on_error, exit_on_false, exit_with_error,
-    grid::{fgr, Grid3},
     io::{
         snapshot::{
             self,
@@ -107,12 +106,6 @@ pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command
                 .short('v')
                 .long("verbose")
                 .help("Print status messages related to reading"),
-        )
-        .arg(
-            Arg::new("force-horizontally-regular")
-                .long("force-horizontally-regular")
-                .help("Treat the grid as horizontally regular even if fully regular")
-                .hide(true),
         );
 
     add_subcommand_combinations!(
@@ -190,33 +183,24 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &mut IOContex
 
     let verbosity: Verbosity = cli_utils::parse_verbosity(arguments, false);
 
-    let force_hor_regular = arguments.is_present("force-horizontally-regular");
-
     for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
         io_context.set_snap_num_in_range(snap_num_in_range);
         exit_on_error!(
-            with_new_snapshot_reader!(
-                file_path,
-                endianness,
-                verbosity.clone(),
-                force_hor_regular,
-                |reader| {
-                    run_snapshot_subcommand_with_derive(arguments, reader, io_context);
-                    Ok(())
-                }
-            ),
+            with_new_snapshot_reader!(file_path, endianness, verbosity.clone(), |reader| {
+                run_snapshot_subcommand_with_derive(arguments, reader, io_context);
+                Ok(())
+            }),
             "Error: {}"
         );
     }
 }
 
-fn run_snapshot_subcommand_with_derive<G, P>(
+fn run_snapshot_subcommand_with_derive<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
@@ -228,13 +212,12 @@ fn run_snapshot_subcommand_with_derive<G, P>(
     run_snapshot_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
 }
 
-fn run_snapshot_subcommand_with_synthesis<G, P>(
+fn run_snapshot_subcommand_with_synthesis<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
@@ -246,13 +229,12 @@ fn run_snapshot_subcommand_with_synthesis<G, P>(
     run_snapshot_subcommand_for_provider(arguments, provider, io_context);
 }
 
-fn run_snapshot_subcommand_with_synthesis_added_caching<G, P>(
+fn run_snapshot_subcommand_with_synthesis_added_caching<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
@@ -265,13 +247,12 @@ fn run_snapshot_subcommand_with_synthesis_added_caching<G, P>(
     run_snapshot_subcommand_for_provider(arguments, provider, io_context);
 }
 
-fn run_snapshot_subcommand_for_provider<G, P>(
+fn run_snapshot_subcommand_for_provider<P>(
     arguments: &ArgMatches,
     provider: P,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
         inspect::run_inspect_subcommand(inspect_arguments, provider, io_context);
@@ -320,14 +301,13 @@ fn run_snapshot_subcommand_for_provider<G, P>(
     }
 }
 
-fn parse_included_quantity_list<G, P>(
+fn parse_included_quantity_list<P>(
     arguments: &ArgMatches,
     provider: &P,
     continue_on_warnings: bool,
 ) -> Vec<String>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     remove_duplicate_quantities(
         if let Some(excluded_quantities) = arguments.values_of("excluded-quantities") {

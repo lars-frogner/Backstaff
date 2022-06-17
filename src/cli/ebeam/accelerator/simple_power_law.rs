@@ -8,7 +8,6 @@ use crate::{
     },
     ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig,
     exit_on_error,
-    grid::{fgr, Grid3},
     io::snapshot::SnapshotProvider3,
     units::solar::U_T,
     update_command_graph,
@@ -174,13 +173,12 @@ pub fn create_simple_power_law_accelerator_subcommand(
 
 /// Determines simple power-law distribution accelerator parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_power_law_accelerator_config_from_options<G, P>(
+pub fn construct_simple_power_law_accelerator_config_from_options<P>(
     arguments: &ArgMatches,
     provider: &P,
 ) -> SimplePowerLawAccelerationConfig
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let acceleration_duration = utils::get_value_from_param_file_argument_with_default(
         provider,

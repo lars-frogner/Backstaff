@@ -17,7 +17,7 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{fgr, Grid3},
+    grid::Grid3,
     interpolation::Interpolator3,
     io::{snapshot::SnapshotProvider3, utils::IOContext, Verbosity},
     update_command_graph,
@@ -82,7 +82,7 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
     )
 }
 
-pub fn run_resampling_for_reshaped_grid<G, P, I>(
+pub fn run_resampling_for_reshaped_grid<P, I>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -93,8 +93,7 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
     interpolator: I,
     io_context: &mut IOContext,
 ) where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
 {
     let original_shape = provider.grid().shape();
@@ -125,9 +124,10 @@ pub fn run_resampling_for_reshaped_grid<G, P, I>(
         Some(shape)
     };
 
-    super::resample_to_reshaped_grid(
-        arguments,
+    super::resample_to_grid(
+        provider.grid().clone(),
         new_shape,
+        arguments,
         provider,
         resampled_locations,
         resampling_method,

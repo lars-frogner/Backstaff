@@ -2,11 +2,8 @@
 
 use super::super::distribution::power_law::create_power_law_distribution_subcommand;
 use crate::{
-    cli::utils,
-    ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
-    grid::{fgr, Grid3},
-    io::snapshot::SnapshotProvider3,
-    update_command_graph,
+    cli::utils, ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
+    io::snapshot::SnapshotProvider3, update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
@@ -57,13 +54,12 @@ pub fn create_simple_reconnection_site_detector_subcommand(
 
 /// Determines simple reconnection site detector parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_reconnection_site_detector_config_from_options<G, P>(
+pub fn construct_simple_reconnection_site_detector_config_from_options<P>(
     arguments: &ArgMatches,
     reader: &P,
 ) -> SimpleReconnectionSiteDetectorConfig
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let reconnection_factor_threshold = utils::get_value_from_param_file_argument_with_default(
         reader,

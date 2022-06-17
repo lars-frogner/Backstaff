@@ -12,13 +12,12 @@ use super::{
     PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
-    field::{ScalarField3, ScalarFieldProvider3},
+    field::{FieldGrid3, ScalarField3, ScalarFieldProvider3},
     geometry::{
         Dim3::{X, Y, Z},
         In3D,
     },
     grid::{
-        fgr,
         CoordLocation::{self, Center, LowerEdge},
         Grid3, GridType,
     },
@@ -57,17 +56,17 @@ pub struct NativeSnapshotReaderConfig {
 
 /// Reader for the native output files associated with Bifrost 3D simulation snapshots.
 #[derive(Clone, Debug)]
-pub struct NativeSnapshotReader3<G> {
+pub struct NativeSnapshotReader3 {
     config: NativeSnapshotReaderConfig,
     parameters: NativeSnapshotParameters,
     snap_path: PathBuf,
     aux_path: PathBuf,
-    grid: Arc<G>,
+    grid: Arc<FieldGrid3>,
     all_variable_names: Vec<String>,
     variable_descriptors: HashMap<String, VariableDescriptor>,
 }
 
-impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
+impl NativeSnapshotReader3 {
     /// Creates a reader for a 3D Bifrost snapshot.
     pub fn new(config: NativeSnapshotReaderConfig) -> io::Result<Self> {
         let parameters =
@@ -94,7 +93,7 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
     pub fn new_from_parameters_and_grid(
         config: NativeSnapshotReaderConfig,
         parameters: NativeSnapshotParameters,
-        grid: G,
+        grid: FieldGrid3,
     ) -> io::Result<Self> {
         let (snap_path, aux_path) = parameters.determine_snap_path()?;
 
@@ -299,21 +298,21 @@ impl<G: Grid3<fgr>> NativeSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fgr>> ScalarFieldProvider3<fdt, G> for NativeSnapshotReader3<G> {
-    fn grid(&self) -> &G {
+impl ScalarFieldProvider3<fdt> for NativeSnapshotReader3 {
+    fn grid(&self) -> &FieldGrid3 {
         self.grid.as_ref()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         Arc::clone(&self.grid)
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         self.read_scalar_field(variable_name)
     }
 }
 
-impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
+impl SnapshotProvider3 for NativeSnapshotReader3 {
     type Parameters = NativeSnapshotParameters;
 
     fn parameters(&self) -> &Self::Parameters {
@@ -338,8 +337,8 @@ impl<G: Grid3<fgr>> SnapshotProvider3<G> for NativeSnapshotReader3<G> {
     }
 }
 
-impl<G: Grid3<fgr>> SnapshotReader3<G> for NativeSnapshotReader3<G> {
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+impl SnapshotReader3 for NativeSnapshotReader3 {
+    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         let variable_descriptor = self.get_variable_descriptor(variable_name)?;
         let file_path = if variable_descriptor.is_primary {
             &self.snap_path
@@ -438,7 +437,7 @@ impl NativeSnapshotMetadata {
     }
 
     /// Creates a new snapshot reader from this metadata.
-    pub fn into_reader<G: Grid3<fgr>>(self) -> io::Result<NativeSnapshotReader3<G>> {
+    pub fn into_reader(self) -> io::Result<NativeSnapshotReader3> {
         let (reader_config, parameters, grid) = self.into_parameters_and_grid();
 
         with_io_err_msg!(
@@ -448,14 +447,18 @@ impl NativeSnapshotMetadata {
     }
 
     /// Creates a new grid from this metadata.
-    pub fn into_grid<G: Grid3<fgr>>(self) -> G {
+    pub fn into_grid(self) -> FieldGrid3 {
         let (_, _, grid) = self.into_parameters_and_grid();
         grid
     }
 
-    fn into_parameters_and_grid<G: Grid3<fgr>>(
+    fn into_parameters_and_grid(
         self,
-    ) -> (NativeSnapshotReaderConfig, NativeSnapshotParameters, G) {
+    ) -> (
+        NativeSnapshotReaderConfig,
+        NativeSnapshotParameters,
+        FieldGrid3,
+    ) {
         let Self {
             reader_config,
             parameters,
@@ -464,34 +467,34 @@ impl NativeSnapshotMetadata {
         } = self;
 
         let NativeGridData {
-            detected_grid_type: _,
+            detected_grid_type,
             center_coords,
             lower_edge_coords,
             up_derivatives,
             down_derivatives,
         } = grid_data;
 
-        let grid = G::from_coords(
+        let grid = FieldGrid3::from_coords_unchecked(
             center_coords,
             lower_edge_coords,
             is_periodic,
             Some(up_derivatives),
             Some(down_derivatives),
+            detected_grid_type,
         );
         (reader_config, parameters, grid)
     }
 }
 
 /// Writes the data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_new_snapshot<G, P>(
+pub fn write_new_snapshot<P>(
     provider: &mut P,
     output_param_path: &Path,
     io_context: &IOContext,
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let quantity_names = provider.all_variable_names().to_vec();
     write_modified_snapshot(
@@ -506,7 +509,7 @@ where
 }
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_modified_snapshot<G, P>(
+pub fn write_modified_snapshot<P>(
     provider: &mut P,
     quantity_names: &[String],
     output_param_path: &Path,
@@ -516,8 +519,7 @@ pub fn write_modified_snapshot<G, P>(
     verbosity: &Verbosity,
 ) -> io::Result<()>
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
 {
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_param_path);
     let mut signed_snap_num =

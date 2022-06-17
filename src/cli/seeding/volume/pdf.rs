@@ -64,7 +64,7 @@ pub fn create_value_pdf_subcommand(_parent_command_name: &'static str) -> Comman
 }
 
 /// Creates a volume PDF seeder based on the provided arguments.
-pub fn create_volume_pdf_seeder_from_arguments<G, P, I, S>(
+pub fn create_volume_pdf_seeder_from_arguments<P, I, S>(
     arguments: &ArgMatches,
     lower_bounds: Vec3<fgr>,
     upper_bounds: Vec3<fgr>,
@@ -73,8 +73,7 @@ pub fn create_volume_pdf_seeder_from_arguments<G, P, I, S>(
     satisfies_constraints: &S,
 ) -> VolumeSeeder3
 where
-    G: Grid3<fgr>,
-    P: SnapshotProvider3<G>,
+    P: SnapshotProvider3,
     I: Interpolator3,
     S: Fn(&Point3<fgr>) -> bool + Sync,
 {

@@ -8,7 +8,7 @@ use crate::{
         CachingScalarFieldProvider3, ScalarField2, ScalarField3, ScalarFieldProvider3, VectorField3,
     },
     geometry::{Coords2, In2D, In3D, Point2},
-    grid::{fgr, regular::RegularGrid2, CoordLocation, Grid2, Grid3},
+    grid::{fgr, regular::RegularGrid2, CoordLocation, Grid2},
     interpolation::Interpolator2,
     io::{
         snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
@@ -29,12 +29,13 @@ use roman;
 use std::{
     collections::{hash_map::Entry, HashMap},
     env, io,
-    marker::PhantomData,
     mem::MaybeUninit,
     process,
     str::FromStr,
     sync::Arc,
 };
+
+use super::FieldGrid3;
 
 /// List of names used in CHIANTI for the first atomic elements.
 pub const CHIANTI_ELEMENTS: [&str; 36] = [
@@ -227,21 +228,19 @@ fn parse_line_quantity_name(line_quantity_name: &str) -> io::Result<(String, Str
 
 /// Computer of emissivities from Bifrost 3D simulation snapshots.
 #[derive(Debug)]
-pub struct EmissivitySnapshotProvider3<G, P, I> {
+pub struct EmissivitySnapshotProvider3<P, I> {
     provider: P,
     interpolator: I,
     all_variable_names: Vec<String>,
     quantity_dependencies: Vec<&'static str>,
     emissivity_tables: Arc<EmissivityTables<fdt>>,
-    cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt, G>>>,
+    cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt>>>,
     verbosity: Verbosity,
-    phantom: PhantomData<G>,
 }
 
-impl<G, P, I> EmissivitySnapshotProvider3<G, P, I>
+impl<P, I> EmissivitySnapshotProvider3<P, I>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator2,
 {
     /// Creates a computer of emissivities.
@@ -295,14 +294,13 @@ where
             emissivity_tables,
             cached_scalar_fields: HashMap::new(),
             verbosity,
-            phantom: PhantomData,
         }
     }
 
     fn provide_new_scalar_field(
         &mut self,
         variable_name: &str,
-    ) -> io::Result<Arc<ScalarField3<fdt, G>>> {
+    ) -> io::Result<Arc<ScalarField3<fdt>>> {
         if self.provider.has_variable(variable_name) {
             self.provider.provide_scalar_field(variable_name)
         } else {
@@ -470,7 +468,7 @@ where
         &mut self,
         line_quantity_name: &str,
         line_name: &str,
-    ) -> io::Result<ScalarField3<fdt, G>> {
+    ) -> io::Result<ScalarField3<fdt>> {
         let temperatures = self.provider.provide_scalar_field("tg")?;
         let electron_densities = self.provider.provide_scalar_field("nel")?;
 
@@ -540,21 +538,20 @@ where
     }
 }
 
-impl<G, P, I> ScalarFieldProvider3<fdt, G> for EmissivitySnapshotProvider3<G, P, I>
+impl<P, I> ScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3<P, I>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator2,
 {
-    fn grid(&self) -> &G {
+    fn grid(&self) -> &FieldGrid3 {
         self.provider.grid()
     }
 
-    fn arc_with_grid(&self) -> Arc<G> {
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
         self.provider.arc_with_grid()
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt, G>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.cached_scalar_field(variable_name).clone())
         } else {
@@ -565,10 +562,7 @@ where
         }
     }
 
-    fn provide_scalar_field(
-        &mut self,
-        variable_name: &str,
-    ) -> io::Result<Arc<ScalarField3<fdt, G>>> {
+    fn provide_scalar_field(&mut self, variable_name: &str) -> io::Result<Arc<ScalarField3<fdt>>> {
         if self.scalar_field_is_cached(variable_name) {
             Ok(self.arc_with_cached_scalar_field(variable_name).clone())
         } else {
@@ -577,10 +571,9 @@ where
     }
 }
 
-impl<G, P, I> CachingScalarFieldProvider3<fdt, G> for EmissivitySnapshotProvider3<G, P, I>
+impl<P, I> CachingScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3<P, I>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator2,
 {
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
@@ -612,7 +605,7 @@ where
         self.provider.cache_vector_field(variable_name)
     }
 
-    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt, G>> {
+    fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt>> {
         if let Some(field) = self.cached_scalar_fields.get(variable_name) {
             if self.verbosity.print_messages() {
                 println!("Using cached {}", variable_name);
@@ -623,7 +616,7 @@ where
         }
     }
 
-    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt, G>> {
+    fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt>> {
         self.provider.arc_with_cached_vector_field(variable_name)
     }
 
@@ -648,10 +641,9 @@ where
     }
 }
 
-impl<G, P, I> SnapshotProvider3<G> for EmissivitySnapshotProvider3<G, P, I>
+impl<P, I> SnapshotProvider3 for EmissivitySnapshotProvider3<P, I>
 where
-    G: Grid3<fgr>,
-    P: CachingSnapshotProvider3<G>,
+    P: CachingSnapshotProvider3,
     I: Interpolator2,
 {
     type Parameters = P::Parameters;
@@ -707,7 +699,7 @@ macro_rules! with_py_error {
 
 /// Map containing the tuple of central wavelength \[cm\] and table of emissivities \[erg/s/sr/cm³\]
 /// associated with each spectral line name.
-type EmissivityTableMap<F> = HashMap<String, (F, ScalarField2<F, RegularGrid2<fgr>>)>;
+type EmissivityTableMap<F> = HashMap<String, (F, ScalarField2<F>)>;
 
 type EmissivityTableArrMap<F> = HashMap<String, (F, Array2<F>)>;
 
@@ -774,11 +766,10 @@ where
         let table_center_coords =
             Coords2::new(log_table_temperatures, log_table_electron_densities);
 
-        let table_grid = Arc::new(RegularGrid2::from_coords(
-            table_center_coords,
-            table_lower_coords,
-            In2D::same(false),
-        ));
+        let table_grid = Arc::new(
+            RegularGrid2::from_coords(table_center_coords, table_lower_coords, In2D::same(false))
+                .into(),
+        );
 
         let emissivity_tables = emissivity_tables
             .into_iter()

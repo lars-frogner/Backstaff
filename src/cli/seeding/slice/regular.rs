@@ -2,10 +2,7 @@
 
 use super::CommonSliceSeederParameters;
 use crate::{
-    cli::utils,
-    geometry::Point2,
-    grid::{fgr, Grid3},
-    seeding::slice::SliceSeeder3,
+    cli::utils, field::FieldGrid3, geometry::Point2, grid::fgr, seeding::slice::SliceSeeder3,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -39,14 +36,13 @@ pub fn create_regular_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Creates a regular slice seeder based on the provided arguments.
-pub fn create_regular_slice_seeder_from_arguments<G, S>(
+pub fn create_regular_slice_seeder_from_arguments<S>(
     arguments: &ArgMatches,
     parameters: &CommonSliceSeederParameters,
-    grid: &G,
+    grid: &FieldGrid3,
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
-    G: Grid3<fgr>,
     S: Fn(&Point2<fgr>) -> bool + Sync,
 {
     let shape = utils::parse_2d_values_no_special(arguments, "shape", Some(1));
