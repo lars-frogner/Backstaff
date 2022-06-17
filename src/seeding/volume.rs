@@ -174,7 +174,7 @@ impl VolumeSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         C: Fn(F) -> F + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {
@@ -240,7 +240,7 @@ impl VolumeSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         C: Fn(&Vec3<F>) -> F + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {

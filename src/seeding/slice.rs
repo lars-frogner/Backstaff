@@ -209,7 +209,7 @@ impl SliceSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         C: Fn(F) -> F,
         S: Fn(&Point2<fgr>) -> bool + Sync,
     {
@@ -280,7 +280,7 @@ impl SliceSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         C: Fn(&Vec3<F>) -> F,
         S: Fn(&Point2<fgr>) -> bool + Sync,
     {

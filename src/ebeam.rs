@@ -336,7 +336,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          I: Interpolator3,
+          I: Interpolator3<fdt>,
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
@@ -394,7 +394,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          I: Interpolator3,
+          I: Interpolator3<fdt>,
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
@@ -478,7 +478,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_fixed_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} at acceleration sites", field.name());
@@ -509,7 +509,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_fixed_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} at acceleration sites", field.name());
@@ -540,7 +540,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_varying_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} along beam trajectories", field.name());
@@ -578,7 +578,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     pub fn extract_varying_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} along beam trajectories", field.name());
@@ -758,7 +758,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
     ) -> Option<Self>
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         S: Stepper3,
     {
         let magnetic_field = snapshot.cached_vector_field("b");

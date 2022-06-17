@@ -75,7 +75,7 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
     ) -> Option<Self::Data>
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         S: Stepper3,
     {
         let field = snapshot.cached_vector_field(field_name);

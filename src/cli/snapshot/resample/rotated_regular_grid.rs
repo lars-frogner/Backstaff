@@ -20,7 +20,11 @@ use crate::{
     },
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::{snapshot::SnapshotProvider3, utils::IOContext, Verbosity},
+    io::{
+        snapshot::{fdt, SnapshotProvider3},
+        utils::IOContext,
+        Verbosity,
+    },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -151,7 +155,7 @@ pub fn run_resampling_for_rotated_regular_grid<P, I>(
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     let original_grid = provider.grid();
 

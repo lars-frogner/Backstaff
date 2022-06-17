@@ -78,7 +78,7 @@ pub trait Stepper3: Clone {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
@@ -114,7 +114,7 @@ pub trait Stepper3: Clone {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
@@ -150,7 +150,7 @@ pub trait Stepper3: Clone {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 

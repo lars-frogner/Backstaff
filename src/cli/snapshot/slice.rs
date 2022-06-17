@@ -12,10 +12,7 @@ use crate::{
     field::ResampledCoordLocation,
     geometry::Dim3,
     grid::{fgr, CoordLocation},
-    interpolation::{
-        poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
-        Interpolator3,
-    },
+    interpolation::{poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig}, InterpGridVerifier3},
     io::{
         snapshot::{self, SnapshotProvider3},
         utils::IOContext,

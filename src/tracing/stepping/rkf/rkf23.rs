@@ -103,7 +103,7 @@ impl RKFStepper3 for RKF23Stepper3 {
     ) -> StepperResult<StepAttempt3>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
     {
         let state = self.state();
@@ -213,7 +213,7 @@ impl Stepper3 for RKF23Stepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
@@ -229,7 +229,7 @@ impl Stepper3 for RKF23Stepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
@@ -245,7 +245,7 @@ impl Stepper3 for RKF23Stepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {

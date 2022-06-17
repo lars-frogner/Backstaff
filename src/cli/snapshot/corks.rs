@@ -19,10 +19,10 @@ use crate::{
     field::ScalarFieldCacher3,
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
-        Interpolator3,
+        InterpGridVerifier3, Interpolator3,
     },
     io::{
-        snapshot::{CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils::IOContext,
     },
     seeding::Seeder3,
@@ -193,7 +193,7 @@ fn run_tracing<P, I>(
     corks_state: &mut Option<CorksState>,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     if is_first_iteration(corks_state) {
         initialize_with_selected_seeder(
@@ -222,7 +222,7 @@ fn initialize_with_selected_seeder<P, I>(
     corks_state: &mut Option<CorksState>,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
         let seeder = create_slice_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
@@ -271,7 +271,7 @@ fn initialize_corks<P, I, Sd>(
     corks_state: &mut Option<CorksState>,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     Sd: Seeder3,
 {
     let (scalar_quantity_names, vector_quantity_names) =
@@ -295,7 +295,7 @@ fn initialize_corks<P, I, Sd>(
 fn advect_with_selected_advector<P, I>(snapshot: &mut P, interpolator: I, corks: &mut CorkSet)
 where
     P: CachingSnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     let advector = ConstantCorkAdvector;
 
@@ -309,7 +309,7 @@ fn advect_with_selected_stepper<P, I, A>(
     corks: &mut CorkSet,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     A: CorkAdvector,
 {
     let stepper = HeunCorkStepper;
@@ -325,7 +325,7 @@ fn advect_corks<P, I, A, St>(
     corks: &mut CorkSet,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     A: CorkAdvector,
     St: CorkStepper,
 {

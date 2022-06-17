@@ -113,7 +113,7 @@ impl Cork {
         interpolator: &I,
     ) -> Self
     where
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         let (position_indices, velocity) = evaluate_velocity(
             &mut position,
@@ -192,7 +192,7 @@ impl Cork {
         field: &ScalarField3<fdt>,
         interpolator: &I,
     ) where
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         if self.is_terminated() {
             return;
@@ -217,7 +217,7 @@ impl Cork {
         field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         if self.is_terminated() {
             return;
@@ -290,7 +290,7 @@ impl CorkSet {
     where
         Po: IntoParallelIterator<Item = Point3<fco>>,
         P: CachingSnapshotProvider3,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         initial_snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
         initial_snapshot.cache_vector_field(MOMENTUM_VARIABLE_NAME)?;
@@ -389,7 +389,7 @@ impl CorkSet {
         momentum_field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         self.corks.push(Cork::new_from_fields(
             position,
@@ -423,7 +423,7 @@ impl CorkSet {
     fn sample_field_values<P, I>(&mut self, provider: &mut P, interpolator: &I) -> io::Result<()>
     where
         P: SnapshotProvider3,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         if self.verbosity().print_messages() {
             println!("Sampling field values");
@@ -508,7 +508,7 @@ pub trait CorkStepper: Sync {
         momentum_field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        I: Interpolator3;
+        I: Interpolator3<fdt>;
 
     fn step_all_corks<P, I>(
         &self,
@@ -518,7 +518,7 @@ pub trait CorkStepper: Sync {
     ) -> io::Result<()>
     where
         P: CachingSnapshotProvider3,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         let step_duration = snapshot
             .parameters()
@@ -564,7 +564,7 @@ impl CorkStepper for HeunCorkStepper {
         momentum_field: &VectorField3<fdt>,
         interpolator: &I,
     ) where
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         if cork.is_terminated() {
             return;
@@ -633,7 +633,7 @@ pub trait CorkAdvector {
     ) -> io::Result<()>
     where
         P: CachingSnapshotProvider3,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         S: CorkStepper;
 }
 
@@ -647,7 +647,7 @@ impl CorkAdvector for ConstantCorkAdvector {
     ) -> io::Result<()>
     where
         P: CachingSnapshotProvider3,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         S: CorkStepper,
     {
         stepper.step_all_corks(corks, snapshot, interpolator)
@@ -661,7 +661,7 @@ fn evaluate_velocity<I>(
     interpolator: &I,
 ) -> Option<(Idx3<usize>, Vec3<fco>)>
 where
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     let interp_point = position.converted();
     let grid_point_query = mass_density_field.grid().find_grid_cell(&interp_point);

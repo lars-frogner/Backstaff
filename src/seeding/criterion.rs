@@ -104,7 +104,7 @@ impl CriterionSeeder3 {
     ) -> Self
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         C: Fn(F) -> bool + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {
@@ -163,7 +163,7 @@ impl CriterionSeeder3 {
     ) -> Self
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         C: Fn(&Vec3<F>) -> bool + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {

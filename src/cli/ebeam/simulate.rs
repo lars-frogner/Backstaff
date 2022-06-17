@@ -53,10 +53,10 @@ use crate::{
     field::ScalarFieldCacher3,
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
-        Interpolator3,
+        InterpGridVerifier3, Interpolator3,
     },
     io::{
-        snapshot::{self, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils::{AtomicOutputFile, IOContext},
     },
     tracing::stepping::rkf::{
@@ -497,7 +497,7 @@ where P: CachingSnapshotProvider3,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-      I: Interpolator3
+      I: Interpolator3<fdt>
 {
     let (stepper_type, stepper_config) =
         if let Some(stepper_arguments) = arguments.subcommand_matches("rkf_stepper") {
@@ -632,7 +632,7 @@ fn perform_post_simulation_actions<P, A, I>(
 ) where
     P: SnapshotProvider3,
     A: Accelerator,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extra-fixed-scalars")

@@ -807,7 +807,7 @@ where
         verbosity: &Verbosity,
     ) -> ScalarField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         match method {
             ResamplingMethod::SampleAveraging => self.resampled_to_grid_with_sample_averaging(
@@ -844,7 +844,7 @@ where
     ) -> ScalarField3<F>
     where
         T: PointTransformation2<fgr>,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         match method {
             ResamplingMethod::SampleAveraging => self
@@ -890,7 +890,7 @@ where
         verbosity: &Verbosity,
     ) -> ScalarField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let overlying_grid = grid;
         let overlying_locations =
@@ -1028,7 +1028,7 @@ where
     ) -> ScalarField3<F>
     where
         T: PointTransformation2<fgr>,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         const MIN_INTERSECTION_AREA: fgr = 1e-6;
 
@@ -1477,7 +1477,7 @@ where
         verbosity: &Verbosity,
     ) -> ScalarField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
@@ -1527,7 +1527,7 @@ where
     ) -> ScalarField3<F>
     where
         T: PointTransformation2<fgr>,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
@@ -1572,7 +1572,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = self.grid.slice_across_x();
         self.create_slice_across_x(
@@ -1591,7 +1591,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = self.grid.slice_across_y();
         self.create_slice_across_y(
@@ -1610,7 +1610,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = self.grid.slice_across_z();
         self.create_slice_across_z(
@@ -1630,7 +1630,7 @@ where
         location: CoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = self.grid.regular_slice_across_axis(axis);
         self.create_regular_slice_across_axis(
@@ -1796,7 +1796,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_locations = self.select_slice_locations([Y, Z], resampled_location);
         let slice_values =
@@ -1817,7 +1817,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_locations = self.select_slice_locations([X, Z], resampled_location);
         let slice_values =
@@ -1838,7 +1838,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_locations = self.select_slice_locations([X, Y], resampled_location);
         let slice_values =
@@ -1860,7 +1860,7 @@ where
         location: CoordLocation,
     ) -> ScalarField2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_locations = In2D::same(location);
         let slice_values = self.compute_slice_values(
@@ -1943,7 +1943,7 @@ where
         regular: bool,
     ) -> Array2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let lower_bound = self.grid.lower_bounds()[axis];
         let upper_bound = self.grid.upper_bounds()[axis];
@@ -1974,7 +1974,7 @@ where
         slice_axis_coord: fgr,
     ) -> Array2<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_shape = (coords[0].len(), coords[1].len());
         let mut slice_values = Array2::uninit(slice_shape.f());
@@ -2249,7 +2249,7 @@ where
         verbosity: &Verbosity,
     ) -> VectorField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let components = In3D::with_each_component(|dim| {
             self.components[dim].resampled_to_grid_with_sample_averaging(
@@ -2298,7 +2298,7 @@ where
         verbosity: &Verbosity,
     ) -> VectorField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let components = In3D::with_each_component(|dim| {
             self.components[dim].resampled_to_grid_with_direct_sampling(
@@ -2325,7 +2325,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = Arc::new(self.grid.slice_across_x());
         let slice_field_components = In3D::with_each_component(|dim| {
@@ -2347,7 +2347,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = Arc::new(self.grid.slice_across_y());
         let slice_field_components = In3D::with_each_component(|dim| {
@@ -2369,7 +2369,7 @@ where
         resampled_location: ResampledCoordLocation,
     ) -> PlaneVectorField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = Arc::new(self.grid.slice_across_z().into());
         let slice_field_components = In3D::with_each_component(|dim| {
@@ -2392,7 +2392,7 @@ where
         location: CoordLocation,
     ) -> PlaneVectorField3<F>
     where
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         let slice_grid = Arc::new(self.grid.regular_slice_across_axis(axis).into());
         let slice_field_components = In3D::with_each_component(|dim| {

@@ -20,7 +20,7 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{native, SnapshotProvider3},
+        snapshot::{fdt, native, SnapshotProvider3},
         utils::IOContext,
         Verbosity,
     },
@@ -107,7 +107,7 @@ pub fn run_resampling_for_mesh_file<P, I>(
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     let mesh_file_path = exit_on_error!(
         PathBuf::from_str(

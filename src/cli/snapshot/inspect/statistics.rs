@@ -339,7 +339,7 @@ fn print_statistics_reports<P, I, W>(
 ) -> io::Result<()>
 where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     W: Write,
 {
     for name in quantity_names {
@@ -456,7 +456,7 @@ fn print_statistics_report<I, W>(
     writer: &mut W,
 ) -> io::Result<()>
 where
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     W: Write,
 {
     let quantity_name = field.name().to_string();
@@ -695,7 +695,7 @@ fn print_slice_statistics_report<I, W>(
     writer: &mut W,
 ) -> io::Result<()>
 where
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     W: Write,
 {
     print_whole_line(writer, '-')?;

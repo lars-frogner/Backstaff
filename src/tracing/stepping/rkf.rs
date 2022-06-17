@@ -132,7 +132,7 @@ trait RKFStepper3 {
     ) -> StepperResult<StepAttempt3>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>);
 
     fn compute_error_deltas(&self, attempt: &StepAttempt3) -> Vec3<ftr>;
@@ -174,7 +174,7 @@ trait RKFStepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
@@ -201,7 +201,7 @@ trait RKFStepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
@@ -230,7 +230,7 @@ trait RKFStepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
@@ -251,7 +251,7 @@ trait RKFStepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
     {
         match Self::compute_direction(field, interpolator, direction_computer, position) {
@@ -275,7 +275,7 @@ trait RKFStepper3 {
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
     {
         let grid = field.grid();
@@ -328,7 +328,7 @@ trait RKFStepper3 {
     ) -> StepperResult<ComputedDirection3>
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
     {
         match interpolator.interp_vector_field(field, &Point3::from(position)) {

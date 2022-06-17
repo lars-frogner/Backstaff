@@ -28,10 +28,10 @@ use crate::{
     field::ScalarFieldCacher3,
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
-        Interpolator3,
+        InterpGridVerifier3, Interpolator3,
     },
     io::{
-        snapshot::{self, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
         utils::{AtomicOutputFile, IOContext},
     },
     seeding::Seeder3,
@@ -403,7 +403,7 @@ fn run_with_selected_seeder<P, Tr, StF, I>(
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
     StF: StepperFactory3 + Sync,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
         let seeder =
@@ -459,7 +459,7 @@ fn run_tracing<P, Tr, StF, I, Sd>(
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
     StF: StepperFactory3 + Sync,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     Sd: Seeder3,
 {
     let mut output_file_path = exit_on_error!(
@@ -556,7 +556,7 @@ fn perform_post_tracing_actions<P, I>(
     mut field_lines: FieldLineSet3,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extracted-seed-quantities")

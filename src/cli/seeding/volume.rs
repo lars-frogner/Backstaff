@@ -20,7 +20,7 @@ use crate::{
     },
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::SnapshotProvider3,
+    io::snapshot::{fdt, SnapshotProvider3},
     seeding::volume::VolumeSeeder3,
     update_command_graph,
 };
@@ -97,7 +97,7 @@ pub fn create_volume_seeder_from_arguments<P, I>(
 ) -> VolumeSeeder3
 where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     let original_grid = provider.grid();
 

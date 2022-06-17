@@ -66,5 +66,5 @@ pub trait Distribution {
     ) -> PropagationResult
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3;
+        I: Interpolator3<fdt>;
 }

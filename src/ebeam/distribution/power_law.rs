@@ -432,7 +432,7 @@ impl Distribution for PowerLawDistribution {
     ) -> PropagationResult
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         let mut deposition_position = new_position - displacement * 0.5;
 

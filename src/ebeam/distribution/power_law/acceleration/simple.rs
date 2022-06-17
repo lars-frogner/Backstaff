@@ -160,7 +160,7 @@ impl SimplePowerLawAccelerator {
     ) -> Vec3<fdt>
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
     {
         let magnetic_field = snapshot.cached_vector_field("b");
         let mut magnetic_field_direction = interpolator
@@ -368,7 +368,7 @@ impl Accelerator for SimplePowerLawAccelerator {
     where
         P: CachingScalarFieldProvider3<fdt>,
         D: ReconnectionSiteDetector,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         StF: StepperFactory3 + Sync,
     {
         let seeder = detector.detect_reconnection_sites(snapshot, verbosity);

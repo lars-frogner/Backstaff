@@ -17,7 +17,7 @@ use crate::{
     geometry::{Dim2, Dim3, Point2},
     grid::fgr,
     interpolation::Interpolator3,
-    io::snapshot::SnapshotProvider3,
+    io::snapshot::{fdt, SnapshotProvider3},
     seeding::slice::SliceSeeder3,
     update_command_graph,
 };
@@ -106,7 +106,7 @@ pub fn create_slice_seeder_from_arguments<P, I>(
 ) -> SliceSeeder3
 where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     let axis = utils::get_value_from_required_constrained_argument(
         arguments,

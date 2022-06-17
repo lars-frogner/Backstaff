@@ -1,6 +1,6 @@
 //! Interpolation by polynomial fitting.
 
-use super::{fip, Interpolator1, Interpolator2, Interpolator3};
+use super::{fip, InterpGridVerifier3, Interpolator1, Interpolator2, Interpolator3};
 use crate::{
     field::{
         FieldGrid1, FieldGrid2, FieldGrid3, ScalarField1, ScalarField2, ScalarField3, VectorField2,
@@ -1507,7 +1507,7 @@ impl PolyFitInterpolator3 {
     }
 }
 
-impl Interpolator3 for PolyFitInterpolator3 {
+impl InterpGridVerifier3 for PolyFitInterpolator3 {
     fn verify_grid(&self, grid: &FieldGrid3) -> Result<(), String> {
         if grid.shape().into_iter().any(|&n| n <= self.config.order) {
             Err(format!(
@@ -1519,8 +1519,10 @@ impl Interpolator3 for PolyFitInterpolator3 {
             Ok(())
         }
     }
+}
 
-    fn interp_scalar_field<F>(
+impl<F: BFloat> Interpolator3<F> for PolyFitInterpolator3 {
+    fn interp_scalar_field(
         &self,
         field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
@@ -1560,7 +1562,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         }
     }
 
-    fn interp_scalar_field_known_cell<F>(
+    fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
@@ -1616,7 +1618,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         }
     }
 
-    fn interp_extrap_scalar_field<F>(
+    fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
@@ -1656,7 +1658,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         }
     }
 
-    fn interp_vector_field<F>(
+    fn interp_vector_field(
         &self,
         field: &VectorField3<F>,
         interp_point: &Point3<fgr>,
@@ -1696,7 +1698,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         }
     }
 
-    fn interp_vector_field_known_cell<F>(
+    fn interp_vector_field_known_cell(
         &self,
         field: &VectorField3<F>,
         interp_point: &Point3<fgr>,
@@ -1752,7 +1754,7 @@ impl Interpolator3 for PolyFitInterpolator3 {
         }
     }
 
-    fn interp_extrap_vector_field<F>(
+    fn interp_extrap_vector_field(
         &self,
         field: &VectorField3<F>,
         interp_point: &Point3<fgr>,

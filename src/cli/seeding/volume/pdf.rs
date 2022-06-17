@@ -74,7 +74,7 @@ pub fn create_volume_pdf_seeder_from_arguments<P, I, S>(
 ) -> VolumeSeeder3
 where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
     S: Fn(&Point3<fgr>) -> bool + Sync,
 {
     let quantity = arguments

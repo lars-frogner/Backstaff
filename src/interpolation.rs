@@ -14,8 +14,7 @@ use crate::{
 #[allow(non_camel_case_types)]
 pub type fip = f64;
 
-/// Defines the properties of a 3D interpolator.
-pub trait Interpolator3: Clone + Sync + Send {
+pub trait InterpGridVerifier3 {
     /// Verifies that a field with the given grid safely can be interpolated
     /// with this interpolator.
     ///
@@ -29,7 +28,10 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// - `Ok`: The grid is valid.
     /// - `Err`: Contains a message describing why the grid is invalid.
     fn verify_grid(&self, grid: &FieldGrid3) -> Result<(), String>;
+}
 
+/// Defines the properties of a 3D interpolator.
+pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///
@@ -50,7 +52,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn interp_scalar_field<F: BFloat>(
+    fn interp_scalar_field(
         &self,
         field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
@@ -72,7 +74,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn interp_scalar_field_known_cell<F: BFloat>(
+    fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
@@ -100,7 +102,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn interp_extrap_scalar_field<F: BFloat>(
+    fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField3<F>,
         interp_point: &Point3<fgr>,
@@ -126,7 +128,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn interp_vector_field<F: BFloat>(
+    fn interp_vector_field(
         &self,
         field: &VectorField3<F>,
         interp_point: &Point3<fgr>,
@@ -148,7 +150,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn interp_vector_field_known_cell<F: BFloat>(
+    fn interp_vector_field_known_cell(
         &self,
         field: &VectorField3<F>,
         interp_point: &Point3<fgr>,
@@ -176,7 +178,7 @@ pub trait Interpolator3: Clone + Sync + Send {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn interp_extrap_vector_field<F: BFloat>(
+    fn interp_extrap_vector_field(
         &self,
         field: &VectorField3<F>,
         interp_point: &Point3<fgr>,

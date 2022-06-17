@@ -72,7 +72,7 @@ pub trait FieldLineTracer3 {
     ) -> Option<Self::Data>
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         St: Stepper3;
 }
 
@@ -154,7 +154,7 @@ impl FieldLineSet3 {
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         StF: StepperFactory3 + Sync,
     {
         let number_of_points = seeder.number_of_points();
@@ -203,7 +203,7 @@ impl FieldLineSet3 {
     pub fn extract_fixed_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} at initial positions", field.name());
@@ -237,7 +237,7 @@ impl FieldLineSet3 {
     pub fn extract_fixed_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} at initial positions", field.name());
@@ -271,7 +271,7 @@ impl FieldLineSet3 {
     pub fn extract_varying_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} along field line paths", field.name());
@@ -313,7 +313,7 @@ impl FieldLineSet3 {
     pub fn extract_varying_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
     where
         F: BFloat,
-        I: Interpolator3,
+        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} along field line paths", field.name());

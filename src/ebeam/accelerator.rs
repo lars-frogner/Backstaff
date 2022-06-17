@@ -32,6 +32,6 @@ pub trait Accelerator {
     where
         P: CachingScalarFieldProvider3<fdt>,
         D: ReconnectionSiteDetector,
-        I: Interpolator3,
+        I: Interpolator3<fdt>,
         StF: StepperFactory3 + Sync;
 }

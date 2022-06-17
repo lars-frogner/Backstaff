@@ -57,7 +57,7 @@ pub fn trace_3d_field_line<F, I, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3,
+    I: Interpolator3<F>,
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
@@ -121,7 +121,7 @@ pub fn trace_3d_field_line_dense<F, I, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3,
+    I: Interpolator3<F>,
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
@@ -187,7 +187,7 @@ pub fn custom_trace_3d_field_line<F, I, D, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3,
+    I: Interpolator3<F>,
     D: Fn(&mut Vec3<ftr>),
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -248,7 +248,7 @@ pub fn custom_trace_3d_field_line_dense<F, I, D, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3,
+    I: Interpolator3<F>,
     D: Fn(&mut Vec3<ftr>),
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,

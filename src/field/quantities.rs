@@ -9,7 +9,7 @@ use crate::{
     grid::{CoordLocation, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
-        Interpolator3,
+        InterpGridVerifier3,
     },
     io::{
         snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},

@@ -952,7 +952,7 @@ impl<P, T, I> ResampledSnapshotProvider3<P, T, I>
 where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     pub fn new(
         provider: P,
@@ -980,7 +980,7 @@ impl<P, T, I> ScalarFieldProvider3<fdt> for ResampledSnapshotProvider3<P, T, I>
 where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     fn grid(&self) -> &FieldGrid3 {
         self.new_grid.as_ref()
@@ -1097,7 +1097,7 @@ impl<P, T, I> SnapshotProvider3 for ResampledSnapshotProvider3<P, T, I>
 where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     type Parameters = P::Parameters;
 

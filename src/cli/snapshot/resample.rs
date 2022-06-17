@@ -36,7 +36,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
         utils::IOContext,
         Verbosity,
     },
@@ -295,7 +295,7 @@ fn resample_to_grid<P, I>(
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     if let Some(new_shape) = new_shape {
         grid = match grid.detected_grid_type() {
@@ -336,7 +336,7 @@ fn resample_to_transformed_grid<P, T, I>(
 ) where
     T: PointTransformation2<fgr>,
     P: SnapshotProvider3,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     verify_new_transformed_grid_bounds(provider.grid(), &grid, &transformation);
 
@@ -556,7 +556,7 @@ fn resample_snapshot_for_grid<P, T, I>(
 ) where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3,
+    I: Interpolator3<fdt>,
 {
     exit_on_error!(
         interpolator.verify_grid(provider.grid()),
