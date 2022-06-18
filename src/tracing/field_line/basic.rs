@@ -65,17 +65,16 @@ impl BasicFieldLineTracer3 {
 impl FieldLineTracer3 for BasicFieldLineTracer3 {
     type Data = BasicFieldLineData3;
 
-    fn trace<P, I, S>(
+    fn trace<P, S>(
         &self,
         field_name: &str,
         snapshot: &P,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<fdt>,
         stepper: S,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3<fdt>,
         S: Stepper3,
     {
         let field = snapshot.cached_vector_field(field_name);

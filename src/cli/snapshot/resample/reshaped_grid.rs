@@ -86,7 +86,7 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
     )
 }
 
-pub fn run_resampling_for_reshaped_grid<P, I>(
+pub fn run_resampling_for_reshaped_grid<P>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -94,11 +94,10 @@ pub fn run_resampling_for_reshaped_grid<P, I>(
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    interpolator: I,
+    interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     let original_shape = provider.grid().shape();
 

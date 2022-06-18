@@ -324,7 +324,7 @@ pub fn run_statistics_subcommand<P>(
     }
 }
 
-fn print_statistics_reports<P, I, W>(
+fn print_statistics_reports<P, W>(
     mut provider: P,
     quantity_names: &[String],
     value_range: (fdt, fdt),
@@ -334,12 +334,11 @@ fn print_statistics_reports<P, I, W>(
     slice_depths: Option<&[fgr]>,
     quantile_p_values: Option<&[f64]>,
     no_global: bool,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<fdt>,
     writer: &mut W,
 ) -> io::Result<()>
 where
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
     W: Write,
 {
     for name in quantity_names {
@@ -442,7 +441,7 @@ where
     }
 }
 
-fn print_statistics_report<I, W>(
+fn print_statistics_report<W>(
     field: ScalarField3<fdt>,
     snap_name_and_num: (String, Option<u64>),
     value_range: (fdt, fdt),
@@ -452,11 +451,10 @@ fn print_statistics_report<I, W>(
     slice_depths: Option<&[fgr]>,
     quantile_p_values: Option<&[f64]>,
     no_global: bool,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<fdt>,
     writer: &mut W,
 ) -> io::Result<()>
 where
-    I: Interpolator3<fdt>,
     W: Write,
 {
     let quantity_name = field.name().to_string();
@@ -687,15 +685,14 @@ where
     Ok(())
 }
 
-fn print_slice_statistics_report<I, W>(
+fn print_slice_statistics_report<W>(
     field: &ScalarField3<fdt>,
     z_coord: fgr,
     quantile_p_values: Option<&[f64]>,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<fdt>,
     writer: &mut W,
 ) -> io::Result<()>
 where
-    I: Interpolator3<fdt>,
     W: Write,
 {
     print_whole_line(writer, '-')?;

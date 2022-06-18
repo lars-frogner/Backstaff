@@ -44,12 +44,11 @@ pub enum TracerResult {
 /// # Type parameters
 ///
 /// - `F`: Floating point type of the field data.
-/// - `I`: Type of interpolator.
 /// - `S`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-pub fn trace_3d_field_line<F, I, St, C>(
+pub fn trace_3d_field_line<F, St, C>(
     field: &VectorField3<F>,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<F>,
     stepper: St,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
@@ -57,7 +56,6 @@ pub fn trace_3d_field_line<F, I, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3<F>,
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
@@ -108,12 +106,11 @@ where
 /// # Type parameters
 ///
 /// - `F`: Floating point type of the field data.
-/// - `I`: Type of interpolator.
 /// - `St`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-pub fn trace_3d_field_line_dense<F, I, St, C>(
+pub fn trace_3d_field_line_dense<F, St, C>(
     field: &VectorField3<F>,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<F>,
     stepper: St,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
@@ -121,7 +118,6 @@ pub fn trace_3d_field_line_dense<F, I, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3<F>,
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
@@ -173,13 +169,12 @@ where
 /// # Type parameters
 ///
 /// - `F`: Floating point type of the field data.
-/// - `I`: Type of interpolator.
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-pub fn custom_trace_3d_field_line<F, I, D, St, C>(
+pub fn custom_trace_3d_field_line<F, D, St, C>(
     field: &VectorField3<F>,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<F>,
     direction_computer: &D,
     mut stepper: St,
     start_position: &Point3<ftr>,
@@ -187,7 +182,6 @@ pub fn custom_trace_3d_field_line<F, I, D, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3<F>,
     D: Fn(&mut Vec3<ftr>),
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
@@ -234,13 +228,12 @@ where
 /// # Type parameters
 ///
 /// - `F`: Floating point type of the field data.
-/// - `I`: Type of interpolator.
 /// - `D`: Function type taking a mutable reference to a field vector.
 /// - `St`: Type of stepper.
 /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-pub fn custom_trace_3d_field_line_dense<F, I, D, St, C>(
+pub fn custom_trace_3d_field_line_dense<F, D, St, C>(
     field: &VectorField3<F>,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<F>,
     direction_computer: &D,
     mut stepper: St,
     start_position: &Point3<ftr>,
@@ -248,7 +241,6 @@ pub fn custom_trace_3d_field_line_dense<F, I, D, St, C>(
 ) -> TracerResult
 where
     F: BFloat,
-    I: Interpolator3<F>,
     D: Fn(&mut Vec3<ftr>),
     St: Stepper3,
     C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,

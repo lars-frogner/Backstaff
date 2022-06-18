@@ -232,7 +232,7 @@ fn run_with_selected_interpolator<P>(
     } else {
         (PolyFitInterpolatorConfig::default(), arguments)
     };
-    let interpolator = PolyFitInterpolator3::new(interpolator_config);
+    let interpolator = Box::new(PolyFitInterpolator3::new(interpolator_config));
 
     match resample_grid_type {
         ResampleGridType::Regular => run_resampling_for_regular_grid(
@@ -282,7 +282,7 @@ fn run_with_selected_interpolator<P>(
     }
 }
 
-fn resample_to_grid<P, I>(
+fn resample_to_grid<P>(
     mut grid: FieldGrid3,
     new_shape: Option<In3D<usize>>,
     arguments: &ArgMatches,
@@ -291,11 +291,10 @@ fn resample_to_grid<P, I>(
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    interpolator: I,
+    interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     if let Some(new_shape) = new_shape {
         grid = match grid.detected_grid_type() {
@@ -322,7 +321,7 @@ fn resample_to_grid<P, I>(
     );
 }
 
-fn resample_to_transformed_grid<P, T, I>(
+fn resample_to_transformed_grid<P, T>(
     grid: FieldGrid3,
     arguments: &ArgMatches,
     provider: P,
@@ -331,12 +330,11 @@ fn resample_to_transformed_grid<P, T, I>(
     transformation: T,
     _continue_on_warnings: bool,
     verbosity: Verbosity,
-    interpolator: I,
+    interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
 ) where
     T: PointTransformation2<fgr>,
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     verify_new_transformed_grid_bounds(provider.grid(), &grid, &transformation);
 
@@ -543,7 +541,7 @@ fn compute_scaled_grid_shape(shape: &In3D<usize>, scales: &In3D<fgr>) -> In3D<us
     })
 }
 
-fn resample_snapshot_for_grid<P, T, I>(
+fn resample_snapshot_for_grid<P, T>(
     arguments: &ArgMatches,
     provider: P,
     new_grid: &Arc<FieldGrid3>,
@@ -551,12 +549,11 @@ fn resample_snapshot_for_grid<P, T, I>(
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     verbosity: Verbosity,
-    interpolator: I,
+    interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3<fdt>,
 {
     exit_on_error!(
         interpolator.verify_grid(provider.grid()),

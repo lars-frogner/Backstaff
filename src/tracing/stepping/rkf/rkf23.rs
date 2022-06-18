@@ -95,15 +95,14 @@ impl RKFStepper3 for RKF23Stepper3 {
         &mut self.0
     }
 
-    fn attempt_step<F, I, D>(
+    fn attempt_step<F, D>(
         &self,
         field: &VectorField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         direction_computer: &D,
     ) -> StepperResult<StepAttempt3>
     where
         F: BFloat,
-        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
     {
         let state = self.state();
@@ -203,49 +202,46 @@ impl RKFStepper3 for RKF23Stepper3 {
 }
 
 impl Stepper3 for RKF23Stepper3 {
-    fn place<F, I, D, C>(
+    fn place<F, D, C>(
         &mut self,
         field: &VectorField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         direction_computer: &D,
         position: &Point3<ftr>,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.place_with_callback(field, interpolator, direction_computer, position, callback)
     }
 
-    fn step<F, I, D, C>(
+    fn step<F, D, C>(
         &mut self,
         field: &VectorField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         direction_computer: &D,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.step_with_callback(field, interpolator, direction_computer, callback)
     }
 
-    fn step_dense_output<F, I, D, C>(
+    fn step_dense_output<F, D, C>(
         &mut self,
         field: &VectorField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         direction_computer: &D,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        I: Interpolator3<F>,
         D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {

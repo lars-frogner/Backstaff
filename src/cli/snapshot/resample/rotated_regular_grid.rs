@@ -143,7 +143,7 @@ pub fn create_rotated_regular_grid_subcommand(
     )
 }
 
-pub fn run_resampling_for_rotated_regular_grid<P, I>(
+pub fn run_resampling_for_rotated_regular_grid<P>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -151,11 +151,10 @@ pub fn run_resampling_for_rotated_regular_grid<P, I>(
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    interpolator: I,
+    interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     let original_grid = provider.grid();
 

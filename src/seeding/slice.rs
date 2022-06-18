@@ -195,12 +195,11 @@ impl SliceSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn scalar_field_pdf<F, I, C, S>(
+    pub fn scalar_field_pdf<F, C, S>(
         field: &ScalarField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         axis: Dim3,
         coord: fgr,
         compute_pdf_value: &C,
@@ -209,7 +208,6 @@ impl SliceSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3<F>,
         C: Fn(F) -> F,
         S: Fn(&Point2<fgr>) -> bool + Sync,
     {
@@ -266,12 +264,11 @@ impl SliceSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     /// - `S`: Function type taking a reference to a 2D point and returning a boolean value.
-    pub fn vector_field_pdf<F, I, C, S>(
+    pub fn vector_field_pdf<F, C, S>(
         field: &VectorField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         axis: Dim3,
         coord: fgr,
         compute_pdf_value: &C,
@@ -280,7 +277,6 @@ impl SliceSeeder3 {
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3<F>,
         C: Fn(&Vec3<F>) -> F,
         S: Fn(&Point2<fgr>) -> bool + Sync,
     {

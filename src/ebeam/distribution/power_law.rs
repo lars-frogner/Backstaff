@@ -422,17 +422,16 @@ impl Distribution for PowerLawDistribution {
         }
     }
 
-    fn propagate<P, I>(
+    fn propagate<P>(
         &mut self,
         snapshot: &P,
         acceleration_map: &Array3<bool>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<fdt>,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
     ) -> PropagationResult
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3<fdt>,
     {
         let mut deposition_position = new_position - displacement * 0.5;
 

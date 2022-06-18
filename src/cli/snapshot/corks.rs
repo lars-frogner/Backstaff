@@ -167,7 +167,7 @@ fn run_with_selected_interpolator<P>(
         (PolyFitInterpolatorConfig::default(), root_arguments)
     };
 
-    let interpolator = PolyFitInterpolator3::new(interpolator_config);
+    let interpolator = Box::new(PolyFitInterpolator3::new(interpolator_config));
 
     exit_on_error!(
         interpolator.verify_grid(snapshot.grid()),
@@ -178,22 +178,21 @@ fn run_with_selected_interpolator<P>(
         root_arguments,
         interpolator_arguments,
         snapshot,
-        interpolator,
+        interpolator.as_ref(),
         io_context,
         corks_state,
     );
 }
 
-fn run_tracing<P, I>(
+fn run_tracing<P>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut P,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     if is_first_iteration(corks_state) {
         initialize_with_selected_seeder(
@@ -214,21 +213,20 @@ fn is_first_iteration(corks_state: &Option<CorksState>) -> bool {
     corks_state.is_none()
 }
 
-fn initialize_with_selected_seeder<P, I>(
+fn initialize_with_selected_seeder<P>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: &mut P,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     corks_state: &mut Option<CorksState>,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
-        let seeder = create_slice_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
+        let seeder = create_slice_seeder_from_arguments(seeder_arguments, snapshot, interpolator);
         initialize_corks(root_arguments, snapshot, interpolator, seeder, corks_state);
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
-        let seeder = create_volume_seeder_from_arguments(seeder_arguments, snapshot, &interpolator);
+        let seeder = create_volume_seeder_from_arguments(seeder_arguments, snapshot, interpolator);
         initialize_corks(root_arguments, snapshot, interpolator, seeder, corks_state);
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
         let seeder = create_manual_seeder_from_arguments(seeder_arguments);
@@ -263,15 +261,14 @@ fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, V
     (scalar_quantity_names, vector_quantity_names)
 }
 
-fn initialize_corks<P, I, Sd>(
+fn initialize_corks<P, Sd>(
     root_arguments: &ArgMatches,
     snapshot: &mut P,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     seeder: Sd,
     corks_state: &mut Option<CorksState>,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3<fdt>,
     Sd: Seeder3,
 {
     let (scalar_quantity_names, vector_quantity_names) =
@@ -282,7 +279,7 @@ fn initialize_corks<P, I, Sd>(
             seeder.number_of_points(),
             seeder,
             snapshot,
-            &interpolator,
+            interpolator,
             scalar_quantity_names,
             vector_quantity_names,
             cli_utils::parse_verbosity(root_arguments, true),
@@ -292,24 +289,25 @@ fn initialize_corks<P, I, Sd>(
     snapshot.drop_all_fields();
 }
 
-fn advect_with_selected_advector<P, I>(snapshot: &mut P, interpolator: I, corks: &mut CorkSet)
-where
+fn advect_with_selected_advector<P>(
+    snapshot: &mut P,
+    interpolator: &dyn Interpolator3<fdt>,
+    corks: &mut CorkSet,
+) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     let advector = ConstantCorkAdvector;
 
     advect_with_selected_stepper(snapshot, interpolator, advector, corks);
 }
 
-fn advect_with_selected_stepper<P, I, A>(
+fn advect_with_selected_stepper<P, A>(
     snapshot: &mut P,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     advector: A,
     corks: &mut CorkSet,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3<fdt>,
     A: CorkAdvector,
 {
     let stepper = HeunCorkStepper;
@@ -317,20 +315,19 @@ fn advect_with_selected_stepper<P, I, A>(
     advect_corks(snapshot, interpolator, advector, stepper, corks);
 }
 
-fn advect_corks<P, I, A, St>(
+fn advect_corks<P, A, St>(
     snapshot: &mut P,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     advector: A,
     stepper: St,
     corks: &mut CorkSet,
 ) where
     P: CachingSnapshotProvider3,
-    I: Interpolator3<fdt>,
     A: CorkAdvector,
     St: CorkStepper,
 {
     exit_on_error!(
-        advector.advect_corks(corks, snapshot, &interpolator, &stepper),
+        advector.advect_corks(corks, snapshot, interpolator, &stepper),
         "Error: Could not advect corks: {}"
     );
     snapshot.drop_all_fields();

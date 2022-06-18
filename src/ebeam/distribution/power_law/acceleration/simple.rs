@@ -153,14 +153,13 @@ impl SimplePowerLawAccelerator {
         }
     }
 
-    fn determine_magnetic_field_direction<P, I>(
+    fn determine_magnetic_field_direction<P>(
         snapshot: &P,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<fdt>,
         acceleration_position: &Point3<fgr>,
     ) -> Vec3<fdt>
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3<fdt>,
     {
         let magnetic_field = snapshot.cached_vector_field("b");
         let mut magnetic_field_direction = interpolator
@@ -354,11 +353,11 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
     type AccelerationDataCollectionType = ();
 
-    fn generate_distributions<P, D, I, StF>(
+    fn generate_distributions<P, D, StF>(
         &self,
         snapshot: &mut P,
         detector: D,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<fdt>,
         _stepper_factory: &StF,
         verbosity: &Verbosity,
     ) -> io::Result<(
@@ -368,7 +367,6 @@ impl Accelerator for SimplePowerLawAccelerator {
     where
         P: CachingScalarFieldProvider3<fdt>,
         D: ReconnectionSiteDetector,
-        I: Interpolator3<fdt>,
         StF: StepperFactory3 + Sync,
     {
         let seeder = detector.detect_reconnection_sites(snapshot, verbosity);

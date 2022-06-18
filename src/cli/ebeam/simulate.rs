@@ -466,7 +466,7 @@ where P: CachingSnapshotProvider3,
         println!("{:#?}", interpolator_config);
     }
 
-    let interpolator = PolyFitInterpolator3::new(interpolator_config);
+    let interpolator = Box::new(PolyFitInterpolator3::new(interpolator_config));
 
     exit_on_error!(
         interpolator.verify_grid(snapshot.grid()),
@@ -479,25 +479,24 @@ where P: CachingSnapshotProvider3,
         snapshot,
         detector,
         accelerator,
-        interpolator,
+        interpolator.as_ref(),
         io_context,
     );
 }
 
-fn run_with_selected_stepper_factory<P, D, A, I>(
+fn run_with_selected_stepper_factory<P, D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: P,
     detector: D,
     accelerator: A,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext)
 where P: CachingSnapshotProvider3,
       D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-      I: Interpolator3<fdt>
 {
     let (stepper_type, stepper_config) =
         if let Some(stepper_arguments) = arguments.subcommand_matches("rkf_stepper") {
@@ -570,7 +569,7 @@ where P: CachingSnapshotProvider3,
                     &mut snapshot,
                     detector,
                     accelerator,
-                    &interpolator,
+                    interpolator,
                     &stepper_factory,
                     verbosity,
                 )
@@ -579,7 +578,7 @@ where P: CachingSnapshotProvider3,
                     &mut snapshot,
                     detector,
                     accelerator,
-                    &interpolator,
+                    interpolator,
                     &stepper_factory,
                     verbosity,
                 )
@@ -592,7 +591,7 @@ where P: CachingSnapshotProvider3,
                     &mut snapshot,
                     detector,
                     accelerator,
-                    &interpolator,
+                    interpolator,
                     &stepper_factory,
                     verbosity,
                 )
@@ -601,7 +600,7 @@ where P: CachingSnapshotProvider3,
                     &mut snapshot,
                     detector,
                     accelerator,
-                    &interpolator,
+                    interpolator,
                     &stepper_factory,
                     verbosity,
                 )
@@ -620,19 +619,18 @@ where P: CachingSnapshotProvider3,
     );
 }
 
-fn perform_post_simulation_actions<P, A, I>(
+fn perform_post_simulation_actions<P, A>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
     extra_atomic_output_file: Option<AtomicOutputFile>,
     io_context: &IOContext,
     mut provider: P,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     mut beams: ElectronBeamSwarm<A>,
 ) where
     P: SnapshotProvider3,
     A: Accelerator,
-    I: Interpolator3<fdt>,
 {
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extra-fixed-scalars")
@@ -646,7 +644,7 @@ fn perform_post_simulation_actions<P, A, I>(
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
-                &interpolator,
+                interpolator,
             );
         }
     }
@@ -662,7 +660,7 @@ fn perform_post_simulation_actions<P, A, I>(
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
-                &interpolator,
+                interpolator,
             );
         }
     }
@@ -678,7 +676,7 @@ fn perform_post_simulation_actions<P, A, I>(
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
-                &interpolator,
+                interpolator,
             );
         }
     }
@@ -694,7 +692,7 @@ fn perform_post_simulation_actions<P, A, I>(
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
-                &interpolator,
+                interpolator,
             );
         }
     }

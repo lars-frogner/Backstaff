@@ -161,20 +161,18 @@ impl VolumeSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `I`: Type of interpolator.
     /// - `C`: Function type taking and returning a floating point value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn scalar_field_pdf<F, I, C, S>(
+    pub fn scalar_field_pdf<F, C, S>(
         grid: &RegularGrid3<fgr>,
         field: &ScalarField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         compute_pdf_value: &C,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3<F>,
         C: Fn(F) -> F + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {
@@ -227,20 +225,18 @@ impl VolumeSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a floating point value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn vector_field_pdf<F, I, C, S>(
+    pub fn vector_field_pdf<F, C, S>(
         grid: &RegularGrid3<fgr>,
         field: &VectorField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         compute_pdf_value: &C,
         n_seeds: usize,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat + SampleUniform,
-        I: Interpolator3<F>,
         C: Fn(&Vec3<F>) -> F + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {

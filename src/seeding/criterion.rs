@@ -93,18 +93,16 @@ impl CriterionSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a floating point value and returning a boolean value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn on_centered_scalar_field_values<F, I, C, S>(
+    pub fn on_centered_scalar_field_values<F, C, S>(
         field: &ScalarField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         evaluate_criterion: &C,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
-        I: Interpolator3<F>,
         C: Fn(F) -> bool + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {
@@ -152,18 +150,16 @@ impl CriterionSeeder3 {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `I`: Type of interpolator.
     /// - `C`: Function type taking a reference to a vector and returning a boolean value.
     /// - `S`: Function type taking a reference to a 3D point and returning a boolean value.
-    pub fn on_centered_vector_field_values<F, I, C, S>(
+    pub fn on_centered_vector_field_values<F, C, S>(
         field: &VectorField3<F>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         evaluate_criterion: &C,
         satisfies_constraints: &S,
     ) -> Self
     where
         F: BFloat,
-        I: Interpolator3<F>,
         C: Fn(&Vec3<F>) -> bool + Sync,
         S: Fn(&Point3<fgr>) -> bool + Sync,
     {

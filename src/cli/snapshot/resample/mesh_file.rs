@@ -95,7 +95,7 @@ pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Comman
     )
 }
 
-pub fn run_resampling_for_mesh_file<P, I>(
+pub fn run_resampling_for_mesh_file<P>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     provider: P,
@@ -103,11 +103,10 @@ pub fn run_resampling_for_mesh_file<P, I>(
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
-    interpolator: I,
+    interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     let mesh_file_path = exit_on_error!(
         PathBuf::from_str(

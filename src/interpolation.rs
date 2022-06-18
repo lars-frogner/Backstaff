@@ -31,7 +31,7 @@ pub trait InterpGridVerifier3 {
 }
 
 /// Defines the properties of a 3D interpolator.
-pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
+pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Sync + Send {
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///

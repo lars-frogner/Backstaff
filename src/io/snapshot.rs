@@ -937,29 +937,28 @@ impl_relative_eq_for_parameters!(MapOfSnapshotParameters);
 
 /// Wrapper for a `SnapshotProvider3` that resamples the provided fields
 /// to a given grid.
-pub struct ResampledSnapshotProvider3<P, T, I> {
+pub struct ResampledSnapshotProvider3<P, T> {
     provider: P,
     new_grid: Arc<FieldGrid3>,
     transformation: T,
     resampled_locations: In3D<ResampledCoordLocation>,
-    interpolator: I,
+    interpolator: Box<dyn Interpolator3<fdt>>,
     resampling_method: ResamplingMethod,
     verbosity: Verbosity,
     stored_resampled_fields: HashMap<String, ScalarField3<fdt>>,
 }
 
-impl<P, T, I> ResampledSnapshotProvider3<P, T, I>
+impl<P, T> ResampledSnapshotProvider3<P, T>
 where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3<fdt>,
 {
     pub fn new(
         provider: P,
         new_grid: Arc<FieldGrid3>,
         transformation: T,
         resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: I,
+        interpolator: Box<dyn Interpolator3<fdt>>,
         resampling_method: ResamplingMethod,
         verbosity: Verbosity,
     ) -> Self {
@@ -976,11 +975,10 @@ where
     }
 }
 
-impl<P, T, I> ScalarFieldProvider3<fdt> for ResampledSnapshotProvider3<P, T, I>
+impl<P, T> ScalarFieldProvider3<fdt> for ResampledSnapshotProvider3<P, T>
 where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3<fdt>,
 {
     fn grid(&self) -> &FieldGrid3 {
         self.new_grid.as_ref()
@@ -999,7 +997,7 @@ where
             field.resampled_to_grid(
                 self.arc_with_grid(),
                 self.resampled_locations.clone(),
-                &self.interpolator,
+                self.interpolator.as_ref(),
                 self.resampling_method,
                 &self.verbosity,
             )
@@ -1019,7 +1017,7 @@ where
                 self.arc_with_grid(),
                 &self.transformation,
                 self.resampled_locations.clone(),
-                &self.interpolator,
+                self.interpolator.as_ref(),
                 self.resampling_method,
                 &self.verbosity,
             );
@@ -1040,7 +1038,7 @@ where
                         self.arc_with_grid(),
                         &self.transformation,
                         self.resampled_locations.clone(),
-                        &self.interpolator,
+                        self.interpolator.as_ref(),
                         self.resampling_method,
                         &self.verbosity,
                     );
@@ -1093,11 +1091,10 @@ where
     }
 }
 
-impl<P, T, I> SnapshotProvider3 for ResampledSnapshotProvider3<P, T, I>
+impl<P, T> SnapshotProvider3 for ResampledSnapshotProvider3<P, T>
 where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
-    I: Interpolator3<fdt>,
 {
     type Parameters = P::Parameters;
 

@@ -798,17 +798,14 @@ where
 
     /// Resamples the scalar field onto the given grid using the given method and
     /// returns the resampled field.
-    pub fn resampled_to_grid<I>(
+    pub fn resampled_to_grid(
         &self,
         grid: Arc<FieldGrid3>,
         resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         method: ResamplingMethod,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField3<F> {
         match method {
             ResamplingMethod::SampleAveraging => self.resampled_to_grid_with_sample_averaging(
                 grid,
@@ -833,18 +830,17 @@ where
     ///
     /// The horizontal components of the grid are transformed with respect to the original
     /// grid using the given point transformation prior to resampling.
-    pub fn resampled_to_transformed_grid<T, I>(
+    pub fn resampled_to_transformed_grid<T>(
         &self,
         grid: Arc<FieldGrid3>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         method: ResamplingMethod,
         verbosity: &Verbosity,
     ) -> ScalarField3<F>
     where
         T: PointTransformation2<fgr>,
-        I: Interpolator3<F>,
     {
         match method {
             ResamplingMethod::SampleAveraging => self
@@ -882,16 +878,13 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_grid_with_sample_averaging<I>(
+    pub fn resampled_to_grid_with_sample_averaging(
         &self,
         grid: Arc<FieldGrid3>,
         resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField3<F> {
         let overlying_grid = grid;
         let overlying_locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
@@ -1018,17 +1011,16 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_transformed_grid_with_sample_averaging<T, I>(
+    pub fn resampled_to_transformed_grid_with_sample_averaging<T>(
         &self,
         grid: Arc<FieldGrid3>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
     ) -> ScalarField3<F>
     where
         T: PointTransformation2<fgr>,
-        I: Interpolator3<F>,
     {
         const MIN_INTERSECTION_AREA: fgr = 1e-6;
 
@@ -1469,16 +1461,49 @@ where
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
     /// more noisy result than weighted averaging.
-    pub fn resampled_to_grid_with_direct_sampling<I>(
+    pub fn resampled_to_grid_with_direct_sampling(
         &self,
         grid: Arc<FieldGrid3>,
         resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField3<F> {
+        let locations =
+            ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
+        let new_coords = Self::coords_from_grid(grid.as_ref(), &locations);
+
+        let grid_shape = grid.shape();
+        let mut new_values = Array3::uninit(grid_shape.to_tuple().f());
+        let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
+        let n_values = values_buffer.len();
+
+        values_buffer
+            .par_iter_mut()
+            .enumerate()
+            .progress_with(verbosity.create_progress_bar(n_values))
+            .for_each(|(idx, value)| {
+                let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
+                let point = new_coords.point(&indices);
+                value.write(
+                    F::from(
+                        interpolator
+                            .interp_scalar_field(self, &point)
+                            .expect_inside_or_moved(),
+                    )
+                    .unwrap(),
+                );
+            });
+        let new_values = unsafe { new_values.assume_init() };
+        ScalarField3::new(self.name.clone(), grid, locations, new_values)
+    }
+
+    pub fn resampled_to_grid_with_direct_sampling_nongen(
+        &self,
+        grid: Arc<FieldGrid3>,
+        resampled_locations: In3D<ResampledCoordLocation>,
+        interpolator: &dyn Interpolator3<F>,
+        verbosity: &Verbosity,
+    ) -> ScalarField3<F> {
         let locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let new_coords = Self::coords_from_grid(grid.as_ref(), &locations);
@@ -1517,17 +1542,16 @@ where
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
     /// more noisy result than weighted averaging.
-    pub fn resampled_to_transformed_grid_with_direct_sampling<T, I>(
+    pub fn resampled_to_transformed_grid_with_direct_sampling<T>(
         &self,
         grid: Arc<FieldGrid3>,
         transformation: &T,
         resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
     ) -> ScalarField3<F>
     where
         T: PointTransformation2<fgr>,
-        I: Interpolator3<F>,
     {
         let locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
@@ -1565,15 +1589,12 @@ where
     }
 
     /// Returns a 2D scalar field corresponding to a slice through the x-axis at the given coordinate.
-    pub fn slice_across_x<I>(
+    pub fn slice_across_x(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         x_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_grid = self.grid.slice_across_x();
         self.create_slice_across_x(
             Arc::new(slice_grid),
@@ -1584,15 +1605,12 @@ where
     }
 
     /// Returns a 2D scalar field corresponding to a slice through the y-axis at the given coordinate.
-    pub fn slice_across_y<I>(
+    pub fn slice_across_y(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         y_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_grid = self.grid.slice_across_y();
         self.create_slice_across_y(
             Arc::new(slice_grid),
@@ -1603,15 +1621,12 @@ where
     }
 
     /// Returns a 2D scalar field corresponding to a slice through the z-axis at the given coordinate.
-    pub fn slice_across_z<I>(
+    pub fn slice_across_z(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         z_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_grid = self.grid.slice_across_z();
         self.create_slice_across_z(
             Arc::new(slice_grid.into()),
@@ -1622,16 +1637,13 @@ where
     }
 
     /// Returns a 2D scalar field corresponding to a regular slice through the given axis at the given coordinate.
-    pub fn regular_slice_across_axis<I>(
+    pub fn regular_slice_across_axis(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         axis: Dim3,
         coord: fgr,
         location: CoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_grid = self.grid.regular_slice_across_axis(axis);
         self.create_regular_slice_across_axis(
             Arc::new(slice_grid.into()),
@@ -1788,16 +1800,13 @@ where
         self.grid = new_grid;
     }
 
-    fn create_slice_across_x<I>(
+    fn create_slice_across_x(
         &self,
         slice_grid: Arc<FieldGrid2>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         x_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_locations = self.select_slice_locations([Y, Z], resampled_location);
         let slice_values =
             self.compute_slice_values(interpolator, X, x_coord, resampled_location, false);
@@ -1809,16 +1818,13 @@ where
         )
     }
 
-    fn create_slice_across_y<I>(
+    fn create_slice_across_y(
         &self,
         slice_grid: Arc<FieldGrid2>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         y_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_locations = self.select_slice_locations([X, Z], resampled_location);
         let slice_values =
             self.compute_slice_values(interpolator, Y, y_coord, resampled_location, false);
@@ -1830,16 +1836,13 @@ where
         )
     }
 
-    fn create_slice_across_z<I>(
+    fn create_slice_across_z(
         &self,
         slice_grid: Arc<FieldGrid2>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         z_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_locations = self.select_slice_locations([X, Y], resampled_location);
         let slice_values =
             self.compute_slice_values(interpolator, Z, z_coord, resampled_location, false);
@@ -1851,17 +1854,14 @@ where
         )
     }
 
-    fn create_regular_slice_across_axis<I>(
+    fn create_regular_slice_across_axis(
         &self,
         slice_grid: Arc<FieldGrid2>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         axis: Dim3,
         coord: fgr,
         location: CoordLocation,
-    ) -> ScalarField2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> ScalarField2<F> {
         let slice_locations = In2D::same(location);
         let slice_values = self.compute_slice_values(
             interpolator,
@@ -1934,17 +1934,14 @@ where
         }
     }
 
-    fn compute_slice_values<I>(
+    fn compute_slice_values(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         axis: Dim3,
         coord: fgr,
         resampled_location: ResampledCoordLocation,
         regular: bool,
-    ) -> Array2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> Array2<F> {
         let lower_bound = self.grid.lower_bounds()[axis];
         let upper_bound = self.grid.upper_bounds()[axis];
         if coord < lower_bound || coord >= upper_bound {
@@ -1966,16 +1963,13 @@ where
         self.interpolate_slice_values(interpolator, axes, &coords, coord)
     }
 
-    fn interpolate_slice_values<I>(
+    fn interpolate_slice_values(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         axes: [Dim3; 2],
         coords: &[&[fgr]; 2],
         slice_axis_coord: fgr,
-    ) -> Array2<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> Array2<F> {
         let slice_shape = (coords[0].len(), coords[1].len());
         let mut slice_values = Array2::uninit(slice_shape.f());
         let values_buffer = slice_values.as_slice_memory_order_mut().unwrap();
@@ -2242,15 +2236,12 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_grid_with_sample_averaging<I>(
+    pub fn resampled_to_grid_with_sample_averaging(
         &self,
         grid: Arc<FieldGrid3>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
-    ) -> VectorField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> VectorField3<F> {
         let components = In3D::with_each_component(|dim| {
             self.components[dim].resampled_to_grid_with_sample_averaging(
                 Arc::clone(&grid),
@@ -2291,15 +2282,12 @@ where
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
     /// more noisy result than weighted averaging.
-    pub fn resampled_to_grid_with_direct_sampling<I>(
+    pub fn resampled_to_grid_with_direct_sampling(
         &self,
         grid: Arc<FieldGrid3>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
-    ) -> VectorField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> VectorField3<F> {
         let components = In3D::with_each_component(|dim| {
             self.components[dim].resampled_to_grid_with_direct_sampling(
                 Arc::clone(&grid),
@@ -2318,15 +2306,12 @@ where
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the x-axis at the given coordinate.
-    pub fn slice_across_x<I>(
+    pub fn slice_across_x(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         x_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> PlaneVectorField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> PlaneVectorField3<F> {
         let slice_grid = Arc::new(self.grid.slice_across_x());
         let slice_field_components = In3D::with_each_component(|dim| {
             self.components[dim].create_slice_across_x(
@@ -2340,15 +2325,12 @@ where
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the y-axis at the given coordinate.
-    pub fn slice_across_y<I>(
+    pub fn slice_across_y(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         y_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> PlaneVectorField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> PlaneVectorField3<F> {
         let slice_grid = Arc::new(self.grid.slice_across_y());
         let slice_field_components = In3D::with_each_component(|dim| {
             self.components[dim].create_slice_across_y(
@@ -2362,15 +2344,12 @@ where
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a slice through the z-axis at the given coordinate.
-    pub fn slice_across_z<I>(
+    pub fn slice_across_z(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         z_coord: fgr,
         resampled_location: ResampledCoordLocation,
-    ) -> PlaneVectorField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> PlaneVectorField3<F> {
         let slice_grid = Arc::new(self.grid.slice_across_z().into());
         let slice_field_components = In3D::with_each_component(|dim| {
             self.components[dim].create_slice_across_z(
@@ -2384,16 +2363,13 @@ where
     }
 
     /// Returns a field of 3D vectors in a 2D plane corresponding to a regular slice through the given axis at the given coordinate.
-    pub fn regular_slice_across_axis<I>(
+    pub fn regular_slice_across_axis(
         &self,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<F>,
         axis: Dim3,
         coord: fgr,
         location: CoordLocation,
-    ) -> PlaneVectorField3<F>
-    where
-        I: Interpolator3<F>,
-    {
+    ) -> PlaneVectorField3<F> {
         let slice_grid = Arc::new(self.grid.regular_slice_across_axis(axis).into());
         let slice_field_components = In3D::with_each_component(|dim| {
             self.components[dim].create_regular_slice_across_axis(

@@ -371,7 +371,7 @@ fn run_with_selected_interpolator<P, Tr, StF>(
         println!("{:#?}", interpolator_config);
     }
 
-    let interpolator = PolyFitInterpolator3::new(interpolator_config);
+    let interpolator = Box::new(PolyFitInterpolator3::new(interpolator_config));
 
     exit_on_error!(
         interpolator.verify_grid(snapshot.grid()),
@@ -384,18 +384,18 @@ fn run_with_selected_interpolator<P, Tr, StF>(
         snapshot,
         tracer,
         stepper_factory,
-        interpolator,
+        interpolator.as_ref(),
         io_context,
     );
 }
 
-fn run_with_selected_seeder<P, Tr, StF, I>(
+fn run_with_selected_seeder<P, Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: P,
     tracer: Tr,
     stepper_factory: StF,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext,
 ) where
     P: CachingSnapshotProvider3,
@@ -403,11 +403,10 @@ fn run_with_selected_seeder<P, Tr, StF, I>(
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
     StF: StepperFactory3 + Sync,
-    I: Interpolator3<fdt>,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
         let seeder =
-            create_slice_seeder_from_arguments(seeder_arguments, &mut snapshot, &interpolator);
+            create_slice_seeder_from_arguments(seeder_arguments, &mut snapshot, interpolator);
         run_tracing(
             root_arguments,
             snapshot,
@@ -419,7 +418,7 @@ fn run_with_selected_seeder<P, Tr, StF, I>(
         );
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
         let seeder =
-            create_volume_seeder_from_arguments(seeder_arguments, &mut snapshot, &interpolator);
+            create_volume_seeder_from_arguments(seeder_arguments, &mut snapshot, interpolator);
         run_tracing(
             root_arguments,
             snapshot,
@@ -445,12 +444,12 @@ fn run_with_selected_seeder<P, Tr, StF, I>(
     };
 }
 
-fn run_tracing<P, Tr, StF, I, Sd>(
+fn run_tracing<P, Tr, StF, Sd>(
     root_arguments: &ArgMatches,
     mut snapshot: P,
     tracer: Tr,
     stepper_factory: StF,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     seeder: Sd,
     io_context: &mut IOContext,
 ) where
@@ -459,7 +458,6 @@ fn run_tracing<P, Tr, StF, I, Sd>(
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
     StF: StepperFactory3 + Sync,
-    I: Interpolator3<fdt>,
     Sd: Seeder3,
 {
     let mut output_file_path = exit_on_error!(
@@ -529,7 +527,7 @@ fn run_tracing<P, Tr, StF, I, Sd>(
         &snapshot,
         seeder,
         &tracer,
-        &interpolator,
+        interpolator,
         &stepper_factory,
         verbosity,
     );
@@ -545,18 +543,17 @@ fn run_tracing<P, Tr, StF, I, Sd>(
     );
 }
 
-fn perform_post_tracing_actions<P, I>(
+fn perform_post_tracing_actions<P>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
     extra_atomic_output_file: Option<AtomicOutputFile>,
     io_context: &IOContext,
     mut provider: P,
-    interpolator: I,
+    interpolator: &dyn Interpolator3<fdt>,
     mut field_lines: FieldLineSet3,
 ) where
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
 {
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extracted-seed-quantities")
@@ -570,7 +567,7 @@ fn perform_post_tracing_actions<P, I>(
                     "Error: Could not read quantity {0} in snapshot: {1}",
                     &name
                 ),
-                &interpolator,
+                interpolator,
             );
         }
     }
@@ -586,7 +583,7 @@ fn perform_post_tracing_actions<P, I>(
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
-                &interpolator,
+                interpolator,
             );
         }
     }

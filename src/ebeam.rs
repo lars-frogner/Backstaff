@@ -328,15 +328,14 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
-    /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
+    pub fn generate_unpropagated<P, D, StF>(snapshot: &mut P, detector: D, accelerator: A,
+        interpolator: &dyn Interpolator3<fdt>, stepper_factory: &StF, verbosity: Verbosity) -> Self
     where P: CachingScalarFieldProvider3<fdt>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          I: Interpolator3<fdt>,
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
@@ -386,15 +385,14 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
-    /// - `I`: Type of interpolator.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<P, D, I, StF>(snapshot: &mut P, detector: D, accelerator: A, interpolator: &I, stepper_factory: &StF, verbosity: Verbosity) -> Self
+    pub fn generate_propagated<P, D, StF>(snapshot: &mut P, detector: D, accelerator: A,
+        interpolator: &dyn Interpolator3<fdt>, stepper_factory: &StF, verbosity: Verbosity) -> Self
     where P: CachingScalarFieldProvider3<fdt>,
           D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          I: Interpolator3<fdt>,
           StF: StepperFactory3 + Sync
     {
         let (distributions, acceleration_data) = accelerator
@@ -475,10 +473,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given scalar field at the initial position for each beam.
-    pub fn extract_fixed_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
-    where
+    pub fn extract_fixed_scalars<F>(
+        &mut self,
+        field: &ScalarField3<F>,
+        interpolator: &dyn Interpolator3<F>,
+    ) where
         F: BFloat,
-        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} at acceleration sites", field.name());
@@ -506,10 +506,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given vector field at the initial position for each beam.
-    pub fn extract_fixed_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
-    where
+    pub fn extract_fixed_vectors<F>(
+        &mut self,
+        field: &VectorField3<F>,
+        interpolator: &dyn Interpolator3<F>,
+    ) where
         F: BFloat,
-        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} at acceleration sites", field.name());
@@ -537,10 +539,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given scalar field at each position for each beam.
-    pub fn extract_varying_scalars<F, I>(&mut self, field: &ScalarField3<F>, interpolator: &I)
-    where
+    pub fn extract_varying_scalars<F>(
+        &mut self,
+        field: &ScalarField3<F>,
+        interpolator: &dyn Interpolator3<F>,
+    ) where
         F: BFloat,
-        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} along beam trajectories", field.name());
@@ -575,10 +579,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     }
 
     /// Extracts and stores the value of the given vector field at each position for each beam.
-    pub fn extract_varying_vectors<F, I>(&mut self, field: &VectorField3<F>, interpolator: &I)
-    where
+    pub fn extract_varying_vectors<F>(
+        &mut self,
+        field: &VectorField3<F>,
+        interpolator: &dyn Interpolator3<F>,
+    ) where
         F: BFloat,
-        I: Interpolator3<F>,
     {
         if self.verbosity.print_messages() {
             println!("Extracting {} along beam trajectories", field.name());
@@ -749,16 +755,15 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
 }
 
 impl<D: Distribution> PropagatedElectronBeam<D> {
-    fn generate<P, I, S>(
+    fn generate<P, S>(
         mut distribution: D,
         snapshot: &P,
         acceleration_map: &Array3<bool>,
-        interpolator: &I,
+        interpolator: &dyn Interpolator3<fdt>,
         stepper: S,
     ) -> Option<Self>
     where
         P: CachingScalarFieldProvider3<fdt>,
-        I: Interpolator3<fdt>,
         S: Stepper3,
     {
         let magnetic_field = snapshot.cached_vector_field("b");

@@ -65,16 +65,15 @@ pub fn create_value_pdf_subcommand(_parent_command_name: &'static str) -> Comman
 }
 
 /// Creates a slice PDF seeder based on the provided arguments.
-pub fn create_slice_pdf_seeder_from_arguments<P, I, S>(
+pub fn create_slice_pdf_seeder_from_arguments<P, S>(
     arguments: &ArgMatches,
     parameters: &CommonSliceSeederParameters,
     provider: &mut P,
-    interpolator: &I,
+    interpolator: &dyn Interpolator3<fdt>,
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
     P: SnapshotProvider3,
-    I: Interpolator3<fdt>,
     S: Fn(&Point2<fgr>) -> bool + Sync,
 {
     let quantity = arguments
