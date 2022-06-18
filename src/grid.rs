@@ -1605,7 +1605,7 @@ pub fn regular_coords_from_bounds<F: BFloat>(
 
 /// Determine center and lower edge coordinates for a grid with the given
 /// size and bounds using the given control values for grid cell extents.
-pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1>(
+pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1<fgr>>(
     target_number_of_grid_cells: usize,
     lower_bound: F,
     upper_bound: F,

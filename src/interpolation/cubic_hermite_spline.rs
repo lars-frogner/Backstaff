@@ -138,8 +138,8 @@ impl CubicHermiteSplineInterpolator {
     }
 }
 
-impl Interpolator1 for CubicHermiteSplineInterpolator {
-    fn interp_scalar_field<F>(
+impl<F: BFloat> Interpolator1<F> for CubicHermiteSplineInterpolator {
+    fn interp_scalar_field(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,
@@ -162,7 +162,7 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
         }
     }
 
-    fn interp_scalar_field_known_cell<F>(
+    fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,
@@ -174,7 +174,7 @@ impl Interpolator1 for CubicHermiteSplineInterpolator {
         self.interp(field, interp_coord, interp_index)
     }
 
-    fn interp_extrap_scalar_field<F>(
+    fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,

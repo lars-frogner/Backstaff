@@ -1809,8 +1809,8 @@ impl PolyFitInterpolator2 {
     }
 }
 
-impl Interpolator2 for PolyFitInterpolator2 {
-    fn interp_scalar_field<F>(
+impl<F: BFloat> Interpolator2<F> for PolyFitInterpolator2 {
+    fn interp_scalar_field(
         &self,
         field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
@@ -1850,7 +1850,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         }
     }
 
-    fn interp_scalar_field_known_cell<F>(
+    fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
@@ -1906,7 +1906,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         }
     }
 
-    fn interp_extrap_scalar_field<F>(
+    fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
@@ -1946,7 +1946,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         }
     }
 
-    fn interp_vector_field<F>(
+    fn interp_vector_field(
         &self,
         field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
@@ -1986,7 +1986,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         }
     }
 
-    fn interp_vector_field_known_cell<F>(
+    fn interp_vector_field_known_cell(
         &self,
         field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
@@ -2042,7 +2042,7 @@ impl Interpolator2 for PolyFitInterpolator2 {
         }
     }
 
-    fn interp_extrap_vector_field<F>(
+    fn interp_extrap_vector_field(
         &self,
         field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
@@ -2097,8 +2097,8 @@ impl PolyFitInterpolator1 {
     }
 }
 
-impl Interpolator1 for PolyFitInterpolator1 {
-    fn interp_scalar_field<F>(
+impl<F: BFloat> Interpolator1<F> for PolyFitInterpolator1 {
+    fn interp_scalar_field(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,
@@ -2128,7 +2128,7 @@ impl Interpolator1 for PolyFitInterpolator1 {
         }
     }
 
-    fn interp_scalar_field_known_cell<F>(
+    fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,
@@ -2182,7 +2182,7 @@ impl Interpolator1 for PolyFitInterpolator1 {
         }
     }
 
-    fn interp_extrap_scalar_field<F>(
+    fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,

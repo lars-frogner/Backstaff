@@ -48,10 +48,6 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
     /// - `MovedInside`: Contains the interpolated field value and a wrapped version of the
     /// interpolation point located on the inside of the grid.
     /// - `Outside`: The interpolation point was outside a non-periodic boundary.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
     fn interp_scalar_field(
         &self,
         field: &ScalarField3<F>,
@@ -70,10 +66,6 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
     /// # Returns
     ///
     /// The interpolated field value.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
     fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField3<F>,
@@ -98,10 +90,6 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
     /// - `Inside`: Contains the interpolated/extrapolated field value.
     /// - `MovedInside`: Contains the interpolated/extrapolated field value and a wrapped/truncated
     /// version of the interpolation point located on the inside of the grid.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
     fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField3<F>,
@@ -124,10 +112,6 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
     /// - `MovedInside`: Contains the interpolated field vector and a wrapped version of the
     /// interpolation point located on the inside of the grid.
     /// - `Outside`: The interpolation point was outside a non-periodic boundary.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
     fn interp_vector_field(
         &self,
         field: &VectorField3<F>,
@@ -146,10 +130,6 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
     /// # Returns
     ///
     /// The interpolated field vector.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
     fn interp_vector_field_known_cell(
         &self,
         field: &VectorField3<F>,
@@ -174,10 +154,6 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
     /// - `Inside`: Contains the interpolated/extrapolated field vector.
     /// - `MovedInside`: Contains the interpolated/extrapolated field vector and a wrapped/truncated
     /// version of the interpolation point located on the inside of the grid.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
     fn interp_extrap_vector_field(
         &self,
         field: &VectorField3<F>,
@@ -186,7 +162,7 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Clone + Sync + Send {
 }
 
 /// Defines the properties of a 2D interpolator.
-pub trait Interpolator2: Clone + Sync + Send {
+pub trait Interpolator2<F: BFloat>: Clone + Sync + Send {
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///
@@ -203,11 +179,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// - `MovedInside`: Contains the interpolated field value and a wrapped version of the
     /// interpolation point located on the inside of the grid.
     /// - `Outside`: The interpolation point was outside a non-periodic boundary.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_scalar_field<F: BFloat>(
+    fn interp_scalar_field(
         &self,
         field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
@@ -225,11 +197,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Returns
     ///
     /// The interpolated field value.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_scalar_field_known_cell<F: BFloat>(
+    fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
@@ -253,11 +221,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// - `Inside`: Contains the interpolated/extrapolated field value.
     /// - `MovedInside`: Contains the interpolated/extrapolated field value and a wrapped/truncated
     /// version of the interpolation point located on the inside of the grid.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_extrap_scalar_field<F: BFloat>(
+    fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField2<F>,
         interp_point: &Point2<fgr>,
@@ -279,11 +243,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// - `MovedInside`: Contains the interpolated field vector and a wrapped version of the
     /// interpolation point located on the inside of the grid.
     /// - `Outside`: The interpolation point was outside a non-periodic boundary.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_vector_field<F: BFloat>(
+    fn interp_vector_field(
         &self,
         field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
@@ -301,11 +261,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// # Returns
     ///
     /// The interpolated field vector.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_vector_field_known_cell<F: BFloat>(
+    fn interp_vector_field_known_cell(
         &self,
         field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
@@ -329,11 +285,7 @@ pub trait Interpolator2: Clone + Sync + Send {
     /// - `Inside`: Contains the interpolated/extrapolated field vector.
     /// - `MovedInside`: Contains the interpolated/extrapolated field vector and a wrapped/truncated
     /// version of the interpolation point located on the inside of the grid.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_extrap_vector_field<F: BFloat>(
+    fn interp_extrap_vector_field(
         &self,
         field: &VectorField2<F>,
         interp_point: &Point2<fgr>,
@@ -341,7 +293,7 @@ pub trait Interpolator2: Clone + Sync + Send {
 }
 
 /// Defines the properties of a 1D interpolator.
-pub trait Interpolator1: Clone + Sync + Send {
+pub trait Interpolator1<F: BFloat>: Clone + Sync + Send {
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///
@@ -358,11 +310,7 @@ pub trait Interpolator1: Clone + Sync + Send {
     /// - `MovedInside`: Contains the interpolated field value and a wrapped version of the
     /// interpolation coordinate located on the inside of the grid.
     /// - `Outside`: The interpolation coordinate was outside a non-periodic boundary.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_scalar_field<F: BFloat>(
+    fn interp_scalar_field(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,
@@ -380,11 +328,7 @@ pub trait Interpolator1: Clone + Sync + Send {
     /// # Returns
     ///
     /// The interpolated field value.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_scalar_field_known_cell<F: BFloat>(
+    fn interp_scalar_field_known_cell(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,
@@ -408,11 +352,7 @@ pub trait Interpolator1: Clone + Sync + Send {
     /// - `Inside`: Contains the interpolated/extrapolated field value.
     /// - `MovedInside`: Contains the interpolated/extrapolated field value and a wrapped/truncated
     /// version of the interpolation coordinate located on the inside of the grid.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn interp_extrap_scalar_field<F: BFloat>(
+    fn interp_extrap_scalar_field(
         &self,
         field: &ScalarField1<F>,
         interp_coord: fgr,

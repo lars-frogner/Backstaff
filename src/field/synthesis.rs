@@ -241,7 +241,7 @@ pub struct EmissivitySnapshotProvider3<P, I> {
 impl<P, I> EmissivitySnapshotProvider3<P, I>
 where
     P: CachingSnapshotProvider3,
-    I: Interpolator2,
+    I: Interpolator2<fdt>,
 {
     /// Creates a computer of emissivities.
     pub fn new(
@@ -541,7 +541,7 @@ where
 impl<P, I> ScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3<P, I>
 where
     P: CachingSnapshotProvider3,
-    I: Interpolator2,
+    I: Interpolator2<fdt>,
 {
     fn grid(&self) -> &FieldGrid3 {
         self.provider.grid()
@@ -574,7 +574,7 @@ where
 impl<P, I> CachingScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3<P, I>
 where
     P: CachingSnapshotProvider3,
-    I: Interpolator2,
+    I: Interpolator2<fdt>,
 {
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.cached_scalar_fields.contains_key(variable_name)
@@ -644,7 +644,7 @@ where
 impl<P, I> SnapshotProvider3 for EmissivitySnapshotProvider3<P, I>
 where
     P: CachingSnapshotProvider3,
-    I: Interpolator2,
+    I: Interpolator2<fdt>,
 {
     type Parameters = P::Parameters;
 
@@ -803,7 +803,7 @@ where
     }
 
     /// Provides sampled emissivities for the given spectral line, temperatures and electron densities.
-    fn evaluate<I: Interpolator2>(
+    fn evaluate<I: Interpolator2<F>>(
         &self,
         emissivity_buffer: &mut [MaybeUninit<F>],
         interpolator: &I,
