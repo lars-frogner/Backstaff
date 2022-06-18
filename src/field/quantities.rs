@@ -486,10 +486,9 @@ where
 }
 
 /// Computes a derived quantity field using a compute closure on fields from the given provider .
-#[macro_export]
 macro_rules! compute_derived_quantity {
     ($name:ident, |$dep_name:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        $crate::field::quantities::compute_quantity_unary(
+        $crate::field::quantities::compute_general_single_dep_quantity(
             stringify!($name),
             $provider,
             stringify!($dep_name),
@@ -498,7 +497,7 @@ macro_rules! compute_derived_quantity {
         )
     };
     ($name:ident, with indices |$indices:ident, $dep_name:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        $crate::field::quantities::compute_quantity_unary_with_indices(
+        $crate::field::quantities::compute_general_single_dep_quantity_with_indices(
             stringify!($name),
             $provider,
             stringify!($dep_name),
@@ -507,7 +506,7 @@ macro_rules! compute_derived_quantity {
         )
     };
     ($name:ident, |$dep_name_1:ident, $dep_name_2:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        $crate::field::quantities::compute_quantity_binary(
+        $crate::field::quantities::compute_general_double_dep_quantity(
             stringify!($name),
             $provider,
             stringify!($dep_name_1),
@@ -517,7 +516,7 @@ macro_rules! compute_derived_quantity {
         )
     };
     ($name:ident, |$dep_name_1:ident, $dep_name_2:ident, $dep_name_3:ident| $computer:expr, $provider:expr, $verbosity:expr) => {
-        $crate::field::quantities::compute_quantity_tertiary(
+        $crate::field::quantities::compute_general_triple_dep_quantity(
             stringify!($name),
             $provider,
             stringify!($dep_name_1),
@@ -542,9 +541,9 @@ where
 
     if DERIVABLE_QUANTITIES.contains_key(quantity_name) {
         match quantity_name {
-            "ux" => compute_derived_quantity!(ux, |px, r| px / r, provider, verbosity),
-            "uy" => compute_derived_quantity!(uy, |py, r| py / r, provider, verbosity),
-            "uz" => compute_derived_quantity!(uz, |pz, r| pz / r, provider, verbosity),
+            "ux" => compute_quantity_quotient("ux", provider, "px", "r", 1.0, verbosity),
+            "uy" => compute_quantity_quotient("uy", provider, "py", "r", 1.0, verbosity),
+            "uz" => compute_quantity_quotient("uz", provider, "py", "r", 1.0, verbosity),
             "ubeam" => compute_derived_quantity!(ubeam,
                 with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices) as fdt,
                 provider, verbosity
@@ -556,15 +555,13 @@ where
             mod_vec_component_names(cgs_base_name)
         {
             if let Some(&scale) = QUANTITY_CGS_SCALES.get(x_comp_name.as_str()) {
-                compute_quantity_tertiary(
+                compute_vector_quantity_norm(
                     quantity_name,
                     provider,
                     &x_comp_name,
                     &y_comp_name,
                     &z_comp_name,
-                    |x_comp, y_comp, z_comp| {
-                        (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt() * scale
-                    },
+                    scale,
                     verbosity,
                 )
             } else {
@@ -575,23 +572,13 @@ where
             }
         } else if let Some(centered_base_name) = centered_base_name(cgs_base_name) {
             if let Some(&scale) = QUANTITY_CGS_SCALES.get(centered_base_name) {
-                if scale == 1.0 {
-                    compute_centered_quantity_unary(
-                        quantity_name,
-                        provider,
-                        centered_base_name,
-                        |_| {},
-                        verbosity,
-                    )
-                } else {
-                    compute_centered_quantity_unary(
-                        quantity_name,
-                        provider,
-                        centered_base_name,
-                        |val| *val *= scale,
-                        verbosity,
-                    )
-                }
+                compute_centered_quantity(
+                    quantity_name,
+                    provider,
+                    centered_base_name,
+                    scale,
+                    verbosity,
+                )
             } else {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -602,19 +589,7 @@ where
                 ))
             }
         } else if let Some(&scale) = QUANTITY_CGS_SCALES.get(cgs_base_name) {
-            if scale == 1.0 {
-                provider
-                    .produce_scalar_field(cgs_base_name)
-                    .map(|field| field.with_name(quantity_name.to_string()))
-            } else {
-                compute_quantity_unary(
-                    quantity_name,
-                    provider,
-                    cgs_base_name,
-                    |val| val * scale,
-                    verbosity,
-                )
-            }
+            compute_scaled_quantity(quantity_name, provider, cgs_base_name, scale, verbosity)
         } else {
             Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -624,23 +599,17 @@ where
     } else if let Some((x_comp_name, y_comp_name, z_comp_name)) =
         mod_vec_component_names(quantity_name)
     {
-        compute_quantity_tertiary(
+        compute_vector_quantity_norm(
             quantity_name,
             provider,
             &x_comp_name,
             &y_comp_name,
             &z_comp_name,
-            |x_comp, y_comp, z_comp| (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt(),
+            1.0,
             verbosity,
         )
     } else if let Some(centered_base_name) = centered_base_name(quantity_name) {
-        compute_centered_quantity_unary(
-            quantity_name,
-            provider,
-            centered_base_name,
-            |_| {},
-            verbosity,
-        )
+        compute_centered_quantity(quantity_name, provider, centered_base_name, 1.0, verbosity)
     } else {
         Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -652,7 +621,176 @@ where
     }
 }
 
-pub fn compute_quantity_unary<P, C>(
+pub fn compute_scaled_quantity<P>(
+    quantity_name: &str,
+    provider: &mut P,
+    dep_name: &str,
+    scale: fdt,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>>
+where
+    P: ScalarFieldProvider3<fdt>,
+{
+    if scale == 1.0 {
+        provider
+            .produce_scalar_field(dep_name)
+            .map(|field| field.with_name(quantity_name.to_string()))
+    } else {
+        compute_general_single_dep_quantity(
+            quantity_name,
+            provider,
+            dep_name,
+            |value| scale * value,
+            verbosity,
+        )
+    }
+}
+
+pub fn compute_centered_quantity<P>(
+    quantity_name: &str,
+    provider: &mut P,
+    dep_name: &str,
+    scale: fdt,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>>
+where
+    P: ScalarFieldProvider3<fdt>,
+{
+    if scale == 1.0 {
+        compute_centered_general_single_dep_quantity(
+            quantity_name,
+            provider,
+            dep_name,
+            |_| {},
+            verbosity,
+        )
+    } else {
+        compute_centered_general_single_dep_quantity(
+            quantity_name,
+            provider,
+            dep_name,
+            |value| *value *= scale,
+            verbosity,
+        )
+    }
+}
+
+pub fn compute_quantity_product<P>(
+    quantity_name: &str,
+    provider: &mut P,
+    factor_1_name: &str,
+    factor_2_name: &str,
+    scale: fdt,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>>
+where
+    P: ScalarFieldProvider3<fdt>,
+{
+    compute_general_double_dep_quantity(
+        quantity_name,
+        provider,
+        factor_1_name,
+        factor_2_name,
+        |factor_1, factor_2| scale * (factor_1 * factor_2),
+        verbosity,
+    )
+}
+
+pub fn compute_quantity_quotient<P>(
+    quantity_name: &str,
+    provider: &mut P,
+    dividend_name: &str,
+    divisor_name: &str,
+    scale: fdt,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>>
+where
+    P: ScalarFieldProvider3<fdt>,
+{
+    compute_general_double_dep_quantity(
+        quantity_name,
+        provider,
+        dividend_name,
+        divisor_name,
+        |dividend, divisor| scale * (dividend / divisor),
+        verbosity,
+    )
+}
+
+pub fn compute_vector_quantity_norm<P>(
+    quantity_name: &str,
+    provider: &mut P,
+    x_component_name: &str,
+    y_component_name: &str,
+    z_component_name: &str,
+    scale: fdt,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>>
+where
+    P: ScalarFieldProvider3<fdt>,
+{
+    compute_general_triple_dep_quantity(
+        quantity_name,
+        provider,
+        x_component_name,
+        y_component_name,
+        z_component_name,
+        |x_comp, y_comp, z_comp| {
+            scale * (x_comp * x_comp + y_comp * y_comp + z_comp * z_comp).sqrt()
+        },
+        verbosity,
+    )
+}
+
+pub fn compute_sum_of_single_and_squared_term_quantity<P>(
+    quantity_name: &str,
+    provider: &mut P,
+    single_name: &str,
+    squared_name: &str,
+    single_scale: fdt,
+    squared_scale: fdt,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>>
+where
+    P: ScalarFieldProvider3<fdt>,
+{
+    compute_general_double_dep_quantity(
+        quantity_name,
+        provider,
+        single_name,
+        squared_name,
+        |single, squared| single_scale * single + squared_scale * squared * squared,
+        verbosity,
+    )
+}
+
+pub fn compute_sum_of_single_and_squared_term_quantity_product<P>(
+    quantity_name: &str,
+    provider: &mut P,
+    factor_name: &str,
+    single_name: &str,
+    squared_name: &str,
+    single_scale: fdt,
+    squared_scale: fdt,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>>
+where
+    P: ScalarFieldProvider3<fdt>,
+{
+    compute_general_triple_dep_quantity(
+        quantity_name,
+        provider,
+        factor_name,
+        single_name,
+        squared_name,
+        |factor, single, squared| {
+            factor * (single_scale * single + squared_scale * squared * squared)
+        },
+        verbosity,
+    )
+}
+
+pub fn compute_general_single_dep_quantity<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
@@ -685,7 +823,7 @@ where
     ))
 }
 
-pub fn compute_centered_quantity_unary<P, C>(
+pub fn compute_centered_general_single_dep_quantity<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
@@ -728,7 +866,7 @@ where
     Ok(centered_field)
 }
 
-pub fn compute_quantity_unary_with_indices<P, C>(
+pub fn compute_general_single_dep_quantity_with_indices<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name: &str,
@@ -768,7 +906,7 @@ where
     ))
 }
 
-pub fn compute_quantity_binary<P, C>(
+pub fn compute_general_double_dep_quantity<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name_1: &str,
@@ -834,7 +972,7 @@ where
     ))
 }
 
-pub fn compute_quantity_tertiary<P, C>(
+pub fn compute_general_triple_dep_quantity<P, C>(
     quantity_name: &str,
     provider: &mut P,
     dep_name_1: &str,
