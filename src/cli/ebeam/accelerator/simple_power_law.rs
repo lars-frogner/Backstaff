@@ -6,7 +6,7 @@ use crate::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
         tracing::stepping::rkf::create_rkf_stepper_subcommand, utils,
     },
-    ebeam::distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig,
+    ebeam::{distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig, feb},
     exit_on_error,
     io::snapshot::SnapshotProvider3,
     units::solar::U_T,
@@ -185,7 +185,7 @@ where
         arguments,
         "acceleration-duration",
         "dt",
-        &|dt| dt * U_T,
+        &|dt: feb| dt * U_T,
         SimplePowerLawAccelerationConfig::DEFAULT_ACCELERATION_DURATION,
     );
 
@@ -194,7 +194,7 @@ where
         arguments,
         "particle-energy-fraction",
         "qjoule_acc_frac",
-        &|qjoule_acc_frac| qjoule_acc_frac,
+        &|qjoule_acc_frac: feb| qjoule_acc_frac,
         SimplePowerLawAccelerationConfig::DEFAULT_PARTICLE_ENERGY_FRACTION,
     );
 
@@ -203,7 +203,7 @@ where
         arguments,
         "power-law-delta",
         "power_law_index",
-        &|power_law_index| power_law_index,
+        &|power_law_index: feb| power_law_index,
         SimplePowerLawAccelerationConfig::DEFAULT_POWER_LAW_DELTA,
     );
 
@@ -212,7 +212,7 @@ where
         arguments,
         "min-total-power-density",
         "min_beam_en",
-        &|min_beam_en| min_beam_en,
+        &|min_beam_en: feb| min_beam_en,
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_TOTAL_POWER_DENSITY,
     );
 
@@ -221,7 +221,7 @@ where
         arguments,
         "min-depletion-distance",
         "min_stop_dist",
-        &|min_stop_dist| min_stop_dist,
+        &|min_stop_dist: feb| min_stop_dist,
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 

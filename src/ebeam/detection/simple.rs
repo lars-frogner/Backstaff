@@ -6,7 +6,7 @@ use crate::{
     field::CachingScalarFieldProvider3,
     geometry::Dim3,
     io::{
-        snapshot::{fdt, fpa, SnapshotParameters, SnapshotProvider3},
+        snapshot::{self, fdt, fpa, SnapshotProvider3},
         Verbosity,
     },
     seeding::{criterion::CriterionSeeder3, IndexSeeder3},
@@ -79,28 +79,28 @@ impl SimpleReconnectionSiteDetectorConfig {
     where
         P: SnapshotProvider3,
     {
-        let reconnection_factor_threshold = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let reconnection_factor_threshold =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "reconnection_factor_threshold",
                 "krec_lim",
-                &|krec_lim| krec_lim,
+                &|krec_lim: fpa| krec_lim,
                 Self::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
             );
-        let min_detection_depth = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let min_detection_depth =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "min_detection_depth",
                 "z_rec_ulim",
-                &|z_rec_ulim| z_rec_ulim,
+                &|z_rec_ulim: fpa| z_rec_ulim,
                 Self::DEFAULT_MIN_DETECTION_DEPTH,
             );
-        let max_detection_depth = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let max_detection_depth =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "max_detection_depth",
                 "z_rec_llim",
-                &|z_rec_llim| z_rec_llim,
+                &|z_rec_llim: fpa| z_rec_llim,
                 Self::DEFAULT_MAX_DETECTION_DEPTH,
             );
 

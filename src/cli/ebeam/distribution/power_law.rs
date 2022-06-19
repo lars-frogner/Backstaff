@@ -2,8 +2,10 @@
 
 use super::super::accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand;
 use crate::{
-    cli::utils, ebeam::distribution::power_law::PowerLawDistributionConfig,
-    io::snapshot::SnapshotProvider3, update_command_graph,
+    cli::utils,
+    ebeam::{distribution::power_law::PowerLawDistributionConfig, feb},
+    io::snapshot::SnapshotProvider3,
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
@@ -93,7 +95,7 @@ where
         arguments,
         "min-residual-factor",
         "min_residual",
-        &|min_residual| min_residual,
+        &|min_residual: feb| min_residual,
         PowerLawDistributionConfig::DEFAULT_MIN_RESIDUAL_FACTOR,
     );
     let min_deposited_power_per_distance = utils::get_value_from_param_file_argument_with_default(
@@ -101,7 +103,7 @@ where
         arguments,
         "min-deposited-power-per-distance",
         "min_dep_en",
-        &|min_dep_en| min_dep_en,
+        &|min_dep_en: feb| min_dep_en,
         PowerLawDistributionConfig::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
     );
     let max_propagation_distance = utils::get_value_from_param_file_argument_with_default(
@@ -109,7 +111,7 @@ where
         arguments,
         "max-propagation-distance",
         "max_dist",
-        &|max_dist| max_dist,
+        &|max_dist: feb| max_dist,
         PowerLawDistributionConfig::DEFAULT_MAX_PROPAGATION_DISTANCE,
     );
     let outside_deposition_threshold = utils::get_value_from_param_file_argument_with_default(
@@ -117,7 +119,7 @@ where
         arguments,
         "outside-deposition-threshold",
         "out_dep_thresh",
-        &|out_dep_thresh| out_dep_thresh,
+        &|out_dep_thresh: feb| out_dep_thresh,
         PowerLawDistributionConfig::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
     );
     let continue_depleted_beams = arguments.is_present("continue-depleted-beams");

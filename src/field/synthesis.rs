@@ -10,7 +10,7 @@ use crate::{
     grid::{fgr, regular::RegularGrid2, CoordLocation, Grid2},
     interpolation::Interpolator2,
     io::{
-        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, SnapshotParameters, SnapshotProvider3},
         Endianness, Verbosity,
     },
     num::BFloat,
@@ -609,9 +609,7 @@ where
     P: CachingSnapshotProvider3,
     I: Interpolator2<fdt>,
 {
-    type Parameters = P::Parameters;
-
-    fn parameters(&self) -> &Self::Parameters {
+    fn parameters(&self) -> &dyn SnapshotParameters {
         self.provider.parameters()
     }
 

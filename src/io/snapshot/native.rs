@@ -58,7 +58,7 @@ pub struct NativeSnapshotReaderConfig {
 #[derive(Clone, Debug)]
 pub struct NativeSnapshotReader3 {
     config: NativeSnapshotReaderConfig,
-    parameters: NativeSnapshotParameters,
+    parameters: Box<NativeSnapshotParameters>,
     snap_path: PathBuf,
     aux_path: PathBuf,
     grid: Arc<FieldGrid3>,
@@ -125,7 +125,7 @@ impl NativeSnapshotReader3 {
 
         Ok(Self {
             config,
-            parameters,
+            parameters: Box::new(parameters),
             snap_path,
             aux_path,
             grid: Arc::new(grid),
@@ -313,10 +313,8 @@ impl ScalarFieldProvider3<fdt> for NativeSnapshotReader3 {
 }
 
 impl SnapshotProvider3 for NativeSnapshotReader3 {
-    type Parameters = NativeSnapshotParameters;
-
-    fn parameters(&self) -> &Self::Parameters {
-        &self.parameters
+    fn parameters(&self) -> &dyn SnapshotParameters {
+        self.parameters.as_ref()
     }
 
     fn endianness(&self) -> Endianness {
@@ -591,7 +589,7 @@ where
             println!("Writing parameters to {}", output_param_file_name);
         }
         utils::write_text_file(
-            &new_parameters.native_text_representation(),
+            &new_parameters.borrow().native_text_representation(),
             atomic_param_file.temporary_path(),
         )?;
     }

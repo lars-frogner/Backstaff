@@ -8,7 +8,8 @@ use super::{
         utils::{self},
         Endianness, Verbosity,
     },
-    fdt, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES, FALLBACK_SNAP_NUM,
+    fdt, SnapshotParameters, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES,
+    FALLBACK_SNAP_NUM,
 };
 use crate::{
     field::{FieldGrid3, ScalarField3, ScalarFieldProvider3},
@@ -48,7 +49,7 @@ pub struct NetCDFSnapshotReader3 {
     config: NetCDFSnapshotReaderConfig,
     file: File,
     grid: Arc<FieldGrid3>,
-    parameters: NetCDFSnapshotParameters,
+    parameters: Box<NetCDFSnapshotParameters>,
     endianness: Endianness,
     all_variable_names: Vec<String>,
 }
@@ -93,7 +94,7 @@ impl NetCDFSnapshotReader3 {
             config,
             file,
             grid: Arc::new(grid),
-            parameters,
+            parameters: Box::new(parameters),
             endianness,
             all_variable_names,
         }
@@ -133,10 +134,8 @@ impl ScalarFieldProvider3<fdt> for NetCDFSnapshotReader3 {
 }
 
 impl SnapshotProvider3 for NetCDFSnapshotReader3 {
-    type Parameters = NetCDFSnapshotParameters;
-
-    fn parameters(&self) -> &Self::Parameters {
-        &self.parameters
+    fn parameters(&self) -> &dyn SnapshotParameters {
+        self.parameters.as_ref()
     }
 
     fn endianness(&self) -> Endianness {
@@ -374,7 +373,7 @@ where
         if verbosity.print_messages() {
             println!("Writing parameters to {}", output_file_name);
         }
-        param::write_snapshot_parameters(&mut root_group, &new_parameters)?;
+        param::write_snapshot_parameters(&mut root_group, new_parameters.borrow())?;
     }
 
     if verbosity.print_messages() {

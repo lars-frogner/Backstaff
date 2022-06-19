@@ -12,7 +12,7 @@ use crate::{
         InterpGridVerifier3,
     },
     io::{
-        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, CachingSnapshotProvider3, SnapshotParameters, SnapshotProvider3},
         Endianness, Verbosity,
     },
     io_result,
@@ -462,9 +462,7 @@ impl<P> SnapshotProvider3 for DerivedSnapshotProvider3<P>
 where
     P: CachingSnapshotProvider3,
 {
-    type Parameters = P::Parameters;
-
-    fn parameters(&self) -> &Self::Parameters {
+    fn parameters(&self) -> &dyn SnapshotParameters {
         self.provider.parameters()
     }
 

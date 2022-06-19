@@ -15,7 +15,7 @@ use crate::{
     },
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
+    io::snapshot::{self, fdt, SnapshotProvider3},
     math,
     plasma::ionization,
     tracing::{ftr, stepping::SteppingSense},
@@ -544,40 +544,40 @@ impl PowerLawDistributionConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<P>(reader: &P) -> Self
+    pub fn with_defaults_from_param_file<P>(provider: &P) -> Self
     where
         P: SnapshotProvider3,
     {
-        let min_residual_factor = reader
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let min_residual_factor =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "min_residual_factor",
                 "min_residual",
                 &|min_residual: feb| min_residual,
                 Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             );
-        let min_deposited_power_per_distance = reader
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let min_deposited_power_per_distance =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "min_deposited_power_per_distance",
                 "min_dep_en",
                 &|min_dep_en: feb| min_dep_en,
                 Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             );
-        let max_propagation_distance = reader
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let max_propagation_distance =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "max_propagation_distance",
                 "max_dist",
-                &|max_dist| max_dist,
+                &|max_dist: feb| max_dist,
                 Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             );
-        let outside_deposition_threshold = reader
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let outside_deposition_threshold =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "outside_deposition_threshold",
                 "out_dep_thresh",
-                &|out_dep_thresh| out_dep_thresh,
+                &|out_dep_thresh: feb| out_dep_thresh,
                 Self::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
             );
         PowerLawDistributionConfig {

@@ -7,8 +7,8 @@ use crate::{
     interpolation::Interpolator3,
     io::{
         snapshot::{
-            fdt, CachingSnapshotProvider3, SnapshotParameters, SnapshotProvider3,
-            MASS_DENSITY_VARIABLE_NAME, MOMENTUM_VARIABLE_NAME, OUTPUT_TIME_STEP_NAME,
+            fdt, CachingSnapshotProvider3, SnapshotProvider3, MASS_DENSITY_VARIABLE_NAME,
+            MOMENTUM_VARIABLE_NAME, OUTPUT_TIME_STEP_NAME,
         },
         utils, Verbosity,
     },

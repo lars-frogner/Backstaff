@@ -8,15 +8,10 @@ use crate::geometry::In3D;
 use regex::{self, Captures, Regex};
 use std::{
     borrow::Cow,
+    cell::RefCell,
     io,
     path::{Path, PathBuf},
     str,
-};
-
-#[cfg(feature = "for-testing")]
-use crate::{
-    impl_abs_diff_eq_for_parameters, impl_partial_eq_for_parameters,
-    impl_relative_eq_for_parameters,
 };
 
 #[derive(Clone, Debug)]
@@ -107,6 +102,10 @@ impl NativeSnapshotParameters {
 }
 
 impl SnapshotParameters for NativeSnapshotParameters {
+    fn heap_clone(&self) -> Box<RefCell<dyn SnapshotParameters>> {
+        Box::new(RefCell::new(self.clone()))
+    }
+
     fn n_values(&self) -> usize {
         self.parameter_set.n_values()
     }
@@ -137,15 +136,6 @@ impl SnapshotParameters for NativeSnapshotParameters {
         self.file_text.text.clone()
     }
 }
-
-#[cfg(feature = "for-testing")]
-impl_partial_eq_for_parameters!(NativeSnapshotParameters);
-
-#[cfg(feature = "for-testing")]
-impl_abs_diff_eq_for_parameters!(NativeSnapshotParameters);
-
-#[cfg(feature = "for-testing")]
-impl_relative_eq_for_parameters!(NativeSnapshotParameters);
 
 /// Representation of a parameter file.
 #[derive(Clone, Debug)]

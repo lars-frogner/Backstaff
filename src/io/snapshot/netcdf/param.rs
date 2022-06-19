@@ -73,9 +73,9 @@ fn read_snapshot_parameter(group: &Group, name: &str) -> io::Result<ParameterVal
 }
 
 /// Writes all given snapshot parameters to the given NetCDF group.
-pub fn write_snapshot_parameters<P: SnapshotParameters>(
+pub fn write_snapshot_parameters(
     group: &mut GroupMut,
-    parameters: &P,
+    parameters: std::cell::Ref<dyn SnapshotParameters>,
 ) -> io::Result<()> {
     for parameter_name in parameters.names() {
         write_single_snapshot_parameter(

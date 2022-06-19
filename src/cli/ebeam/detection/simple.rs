@@ -2,8 +2,10 @@
 
 use super::super::distribution::power_law::create_power_law_distribution_subcommand;
 use crate::{
-    cli::utils, ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
-    io::snapshot::SnapshotProvider3, update_command_graph,
+    cli::utils,
+    ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
+    io::snapshot::{fpa, SnapshotProvider3},
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
 
@@ -66,7 +68,7 @@ where
         arguments,
         "reconnection-factor-threshold",
         "krec_lim",
-        &|krec_lim| krec_lim,
+        &|krec_lim: fpa| krec_lim,
         SimpleReconnectionSiteDetectorConfig::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
     );
     let detection_depth_limits = utils::get_values_from_param_file_argument_with_defaults(
@@ -74,7 +76,7 @@ where
         arguments,
         "detection-depth-limits",
         &["z_rec_ulim", "z_rec_llim"],
-        &|lim| lim,
+        &|lim: fpa| lim,
         &[
             SimpleReconnectionSiteDetectorConfig::DEFAULT_MIN_DETECTION_DEPTH,
             SimpleReconnectionSiteDetectorConfig::DEFAULT_MAX_DETECTION_DEPTH,

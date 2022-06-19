@@ -11,7 +11,7 @@ use crate::{
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, SnapshotParameters, SnapshotProvider3},
+        snapshot::{self, fdt, SnapshotProvider3},
         Verbosity,
     },
     plasma::ionization,
@@ -668,41 +668,41 @@ impl SimplePowerLawAccelerationConfig {
     where
         P: SnapshotProvider3,
     {
-        let acceleration_duration = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let acceleration_duration =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "acceleration_duration",
                 "dt",
                 &|dt: feb| dt * U_T,
                 Self::DEFAULT_ACCELERATION_DURATION,
             );
-        let particle_energy_fraction = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let particle_energy_fraction =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "particle_energy_fraction",
                 "qjoule_acc_frac",
                 &|qjoule_acc_frac: feb| qjoule_acc_frac,
                 Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
             );
-        let power_law_delta = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let power_law_delta =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "power_law_delta",
                 "power_law_index",
-                &|power_law_index| power_law_index,
+                &|power_law_index: feb| power_law_index,
                 Self::DEFAULT_POWER_LAW_DELTA,
             );
-        let min_total_power_density = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let min_total_power_density =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "min_total_power_density",
                 "min_beam_en",
                 &|min_beam_en: feb| min_beam_en,
                 Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             );
-        let min_depletion_distance = provider
-            .parameters()
-            .get_converted_numerical_param_or_fallback_to_default_with_warning(
+        let min_depletion_distance =
+            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
+                provider.parameters(),
                 "min_depletion_distance",
                 "min_stop_dist",
                 &|min_stop_dist: feb| min_stop_dist,

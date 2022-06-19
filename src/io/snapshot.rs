@@ -24,7 +24,7 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{borrow::Cow, collections::HashMap, io, path::Path, str, sync::Arc};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, io, path::Path, str, sync::Arc};
 
 #[cfg(feature = "for-testing")]
 use approx::{AbsDiffEq, RelativeEq};
@@ -86,10 +86,8 @@ pub const PRIMARY_VARIABLE_NAMES_HD: [&str; 5] = [
 
 /// Defines the properties of a provider of 3D Bifrost snapshot variables.
 pub trait SnapshotProvider3: ScalarFieldProvider3<fdt> {
-    type Parameters: SnapshotParameters;
-
     /// Returns a reference to the parameters associated with the snapshot.
-    fn parameters(&self) -> &Self::Parameters;
+    fn parameters(&self) -> &dyn SnapshotParameters;
 
     /// Returns the assumed endianness of the snapshot.
     fn endianness(&self) -> Endianness;
@@ -165,60 +163,62 @@ pub trait SnapshotProvider3: ScalarFieldProvider3<fdt> {
         signed_snap_num: i64,
         included_auxiliary_variable_names: &[String],
         is_mhd: bool,
-    ) -> Self::Parameters {
+    ) -> Box<RefCell<dyn SnapshotParameters>> {
         let grid = self.grid();
         let shape = grid.shape();
         let average_grid_cell_extents = grid.average_grid_cell_extents();
 
-        let mut new_parameters = self.parameters().clone();
+        let boxed_new_parameters = self.parameters().heap_clone();
+        {
+            let mut new_parameters = boxed_new_parameters.borrow_mut();
 
-        new_parameters.set_value("snapname", ParameterValue::new_quoted_string(snap_name));
-        new_parameters.set_value("isnap", ParameterValue::new_int(signed_snap_num));
-        new_parameters.set_value(
-            "meshfile",
-            ParameterValue::new_quoted_string(&format!("{}.mesh", snap_name)),
-        );
+            new_parameters.set_value("snapname", ParameterValue::new_quoted_string(snap_name));
+            new_parameters.set_value("isnap", ParameterValue::new_int(signed_snap_num));
+            new_parameters.set_value(
+                "meshfile",
+                ParameterValue::new_quoted_string(&format!("{}.mesh", snap_name)),
+            );
 
-        new_parameters.set_value(
-            "aux",
-            ParameterValue::new_quoted_string(&included_auxiliary_variable_names.join(" ")),
-        );
+            new_parameters.set_value(
+                "aux",
+                ParameterValue::new_quoted_string(&included_auxiliary_variable_names.join(" ")),
+            );
 
-        new_parameters.set_value(
-            "do_mhd",
-            ParameterValue::new_int(if is_mhd { 1 } else { 0 }),
-        );
+            new_parameters.set_value(
+                "do_mhd",
+                ParameterValue::new_int(if is_mhd { 1 } else { 0 }),
+            );
 
-        new_parameters.set_value(
-            "periodic_x",
-            ParameterValue::new_int(if grid.is_periodic(X) { 1 } else { 0 }),
-        );
-        new_parameters.set_value(
-            "periodic_y",
-            ParameterValue::new_int(if grid.is_periodic(Y) { 1 } else { 0 }),
-        );
-        new_parameters.set_value(
-            "periodic_z",
-            ParameterValue::new_int(if grid.is_periodic(Z) { 1 } else { 0 }),
-        );
+            new_parameters.set_value(
+                "periodic_x",
+                ParameterValue::new_int(if grid.is_periodic(X) { 1 } else { 0 }),
+            );
+            new_parameters.set_value(
+                "periodic_y",
+                ParameterValue::new_int(if grid.is_periodic(Y) { 1 } else { 0 }),
+            );
+            new_parameters.set_value(
+                "periodic_z",
+                ParameterValue::new_int(if grid.is_periodic(Z) { 1 } else { 0 }),
+            );
 
-        new_parameters.set_value("mx", ParameterValue::new_int(shape[X] as i64));
-        new_parameters.set_value("my", ParameterValue::new_int(shape[Y] as i64));
-        new_parameters.set_value("mz", ParameterValue::new_int(shape[Z] as i64));
-        new_parameters.set_value(
-            "dx",
-            ParameterValue::new_float(average_grid_cell_extents[X]),
-        );
-        new_parameters.set_value(
-            "dy",
-            ParameterValue::new_float(average_grid_cell_extents[Y]),
-        );
-        new_parameters.set_value(
-            "dz",
-            ParameterValue::new_float(average_grid_cell_extents[Z]),
-        );
-
-        new_parameters
+            new_parameters.set_value("mx", ParameterValue::new_int(shape[X] as i64));
+            new_parameters.set_value("my", ParameterValue::new_int(shape[Y] as i64));
+            new_parameters.set_value("mz", ParameterValue::new_int(shape[Z] as i64));
+            new_parameters.set_value(
+                "dx",
+                ParameterValue::new_float(average_grid_cell_extents[X]),
+            );
+            new_parameters.set_value(
+                "dy",
+                ParameterValue::new_float(average_grid_cell_extents[Y]),
+            );
+            new_parameters.set_value(
+                "dz",
+                ParameterValue::new_float(average_grid_cell_extents[Z]),
+            );
+        }
+        boxed_new_parameters
     }
 }
 
@@ -228,7 +228,7 @@ pub struct SnapshotProvider3Wrapper<P> {
     provider: P,
     snap_name: String,
     snap_num: Option<u64>,
-    parameters: MapOfSnapshotParameters,
+    parameters: Box<MapOfSnapshotParameters>,
     endianness: Endianness,
     all_variable_names: Vec<String>,
 }
@@ -251,7 +251,7 @@ where
             provider,
             snap_name,
             snap_num,
-            parameters,
+            parameters: Box::new(parameters),
             endianness,
             all_variable_names,
         }
@@ -279,10 +279,8 @@ impl<P> SnapshotProvider3 for SnapshotProvider3Wrapper<P>
 where
     P: ScalarFieldProvider3<fdt>,
 {
-    type Parameters = MapOfSnapshotParameters;
-
-    fn parameters(&self) -> &Self::Parameters {
-        &self.parameters
+    fn parameters(&self) -> &dyn SnapshotParameters {
+        self.parameters.as_ref()
     }
 
     fn endianness(&self) -> Endianness {
@@ -411,7 +409,7 @@ macro_rules! snapshots_relative_eq {
             }
             Ok(false)
         } else {
-            if $self.parameters().relative_ne(
+            if !$self.parameters().relative_eq(
                 $other.parameters(),
                 $epsilon as fpa,
                 $max_relative as fpa,
@@ -508,7 +506,10 @@ macro_rules! snapshot_field_values_relative_eq {
 }
 
 /// Parameters associated with a snapshot.
-pub trait SnapshotParameters: Clone {
+pub trait SnapshotParameters {
+    /// Returns a mutable reference to a clone of this parameter set living on the heap.
+    fn heap_clone(&self) -> Box<RefCell<dyn SnapshotParameters>>;
+
     /// Returns the number of parameters associated with the snapshot.
     fn n_values(&self) -> usize;
 
@@ -544,137 +545,36 @@ pub trait SnapshotParameters: Clone {
         self.get_value(name)?.try_as_float()
     }
 
-    /// Tries to read the given parameter from the parameter file.
-    /// If successful, the value is converted with the given closure and
-    /// returned, otherwise a warning is printed and the given default is returned.
-    fn get_converted_numerical_param_or_fallback_to_default_with_warning<T, U, C>(
+    #[cfg(feature = "for-testing")]
+    fn relative_eq(
         &self,
-        display_name: &str,
-        name_in_param_file: &str,
-        conversion_mapping: &C,
-        default_value: U,
-    ) -> U
-    where
-        T: From<fpa>,
-        U: std::fmt::Display + Copy,
-        C: Fn(T) -> U,
-    {
-        let use_default = |_| {
-            eprintln!(
-                "Warning: Could not find parameter {}, falling back to default for {}: {}",
-                name_in_param_file, display_name, default_value
-            );
-            default_value
-        };
-        self.get_value(name_in_param_file)
-            .map_or_else(use_default, |val| {
-                val.try_as_float().map_or_else(use_default, |val| {
-                    exit_on_false!(
-                        val.is_finite(),
-                        "Error: Parameter {} must be finite",
-                        display_name
-                    );
-                    conversion_mapping(val.into())
-                })
+        other: &dyn SnapshotParameters,
+        epsilon: <fpa as AbsDiffEq>::Epsilon,
+        max_relative: <fpa as AbsDiffEq>::Epsilon,
+    ) -> bool {
+        if self.n_values() != other.n_values() {
+            #[cfg(debug_assertions)]
+            {
+                println!("Number of parameter values not equal");
+                dbg!(self.n_values(), other.n_values());
+            }
+            return false;
+        }
+        self.names()
+            .into_iter()
+            .all(|name| match (self.get_value(name), other.get_value(name)) {
+                (Ok(a), Ok(b)) => {
+                    let equal = a.relative_eq(b, epsilon, max_relative);
+                    #[cfg(debug_assertions)]
+                    if !equal {
+                        println!("Parameter {} not equal", name);
+                        dbg!(a, b);
+                    }
+                    equal
+                }
+                _ => false,
             })
     }
-}
-
-#[cfg(feature = "for-testing")]
-#[macro_export]
-macro_rules! impl_partial_eq_for_parameters {
-    ($T:ty) => {
-        impl<P> ::std::cmp::PartialEq<P> for $T
-        where
-            P: $crate::io::snapshot::SnapshotParameters,
-        {
-            fn eq(&self, other: &P) -> bool {
-                if self.n_values() != other.n_values() {
-                    return false;
-                }
-                self.names().into_iter().all(|name| {
-                    match (self.get_value(name), other.get_value(name)) {
-                        (Ok(a), Ok(b)) => a == b,
-                        _ => false,
-                    }
-                })
-            }
-        }
-    };
-}
-
-#[cfg(feature = "for-testing")]
-#[macro_export]
-macro_rules! impl_abs_diff_eq_for_parameters {
-    ($T:ty) => {
-        impl<P> approx::AbsDiffEq<P> for $T
-        where
-            P: $crate::io::snapshot::SnapshotParameters,
-        {
-            type Epsilon = <$crate::io::snapshot::ParameterValue as approx::AbsDiffEq>::Epsilon;
-
-            fn default_epsilon() -> Self::Epsilon {
-                $crate::io::snapshot::ParameterValue::default_epsilon()
-            }
-
-            fn abs_diff_eq(&self, other: &P, epsilon: Self::Epsilon) -> bool {
-                if self.n_values() != other.n_values() {
-                    return false;
-                }
-                self.names().into_iter().all(|name| {
-                    match (self.get_value(name), other.get_value(name)) {
-                        (Ok(a), Ok(b)) => a.abs_diff_eq(&b, epsilon),
-                        _ => false,
-                    }
-                })
-            }
-        }
-    };
-}
-
-#[cfg(feature = "for-testing")]
-#[macro_export]
-macro_rules! impl_relative_eq_for_parameters {
-    ($T:ty) => {
-        impl<P> approx::RelativeEq<P> for $T
-        where
-            P: $crate::io::snapshot::SnapshotParameters,
-        {
-            fn default_max_relative() -> Self::Epsilon {
-                $crate::io::snapshot::ParameterValue::default_max_relative()
-            }
-
-            fn relative_eq(
-                &self,
-                other: &P,
-                epsilon: Self::Epsilon,
-                max_relative: Self::Epsilon,
-            ) -> bool {
-                if self.n_values() != other.n_values() {
-                    #[cfg(debug_assertions)]
-                    {
-                        println!("Number of parameter values not equal");
-                        dbg!(self.n_values(), other.n_values());
-                    }
-                    return false;
-                }
-                self.names().into_iter().all(|name| {
-                    match (self.get_value(name), other.get_value(name)) {
-                        (Ok(a), Ok(b)) => {
-                            let equal = a.relative_eq(&b, epsilon, max_relative);
-                            #[cfg(debug_assertions)]
-                            if !equal {
-                                println!("Parameter {} not equal", name);
-                                dbg!(a, b);
-                            }
-                            equal
-                        }
-                        _ => false,
-                    }
-                })
-            }
-        }
-    };
 }
 
 #[derive(Clone, Debug)]
@@ -891,6 +791,10 @@ impl MapOfSnapshotParameters {
 }
 
 impl SnapshotParameters for MapOfSnapshotParameters {
+    fn heap_clone(&self) -> Box<RefCell<dyn SnapshotParameters>> {
+        Box::new(RefCell::new(self.clone()))
+    }
+
     fn n_values(&self) -> usize {
         self.parameters().len()
     }
@@ -925,15 +829,6 @@ impl SnapshotParameters for MapOfSnapshotParameters {
         text
     }
 }
-
-#[cfg(feature = "for-testing")]
-impl_partial_eq_for_parameters!(MapOfSnapshotParameters);
-
-#[cfg(feature = "for-testing")]
-impl_abs_diff_eq_for_parameters!(MapOfSnapshotParameters);
-
-#[cfg(feature = "for-testing")]
-impl_relative_eq_for_parameters!(MapOfSnapshotParameters);
 
 /// Wrapper for a `SnapshotProvider3` that resamples the provided fields
 /// to a given grid.
@@ -1096,9 +991,7 @@ where
     P: SnapshotProvider3,
     T: PointTransformation2<fgr>,
 {
-    type Parameters = P::Parameters;
-
-    fn parameters(&self) -> &Self::Parameters {
+    fn parameters(&self) -> &dyn SnapshotParameters {
         self.provider.parameters()
     }
 
@@ -1173,9 +1066,7 @@ impl<P> SnapshotProvider3 for ExtractedSnapshotProvider3<P>
 where
     P: SnapshotProvider3,
 {
-    type Parameters = P::Parameters;
-
-    fn parameters(&self) -> &Self::Parameters {
+    fn parameters(&self) -> &dyn SnapshotParameters {
         self.provider.parameters()
     }
 
@@ -1205,9 +1096,7 @@ impl<P> SnapshotProvider3 for ScalarFieldCacher3<fdt, P>
 where
     P: SnapshotProvider3,
 {
-    type Parameters = P::Parameters;
-
-    fn parameters(&self) -> &Self::Parameters {
+    fn parameters(&self) -> &dyn SnapshotParameters {
         self.provider().parameters()
     }
 
@@ -1328,4 +1217,39 @@ pub fn extract_magnitude_name(name: &str) -> Option<&str> {
 /// Adds | at the beginning and end of the given string.
 pub fn add_magnitude_pipes(name: &str) -> String {
     format!("|{}|", name)
+}
+
+/// Tries to read the given parameter from the parameter set.
+/// If successful, the value is converted with the given closure and
+/// returned, otherwise a warning is printed and the given default is returned.
+pub fn get_converted_numerical_param_or_fallback_to_default_with_warning<T, U>(
+    parameters: &dyn SnapshotParameters,
+    display_name: &str,
+    name_in_param_file: &str,
+    conversion_mapping: &(dyn Fn(T) -> U),
+    default_value: U,
+) -> U
+where
+    T: From<fpa>,
+    U: std::fmt::Display + Copy,
+{
+    let use_default = |_| {
+        eprintln!(
+            "Warning: Could not find parameter {}, falling back to default for {}: {}",
+            name_in_param_file, display_name, default_value
+        );
+        default_value
+    };
+    parameters
+        .get_value(name_in_param_file)
+        .map_or_else(use_default, |val| {
+            val.try_as_float().map_or_else(use_default, |val| {
+                exit_on_false!(
+                    val.is_finite(),
+                    "Error: Parameter {} must be finite",
+                    display_name
+                );
+                conversion_mapping(val.into())
+            })
+        })
 }
