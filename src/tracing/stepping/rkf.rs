@@ -5,7 +5,7 @@
 pub mod rkf23;
 pub mod rkf45;
 
-use super::{StepperInstruction, StepperResult, SteppingSense, StoppingCause};
+use super::{StepperInstruction, StepperResult, SteppingCallback, SteppingSense, StoppingCause};
 use crate::{
     field::{FieldGrid3, VectorField3},
     geometry::{
@@ -162,17 +162,16 @@ trait RKFStepper3 {
         state.previous_unwrapped_output_position = position.clone();
     }
 
-    fn place_with_callback<F, C>(
+    fn place_with_callback<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
         position: &Point3<ftr>,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let place_result = self.perform_place(field, interpolator, sense, position);
         if let StepperResult::Ok(_) = place_result {
@@ -188,16 +187,15 @@ trait RKFStepper3 {
         place_result
     }
 
-    fn step_with_callback<F, C>(
+    fn step_with_callback<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let step_result = self.perform_step(field, interpolator, sense);
         if let StepperResult::Ok(_) = step_result {
@@ -215,16 +213,15 @@ trait RKFStepper3 {
         step_result
     }
 
-    fn step_with_callback_dense_output<F, C>(
+    fn step_with_callback_dense_output<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         let step_result = self.perform_step(field, interpolator, sense);
         if let StepperResult::Ok(_) = step_result {
@@ -443,10 +440,11 @@ trait RKFStepper3 {
         state.error = new_error;
     }
 
-    fn compute_dense_output<C>(&mut self, grid: &FieldGrid3, callback: &mut C) -> StepperResult<()>
-    where
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
-    {
+    fn compute_dense_output(
+        &mut self,
+        grid: &FieldGrid3,
+        callback: &mut SteppingCallback,
+    ) -> StepperResult<()> {
         #![allow(clippy::float_cmp)] // Allows the float comparison with zero
         let state = self.state();
         let previous_distance = state.distance - state.previous_step_length;

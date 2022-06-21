@@ -750,10 +750,10 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
     }
 }
 
-impl<D: Distribution> PropagatedElectronBeam<D> {
+impl<'a, D: 'a + Distribution> PropagatedElectronBeam<D> {
     fn generate<S>(
         mut distribution: D,
-        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
+        snapshot: &'a dyn CachingScalarFieldProvider3<fdt>,
         acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: S,

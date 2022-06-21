@@ -3,7 +3,7 @@
 //! estimation through an embedded fourth-order step.
 
 use super::{
-    super::{Stepper3, StepperFactory3, StepperInstruction, StepperResult, SteppingSense},
+    super::{Stepper3, StepperFactory3, StepperResult, SteppingCallback, SteppingSense},
     ComputedDirection3, PIControlParams, RKFStepper3, RKFStepperConfig, RKFStepperState3,
     StepAttempt3,
 };
@@ -284,45 +284,42 @@ impl RKFStepper3 for RKF45Stepper3 {
 }
 
 impl Stepper3 for RKF45Stepper3 {
-    fn place<F, C>(
+    fn place<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
         position: &Point3<ftr>,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.place_with_callback(field, interpolator, sense, position, callback)
     }
 
-    fn step<F, C>(
+    fn step<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.step_with_callback(field, interpolator, sense, callback)
     }
 
-    fn step_dense_output<F, C>(
+    fn step_dense_output<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
         self.step_with_callback_dense_output(field, interpolator, sense, callback)
     }

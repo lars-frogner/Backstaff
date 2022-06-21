@@ -3,13 +3,8 @@
 pub mod field_line;
 pub mod stepping;
 
-use self::stepping::{Stepper3, StepperInstruction, StepperResult, SteppingSense, StoppingCause};
-use crate::{
-    field::VectorField3,
-    geometry::{Point3, Vec3},
-    interpolation::Interpolator3,
-    num::BFloat,
-};
+use self::stepping::{Stepper3, StepperResult, SteppingCallback, SteppingSense, StoppingCause};
+use crate::{field::VectorField3, geometry::Point3, interpolation::Interpolator3, num::BFloat};
 
 /// Floating-point precision to use for tracing.
 #[allow(non_camel_case_types)]
@@ -45,19 +40,17 @@ pub enum TracerResult {
 ///
 /// - `F`: Floating point type of the field data.
 /// - `S`: Type of stepper.
-/// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-pub fn trace_3d_field_line<F, St, C>(
+pub fn trace_3d_field_line<F, St>(
     field: &VectorField3<F>,
     interpolator: &dyn Interpolator3<F>,
     mut stepper: St,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
-    callback: &mut C,
+    callback: &mut SteppingCallback,
 ) -> TracerResult
 where
     F: BFloat,
     St: Stepper3,
-    C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
     match stepper.place(field, interpolator, sense, start_position, callback) {
         StepperResult::Ok(_) => {}
@@ -93,19 +86,17 @@ where
 ///
 /// - `F`: Floating point type of the field data.
 /// - `St`: Type of stepper.
-/// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-pub fn trace_3d_field_line_dense<F, St, C>(
+pub fn trace_3d_field_line_dense<F, St>(
     field: &VectorField3<F>,
     interpolator: &dyn Interpolator3<F>,
     mut stepper: St,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
-    callback: &mut C,
+    callback: &mut SteppingCallback,
 ) -> TracerResult
 where
     F: BFloat,
     St: Stepper3,
-    C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
 {
     match stepper.place(field, interpolator, sense, start_position, callback) {
         StepperResult::Ok(_) => {}

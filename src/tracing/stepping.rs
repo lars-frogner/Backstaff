@@ -42,6 +42,9 @@ pub enum StepperInstruction {
     Terminate,
 }
 
+pub type SteppingCallback<'a> =
+    dyn 'a + FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
+
 /// Defines the properties of a stepping scheme.
 pub trait Stepper3: Clone {
     /// Places the stepper inside the field.
@@ -65,18 +68,16 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn place<F, C>(
+    fn place<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
         position: &Point3<ftr>,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
-        F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
+        F: BFloat;
 
     /// Performs a step.
     ///
@@ -98,18 +99,15 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `D`: Function type taking a mutable reference to a field vector.
-    /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn step<F, C>(
+    fn step<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
-        F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
+        F: BFloat;
 
     /// Performs a step, producing regularly spaced output positions.
     ///
@@ -131,18 +129,15 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `D`: Function type taking a mutable reference to a field vector.
-    /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn step_dense_output<F, C>(
+    fn step_dense_output<F>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
         sense: SteppingSense,
-        callback: &mut C,
+        callback: &mut SteppingCallback,
     ) -> StepperResult<()>
     where
-        F: BFloat,
-        C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
+        F: BFloat;
 
     /// Returns a reference to the current stepper position.
     fn position(&self) -> &Point3<ftr>;
