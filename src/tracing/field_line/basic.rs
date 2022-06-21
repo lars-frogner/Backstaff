@@ -1,7 +1,7 @@
 //! Basic field line tracing.
 
 use super::{
-    super::stepping::{Stepper3, StepperInstruction, SteppingSense},
+    super::stepping::{DynStepper3, StepperInstruction, SteppingSense},
     FieldLinePath3, FieldLineSetProperties3, FieldLineTracer3,
 };
 use crate::{
@@ -70,7 +70,7 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
         field_name: &str,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper: Box<dyn Stepper3<fdt>>,
+        stepper: DynStepper3<fdt>,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data> {
         let field = snapshot.cached_vector_field(field_name);

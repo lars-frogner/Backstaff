@@ -16,7 +16,7 @@ use crate::{
     },
     plasma::ionization,
     seeding::IndexSeeder3,
-    tracing::stepping::{StepperFactory3, SteppingSense},
+    tracing::stepping::{DynStepper3, SteppingSense},
     units::solar::{U_E, U_L, U_L3, U_R, U_T},
 };
 use indicatif::ParallelProgressIterator;
@@ -349,12 +349,12 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
     type AccelerationDataCollectionType = ();
 
-    fn generate_distributions<D, StF>(
+    fn generate_distributions<D>(
         &self,
         snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         detector: D,
         interpolator: &dyn Interpolator3<fdt>,
-        _stepper_factory: &StF,
+        _stepper: DynStepper3<fdt>,
         verbosity: &Verbosity,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
@@ -362,7 +362,6 @@ impl Accelerator for SimplePowerLawAccelerator {
     )>
     where
         D: ReconnectionSiteDetector,
-        StF: StepperFactory3<fdt> + Sync,
     {
         let seeder = detector.detect_reconnection_sites(snapshot, verbosity);
         let number_of_locations = seeder.number_of_indices();

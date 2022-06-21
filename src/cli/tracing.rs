@@ -41,11 +41,8 @@ use crate::{
             FieldLineSet3, FieldLineSetProperties3, FieldLineTracer3,
         },
         stepping::{
-            rkf::{
-                rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig,
-                RKFStepperType,
-            },
-            StepperFactory3,
+            rkf::{rkf23::RKF23Stepper3, rkf45::RKF45Stepper3, RKFStepperConfig, RKFStepperType},
+            DynStepper3,
         },
     },
     update_command_graph,
@@ -292,10 +289,10 @@ fn run_with_selected_tracer(
 
     let tracer = BasicFieldLineTracer3::new(tracer_config);
 
-    run_with_selected_stepper_factory(arguments, tracer_arguments, snapshot, tracer, io_context);
+    run_with_selected_stepper(arguments, tracer_arguments, snapshot, tracer, io_context);
 }
 
-fn run_with_selected_stepper_factory<Tr>(
+fn run_with_selected_stepper<Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: DynCachingScalarFieldProvider3<fdt>,
@@ -329,7 +326,7 @@ fn run_with_selected_stepper_factory<Tr>(
             stepper_arguments,
             snapshot,
             tracer,
-            RKF23StepperFactory3::new(stepper_config),
+            Box::new(RKF23Stepper3::new(stepper_config)),
             io_context,
         ),
         RKFStepperType::RKF45 => run_with_selected_interpolator(
@@ -337,25 +334,23 @@ fn run_with_selected_stepper_factory<Tr>(
             stepper_arguments,
             snapshot,
             tracer,
-            RKF45StepperFactory3::new(stepper_config),
+            Box::new(RKF45Stepper3::new(stepper_config)),
             io_context,
         ),
     }
 }
 
-fn run_with_selected_interpolator<Tr, StF>(
+fn run_with_selected_interpolator<Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
-    stepper_factory: StF,
+    stepper: DynStepper3<fdt>,
     io_context: &mut IOContext,
 ) where
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-    StF: StepperFactory3<fdt> + Sync,
-    <StF as StepperFactory3<fdt>>::Output: 'static,
 {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
@@ -384,26 +379,24 @@ fn run_with_selected_interpolator<Tr, StF>(
         interpolator_arguments,
         snapshot,
         tracer,
-        stepper_factory,
+        stepper,
         interpolator.as_ref(),
         io_context,
     );
 }
 
-fn run_with_selected_seeder<Tr, StF>(
+fn run_with_selected_seeder<Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
-    stepper_factory: StF,
+    stepper: DynStepper3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext,
 ) where
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-    StF: StepperFactory3<fdt> + Sync,
-    <StF as StepperFactory3<fdt>>::Output: 'static,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
         let seeder =
@@ -412,7 +405,7 @@ fn run_with_selected_seeder<Tr, StF>(
             root_arguments,
             snapshot,
             tracer,
-            stepper_factory,
+            stepper,
             interpolator,
             seeder,
             io_context,
@@ -424,7 +417,7 @@ fn run_with_selected_seeder<Tr, StF>(
             root_arguments,
             snapshot,
             tracer,
-            stepper_factory,
+            stepper,
             interpolator,
             seeder,
             io_context,
@@ -435,7 +428,7 @@ fn run_with_selected_seeder<Tr, StF>(
             root_arguments,
             snapshot,
             tracer,
-            stepper_factory,
+            stepper,
             interpolator,
             seeder,
             io_context,
@@ -445,11 +438,11 @@ fn run_with_selected_seeder<Tr, StF>(
     };
 }
 
-fn run_tracing<Tr, StF, Sd>(
+fn run_tracing<Tr, Sd>(
     root_arguments: &ArgMatches,
     mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
-    stepper_factory: StF,
+    stepper: DynStepper3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     seeder: Sd,
     io_context: &mut IOContext,
@@ -457,8 +450,6 @@ fn run_tracing<Tr, StF, Sd>(
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-    StF: StepperFactory3<fdt> + Sync,
-    <StF as StepperFactory3<fdt>>::Output: 'static,
     Sd: Seeder3,
 {
     let mut output_file_path = exit_on_error!(
@@ -529,7 +520,7 @@ fn run_tracing<Tr, StF, Sd>(
         seeder,
         &tracer,
         interpolator,
-        &stepper_factory,
+        stepper,
         verbosity,
     );
     perform_post_tracing_actions(

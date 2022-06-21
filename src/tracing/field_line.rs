@@ -2,10 +2,7 @@
 
 pub mod basic;
 
-use super::{
-    ftr,
-    stepping::{Stepper3, StepperFactory3},
-};
+use super::{ftr, stepping::DynStepper3};
 use crate::{
     field::{CachingScalarFieldProvider3, ScalarField3, VectorField3},
     geometry::{Dim3, Point3, Vec3},
@@ -61,7 +58,7 @@ pub trait FieldLineTracer3 {
         field_name: &str,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper: Box<dyn Stepper3<fdt>>,
+        stepper: DynStepper3<fdt>,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>;
 }
@@ -115,7 +112,7 @@ impl FieldLineSet3 {
     /// - `seeder`: Seeder to use for generating start positions.
     /// - `tracer`: Field line tracer to use.
     /// - `interpolator`: Interpolator to use.
-    /// - `stepper_factory`: Factory structure to use for producing steppers.
+    /// - `stepper`: Stepper for field line tracing.
     /// - `verbosity`: Whether and how to pass non-essential information to user.
     ///
     /// # Returns
@@ -126,14 +123,13 @@ impl FieldLineSet3 {
     ///
     /// - `Sd`: Type of seeder.
     /// - `Tr`: Type of field line tracer.
-    /// - `StF`: Type of stepper factory.
-    pub fn trace<Sd, Tr, StF>(
+    pub fn trace<Sd, Tr>(
         field_name: &str,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         seeder: Sd,
         tracer: &Tr,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper_factory: &StF,
+        stepper: DynStepper3<fdt>,
         verbosity: Verbosity,
     ) -> Self
     where
@@ -141,8 +137,6 @@ impl FieldLineSet3 {
         Tr: FieldLineTracer3 + Sync,
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-        StF: StepperFactory3<fdt> + Sync,
-        <StF as StepperFactory3<fdt>>::Output: 'static,
     {
         let number_of_points = seeder.number_of_points();
         if verbosity.print_messages() {
@@ -157,7 +151,7 @@ impl FieldLineSet3 {
                     field_name,
                     snapshot,
                     interpolator,
-                    Box::new(stepper_factory.produce()),
+                    stepper.heap_clone(),
                     &Point3::from(&start_position),
                 )
             })

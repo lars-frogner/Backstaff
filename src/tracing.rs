@@ -3,7 +3,7 @@
 pub mod field_line;
 pub mod stepping;
 
-use self::stepping::{Stepper3, StepperResult, SteppingCallback, SteppingSense, StoppingCause};
+use self::stepping::{DynStepper3, StepperResult, SteppingCallback, SteppingSense, StoppingCause};
 use crate::{field::VectorField3, geometry::Point3, interpolation::Interpolator3, num::BFloat};
 
 /// Floating-point precision to use for tracing.
@@ -43,7 +43,7 @@ pub enum TracerResult {
 pub fn trace_3d_field_line<F>(
     field: &VectorField3<F>,
     interpolator: &dyn Interpolator3<F>,
-    mut stepper: Box<dyn Stepper3<F>>,
+    mut stepper: DynStepper3<F>,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
     callback: &mut SteppingCallback,
@@ -88,7 +88,7 @@ where
 pub fn trace_3d_field_line_dense<F>(
     field: &VectorField3<F>,
     interpolator: &dyn Interpolator3<F>,
-    mut stepper: Box<dyn Stepper3<F>>,
+    mut stepper: DynStepper3<F>,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
     callback: &mut SteppingCallback,

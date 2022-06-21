@@ -42,6 +42,8 @@ pub enum StepperInstruction {
     Terminate,
 }
 
+pub type DynStepper3<F> = Box<dyn Stepper3<F>>;
+
 pub type SteppingCallback<'a> =
     dyn 'a + FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
@@ -50,7 +52,7 @@ pub type SteppingCallback<'a> =
 /// # Type parameters
 ///
 /// - `F`: Floating point type of the field data.
-pub trait Stepper3<F> {
+pub trait Stepper3<F>: Sync {
     /// Places the stepper inside the field.
     ///
     /// # Parameters
@@ -146,13 +148,5 @@ pub trait Stepper3<F> {
     fn distance(&self) -> ftr;
 
     /// Returns a mutable reference to a clone of this stepper living on the heap.
-    fn heap_clone(&self) -> Box<dyn Stepper3<F>>;
-}
-
-/// Defines the properties of a 3D stepper factory structure.
-pub trait StepperFactory3<F> {
-    type Output: Stepper3<F>;
-
-    /// Creates a new 3D stepper.
-    fn produce(&self) -> Self::Output;
+    fn heap_clone(&self) -> DynStepper3<F>;
 }

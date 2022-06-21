@@ -23,7 +23,7 @@ use crate::{
         self,
         field_line::{self, FieldLineSetProperties3},
         ftr,
-        stepping::{Stepper3, StepperFactory3, StepperInstruction},
+        stepping::{DynStepper3, StepperInstruction},
         TracerResult,
     },
 };
@@ -317,7 +317,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `detector`: Reconnection site detector to use for obtaining acceleration positions.
     /// - `accelerator`: Accelerator to use for generating electron distributions.
     /// - `interpolator`: Interpolator to use.
-    /// - `stepper_factory`: Factory structure to use for producing steppers.
+    /// - `stepper`: Stepper for field line tracing.
     /// - `verbosity`: Whether and how to pass non-essential information to user.
     ///
     /// # Returns
@@ -327,23 +327,15 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Type parameters
     ///
     /// - `D`: Type of reconnection site detector.
-    /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<D, StF>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
-        interpolator: &dyn Interpolator3<fdt>, stepper_factory: &StF, verbosity: Verbosity) -> Self
+    pub fn generate_unpropagated<D>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
+        interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity) -> Self
     where D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          StF: StepperFactory3<fdt> + Sync
     {
         let (distributions, acceleration_data) = accelerator
-            .generate_distributions(
-                snapshot,
-                detector,
-                interpolator,
-                stepper_factory,
-                &verbosity,
-            )
+            .generate_distributions(snapshot, detector, interpolator, stepper, &verbosity)
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
         let properties: ElectronBeamSwarmProperties = distributions
@@ -372,7 +364,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `detector`: Reconnection site detector to use for obtaining acceleration positions.
     /// - `accelerator`: Accelerator to use for generating initial electron distributions.
     /// - `interpolator`: Interpolator to use.
-    /// - `stepper_factory`: Factory structure to use for producing steppers.
+    /// - `stepper`: Stepper for field line tracing.
     /// - `verbosity`: Whether and how to pass non-essential information to user.
     ///
     /// # Returns
@@ -382,22 +374,19 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Type parameters
     ///
     /// - `D`: Type of reconnection site detector.
-    /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<D, StF>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
-        interpolator: &dyn Interpolator3<fdt>, stepper_factory: &StF, verbosity: Verbosity) -> Self
+    pub fn generate_propagated<D>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
+        interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity) -> Self
     where D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          StF: StepperFactory3<fdt> + Sync,
-          <StF as StepperFactory3<fdt>>::Output: 'static,
     {
         let (distributions, acceleration_data) = accelerator
             .generate_distributions(
                 snapshot,
                 detector,
                 interpolator,
-                stepper_factory,
+                stepper.heap_clone(),
                 &verbosity,
             )
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
@@ -426,7 +415,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                     snapshot,
                     &acceleration_map,
                     interpolator,
-                    Box::new(stepper_factory.produce()),
+                    stepper.heap_clone(),
                 )
             })
             .collect();
@@ -757,7 +746,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper: Box<dyn Stepper3<fdt>>,
+        stepper: DynStepper3<fdt>,
     ) -> Option<Self> {
         let magnetic_field = snapshot.cached_vector_field("b");
         let start_position = Point3::from(distribution.acceleration_position());

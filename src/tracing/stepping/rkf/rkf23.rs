@@ -3,7 +3,7 @@
 //! estimation through an embedded second-order step.
 
 use super::{
-    super::{Stepper3, StepperFactory3, StepperResult, SteppingCallback, SteppingSense},
+    super::{DynStepper3, Stepper3, StepperResult, SteppingCallback, SteppingSense},
     ComputedDirection3, PIControlParams, RKFStepper3, RKFStepperConfig, RKFStepperState3,
     StepAttempt3,
 };
@@ -18,12 +18,6 @@ use crate::{
 /// A stepper using the third order Runge–Kutta–Fehlberg method.
 #[derive(Clone, Debug)]
 pub struct RKF23Stepper3(RKFStepperState3);
-
-/// Factory for `RKF23Stepper3` objects.
-#[derive(Clone, Debug)]
-pub struct RKF23StepperFactory3 {
-    config: RKFStepperConfig,
-}
 
 impl RKF23Stepper3 {
     const ORDER: u8 = 3;
@@ -241,21 +235,7 @@ impl<F> Stepper3<F> for RKF23Stepper3 {
         self.state().distance
     }
 
-    fn heap_clone(&self) -> Box<dyn Stepper3<F>> {
+    fn heap_clone(&self) -> DynStepper3<F> {
         Box::new(self.clone())
-    }
-}
-
-impl RKF23StepperFactory3 {
-    /// Creates a new factory for producing steppers with the given configuration parameters.
-    pub fn new(config: RKFStepperConfig) -> Self {
-        RKF23StepperFactory3 { config }
-    }
-}
-
-impl<F> StepperFactory3<F> for RKF23StepperFactory3 {
-    type Output = RKF23Stepper3;
-    fn produce(&self) -> Self::Output {
-        RKF23Stepper3::new(self.config.clone())
     }
 }

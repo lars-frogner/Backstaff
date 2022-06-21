@@ -7,7 +7,7 @@ use crate::{
     field::CachingScalarFieldProvider3,
     interpolation::Interpolator3,
     io::{snapshot::fdt, Verbosity},
-    tracing::stepping::StepperFactory3,
+    tracing::stepping::DynStepper3,
 };
 use std::io;
 
@@ -18,18 +18,17 @@ pub trait Accelerator {
 
     /// Generates a set of distributions with associated acceleration data in the given snapshot,
     /// at the 3D indices produced by the given seeder.
-    fn generate_distributions<D, StF>(
+    fn generate_distributions<D>(
         &self,
         snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         detector: D,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper_factory: &StF,
+        stepper: DynStepper3<fdt>,
         verbosity: &Verbosity,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
         Self::AccelerationDataCollectionType,
     )>
     where
-        D: ReconnectionSiteDetector,
-        StF: StepperFactory3<fdt> + Sync;
+        D: ReconnectionSiteDetector;
 }

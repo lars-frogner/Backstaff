@@ -60,7 +60,7 @@ use crate::{
         utils::{AtomicOutputFile, IOContext},
     },
     tracing::stepping::rkf::{
-        rkf23::RKF23StepperFactory3, rkf45::RKF45StepperFactory3, RKFStepperConfig, RKFStepperType,
+        rkf23::RKF23Stepper3, rkf45::RKF45Stepper3, RKFStepperConfig, RKFStepperType,
     },
     update_command_graph,
 };
@@ -483,7 +483,7 @@ where D: ReconnectionSiteDetector,
         "Invalid input grid for simulating electron beams: {}"
     );
 
-    run_with_selected_stepper_factory(
+    run_with_selected_stepper(
         root_arguments,
         interpolator_arguments,
         snapshot,
@@ -494,7 +494,7 @@ where D: ReconnectionSiteDetector,
     );
 }
 
-fn run_with_selected_stepper_factory<D, A>(
+fn run_with_selected_stepper<D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: DynCachingScalarFieldProvider3<fdt>,
@@ -572,14 +572,14 @@ where D: ReconnectionSiteDetector,
 
     let beams = match stepper_type {
         RKFStepperType::RKF23 => {
-            let stepper_factory = RKF23StepperFactory3::new(stepper_config);
+            let stepper = Box::new(RKF23Stepper3::new(stepper_config));
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
                     &mut *snapshot,
                     detector,
                     accelerator,
                     interpolator,
-                    &stepper_factory,
+                    stepper,
                     verbosity,
                 )
             } else {
@@ -588,20 +588,20 @@ where D: ReconnectionSiteDetector,
                     detector,
                     accelerator,
                     interpolator,
-                    &stepper_factory,
+                    stepper,
                     verbosity,
                 )
             }
         }
         RKFStepperType::RKF45 => {
-            let stepper_factory = RKF45StepperFactory3::new(stepper_config);
+            let stepper = Box::new(RKF45Stepper3::new(stepper_config));
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
                     &mut *snapshot,
                     detector,
                     accelerator,
                     interpolator,
-                    &stepper_factory,
+                    stepper,
                     verbosity,
                 )
             } else {
@@ -610,7 +610,7 @@ where D: ReconnectionSiteDetector,
                     detector,
                     accelerator,
                     interpolator,
-                    &stepper_factory,
+                    stepper,
                     verbosity,
                 )
             }
