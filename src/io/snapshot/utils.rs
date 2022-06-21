@@ -1,25 +1,26 @@
 //! Utilities for reading and writing of Bifrost simulation data.
 
-use super::{fdt, SnapshotReader3};
+use super::{
+    fdt, fpa,
+    native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
+    SnapshotMetadata,
+};
 use crate::{
     exit_with_error,
-    field::FieldGrid3,
-    grid::{fgr, Grid3},
-    io::{snapshot::SnapshotProvider3, Endianness, Verbosity},
+    field::{DynScalarFieldProvider3, FieldGrid3},
+    io::{Endianness, Verbosity},
 };
 use std::{
     borrow::Cow,
     fmt, io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
-#[cfg(feature = "for-testing")]
-use crate::{snapshot_field_values_relative_eq, snapshots_relative_eq};
+#[cfg(feature = "netcdf")]
+use super::netcdf::{NetCDFSnapshotReader3, NetCDFSnapshotReaderConfig};
 
-#[cfg(feature = "for-testing")]
-use approx::RelativeEq;
-
-/// Type of an input snapshot file (or set of files).
+/// Type of an input snapshot file (or set of files).|
 #[derive(Clone, Debug)]
 pub enum SnapshotInputType {
     Native(NativeSnapshotInputType),
@@ -144,149 +145,47 @@ impl SnapNumInRange {
     }
 }
 
-#[macro_export]
-macro_rules! with_new_snapshot_reader {
-    ($input_file_path:expr, $endianness:expr, $verbosity:expr, |$reader:ident| $action:expr) => {{
-        type SnapshotInputType = $crate::io::snapshot::utils::SnapshotInputType;
-        type NativeSnapshotReaderConfig = $crate::io::snapshot::native::NativeSnapshotReaderConfig;
-        type NativeSnapshotMetadata = $crate::io::snapshot::native::NativeSnapshotMetadata;
-        type NativeSnapshotReader3 = $crate::io::snapshot::native::NativeSnapshotReader3;
-
-        #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotReaderConfig = $crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
-        #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotMetadata = $crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
-        #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotReader3 = $crate::io::snapshot::netcdf::NetCDFSnapshotReader3;
-
-        let input_type = SnapshotInputType::from_path(&$input_file_path);
-
-        match input_type {
-            SnapshotInputType::Native(_) => NativeSnapshotMetadata::new(
-                NativeSnapshotReaderConfig::new($input_file_path, $endianness, $verbosity),
-            )
-            .and_then(|metadata| {
-                metadata.into_reader().and_then(|reader| {
-                    #[allow(unused_mut)]
-                    let mut action = |$reader: NativeSnapshotReader3| $action;
-                    action(reader)
-                })
-            }),
-            #[cfg(feature = "netcdf")]
-            SnapshotInputType::NetCDF => NetCDFSnapshotMetadata::new(
-                NetCDFSnapshotReaderConfig::new($input_file_path, $verbosity),
-            )
-            .and_then(|metadata| {
-                let reader = metadata.into_reader();
-                #[allow(unused_mut)]
-                let mut action = |$reader: NetCDFSnapshotReader3| $action;
-                action(reader)
-            }),
-        }
-    }};
-    ($input_file_path:expr, $endianness:expr, $verbosity:expr, |$reader:ident| $action:expr) => {
-        with_new_snapshot_reader!(
-            $input_file_path,
-            $endianness,
-            $verbosity,
-            false,
-            |$reader| { $action }
-        )
-    };
-}
-
-#[macro_export]
-macro_rules! with_new_snapshot_grid {
-    ($input_file_path:expr, $verbosity:expr, |$grid:ident| $action:expr) => {{
-        type SnapshotInputType = $crate::io::snapshot::utils::SnapshotInputType;
-        type NativeSnapshotReaderConfig = $crate::io::snapshot::native::NativeSnapshotReaderConfig;
-        type NativeSnapshotMetadata = $crate::io::snapshot::native::NativeSnapshotMetadata;
-        type FieldGrid3 = $crate::field::FieldGrid3;
-
-        #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotReaderConfig = $crate::io::snapshot::netcdf::NetCDFSnapshotReaderConfig;
-        #[cfg(feature = "netcdf")]
-        type NetCDFSnapshotMetadata = $crate::io::snapshot::netcdf::NetCDFSnapshotMetadata;
-
-        let input_type = SnapshotInputType::from_path(&$input_file_path);
-
-        match input_type {
-            SnapshotInputType::Native(_) => {
-                NativeSnapshotMetadata::new(NativeSnapshotReaderConfig::new(
-                    $input_file_path,
-                    $crate::io::Endianness::Native,
-                    $verbosity,
-                ))
-                .and_then(|metadata| {
-                    let grid = metadata.into_grid();
-                    let action = |$grid: FieldGrid3| $action;
-                    action(grid)
-                })
-            }
-            #[cfg(feature = "netcdf")]
-            SnapshotInputType::NetCDF => NetCDFSnapshotMetadata::new(
-                NetCDFSnapshotReaderConfig::new($input_file_path, $verbosity),
-            )
-            .and_then(|metadata| {
-                let grid = metadata.into_grid();
-                let action = |$grid: FieldGrid3| $action;
-                action(grid)
-            }),
-        }
-    }};
-    ($input_file_path:expr, $endianness:expr, $verbosity:expr, |$grid:ident| $action:expr) => {
-        with_new_snapshot_grid!($input_file_path, $endianness, $verbosity, false, |$grid| {
-            $action
-        })
-    };
-}
-
-/// Reads the snapshot at the given path and compares for
-/// approximate equality to the given snapshot.
-#[cfg(feature = "for-testing")]
-pub fn read_snapshot_eq_given_snapshot<R>(
+/// Determines the snapshot input format from the given file
+/// path and returns the appropriate reader and associated metadata.
+pub fn new_snapshot_reader(
     input_file_path: PathBuf,
     endianness: Endianness,
     verbosity: Verbosity,
-    reference_snapshot_reader: &R,
-    epsilon: fdt,
-    max_relative: fdt,
-) -> io::Result<bool>
-where
-    R: SnapshotReader3,
-{
-    with_new_snapshot_reader!(input_file_path, endianness, verbosity, |snapshot_reader| {
-        snapshots_relative_eq!(
-            snapshot_reader,
-            reference_snapshot_reader,
-            epsilon,
-            max_relative
+) -> io::Result<(DynScalarFieldProvider3<fdt>, Box<dyn SnapshotMetadata>)> {
+    let input_type = SnapshotInputType::from_path(&input_file_path);
+
+    match input_type {
+        SnapshotInputType::Native(_) => NativeSnapshotReader3::new(
+            NativeSnapshotReaderConfig::new(input_file_path, endianness, verbosity),
         )
-    })
+        .map(|(reader, metadata)| {
+            (
+                Box::new(reader) as DynScalarFieldProvider3<fdt>,
+                Box::new(metadata) as Box<dyn SnapshotMetadata>,
+            )
+        }),
+        #[cfg(feature = "netcdf")]
+        SnapshotInputType::NetCDF => {
+            NetCDFSnapshotReader3::new(NetCDFSnapshotReaderConfig::new(input_file_path, verbosity))
+                .map(|(reader, metadata)| {
+                    (
+                        Box::new(reader) as DynScalarFieldProvider3<fdt>,
+                        Box::new(metadata) as Box<dyn SnapshotMetadata>,
+                    )
+                })
+        }
+    }
 }
 
-/// Reads the snapshot at the given path and compares for
-/// approximate equality to the given snapshot.
-#[cfg(feature = "for-testing")]
-pub fn read_snapshot_values_eq_given_snapshot_values<R>(
+/// Determines the snapshot input format from the given file
+/// path and returns the associated grid.
+pub fn read_snapshot_grid(
     input_file_path: PathBuf,
     endianness: Endianness,
     verbosity: Verbosity,
-    reference_snapshot_reader: &R,
-    epsilon: fdt,
-    max_relative: fdt,
-) -> io::Result<bool>
-where
-    R: SnapshotReader3,
-{
-    with_new_snapshot_reader!(input_file_path, endianness, verbosity, |snapshot_reader| {
-        snapshot_field_values_relative_eq!(
-            snapshot_reader,
-            reference_snapshot_reader,
-            epsilon,
-            max_relative
-        )
-    })
+) -> io::Result<Arc<FieldGrid3>> {
+    new_snapshot_reader(input_file_path, endianness, verbosity)
+        .map(|(reader, _)| reader.arc_with_grid())
 }
 
 /// Reads the snapshots at the given paths and compares them
@@ -300,21 +199,19 @@ pub fn read_snapshots_eq(
     epsilon: fdt,
     max_relative: fdt,
 ) -> io::Result<bool> {
-    with_new_snapshot_reader!(
-        input_file_path_2,
-        endianness,
-        verbosity.clone(),
-        |snapshot_reader| {
-            read_snapshot_eq_given_snapshot(
-                input_file_path_1,
-                endianness,
-                verbosity,
-                &snapshot_reader,
-                epsilon,
-                max_relative,
-            )
-        }
-    )
+    let (mut reader_1, metadata_1) =
+        new_snapshot_reader(input_file_path_1, endianness, verbosity.clone())?;
+    let (mut reader_2, metadata_2) = new_snapshot_reader(input_file_path_2, endianness, verbosity)?;
+
+    if metadata_1.parameters().relative_eq(
+        metadata_2.parameters(),
+        epsilon as fpa,
+        max_relative as fpa,
+    ) {
+        reader_1.relative_eq(&mut *reader_2, epsilon, max_relative)
+    } else {
+        Ok(false)
+    }
 }
 
 /// Reads the snapshots at the given paths and compares them
@@ -328,21 +225,9 @@ pub fn read_snapshot_values_eq(
     epsilon: fdt,
     max_relative: fdt,
 ) -> io::Result<bool> {
-    with_new_snapshot_reader!(
-        input_file_path_2,
-        endianness,
-        verbosity.clone(),
-        |snapshot_reader| {
-            read_snapshot_values_eq_given_snapshot_values(
-                input_file_path_1,
-                endianness,
-                verbosity,
-                &snapshot_reader,
-                epsilon,
-                max_relative,
-            )
-        }
-    )
+    let (mut reader_1, _) = new_snapshot_reader(input_file_path_1, endianness, verbosity.clone())?;
+    let (mut reader_2, _) = new_snapshot_reader(input_file_path_2, endianness, verbosity)?;
+    reader_1.values_relative_eq(&mut *reader_2, epsilon, max_relative)
 }
 
 /// Reads the field values of the snapshot at the given path and
@@ -356,58 +241,22 @@ pub fn read_snapshot_has_given_fields_custom_eq<'a>(
     reference_field_values: Vec<(String, &'a [fdt])>,
     are_equal: &dyn Fn(&[fdt], &'a [fdt]) -> bool,
 ) -> io::Result<bool> {
-    with_new_snapshot_reader!(input_file_path, endianness, verbosity, |snapshot_reader| {
-        let all_snapshot_variable_names = snapshot_reader.all_variable_names();
-        for (name, values) in reference_field_values {
-            if !all_snapshot_variable_names.contains(&name) {
+    let (mut reader, _) = new_snapshot_reader(input_file_path, endianness, verbosity)?;
+
+    let all_snapshot_variable_names = reader.all_variable_names().to_vec();
+    for (name, values) in reference_field_values {
+        if !all_snapshot_variable_names.contains(&name) {
+            #[cfg(debug_assertions)]
+            println!("Field {} not present in other", name);
+            return Ok(false);
+        } else {
+            let read_field = reader.produce_scalar_field(&name)?;
+            if !are_equal(read_field.values().as_slice_memory_order().unwrap(), values) {
                 #[cfg(debug_assertions)]
-                println!("Field {} not present in other", name);
+                println!("Fields {} not equal", name);
                 return Ok(false);
-            } else {
-                let read_field = snapshot_reader.read_scalar_field(&name)?;
-                if !are_equal(read_field.values().as_slice_memory_order().unwrap(), values) {
-                    #[cfg(debug_assertions)]
-                    println!("Fields {} not equal", name);
-                    return Ok(false);
-                }
             }
         }
-        Ok(true)
-    })
-}
-
-/// Reads the grid of the snapshot at the given path and compares
-/// for approximate equality to the given grid.
-#[cfg(feature = "for-testing")]
-pub fn read_snapshot_grid_eq_given_grid(
-    input_file_path: PathBuf,
-    verbosity: Verbosity,
-    reference_snapshot_grid: &FieldGrid3,
-    epsilon: fgr,
-    max_relative: fgr,
-) -> io::Result<bool> {
-    with_new_snapshot_grid!(input_file_path, verbosity, |snapshot_grid| {
-        Ok(snapshot_grid.relative_eq(reference_snapshot_grid, epsilon, max_relative))
-    })
-}
-
-/// Reads the grids of the snapshots at the given paths and compares
-/// them for approximate equality.
-#[cfg(feature = "for-testing")]
-pub fn read_snapshot_grids_eq(
-    input_file_path_1: PathBuf,
-    input_file_path_2: PathBuf,
-    verbosity: Verbosity,
-    epsilon: fgr,
-    max_relative: fgr,
-) -> io::Result<bool> {
-    with_new_snapshot_grid!(input_file_path_2, verbosity.clone(), |snapshot_grid| {
-        read_snapshot_grid_eq_given_grid(
-            input_file_path_1,
-            verbosity,
-            &snapshot_grid,
-            epsilon,
-            max_relative,
-        )
-    })
+    }
+    Ok(true)
 }

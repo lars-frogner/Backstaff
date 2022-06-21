@@ -2242,10 +2242,7 @@ impl<F: BFloat> SimplePolygon2<F> {
 
     /// Creates a version of the polygon where the vertices have been transformed
     /// with the given point transformation.
-    pub fn transformed<T>(&self, transformation: &T) -> Self
-    where
-        T: PointTransformation2<F>,
-    {
+    pub fn transformed(&self, transformation: &dyn PointTransformation2<F>) -> Self {
         Self::new(
             self.vertices()
                 .iter()
@@ -2256,14 +2253,11 @@ impl<F: BFloat> SimplePolygon2<F> {
 }
 
 /// Defines the properties of a transformation of 2D points.
-pub trait PointTransformation2<F: BFloat>: Sync
-where
-    Self::Inverse: PointTransformation2<F>,
-{
-    type Inverse;
-
+pub trait PointTransformation2<F: BFloat>: Sync {
     /// Whether the transformation is the identity transformation.
-    const IS_IDENTITY: bool = false;
+    fn is_identity(&self) -> bool {
+        false
+    }
 
     /// Returns the transformed version of the given 2D point.
     fn transform(&self, point: &Point2<F>) -> Point2<F>;
@@ -2275,8 +2269,17 @@ where
     /// translation.
     fn transform_vec(&self, vector: &Vec2<F>) -> Vec2<F>;
 
-    /// Returns the inverse of this transformation.
-    fn inverse(&self) -> Self::Inverse;
+    /// Returns the given 2D point transformed with the inverse of
+    /// this transformation.
+    fn inverse_transform(&self, point: &Point2<F>) -> Point2<F>;
+
+    /// Returns the given 2D vector transformed with the inverse of
+    /// this transformation.
+    ///
+    /// The result may be different from that obtained by calling `inverse_transform`
+    /// on a corresponding point, because vectors are not affected by
+    /// translation.
+    fn inverse_transform_vec(&self, vector: &Vec2<F>) -> Vec2<F>;
 
     /// Returns the horizontally transformed version of the given 3D point.
     fn transform_horizontally(&self, point: &Point3<F>) -> Point3<F> {
@@ -2311,9 +2314,9 @@ impl<F> Default for IdentityTransformation2<F> {
 }
 
 impl<F: BFloat> PointTransformation2<F> for IdentityTransformation2<F> {
-    type Inverse = Self;
-
-    const IS_IDENTITY: bool = true;
+    fn is_identity(&self) -> bool {
+        true
+    }
 
     fn transform(&self, point: &Point2<F>) -> Point2<F> {
         point.clone()
@@ -2323,8 +2326,12 @@ impl<F: BFloat> PointTransformation2<F> for IdentityTransformation2<F> {
         vector.clone()
     }
 
-    fn inverse(&self) -> Self::Inverse {
-        *self
+    fn inverse_transform(&self, point: &Point2<F>) -> Point2<F> {
+        point.clone()
+    }
+
+    fn inverse_transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        vector.clone()
     }
 }
 
@@ -2353,8 +2360,6 @@ impl<F: BFloat> RotationTransformation2<F> {
 }
 
 impl<F: BFloat> PointTransformation2<F> for RotationTransformation2<F> {
-    type Inverse = Self;
-
     fn transform(&self, point: &Point2<F>) -> Point2<F> {
         (&self.rotated_x_axis_unit_vec * point[Dim2::X]
             + &self.rotated_y_axis_unit_vec * point[Dim2::Y])
@@ -2366,11 +2371,17 @@ impl<F: BFloat> PointTransformation2<F> for RotationTransformation2<F> {
             + &self.rotated_y_axis_unit_vec * vector[Dim2::Y]
     }
 
-    fn inverse(&self) -> Self::Inverse {
-        Self::new_from_rotated_vec(Vec2::new(
-            self.rotated_x_axis_unit_vec[Dim2::X],
-            -self.rotated_x_axis_unit_vec[Dim2::Y],
-        ))
+    fn inverse_transform(&self, point: &Point2<F>) -> Point2<F> {
+        self.inverse_transform_vec(&point.to_vec2()).to_point2()
+    }
+
+    fn inverse_transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        Vec2::new(
+            vector[Dim2::X] * self.rotated_x_axis_unit_vec[Dim2::X]
+                + vector[Dim2::Y] * self.rotated_x_axis_unit_vec[Dim2::Y],
+            -vector[Dim2::X] * self.rotated_x_axis_unit_vec[Dim2::Y]
+                + vector[Dim2::Y] * self.rotated_x_axis_unit_vec[Dim2::X],
+        )
     }
 }
 
@@ -2388,8 +2399,6 @@ impl<F: BFloat> TranslationTransformation2<F> {
 }
 
 impl<F: BFloat> PointTransformation2<F> for TranslationTransformation2<F> {
-    type Inverse = Self;
-
     fn transform(&self, point: &Point2<F>) -> Point2<F> {
         point + &self.translation
     }
@@ -2398,10 +2407,12 @@ impl<F: BFloat> PointTransformation2<F> for TranslationTransformation2<F> {
         vector.clone()
     }
 
-    fn inverse(&self) -> Self::Inverse {
-        let mut translation = self.translation.clone();
-        translation.reverse();
-        Self::new(translation)
+    fn inverse_transform(&self, point: &Point2<F>) -> Point2<F> {
+        point - &self.translation
+    }
+
+    fn inverse_transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        vector.clone()
     }
 }
 
@@ -2425,8 +2436,6 @@ impl<F: BFloat> RotationAndTranslationTransformation2<F> {
 }
 
 impl<F: BFloat> PointTransformation2<F> for RotationAndTranslationTransformation2<F> {
-    type Inverse = TranslationAndRotationTransformation2<F>;
-
     fn transform(&self, point: &Point2<F>) -> Point2<F> {
         self.translation.transform(&self.rotation.transform(point))
     }
@@ -2435,42 +2444,12 @@ impl<F: BFloat> PointTransformation2<F> for RotationAndTranslationTransformation
         self.rotation.transform_vec(vector)
     }
 
-    fn inverse(&self) -> Self::Inverse {
-        Self::Inverse::new(self.translation.inverse(), self.rotation.inverse())
-    }
-}
-
-/// Transformation for translating 2D points and then rotating htem about the origin.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TranslationAndRotationTransformation2<F> {
-    translation: TranslationTransformation2<F>,
-    rotation: RotationTransformation2<F>,
-}
-
-impl<F: BFloat> TranslationAndRotationTransformation2<F> {
-    pub fn new(
-        translation: TranslationTransformation2<F>,
-        rotation: RotationTransformation2<F>,
-    ) -> Self {
-        Self {
-            translation,
-            rotation,
-        }
-    }
-}
-
-impl<F: BFloat> PointTransformation2<F> for TranslationAndRotationTransformation2<F> {
-    type Inverse = RotationAndTranslationTransformation2<F>;
-
-    fn transform(&self, point: &Point2<F>) -> Point2<F> {
-        self.rotation.transform(&self.translation.transform(point))
+    fn inverse_transform(&self, point: &Point2<F>) -> Point2<F> {
+        self.rotation
+            .inverse_transform(&self.translation.inverse_transform(point))
     }
 
-    fn transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
-        self.rotation.transform_vec(vector)
-    }
-
-    fn inverse(&self) -> Self::Inverse {
-        Self::Inverse::new(self.rotation.inverse(), self.translation.inverse())
+    fn inverse_transform_vec(&self, vector: &Vec2<F>) -> Vec2<F> {
+        self.rotation.inverse_transform_vec(vector)
     }
 }

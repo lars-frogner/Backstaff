@@ -4,7 +4,7 @@ use super::super::accelerator::simple_power_law::create_simple_power_law_acceler
 use crate::{
     cli::utils,
     ebeam::{distribution::power_law::PowerLawDistributionConfig, feb},
-    io::snapshot::SnapshotProvider3,
+    io::snapshot::SnapshotParameters,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -83,15 +83,12 @@ pub fn create_power_law_distribution_subcommand(
 
 /// Determines power-law distribution parameters based on
 /// provided options and values in parameter file.
-pub fn construct_power_law_distribution_config_from_options<P>(
+pub fn construct_power_law_distribution_config_from_options(
     arguments: &ArgMatches,
-    provider: &P,
-) -> PowerLawDistributionConfig
-where
-    P: SnapshotProvider3,
-{
+    parameters: &dyn SnapshotParameters,
+) -> PowerLawDistributionConfig {
     let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "min-residual-factor",
         "min_residual",
@@ -99,7 +96,7 @@ where
         PowerLawDistributionConfig::DEFAULT_MIN_RESIDUAL_FACTOR,
     );
     let min_deposited_power_per_distance = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "min-deposited-power-per-distance",
         "min_dep_en",
@@ -107,7 +104,7 @@ where
         PowerLawDistributionConfig::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
     );
     let max_propagation_distance = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "max-propagation-distance",
         "max_dist",
@@ -115,7 +112,7 @@ where
         PowerLawDistributionConfig::DEFAULT_MAX_PROPAGATION_DISTANCE,
     );
     let outside_deposition_threshold = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "outside-deposition-threshold",
         "out_dep_thresh",

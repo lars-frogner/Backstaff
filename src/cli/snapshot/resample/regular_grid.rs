@@ -11,7 +11,7 @@ use crate::{
         snapshot::{inspect::create_inspect_subcommand, write::create_write_subcommand},
         utils as cli_utils,
     },
-    field::{FieldGrid3, ResampledCoordLocation, ResamplingMethod},
+    field::{DynScalarFieldProvider3, FieldGrid3, ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Dim3::{X, Y, Z},
         In3D, Vec3,
@@ -19,7 +19,7 @@ use crate::{
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, SnapshotProvider3},
+        snapshot::{fdt, SnapshotMetadata},
         utils::IOContext,
         Verbosity,
     },
@@ -127,19 +127,18 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
     )
 }
 
-pub fn run_resampling_for_regular_grid<P>(
+pub fn run_resampling_for_regular_grid(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     let original_grid = provider.grid();
 
     let original_shape = original_grid.shape();
@@ -208,6 +207,7 @@ pub fn run_resampling_for_regular_grid<P>(
         grid,
         None,
         arguments,
+        metadata,
         provider,
         resampled_locations,
         resampling_method,

@@ -25,13 +25,13 @@ use crate::{
         utils as cli_utils,
     },
     exit_on_error, exit_with_error,
-    field::ScalarFieldCacher3,
+    field::{DynCachingScalarFieldProvider3, DynScalarFieldProvider3, ScalarFieldCacher3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         InterpGridVerifier3, Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{self, fdt},
         utils::{AtomicOutputFile, IOContext},
     },
     seeding::Seeder3,
@@ -160,12 +160,13 @@ pub fn create_trace_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `trace` subcommand using the given arguments.
-pub fn run_trace_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_trace_subcommand(
+    arguments: &ArgMatches,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
-    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
+    let snapshot = Box::new(ScalarFieldCacher3::new_manual_cacher(provider, verbosity));
     run_with_selected_tracer(arguments, snapshot, io_context);
 }
 
@@ -270,10 +271,11 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_tracer<P>(arguments: &ArgMatches, snapshot: P, io_context: &mut IOContext)
-where
-    P: CachingSnapshotProvider3,
-{
+fn run_with_selected_tracer(
+    arguments: &ArgMatches,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let (tracer_config, tracer_arguments) =
         if let Some(tracer_arguments) = arguments.subcommand_matches("basic_field_line_tracer") {
             (
@@ -293,14 +295,13 @@ where
     run_with_selected_stepper_factory(arguments, tracer_arguments, snapshot, tracer, io_context);
 }
 
-fn run_with_selected_stepper_factory<P, Tr>(
+fn run_with_selected_stepper_factory<Tr>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: P,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
     io_context: &mut IOContext,
 ) where
-    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -342,15 +343,14 @@ fn run_with_selected_stepper_factory<P, Tr>(
     }
 }
 
-fn run_with_selected_interpolator<P, Tr, StF>(
+fn run_with_selected_interpolator<Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: P,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
     stepper_factory: StF,
     io_context: &mut IOContext,
 ) where
-    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -389,16 +389,15 @@ fn run_with_selected_interpolator<P, Tr, StF>(
     );
 }
 
-fn run_with_selected_seeder<P, Tr, StF>(
+fn run_with_selected_seeder<Tr, StF>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    mut snapshot: P,
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext,
 ) where
-    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -406,7 +405,7 @@ fn run_with_selected_seeder<P, Tr, StF>(
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
         let seeder =
-            create_slice_seeder_from_arguments(seeder_arguments, &mut snapshot, interpolator);
+            create_slice_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
         run_tracing(
             root_arguments,
             snapshot,
@@ -418,7 +417,7 @@ fn run_with_selected_seeder<P, Tr, StF>(
         );
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
         let seeder =
-            create_volume_seeder_from_arguments(seeder_arguments, &mut snapshot, interpolator);
+            create_volume_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
         run_tracing(
             root_arguments,
             snapshot,
@@ -444,16 +443,15 @@ fn run_with_selected_seeder<P, Tr, StF>(
     };
 }
 
-fn run_tracing<P, Tr, StF, Sd>(
+fn run_tracing<Tr, StF, Sd>(
     root_arguments: &ArgMatches,
-    mut snapshot: P,
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
     stepper_factory: StF,
     interpolator: &dyn Interpolator3<fdt>,
     seeder: Sd,
     io_context: &mut IOContext,
 ) where
-    P: CachingSnapshotProvider3,
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -524,7 +522,7 @@ fn run_tracing<P, Tr, StF, Sd>(
 
     let field_lines = FieldLineSet3::trace(
         quantity,
-        &snapshot,
+        &*snapshot,
         seeder,
         &tracer,
         interpolator,
@@ -543,18 +541,16 @@ fn run_tracing<P, Tr, StF, Sd>(
     );
 }
 
-fn perform_post_tracing_actions<P>(
+fn perform_post_tracing_actions(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
     extra_atomic_output_file: Option<AtomicOutputFile>,
     io_context: &IOContext,
-    mut provider: P,
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     mut field_lines: FieldLineSet3,
-) where
-    P: SnapshotProvider3,
-{
+) {
     if let Some(extra_fixed_scalars) = root_arguments
         .values_of("extracted-seed-quantities")
         .map(|values| values.collect::<Vec<_>>())
@@ -563,7 +559,7 @@ fn perform_post_tracing_actions<P>(
             let name = name.to_lowercase();
             field_lines.extract_fixed_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(&name).as_ref(),
+                    snapshot.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} in snapshot: {1}",
                     &name
                 ),
@@ -579,7 +575,7 @@ fn perform_post_tracing_actions<P>(
             let name = name.to_lowercase();
             field_lines.extract_varying_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(&name).as_ref(),
+                    snapshot.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),

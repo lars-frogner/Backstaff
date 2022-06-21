@@ -5,10 +5,10 @@ use crate::{
     exit_with_error,
     field::{
         synthesis::{EmissivitySnapshotProvider3, SYNTHESIZABLE_QUANTITY_TABLE_STRING},
-        ScalarFieldCacher3,
+        DynCachingScalarFieldProvider3, DynScalarFieldProvider3, ScalarFieldCacher3,
     },
     interpolation::poly_fit::{PolyFitInterpolator2, PolyFitInterpolatorConfig},
-    io::snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
+    io::snapshot::fdt,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -133,13 +133,10 @@ pub fn create_synthesize_subcommand(_parent_command_name: &'static str) -> Comma
 }
 
 /// Creates an `EmissivitySnapshotProvider3` for the given arguments and snapshot provider.
-pub fn create_synthesize_provider<P>(
+pub fn create_synthesize_provider(
     arguments: &ArgMatches,
-    provider: P,
-) -> EmissivitySnapshotProvider3<P, PolyFitInterpolator2>
-where
-    P: CachingSnapshotProvider3,
-{
+    provider: DynCachingScalarFieldProvider3<fdt>,
+) -> EmissivitySnapshotProvider3 {
     match env::var_os("XUVTOP") {
         Some(ref path) => {
             if !PathBuf::from(path).is_dir() {
@@ -203,10 +200,10 @@ where
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbosity = cli_utils::parse_verbosity(arguments, true);
 
-    let interpolator = PolyFitInterpolator2::new(PolyFitInterpolatorConfig {
+    let interpolator = Box::new(PolyFitInterpolator2::new(PolyFitInterpolatorConfig {
         order: 1,
         ..PolyFitInterpolatorConfig::default()
-    });
+    }));
 
     EmissivitySnapshotProvider3::new(
         provider,
@@ -243,14 +240,11 @@ where
     )
 }
 
-pub fn create_synthesize_provider_added_caching<P>(
+pub fn create_synthesize_provider_added_caching(
     arguments: &ArgMatches,
-    provider: P,
-) -> EmissivitySnapshotProvider3<ScalarFieldCacher3<fdt, P>, PolyFitInterpolator2>
-where
-    P: SnapshotProvider3,
-{
+    provider: DynScalarFieldProvider3<fdt>,
+) -> EmissivitySnapshotProvider3 {
     let verbosity = cli_utils::parse_verbosity(arguments, true);
-    let cached_provider = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
+    let cached_provider = Box::new(ScalarFieldCacher3::new_manual_cacher(provider, verbosity));
     create_synthesize_provider(arguments, cached_provider)
 }

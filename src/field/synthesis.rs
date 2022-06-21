@@ -4,15 +4,18 @@ use crate::{
     constants::{AMU, CLIGHT, KBOLTZMANN},
     exit_on_none,
     field::{
-        CachingScalarFieldProvider3, ScalarField2, ScalarField3, ScalarFieldProvider3, VectorField3,
+        quantities::{
+            compute_quantity_product, compute_scaled_quantity,
+            compute_sum_of_single_and_squared_term_quantity,
+            compute_sum_of_single_and_squared_term_quantity_product,
+        },
+        CachingScalarFieldProvider3, DynCachingScalarFieldProvider3, FieldGrid3, ScalarField2,
+        ScalarField3, ScalarFieldProvider3, VectorField3,
     },
     geometry::{Coords2, In2D, In3D, Point2},
     grid::{fgr, regular::RegularGrid2, CoordLocation, Grid2},
     interpolation::Interpolator2,
-    io::{
-        snapshot::{fdt, CachingSnapshotProvider3, SnapshotParameters, SnapshotProvider3},
-        Endianness, Verbosity,
-    },
+    io::{snapshot::fdt, Verbosity},
     num::BFloat,
     units::solar::U_U,
 };
@@ -32,15 +35,6 @@ use std::{
     process,
     str::FromStr,
     sync::Arc,
-};
-
-use super::{
-    quantities::{
-        compute_quantity_product, compute_scaled_quantity,
-        compute_sum_of_single_and_squared_term_quantity,
-        compute_sum_of_single_and_squared_term_quantity_product,
-    },
-    FieldGrid3,
 };
 
 /// List of names used in CHIANTI for the first atomic elements.
@@ -233,10 +227,9 @@ fn parse_line_quantity_name(line_quantity_name: &str) -> io::Result<(String, Str
 }
 
 /// Computer of emissivities from Bifrost 3D simulation snapshots.
-#[derive(Debug)]
-pub struct EmissivitySnapshotProvider3<P, I> {
-    provider: P,
-    interpolator: I,
+pub struct EmissivitySnapshotProvider3 {
+    provider: DynCachingScalarFieldProvider3<fdt>,
+    interpolator: Box<dyn Interpolator2<fdt>>,
     all_variable_names: Vec<String>,
     quantity_dependencies: Vec<&'static str>,
     emissivity_tables: Arc<EmissivityTables<fdt>>,
@@ -244,15 +237,11 @@ pub struct EmissivitySnapshotProvider3<P, I> {
     verbosity: Verbosity,
 }
 
-impl<P, I> EmissivitySnapshotProvider3<P, I>
-where
-    P: CachingSnapshotProvider3,
-    I: Interpolator2<fdt>,
-{
+impl EmissivitySnapshotProvider3 {
     /// Creates a computer of emissivities.
     pub fn new(
-        provider: P,
-        interpolator: I,
+        provider: DynCachingScalarFieldProvider3<fdt>,
+        interpolator: Box<dyn Interpolator2<fdt>>,
         line_names: &[String],
         quantity_names: &[String],
         n_temperature_points: usize,
@@ -264,7 +253,7 @@ where
     ) -> Self {
         let quantity_names: Vec<_> = quantity_names
             .iter()
-            .filter(|name| Self::verify_quantity_availability(&provider, name, handle_unavailable))
+            .filter(|name| Self::verify_quantity_availability(&*provider, name, handle_unavailable))
             .collect();
 
         let emissivity_tables = Arc::new(EmissivityTables::new(
@@ -303,12 +292,22 @@ where
         }
     }
 
+    /// Returns a reference to the wrapped provider.
+    pub fn provider(&self) -> &dyn CachingScalarFieldProvider3<fdt> {
+        &*self.provider
+    }
+
+    /// Returns a mutable reference to the wrapped provider.
+    pub fn provider_mut(&mut self) -> &mut dyn CachingScalarFieldProvider3<fdt> {
+        &mut *self.provider
+    }
+
     fn provide_new_scalar_field(
         &mut self,
         variable_name: &str,
     ) -> io::Result<Arc<ScalarField3<fdt>>> {
-        if self.provider.has_variable(variable_name) {
-            self.provider.provide_scalar_field(variable_name)
+        if self.provider().has_variable(variable_name) {
+            self.provider_mut().provide_scalar_field(variable_name)
         } else {
             let (quantity_name, line_name) = parse_line_quantity_name(variable_name)?;
             let verbosity = self.verbosity.clone();
@@ -432,8 +431,8 @@ where
         line_quantity_name: &str,
         line_name: &str,
     ) -> io::Result<ScalarField3<fdt>> {
-        let temperatures = self.provider.provide_scalar_field("tg")?;
-        let electron_densities = self.provider.provide_scalar_field("nel")?;
+        let temperatures = self.provider_mut().provide_scalar_field("tg")?;
+        let electron_densities = self.provider_mut().provide_scalar_field("nel")?;
 
         if self.verbosity.print_messages() {
             println!("Looking up emissivities for {}", line_name);
@@ -447,7 +446,7 @@ where
 
         self.emissivity_tables.evaluate(
             emissivity_buffer,
-            &self.interpolator,
+            &*self.interpolator,
             line_name,
             temperature_buffer,
             electron_density_buffer,
@@ -464,7 +463,7 @@ where
     }
 
     fn quantity_is_available(
-        provider: &P,
+        provider: &dyn CachingScalarFieldProvider3<fdt>,
         quantity_name: &str,
     ) -> (bool, Option<Vec<&'static str>>) {
         if let Some((_, dependencies)) = SYNTHESIZABLE_QUANTITIES.get(quantity_name) {
@@ -486,7 +485,7 @@ where
     }
 
     fn verify_quantity_availability(
-        provider: &P,
+        provider: &dyn CachingScalarFieldProvider3<fdt>,
         quantity_name: &str,
         handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
     ) -> bool {
@@ -501,17 +500,22 @@ where
     }
 }
 
-impl<P, I> ScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3<P, I>
-where
-    P: CachingSnapshotProvider3,
-    I: Interpolator2<fdt>,
-{
+impl ScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3 {
     fn grid(&self) -> &FieldGrid3 {
-        self.provider.grid()
+        self.provider().grid()
     }
 
     fn arc_with_grid(&self) -> Arc<FieldGrid3> {
-        self.provider.arc_with_grid()
+        self.provider().arc_with_grid()
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        &self.all_variable_names
+    }
+
+    fn has_variable(&self, variable_name: &str) -> bool {
+        self.all_variable_names.contains(&variable_name.to_string())
+            || self.provider().has_variable(variable_name)
     }
 
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
@@ -534,23 +538,19 @@ where
     }
 }
 
-impl<P, I> CachingScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3<P, I>
-where
-    P: CachingSnapshotProvider3,
-    I: Interpolator2<fdt>,
-{
+impl CachingScalarFieldProvider3<fdt> for EmissivitySnapshotProvider3 {
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.cached_scalar_fields.contains_key(variable_name)
-            || self.provider.scalar_field_is_cached(variable_name)
+            || self.provider().scalar_field_is_cached(variable_name)
     }
 
     fn vector_field_is_cached(&self, variable_name: &str) -> bool {
-        self.provider.vector_field_is_cached(variable_name)
+        self.provider().vector_field_is_cached(variable_name)
     }
 
     fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
-        if self.provider.has_variable(variable_name) {
-            self.provider.cache_scalar_field(variable_name)
+        if self.provider().has_variable(variable_name) {
+            self.provider_mut().cache_scalar_field(variable_name)
         } else {
             if !self.cached_scalar_fields.contains_key(variable_name) {
                 let field = self.provide_scalar_field(variable_name)?;
@@ -565,7 +565,7 @@ where
     }
 
     fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
-        self.provider.cache_vector_field(variable_name)
+        self.provider_mut().cache_vector_field(variable_name)
     }
 
     fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt>> {
@@ -575,12 +575,12 @@ where
             }
             field
         } else {
-            self.provider.arc_with_cached_scalar_field(variable_name)
+            self.provider().arc_with_cached_scalar_field(variable_name)
         }
     }
 
     fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt>> {
-        self.provider.arc_with_cached_vector_field(variable_name)
+        self.provider().arc_with_cached_vector_field(variable_name)
     }
 
     fn drop_scalar_field(&mut self, variable_name: &str) {
@@ -590,44 +590,17 @@ where
             }
             self.cached_scalar_fields.remove(variable_name);
         } else {
-            self.provider.drop_scalar_field(variable_name)
+            self.provider_mut().drop_scalar_field(variable_name)
         }
     }
 
     fn drop_vector_field(&mut self, variable_name: &str) {
-        self.provider.drop_vector_field(variable_name)
+        self.provider_mut().drop_vector_field(variable_name)
     }
 
     fn drop_all_fields(&mut self) {
         self.cached_scalar_fields.clear();
-        self.provider.drop_all_fields()
-    }
-}
-
-impl<P, I> SnapshotProvider3 for EmissivitySnapshotProvider3<P, I>
-where
-    P: CachingSnapshotProvider3,
-    I: Interpolator2<fdt>,
-{
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.provider.parameters()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.provider.endianness()
-    }
-
-    fn all_variable_names(&self) -> &[String] {
-        &self.all_variable_names
-    }
-
-    fn has_variable(&self, variable_name: &str) -> bool {
-        self.all_variable_names.contains(&variable_name.to_string())
-            || self.provider.has_variable(variable_name)
-    }
-
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        self.provider.obtain_snap_name_and_num()
+        self.provider_mut().drop_all_fields()
     }
 }
 
@@ -764,10 +737,10 @@ where
     }
 
     /// Provides sampled emissivities for the given spectral line, temperatures and electron densities.
-    fn evaluate<I: Interpolator2<F>>(
+    fn evaluate(
         &self,
         emissivity_buffer: &mut [MaybeUninit<F>],
-        interpolator: &I,
+        interpolator: &dyn Interpolator2<F>,
         line_name: &str,
         temperatures: &[F],
         electron_densities: &[F],

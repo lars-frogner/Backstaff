@@ -59,18 +59,16 @@ pub trait FieldLineTracer3 {
     ///
     /// # Type parameters
     ///
-    /// - `P`: Type of snapshot provider.
     /// - `St`: Type of stepper.
-    fn trace<P, St>(
+    fn trace<St>(
         &self,
         field_name: &str,
-        snapshot: &P,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: St,
         start_position: &Point3<ftr>,
     ) -> Option<Self::Data>
     where
-        P: CachingScalarFieldProvider3<fdt>,
         St: Stepper3;
 }
 
@@ -134,11 +132,10 @@ impl FieldLineSet3 {
     ///
     /// - `Sd`: Type of seeder.
     /// - `Tr`: Type of field line tracer.
-    /// - `P`: Type of snapshot provider.
     /// - `StF`: Type of stepper factory.
-    pub fn trace<Sd, Tr, P, StF>(
+    pub fn trace<Sd, Tr, StF>(
         field_name: &str,
-        snapshot: &P,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         seeder: Sd,
         tracer: &Tr,
         interpolator: &dyn Interpolator3<fdt>,
@@ -150,7 +147,6 @@ impl FieldLineSet3 {
         Tr: FieldLineTracer3 + Sync,
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-        P: CachingScalarFieldProvider3<fdt>,
         StF: StepperFactory3 + Sync,
     {
         let number_of_points = seeder.number_of_points();

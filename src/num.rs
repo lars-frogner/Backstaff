@@ -9,7 +9,8 @@ use approx::{AbsDiffEq, RelativeEq};
 
 /// Floating point marker trait for easier control over trait bounds.
 pub trait BFloat:
-    Sync
+    'static
+    + Sync
     + Send
     + num::Float
     + num::cast::FromPrimitive

@@ -332,10 +332,13 @@ pub trait Grid3<F: BFloat>: Clone + Sync + Send {
 
     /// Whether the given grid after applying the given transformation is fully inside
     /// the non-periodic boundaries of the grid
-    fn contains_transformed_grid<H, T>(&self, other: &H, transformation: &T) -> bool
+    fn contains_transformed_grid<H>(
+        &self,
+        other: &H,
+        transformation: &dyn PointTransformation2<F>,
+    ) -> bool
     where
         H: Grid3<F>,
-        T: PointTransformation2<F>,
     {
         let other_lower_bounds = other.lower_bounds();
         let other_upper_bounds = other.upper_bounds();

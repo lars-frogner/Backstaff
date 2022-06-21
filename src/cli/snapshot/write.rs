@@ -3,8 +3,9 @@
 use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_on_false, exit_with_error,
+    field::DynScalarFieldProvider3,
     io::{
-        snapshot::{self, native, SnapshotProvider3},
+        snapshot::{self, fdt, native, SnapshotMetadata},
         utils::IOContext,
     },
     update_command_graph,
@@ -110,10 +111,12 @@ pub fn create_write_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `snapshot-write` subcommand using the given arguments.
-pub fn run_write_subcommand<P>(arguments: &ArgMatches, mut provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_write_subcommand(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    mut provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
             arguments
@@ -150,7 +153,7 @@ where
     io_context.set_overwrite_mode(overwrite_mode);
 
     let quantity_names =
-        super::parse_included_quantity_list(arguments, &provider, continue_on_warnings);
+        super::parse_included_quantity_list(arguments, &*provider, continue_on_warnings);
 
     if quantity_names.is_empty() {
         exit_with_error!("Aborted: No quantities to write");
@@ -159,7 +162,8 @@ where
     exit_on_error!(
         match output_type {
             OutputType::Native(native_type) => native::write_modified_snapshot(
-                &mut provider,
+                metadata,
+                &mut *provider,
                 &quantity_names,
                 &output_file_path,
                 native_type == NativeType::Scratch,
@@ -171,7 +175,8 @@ where
             OutputType::NetCDF => {
                 let strip_metadata = arguments.is_present("strip");
                 netcdf::write_modified_snapshot(
-                    &mut provider,
+                    metadata,
+                    &mut *provider,
                     &quantity_names,
                     &output_file_path,
                     strip_metadata,

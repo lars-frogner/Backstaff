@@ -11,13 +11,16 @@ use crate::{
         utils as cli_utils,
     },
     exit_on_false, exit_on_none,
+    field::{
+        DynCachingScalarFieldProvider3, DynScalarFieldProvider3, ExtractedScalarFieldProvider3,
+    },
     geometry::{
         Dim3::{X, Y, Z},
         Idx3, Point3,
     },
     grid::Grid3,
     io::{
-        snapshot::{CachingSnapshotProvider3, ExtractedSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, SnapshotMetadata},
         utils::IOContext,
     },
     update_command_graph,
@@ -146,10 +149,12 @@ pub fn create_extract_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-extract` subcommand using the given arguments.
-pub fn run_extract_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_extract_subcommand(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let original_grid = provider.grid();
     let original_shape = original_grid.shape();
     let original_lower_bounds = original_grid.lower_bounds();
@@ -254,79 +259,89 @@ where
         );
     }
 
-    let provider =
-        ExtractedSnapshotProvider3::new(provider, lower_indices, upper_indices, verbosity);
+    let provider = Box::new(ExtractedScalarFieldProvider3::new(
+        provider,
+        lower_indices,
+        upper_indices,
+        verbosity,
+    ));
 
-    run_extract_subcommand_with_derive(arguments, provider, io_context);
+    run_extract_subcommand_with_derive(arguments, metadata, provider, io_context);
 }
 
-fn run_extract_subcommand_with_derive<P>(
+fn run_extract_subcommand_with_derive(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3 + Sync,
-{
+) {
     #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
-        let provider = super::derive::create_derive_provider(derive_arguments, provider);
-        run_extract_subcommand_with_synthesis(derive_arguments, provider, io_context);
+        let provider = Box::new(super::derive::create_derive_provider(
+            derive_arguments,
+            provider,
+        ));
+        run_extract_subcommand_with_synthesis(derive_arguments, metadata, provider, io_context);
         return;
     }
 
-    run_extract_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
+    run_extract_subcommand_with_synthesis_added_caching(arguments, metadata, provider, io_context);
 }
 
-fn run_extract_subcommand_with_synthesis<P>(
+fn run_extract_subcommand_with_synthesis(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynCachingScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: CachingSnapshotProvider3 + Sync,
-{
+) {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-        let provider =
-            super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
-        run_extract_subcommand_for_provider(synthesize_arguments, provider, io_context);
-        return;
-    }
-
-    run_extract_subcommand_for_provider(arguments, provider, io_context);
-}
-
-fn run_extract_subcommand_with_synthesis_added_caching<P>(
-    arguments: &ArgMatches,
-    provider: P,
-    io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3 + Sync,
-{
-    #[cfg(feature = "synthesis")]
-    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-        let provider = super::synthesize::create_synthesize_provider_added_caching(
+        let provider = Box::new(super::synthesize::create_synthesize_provider(
             synthesize_arguments,
             provider,
-        );
-        run_extract_subcommand_for_provider(synthesize_arguments, provider, io_context);
+        ));
+        run_extract_subcommand_for_provider(synthesize_arguments, metadata, provider, io_context);
         return;
     }
 
-    run_extract_subcommand_for_provider(arguments, provider, io_context);
+    run_extract_subcommand_for_provider(
+        arguments,
+        metadata,
+        provider.as_scalar_field_provider(),
+        io_context,
+    );
 }
 
-fn run_extract_subcommand_for_provider<P>(
+fn run_extract_subcommand_with_synthesis_added_caching(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3 + Sync,
-{
+) {
+    #[cfg(feature = "synthesis")]
+    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+        let provider = Box::new(super::synthesize::create_synthesize_provider_added_caching(
+            synthesize_arguments,
+            provider,
+        ));
+        run_extract_subcommand_for_provider(synthesize_arguments, metadata, provider, io_context);
+        return;
+    }
+
+    run_extract_subcommand_for_provider(arguments, metadata, provider, io_context);
+}
+
+fn run_extract_subcommand_for_provider(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-        run_resample_subcommand(resample_arguments, provider, io_context);
+        run_resample_subcommand(resample_arguments, metadata, provider, io_context);
     } else if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        run_write_subcommand(write_arguments, provider, io_context);
+        run_write_subcommand(write_arguments, metadata, provider, io_context);
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-        run_inspect_subcommand(inspect_arguments, provider, io_context);
+        run_inspect_subcommand(inspect_arguments, metadata, provider, io_context);
     }
 }

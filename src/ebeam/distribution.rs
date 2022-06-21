@@ -56,14 +56,12 @@ pub trait Distribution {
 
     /// Propagates the electron distribution for the given displacement
     /// and returns the power density deposited during the propagation.
-    fn propagate<P>(
+    fn propagate(
         &mut self,
-        snapshot: &P,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
-    ) -> PropagationResult
-    where
-        P: CachingScalarFieldProvider3<fdt>;
+    ) -> PropagationResult;
 }

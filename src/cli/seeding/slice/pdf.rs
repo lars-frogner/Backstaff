@@ -3,13 +3,8 @@
 
 use super::CommonSliceSeederParameters;
 use crate::{
-    cli::utils,
-    exit_on_error,
-    geometry::Point2,
-    grid::fgr,
-    interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotProvider3},
-    seeding::slice::SliceSeeder3,
+    cli::utils, exit_on_error, field::CachingScalarFieldProvider3, geometry::Point2, grid::fgr,
+    interpolation::Interpolator3, io::snapshot::fdt, seeding::slice::SliceSeeder3,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -65,15 +60,14 @@ pub fn create_value_pdf_subcommand(_parent_command_name: &'static str) -> Comman
 }
 
 /// Creates a slice PDF seeder based on the provided arguments.
-pub fn create_slice_pdf_seeder_from_arguments<P, S>(
+pub fn create_slice_pdf_seeder_from_arguments<S>(
     arguments: &ArgMatches,
     parameters: &CommonSliceSeederParameters,
-    provider: &mut P,
+    snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     satisfies_constraints: &S,
 ) -> SliceSeeder3
 where
-    P: SnapshotProvider3,
     S: Fn(&Point2<fgr>) -> bool + Sync,
 {
     let quantity = arguments
@@ -87,7 +81,7 @@ where
 
     if arguments.is_present("is-vector-quantity") {
         let field = exit_on_error!(
-            provider.provide_vector_field(&quantity),
+            snapshot.provide_vector_field(&quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             &quantity
         );
@@ -103,7 +97,7 @@ where
         seeder
     } else {
         let field = exit_on_error!(
-            provider.provide_scalar_field(&quantity),
+            snapshot.provide_scalar_field(&quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             &quantity
         );

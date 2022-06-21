@@ -1,15 +1,12 @@
 //! Tracing of corks in an evolving velocity field.
 
 use crate::{
-    field::{ScalarField3, VectorField3},
+    field::{CachingScalarFieldProvider3, ScalarField3, VectorField3},
     geometry::{Idx3, Point3, Vec3},
     grid::{Grid3, GridPointQuery3},
     interpolation::Interpolator3,
     io::{
-        snapshot::{
-            fdt, CachingSnapshotProvider3, SnapshotProvider3, MASS_DENSITY_VARIABLE_NAME,
-            MOMENTUM_VARIABLE_NAME, OUTPUT_TIME_STEP_NAME,
-        },
+        snapshot::{fdt, MASS_DENSITY_VARIABLE_NAME, MOMENTUM_VARIABLE_NAME},
         utils, Verbosity,
     },
 };
@@ -77,7 +74,16 @@ pub struct HeunCorkStepper;
 
 /// Traces a constant number of initial corks.
 #[derive(Clone, Copy, Debug)]
-pub struct ConstantCorkAdvector;
+pub struct ConstantCorkAdvector {
+    step_duration: fco,
+}
+
+impl ConstantCorkAdvector {
+    pub fn new(step_duration: fco) -> Self {
+        assert!(step_duration > 0.0);
+        Self { step_duration }
+    }
+}
 
 impl Cork {
     fn new(
@@ -266,14 +272,10 @@ impl CorkSet {
     ///
     /// - `Ok`: Contains a new `CorkSet` with initialized corks.
     /// - `Err`: Contains an error encountered while trying to read or interpret the initial snapshot.
-    ///
-    /// # Type parameters
-    ///
-    /// - `P`: Type of snapshot provider.
-    pub fn new<Po, P>(
+    pub fn new<Po>(
         number_of_corks: usize,
         initial_positions: Po,
-        initial_snapshot: &mut P,
+        initial_snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
         scalar_quantity_names: Vec<String>,
         vector_quantity_names: Vec<String>,
@@ -281,7 +283,6 @@ impl CorkSet {
     ) -> io::Result<Self>
     where
         Po: IntoParallelIterator<Item = Point3<fco>>,
-        P: CachingSnapshotProvider3,
     {
         initial_snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
         initial_snapshot.cache_vector_field(MOMENTUM_VARIABLE_NAME)?;
@@ -409,14 +410,11 @@ impl CorkSet {
         self.corks.par_iter_mut().for_each(updater);
     }
 
-    fn sample_field_values<P>(
+    fn sample_field_values(
         &mut self,
-        provider: &mut P,
+        snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
-    ) -> io::Result<()>
-    where
-        P: SnapshotProvider3,
-    {
+    ) -> io::Result<()> {
         if self.verbosity().print_messages() {
             println!("Sampling field values");
         }
@@ -427,7 +425,7 @@ impl CorkSet {
             .into_iter()
             .enumerate()
         {
-            let field = provider.provide_scalar_field(&name)?;
+            let field = snapshot.provide_scalar_field(&name)?;
             self.update(&|cork: &mut Cork| {
                 cork.add_scalar_quantity_value(quantity_idx, field.as_ref(), interpolator)
             });
@@ -439,7 +437,7 @@ impl CorkSet {
             .into_iter()
             .enumerate()
         {
-            let field = provider.provide_vector_field(&name)?;
+            let field = snapshot.provide_vector_field(&name)?;
             self.update(&|cork: &mut Cork| {
                 cork.add_vector_quantity_value(quantity_idx, field.as_ref(), interpolator)
             });
@@ -501,20 +499,13 @@ pub trait CorkStepper: Sync {
         interpolator: &dyn Interpolator3<fdt>,
     );
 
-    fn step_all_corks<P>(
+    fn step_all_corks(
         &self,
         corks: &mut CorkSet,
-        snapshot: &mut P,
+        snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
-    ) -> io::Result<()>
-    where
-        P: CachingSnapshotProvider3,
-    {
-        let step_duration = snapshot
-            .parameters()
-            .get_value(OUTPUT_TIME_STEP_NAME)?
-            .try_as_float()? as fco;
-
+        step_duration: fco,
+    ) -> io::Result<()> {
         snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
         snapshot
             .cache_vector_field(MOMENTUM_VARIABLE_NAME)
@@ -609,34 +600,31 @@ pub trait CorkAdvector {
     ///
     /// # Type parameters
     ///
-    /// - `P`: Type of snapshot provider.
     /// - `I`: Type of interpolator.
     /// - `S`: Type of stepper.
-    fn advect_corks<P, S>(
+    fn advect_corks<S>(
         &self,
         corks: &mut CorkSet,
-        snapshot: &mut P,
+        snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: &S,
     ) -> io::Result<()>
     where
-        P: CachingSnapshotProvider3,
         S: CorkStepper;
 }
 
 impl CorkAdvector for ConstantCorkAdvector {
-    fn advect_corks<P, S>(
+    fn advect_corks<S>(
         &self,
         corks: &mut CorkSet,
-        snapshot: &mut P,
+        snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: &S,
     ) -> io::Result<()>
     where
-        P: CachingSnapshotProvider3,
         S: CorkStepper,
     {
-        stepper.step_all_corks(corks, snapshot, interpolator)
+        stepper.step_all_corks(corks, snapshot, interpolator, self.step_duration)
     }
 }
 

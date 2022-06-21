@@ -4,7 +4,7 @@ use super::super::distribution::power_law::create_power_law_distribution_subcomm
 use crate::{
     cli::utils,
     ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
-    io::snapshot::{fpa, SnapshotProvider3},
+    io::snapshot::{fpa, SnapshotParameters},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -56,15 +56,12 @@ pub fn create_simple_reconnection_site_detector_subcommand(
 
 /// Determines simple reconnection site detector parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_reconnection_site_detector_config_from_options<P>(
+pub fn construct_simple_reconnection_site_detector_config_from_options(
     arguments: &ArgMatches,
-    reader: &P,
-) -> SimpleReconnectionSiteDetectorConfig
-where
-    P: SnapshotProvider3,
-{
+    parameters: &dyn SnapshotParameters,
+) -> SimpleReconnectionSiteDetectorConfig {
     let reconnection_factor_threshold = utils::get_value_from_param_file_argument_with_default(
-        reader,
+        parameters,
         arguments,
         "reconnection-factor-threshold",
         "krec_lim",
@@ -72,7 +69,7 @@ where
         SimpleReconnectionSiteDetectorConfig::DEFAULT_RECONNECTION_FACTOR_THRESHOLD,
     );
     let detection_depth_limits = utils::get_values_from_param_file_argument_with_defaults(
-        reader,
+        parameters,
         arguments,
         "detection-depth-limits",
         &["z_rec_ulim", "z_rec_llim"],

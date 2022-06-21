@@ -18,7 +18,10 @@ use crate::{
         CoordLocation, Grid1, Grid2, Grid3, GridPointQuery3,
     },
     interpolation::Interpolator3,
-    io::Verbosity,
+    io::{
+        snapshot::{self, fdt},
+        Verbosity,
+    },
     num::{BFloat, KeyValueOrderableByValue},
 };
 use ieee754::Ieee754;
@@ -46,12 +49,28 @@ use approx::{AbsDiffEq, RelativeEq};
 use crate::num::ComparableSlice;
 
 /// Defines the properties of a provider of 3D scalar fields.
-pub trait ScalarFieldProvider3<F: BFloat>: Sync {
+pub trait ScalarFieldProvider3<F: BFloat>: AsScalarFieldProvider3<F> + Sync {
     /// Returns a reference to the grid.
     fn grid(&self) -> &FieldGrid3;
 
     /// Returns a new atomic reference counted pointer to the grid.
     fn arc_with_grid(&self) -> Arc<FieldGrid3>;
+
+    /// Returns the names of all the variables that can be provided.
+    fn all_variable_names(&self) -> &[String];
+
+    /// Returns the names of all the variables that can be provided, except the ones
+    /// in the given list.
+    fn all_variable_names_except(&self, excluded_variable_names: &[String]) -> Vec<String> {
+        self.all_variable_names()
+            .iter()
+            .cloned()
+            .filter(|name| !excluded_variable_names.contains(name))
+            .collect::<Vec<_>>()
+    }
+
+    /// Returns whether the given variable can be provided.
+    fn has_variable(&self, variable_name: &str) -> bool;
 
     /// Produces the field of the specified 3D scalar variable and returns it by value.
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F>>;
@@ -81,7 +100,119 @@ pub trait ScalarFieldProvider3<F: BFloat>: Sync {
     fn provide_vector_field(&mut self, variable_name: &str) -> io::Result<Arc<VectorField3<F>>> {
         Ok(Arc::new(self.produce_vector_field(variable_name)?))
     }
+
+    #[cfg(feature = "for-testing")]
+    fn relative_eq(
+        &mut self,
+        other: &mut dyn ScalarFieldProvider3<F>,
+        epsilon: <ScalarField3<F> as AbsDiffEq>::Epsilon,
+        max_relative: <ScalarField3<F> as AbsDiffEq>::Epsilon,
+    ) -> io::Result<bool>
+    where
+        ScalarField3<F>: RelativeEq,
+        <ScalarField3<F> as AbsDiffEq>::Epsilon: Copy,
+    {
+        let all_variable_names_self = self.all_variable_names().to_vec();
+        let all_variable_names_other = other.all_variable_names().to_vec();
+        if all_variable_names_self.len() != all_variable_names_other.len() {
+            #[cfg(debug_assertions)]
+            {
+                println!("Number of variables not equal");
+                dbg!(
+                    all_variable_names_self.len(),
+                    all_variable_names_other.len()
+                );
+            }
+            Ok(false)
+        } else {
+            let mut all_equal = true;
+            for name in all_variable_names_self.iter() {
+                if all_variable_names_other.contains(name) {
+                    all_equal = self.produce_scalar_field(name)?.relative_eq(
+                        &other.produce_scalar_field(name)?,
+                        epsilon,
+                        max_relative,
+                    );
+                    #[cfg(debug_assertions)]
+                    if !all_equal {
+                        println!("Fields {} not equal", name);
+                    }
+                } else {
+                    #[cfg(debug_assertions)]
+                    println!("Field {} not present in other", name);
+                    all_equal = false;
+                }
+                if !all_equal {
+                    break;
+                }
+            }
+            Ok(all_equal)
+        }
+    }
+
+    #[cfg(feature = "for-testing")]
+    fn values_relative_eq(
+        &mut self,
+        other: &mut dyn ScalarFieldProvider3<F>,
+        epsilon: <F as AbsDiffEq>::Epsilon,
+        max_relative: <F as AbsDiffEq>::Epsilon,
+    ) -> io::Result<bool>
+    where
+        F: RelativeEq,
+        <F as AbsDiffEq>::Epsilon: Copy,
+    {
+        let all_variable_names_self = self.all_variable_names().to_vec();
+        let all_variable_names_other = other.all_variable_names().to_vec();
+        if all_variable_names_self.len() != all_variable_names_other.len() {
+            #[cfg(debug_assertions)]
+            {
+                println!("Number of variables not equal");
+                dbg!(
+                    all_variable_names_self.len(),
+                    all_variable_names_other.len()
+                );
+            }
+            Ok(false)
+        } else {
+            let mut all_equal = true;
+            for name in all_variable_names_self.iter() {
+                if all_variable_names_other.contains(name) {
+                    let field_self = self.produce_scalar_field(name)?.into_values();
+                    let field_other = self.produce_scalar_field(name)?.into_values();
+                    let values_self = ComparableSlice(field_self.as_slice_memory_order().unwrap());
+                    let values_other =
+                        ComparableSlice(field_other.as_slice_memory_order().unwrap());
+                    all_equal = values_self.relative_eq(&values_other, epsilon, max_relative);
+                    #[cfg(debug_assertions)]
+                    if !all_equal {
+                        println!("Values of fields {} not equal", name);
+                    }
+                } else {
+                    #[cfg(debug_assertions)]
+                    println!("Field {} not present in other", name);
+                    all_equal = false;
+                }
+                if !all_equal {
+                    break;
+                }
+            }
+            Ok(all_equal)
+        }
+    }
 }
+
+pub trait AsScalarFieldProvider3<F> {
+    fn as_scalar_field_provider(self: Box<Self>) -> Box<dyn ScalarFieldProvider3<F>>;
+}
+
+impl<F: BFloat, T: 'static + ScalarFieldProvider3<F>> AsScalarFieldProvider3<F> for T {
+    fn as_scalar_field_provider(self: Box<Self>) -> Box<dyn ScalarFieldProvider3<F>> {
+        self
+    }
+}
+
+pub type DynScalarFieldProvider3<F> = Box<dyn ScalarFieldProvider3<F>>;
+pub type DynCachingScalarFieldProvider3<F> = Box<dyn CachingScalarFieldProvider3<F>>;
 
 /// Defines the properties of a `ScalarFieldProvider3` wrapper that can
 /// be used to cache provided fields.
@@ -158,9 +289,8 @@ impl<T> CachedField<T> {
 }
 
 /// Wrapper for `ScalarFieldProvider3` that automatically caches provided variables.
-#[derive(Debug)]
-pub struct ScalarFieldCacher3<F, P> {
-    provider: P,
+pub struct ScalarFieldCacher3<F> {
+    provider: DynScalarFieldProvider3<F>,
     max_memory_usage_fraction: f32,
     verbosity: Verbosity,
     system: System,
@@ -169,18 +299,18 @@ pub struct ScalarFieldCacher3<F, P> {
     request_counts: HashMap<String, u64>,
 }
 
-impl<F, P> ScalarFieldCacher3<F, P>
-where
-    F: BFloat,
-    P: ScalarFieldProvider3<F>,
-{
+impl<F: BFloat> ScalarFieldCacher3<F> {
     /// Creates a new snapshot cacher from the given provider.
-    pub fn new_manual_cacher(provider: P, verbosity: Verbosity) -> Self {
+    pub fn new_manual_cacher(provider: DynScalarFieldProvider3<F>, verbosity: Verbosity) -> Self {
         Self::new_automatic_cacher(provider, 0.0, verbosity)
     }
 
     /// Creates a new snapshot cacher from the given provider.
-    pub fn new_automatic_cacher(provider: P, max_memory_usage: f32, verbosity: Verbosity) -> Self {
+    pub fn new_automatic_cacher(
+        provider: DynScalarFieldProvider3<F>,
+        max_memory_usage: f32,
+        verbosity: Verbosity,
+    ) -> Self {
         assert!(max_memory_usage >= 0.0);
         Self {
             provider,
@@ -194,13 +324,13 @@ where
     }
 
     /// Returns a reference to the wrapped provider.
-    pub fn provider(&self) -> &P {
-        &self.provider
+    pub fn provider(&self) -> &dyn ScalarFieldProvider3<F> {
+        &*self.provider
     }
 
     /// Returns a mutable reference to the wrapped provider.
-    pub fn provider_mut(&mut self) -> &mut P {
-        &mut self.provider
+    pub fn provider_mut(&mut self) -> &mut dyn ScalarFieldProvider3<F> {
+        &mut *self.provider
     }
 
     fn increment_request_count(&mut self, variable_name: &str) -> u64 {
@@ -233,17 +363,21 @@ where
     }
 }
 
-impl<F, P> ScalarFieldProvider3<F> for ScalarFieldCacher3<F, P>
-where
-    F: BFloat,
-    P: ScalarFieldProvider3<F>,
-{
+impl<F: BFloat> ScalarFieldProvider3<F> for ScalarFieldCacher3<F> {
     fn grid(&self) -> &FieldGrid3 {
-        self.provider.grid()
+        self.provider().grid()
     }
 
     fn arc_with_grid(&self) -> Arc<FieldGrid3> {
-        self.provider.arc_with_grid()
+        self.provider().arc_with_grid()
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        self.provider().all_variable_names()
+    }
+
+    fn has_variable(&self, variable_name: &str) -> bool {
+        self.provider().has_variable(variable_name)
     }
 
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F>> {
@@ -335,11 +469,7 @@ where
     }
 }
 
-impl<F, P> CachingScalarFieldProvider3<F> for ScalarFieldCacher3<F, P>
-where
-    F: BFloat,
-    P: ScalarFieldProvider3<F>,
-{
+impl<F: 'static + BFloat> CachingScalarFieldProvider3<F> for ScalarFieldCacher3<F> {
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.scalar_fields.contains_key(variable_name)
     }
@@ -350,7 +480,7 @@ where
 
     fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
         if !self.scalar_field_is_cached(variable_name) {
-            let field = self.provider.provide_scalar_field(variable_name)?;
+            let field = self.provider_mut().provide_scalar_field(variable_name)?;
             if self.verbosity.print_messages() {
                 println!("Caching {}", variable_name);
             }
@@ -364,7 +494,7 @@ where
 
     fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
         if !self.vector_field_is_cached(variable_name) {
-            let field = self.provider.provide_vector_field(variable_name)?;
+            let field = self.provider_mut().provide_vector_field(variable_name)?;
             if self.verbosity.print_messages() {
                 println!("Caching {}", variable_name);
             }
@@ -430,6 +560,7 @@ pub type FieldValueComputer<F> = Box<dyn Fn(fgr, fgr, fgr) -> F + Sync>;
 pub struct CustomScalarFieldGenerator3<F> {
     grid: Arc<FieldGrid3>,
     variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
+    all_variable_names: Vec<String>,
     verbosity: Verbosity,
 }
 
@@ -448,9 +579,11 @@ where
         variable_computers: HashMap<String, (FieldValueComputer<F>, In3D<CoordLocation>)>,
         verbosity: Verbosity,
     ) -> Self {
+        let all_variable_names = variable_computers.keys().cloned().collect();
         Self {
             grid,
             variable_computers,
+            all_variable_names,
             verbosity,
         }
     }
@@ -475,11 +608,6 @@ where
     ) -> Self {
         self.variable_computers.insert(name, (computer, locations));
         self
-    }
-
-    /// Creates a vector with the names of all variables that can be computed.
-    pub fn all_variable_names(&self) -> Vec<String> {
-        self.variable_computers.keys().cloned().collect()
     }
 
     fn compute_field(&self, variable_name: &str) -> io::Result<ScalarField3<F>> {
@@ -536,6 +664,15 @@ where
         Arc::clone(&self.grid)
     }
 
+    fn all_variable_names(&self) -> &[String] {
+        &self.all_variable_names
+    }
+
+    fn has_variable(&self, variable_name: &str) -> bool {
+        self.all_variable_names()
+            .contains(&variable_name.to_string())
+    }
+
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<F>> {
         self.compute_field(variable_name)
     }
@@ -564,6 +701,236 @@ macro_rules! field_value_computer {
     (|$x:ident, $y:ident, $z:ident| $compute:expr) => {
         Box::new(|$x, $y, $z| $compute)
     };
+}
+/// Wrapper for a `ScalarFieldProvider3` that resamples the provided fields
+/// to a given grid.
+pub struct ResampledScalarFieldProvider3 {
+    provider: DynScalarFieldProvider3<fdt>,
+    new_grid: Arc<FieldGrid3>,
+    transformation: Box<dyn PointTransformation2<fgr>>,
+    resampled_locations: In3D<ResampledCoordLocation>,
+    interpolator: Box<dyn Interpolator3<fdt>>,
+    resampling_method: ResamplingMethod,
+    verbosity: Verbosity,
+    stored_resampled_fields: HashMap<String, ScalarField3<fdt>>,
+}
+
+impl ResampledScalarFieldProvider3 {
+    pub fn new(
+        provider: DynScalarFieldProvider3<fdt>,
+        new_grid: Arc<FieldGrid3>,
+        transformation: Box<dyn PointTransformation2<fgr>>,
+        resampled_locations: In3D<ResampledCoordLocation>,
+        interpolator: Box<dyn Interpolator3<fdt>>,
+        resampling_method: ResamplingMethod,
+        verbosity: Verbosity,
+    ) -> Self {
+        Self {
+            provider,
+            new_grid,
+            transformation,
+            resampled_locations,
+            interpolator,
+            resampling_method,
+            verbosity,
+            stored_resampled_fields: HashMap::new(),
+        }
+    }
+
+    /// Returns a reference to the wrapped provider.
+    pub fn provider(&self) -> &dyn ScalarFieldProvider3<fdt> {
+        &*self.provider
+    }
+
+    /// Returns a mutable reference to the wrapped provider.
+    pub fn provider_mut(&mut self) -> &mut dyn ScalarFieldProvider3<fdt> {
+        &mut *self.provider
+    }
+
+    pub fn transformation(&self) -> &dyn PointTransformation2<fgr> {
+        &*self.transformation
+    }
+}
+
+impl ScalarFieldProvider3<fdt> for ResampledScalarFieldProvider3 {
+    fn grid(&self) -> &FieldGrid3 {
+        self.new_grid.as_ref()
+    }
+
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
+        Arc::clone(&self.new_grid)
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        self.provider().all_variable_names()
+    }
+
+    fn has_variable(&self, variable_name: &str) -> bool {
+        self.provider().has_variable(variable_name)
+    }
+
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
+        let field = self.provider_mut().provide_scalar_field(variable_name)?;
+        Ok(if self.transformation.is_identity() {
+            if self.verbosity.print_messages() {
+                println!("Resampling {}", variable_name);
+            }
+            field.resampled_to_grid(
+                self.arc_with_grid(),
+                self.resampled_locations.clone(),
+                self.interpolator.as_ref(),
+                self.resampling_method,
+                &self.verbosity,
+            )
+        } else if let Some(resampled_field) = self
+            .stored_resampled_fields
+            .remove(&variable_name.to_string())
+        {
+            if self.verbosity.print_messages() {
+                println!("Using cached {}", variable_name);
+            }
+            resampled_field
+        } else {
+            if self.verbosity.print_messages() {
+                println!("Resampling {}", variable_name);
+            }
+            let resampled_field = field.resampled_to_transformed_grid(
+                self.arc_with_grid(),
+                self.transformation(),
+                self.resampled_locations.clone(),
+                self.interpolator.as_ref(),
+                self.resampling_method,
+                &self.verbosity,
+            );
+
+            if let Some((vector_name, dim @ (X | Y), component_names)) =
+                snapshot::quantity_is_vector_component(variable_name)
+            {
+                let other_hor_component_name =
+                    component_names[if dim == X { Y } else { X }].as_str();
+
+                if self.verbosity.print_messages() {
+                    println!("Resampling {}", other_hor_component_name);
+                }
+                let resampled_other_hor_component_field = self
+                    .provider_mut()
+                    .provide_scalar_field(other_hor_component_name)?
+                    .resampled_to_transformed_grid(
+                        self.arc_with_grid(),
+                        self.transformation(),
+                        self.resampled_locations.clone(),
+                        self.interpolator.as_ref(),
+                        self.resampling_method,
+                        &self.verbosity,
+                    );
+
+                let components = if dim == X {
+                    In2D::new(resampled_field, resampled_other_hor_component_field)
+                } else {
+                    In2D::new(resampled_other_hor_component_field, resampled_field)
+                };
+
+                if self.verbosity.print_messages() {
+                    println!("Transforming {} vectors", &vector_name);
+                }
+
+                if self.resampled_locations[X] != self.resampled_locations[Y] {
+                    eprintln!(
+                        "Warning: Transformation will assume that the horizontal \
+                         components of {} are defined at the same location within \
+                         the grid cell, which they are not",
+                        &vector_name
+                    );
+                }
+
+                let mut hor_vector_field =
+                    ReducedVectorField3::new(vector_name, self.arc_with_grid(), components);
+
+                hor_vector_field.inverse_transform_vectors(self.transformation(), &self.verbosity);
+
+                let (transformed_x_components, transformed_y_components) =
+                    hor_vector_field.into_components().into_tuple();
+
+                let (transformed_resampled_field, transformed_resampled_other_hor_component_field) =
+                    if dim == X {
+                        (transformed_x_components, transformed_y_components)
+                    } else {
+                        (transformed_y_components, transformed_x_components)
+                    };
+
+                self.stored_resampled_fields.insert(
+                    other_hor_component_name.to_string(),
+                    transformed_resampled_other_hor_component_field,
+                );
+
+                transformed_resampled_field
+            } else {
+                resampled_field
+            }
+        })
+    }
+}
+
+/// Wrapper for a `ScalarFieldProvider3` that extracts a subdomain of the
+/// provided fields.
+pub struct ExtractedScalarFieldProvider3 {
+    provider: DynScalarFieldProvider3<fdt>,
+    new_grid: Arc<FieldGrid3>,
+    lower_indices: Idx3<usize>,
+    verbosity: Verbosity,
+}
+
+impl ExtractedScalarFieldProvider3 {
+    pub fn new(
+        provider: DynScalarFieldProvider3<fdt>,
+        lower_indices: Idx3<usize>,
+        upper_indices: Idx3<usize>,
+        verbosity: Verbosity,
+    ) -> Self {
+        let new_grid = Arc::new(provider.grid().subgrid(&lower_indices, &upper_indices));
+        Self {
+            provider,
+            new_grid,
+            lower_indices,
+            verbosity,
+        }
+    }
+
+    /// Returns a reference to the wrapped provider.
+    pub fn provider(&self) -> &dyn ScalarFieldProvider3<fdt> {
+        &*self.provider
+    }
+
+    /// Returns a mutable reference to the wrapped provider.
+    pub fn provider_mut(&mut self) -> &mut dyn ScalarFieldProvider3<fdt> {
+        &mut *self.provider
+    }
+}
+
+impl ScalarFieldProvider3<fdt> for ExtractedScalarFieldProvider3 {
+    fn grid(&self) -> &FieldGrid3 {
+        self.new_grid.as_ref()
+    }
+
+    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
+        Arc::clone(&self.new_grid)
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        self.provider().all_variable_names()
+    }
+
+    fn has_variable(&self, variable_name: &str) -> bool {
+        self.provider().has_variable(variable_name)
+    }
+
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
+        let field = self.provider_mut().provide_scalar_field(variable_name)?;
+        if self.verbosity.print_messages() {
+            println!("Extracting {} in subgrid", variable_name);
+        }
+        Ok(field.subfield(self.arc_with_grid(), &self.lower_indices))
+    }
 }
 
 /// Location in the grid cell for resampled field values.
@@ -830,18 +1197,15 @@ where
     ///
     /// The horizontal components of the grid are transformed with respect to the original
     /// grid using the given point transformation prior to resampling.
-    pub fn resampled_to_transformed_grid<T>(
+    pub fn resampled_to_transformed_grid(
         &self,
         grid: Arc<FieldGrid3>,
-        transformation: &T,
+        transformation: &dyn PointTransformation2<fgr>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &dyn Interpolator3<F>,
         method: ResamplingMethod,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F>
-    where
-        T: PointTransformation2<fgr>,
-    {
+    ) -> ScalarField3<F> {
         match method {
             ResamplingMethod::SampleAveraging => self
                 .resampled_to_transformed_grid_with_sample_averaging(
@@ -1011,17 +1375,14 @@ where
     ///
     /// This method gives robust results for arbitrary resampling grids, but is slower
     /// than direct sampling or weighted cell averaging.
-    pub fn resampled_to_transformed_grid_with_sample_averaging<T>(
+    pub fn resampled_to_transformed_grid_with_sample_averaging(
         &self,
         grid: Arc<FieldGrid3>,
-        transformation: &T,
+        transformation: &dyn PointTransformation2<fgr>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F>
-    where
-        T: PointTransformation2<fgr>,
-    {
+    ) -> ScalarField3<F> {
         const MIN_INTERSECTION_AREA: fgr = 1e-6;
 
         let overlying_grid = grid;
@@ -1302,16 +1663,13 @@ where
     ///
     /// This method is suited for downsampling. It is faster than weighted sample
     /// averaging, but slightly less accurate.
-    pub fn resampled_to_transformed_grid_with_cell_averaging<T>(
+    pub fn resampled_to_transformed_grid_with_cell_averaging(
         &self,
         grid: Arc<FieldGrid3>,
-        transformation: &T,
+        transformation: &dyn PointTransformation2<fgr>,
         resampled_locations: In3D<ResampledCoordLocation>,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F>
-    where
-        T: PointTransformation2<fgr>,
-    {
+    ) -> ScalarField3<F> {
         const MIN_INTERSECTION_AREA: fgr = 1e-6;
 
         let overlying_grid = grid;
@@ -1542,17 +1900,14 @@ where
     ///
     /// This is the preferred method for upsampling. For heavy downsampling it yields a
     /// more noisy result than weighted averaging.
-    pub fn resampled_to_transformed_grid_with_direct_sampling<T>(
+    pub fn resampled_to_transformed_grid_with_direct_sampling(
         &self,
         grid: Arc<FieldGrid3>,
-        transformation: &T,
+        transformation: &dyn PointTransformation2<fgr>,
         resampled_locations: In3D<ResampledCoordLocation>,
         interpolator: &dyn Interpolator3<F>,
         verbosity: &Verbosity,
-    ) -> ScalarField3<F>
-    where
-        T: PointTransformation2<fgr>,
-    {
+    ) -> ScalarField3<F> {
         let locations =
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let new_coords = Self::coords_from_grid(grid.as_ref(), &locations);
@@ -2488,11 +2843,12 @@ where
         self.grid.shape()
     }
 
-    /// Applies the given 2D transformation to the field vectors.
-    pub fn transform_vectors<T>(&mut self, transformation: &T, verbosity: &Verbosity)
-    where
-        T: PointTransformation2<fgr>,
-    {
+    /// Applies the inverse of the given 2D transformation to the field vectors.
+    pub fn inverse_transform_vectors(
+        &mut self,
+        transformation: &dyn PointTransformation2<fgr>,
+        verbosity: &Verbosity,
+    ) {
         let mut x_components = self.components[Dim2::X].take().unwrap();
         let mut y_components = self.components[Dim2::Y].take().unwrap();
 
@@ -2512,7 +2868,7 @@ where
             .progress_with(verbosity.create_progress_bar(n_values))
             .for_each(|(x_component, y_component)| {
                 let vector = Vec2::from_components(*x_component, *y_component);
-                let transformed_vector = transformation.transform_vec(&vector);
+                let transformed_vector = transformation.inverse_transform_vec(&vector);
                 *x_component = F::from(transformed_vector[Dim2::X]).unwrap();
                 *y_component = F::from(transformed_vector[Dim2::Y]).unwrap();
             });

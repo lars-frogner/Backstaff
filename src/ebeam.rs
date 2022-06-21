@@ -326,13 +326,11 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Type parameters
     ///
-    /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_unpropagated<P, D, StF>(snapshot: &mut P, detector: D, accelerator: A,
+    pub fn generate_unpropagated<D, StF>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
         interpolator: &dyn Interpolator3<fdt>, stepper_factory: &StF, verbosity: Verbosity) -> Self
-    where P: CachingScalarFieldProvider3<fdt>,
-          D: ReconnectionSiteDetector,
+    where D: ReconnectionSiteDetector,
           A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -383,13 +381,11 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     ///
     /// # Type parameters
     ///
-    /// - `P`: Type of snapshot provider.
     /// - `D`: Type of reconnection site detector.
     /// - `StF`: Type of stepper factory.
-    pub fn generate_propagated<P, D, StF>(snapshot: &mut P, detector: D, accelerator: A,
+    pub fn generate_propagated<D, StF>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
         interpolator: &dyn Interpolator3<fdt>, stepper_factory: &StF, verbosity: Verbosity) -> Self
-    where P: CachingScalarFieldProvider3<fdt>,
-          D: ReconnectionSiteDetector,
+    where D: ReconnectionSiteDetector,
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -755,15 +751,14 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
 }
 
 impl<D: Distribution> PropagatedElectronBeam<D> {
-    fn generate<P, S>(
+    fn generate<S>(
         mut distribution: D,
-        snapshot: &P,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: S,
     ) -> Option<Self>
     where
-        P: CachingScalarFieldProvider3<fdt>,
         S: Stepper3,
     {
         let magnetic_field = snapshot.cached_vector_field("b");

@@ -14,7 +14,9 @@ pub trait ReconnectionSiteDetector {
     type Seeder: IndexSeeder3;
     /// Detects reconnection sites in the given snapshot and returns
     /// a seeder with the corresponding 3D indices.
-    fn detect_reconnection_sites<P>(&self, snapshot: &mut P, verbosity: &Verbosity) -> Self::Seeder
-    where
-        P: CachingScalarFieldProvider3<fdt>;
+    fn detect_reconnection_sites(
+        &self,
+        snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
+        verbosity: &Verbosity,
+    ) -> Self::Seeder;
 }

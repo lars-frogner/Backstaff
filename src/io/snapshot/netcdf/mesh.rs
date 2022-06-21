@@ -12,21 +12,20 @@ use crate::{
     io_result,
 };
 use netcdf_rs::{self, File, GroupMut};
-use std::io;
+use std::{io, path::Path};
 
-/// Data for a grid represented in a NetCDF file.
-#[derive(Debug, Clone)]
-pub struct NetCDFGridData {
-    pub detected_grid_type: GridType,
-    pub center_coords: Coords3<fgr>,
-    pub lower_edge_coords: Coords3<fgr>,
-    pub up_derivatives: Option<Coords3<fgr>>,
-    pub down_derivatives: Option<Coords3<fgr>>,
-    pub endianness: Endianness,
+/// Tries to construct a grid from the data in the given NetCDF group.
+pub fn create_grid_from_netcdf_file(
+    file_path: &Path,
+    is_periodic: In3D<bool>,
+    verbosity: &Verbosity,
+) -> io::Result<(FieldGrid3, Endianness)> {
+    let file = super::open_netcdf_file(file_path)?;
+    create_grid_from_open_netcdf_file(&file, is_periodic, verbosity)
 }
 
 /// Tries to construct a grid from the data in the given NetCDF group.
-pub fn read_grid(
+pub fn create_grid_from_open_netcdf_file(
     file: &File,
     is_periodic: In3D<bool>,
     verbosity: &Verbosity,
@@ -53,8 +52,19 @@ pub fn read_grid(
     ))
 }
 
+/// Data for a grid represented in a NetCDF file.
+#[derive(Debug, Clone)]
+struct NetCDFGridData {
+    detected_grid_type: GridType,
+    center_coords: Coords3<fgr>,
+    lower_edge_coords: Coords3<fgr>,
+    up_derivatives: Option<Coords3<fgr>>,
+    down_derivatives: Option<Coords3<fgr>>,
+    endianness: Endianness,
+}
+
 /// Reads the data required to construct a grid from the given NetCDF group.
-pub fn read_grid_data(file: &File, verbosity: &Verbosity) -> io::Result<NetCDFGridData> {
+fn read_grid_data(file: &File, verbosity: &Verbosity) -> io::Result<NetCDFGridData> {
     if verbosity.print_messages() {
         println!(
             "Reading grid from {}",

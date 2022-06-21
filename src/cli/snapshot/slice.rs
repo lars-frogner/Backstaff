@@ -9,12 +9,15 @@ use crate::{
         utils as cli_utils,
     },
     exit_on_error, exit_with_error,
-    field::ResampledCoordLocation,
+    field::{DynScalarFieldProvider3, ResampledCoordLocation},
     geometry::Dim3,
     grid::{fgr, CoordLocation},
-    interpolation::{poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig}, InterpGridVerifier3},
+    interpolation::{
+        poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
+        InterpGridVerifier3,
+    },
     io::{
-        snapshot::{self, SnapshotProvider3},
+        snapshot::{self, fdt},
         utils::IOContext,
     },
     update_command_graph,
@@ -127,10 +130,7 @@ pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 #[cfg(not(feature = "pickle"))]
-pub fn run_slice_subcommand<P>(_: &ArgMatches, _: P, _: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_slice_subcommand(_: &ArgMatches, _: DynScalarFieldProvider3<fdt>, _: &mut IOContext) {
     exit_with_error!(
         "Error: Compile with pickle feature in order to write Pickle files\n\
          Tip: Use cargo flag --features=pickle"
@@ -139,10 +139,11 @@ where
 
 /// Runs the actions for the `snapshot-slice` subcommand using the given arguments.
 #[cfg(feature = "pickle")]
-pub fn run_slice_subcommand<P>(arguments: &ArgMatches, mut provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_slice_subcommand(
+    arguments: &ArgMatches,
+    mut provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let quantity = arguments
         .value_of("quantity")
         .expect("No value for required argument")

@@ -18,9 +18,9 @@ pub trait Accelerator {
 
     /// Generates a set of distributions with associated acceleration data in the given snapshot,
     /// at the 3D indices produced by the given seeder.
-    fn generate_distributions<P, D, StF>(
+    fn generate_distributions<D, StF>(
         &self,
-        snapshot: &mut P,
+        snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         detector: D,
         interpolator: &dyn Interpolator3<fdt>,
         stepper_factory: &StF,
@@ -30,7 +30,6 @@ pub trait Accelerator {
         Self::AccelerationDataCollectionType,
     )>
     where
-        P: CachingScalarFieldProvider3<fdt>,
         D: ReconnectionSiteDetector,
         StF: StepperFactory3 + Sync;
 }

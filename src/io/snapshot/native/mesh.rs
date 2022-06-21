@@ -20,16 +20,6 @@ pub const NATIVE_COORD_WIDTH: usize = 15;
 /// Precision of formatted coordinate values in native mesh files.
 pub const NATIVE_COORD_PRECISION: usize = 8;
 
-/// Data for a grid representing a Bifrost mesh file.
-#[derive(Debug, Clone)]
-pub struct NativeGridData {
-    pub detected_grid_type: GridType,
-    pub center_coords: Coords3<fgr>,
-    pub lower_edge_coords: Coords3<fgr>,
-    pub up_derivatives: Coords3<fgr>,
-    pub down_derivatives: Coords3<fgr>,
-}
-
 /// Constructs a grid from a Bifrost mesh file.
 ///
 /// # Parameters
@@ -69,6 +59,16 @@ pub fn create_grid_from_mesh_file(
         Some(down_derivatives),
         detected_grid_type,
     ))
+}
+
+/// Data for a grid representing a Bifrost mesh file.
+#[derive(Debug, Clone)]
+struct NativeGridData {
+    detected_grid_type: GridType,
+    center_coords: Coords3<fgr>,
+    lower_edge_coords: Coords3<fgr>,
+    up_derivatives: Coords3<fgr>,
+    down_derivatives: Coords3<fgr>,
 }
 
 /// Creates a Bifrost mesh file from the given grid.
@@ -133,7 +133,7 @@ where
 }
 
 /// Parses the mesh file at the given path and returns relevant data.
-pub fn parse_mesh_file(mesh_path: &Path, verbosity: &Verbosity) -> io::Result<NativeGridData> {
+fn parse_mesh_file(mesh_path: &Path, verbosity: &Verbosity) -> io::Result<NativeGridData> {
     let file = utils::open_file_and_map_err(&mesh_path)?;
     if verbosity.print_messages() {
         println!(

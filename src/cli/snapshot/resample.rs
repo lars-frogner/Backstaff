@@ -24,7 +24,10 @@ use crate::{
         utils as cli_utils,
     },
     exit_on_error, exit_on_false, exit_with_error,
-    field::{FieldGrid3, ResampledCoordLocation, ResamplingMethod},
+    field::{
+        DynCachingScalarFieldProvider3, DynScalarFieldProvider3, FieldGrid3,
+        ResampledCoordLocation, ResampledScalarFieldProvider3, ResamplingMethod,
+    },
     geometry::{
         Coords3,
         Dim3::{self, X, Y, Z},
@@ -36,7 +39,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, CachingSnapshotProvider3, ResampledSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, SnapshotMetadata},
         utils::IOContext,
         Verbosity,
     },
@@ -102,10 +105,12 @@ enum ResampleGridType {
 }
 
 /// Runs the actions for the `snapshot-resample` subcommand using the given arguments.
-pub fn run_resample_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_resample_subcommand(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let resampled_locations = match arguments
         .value_of("sample-location")
         .expect("No value for argument with default")
@@ -153,6 +158,7 @@ where
 
     run_with_selected_method(
         grid_type_arguments,
+        metadata,
         provider,
         resample_grid_type,
         default_method,
@@ -163,18 +169,17 @@ where
     );
 }
 
-fn run_with_selected_method<P>(
+fn run_with_selected_method(
     grid_type_arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     resample_grid_type: ResampleGridType,
     default_method: ResamplingMethod,
     resampled_locations: &In3D<ResampledCoordLocation>,
     continue_on_warnings: bool,
     verbosity: Verbosity,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     let (resampling_method, method_arguments, has_interpolator_subcommand) = if let Some(
         method_arguments,
     ) =
@@ -194,6 +199,7 @@ fn run_with_selected_method<P>(
     run_with_selected_interpolator(
         grid_type_arguments,
         method_arguments,
+        metadata,
         provider,
         resample_grid_type,
         resampled_locations,
@@ -205,10 +211,11 @@ fn run_with_selected_method<P>(
     )
 }
 
-fn run_with_selected_interpolator<P>(
+fn run_with_selected_interpolator(
     grid_type_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     resample_grid_type: ResampleGridType,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
@@ -216,9 +223,7 @@ fn run_with_selected_interpolator<P>(
     continue_on_warnings: bool,
     verbosity: Verbosity,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     let (interpolator_config, arguments) = if has_interpolator_subcommand {
         if let Some(interpolator_arguments) = arguments.subcommand_matches("poly_fit_interpolator")
         {
@@ -238,6 +243,7 @@ fn run_with_selected_interpolator<P>(
         ResampleGridType::Regular => run_resampling_for_regular_grid(
             grid_type_arguments,
             arguments,
+            metadata,
             provider,
             resampled_locations,
             resampling_method,
@@ -249,6 +255,7 @@ fn run_with_selected_interpolator<P>(
         ResampleGridType::RotatedRegular => run_resampling_for_rotated_regular_grid(
             grid_type_arguments,
             arguments,
+            metadata,
             provider,
             resampled_locations,
             resampling_method,
@@ -260,6 +267,7 @@ fn run_with_selected_interpolator<P>(
         ResampleGridType::Reshaped => run_resampling_for_reshaped_grid(
             grid_type_arguments,
             arguments,
+            metadata,
             provider,
             resampled_locations,
             resampling_method,
@@ -271,6 +279,7 @@ fn run_with_selected_interpolator<P>(
         ResampleGridType::MeshFile => run_resampling_for_mesh_file(
             grid_type_arguments,
             arguments,
+            metadata,
             provider,
             resampled_locations,
             resampling_method,
@@ -282,20 +291,19 @@ fn run_with_selected_interpolator<P>(
     }
 }
 
-fn resample_to_grid<P>(
+fn resample_to_grid(
     mut grid: FieldGrid3,
     new_shape: Option<In3D<usize>>,
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     if let Some(new_shape) = new_shape {
         grid = match grid.detected_grid_type() {
             GridType::Regular => create_reshaped_regular_version_of_grid(grid, new_shape),
@@ -310,9 +318,10 @@ fn resample_to_grid<P>(
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
         arguments,
+        metadata,
         provider,
         &new_grid,
-        IdentityTransformation2::new(),
+        Box::new(IdentityTransformation2::new()),
         resampled_locations,
         resampling_method,
         verbosity,
@@ -321,26 +330,25 @@ fn resample_to_grid<P>(
     );
 }
 
-fn resample_to_transformed_grid<P, T>(
+fn resample_to_transformed_grid(
     grid: FieldGrid3,
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
-    transformation: T,
+    transformation: Box<dyn PointTransformation2<fgr>>,
     _continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
-) where
-    T: PointTransformation2<fgr>,
-    P: SnapshotProvider3,
-{
-    verify_new_transformed_grid_bounds(provider.grid(), &grid, &transformation);
+) {
+    verify_new_transformed_grid_bounds(provider.grid(), &grid, &*transformation);
 
     let new_grid = Arc::new(grid);
     resample_snapshot_for_grid(
         arguments,
+        metadata,
         provider,
         &new_grid,
         transformation,
@@ -458,13 +466,11 @@ fn verify_new_grid_bounds(original_grid: &FieldGrid3, new_grid: &FieldGrid3) {
     );
 }
 
-fn verify_new_transformed_grid_bounds<T>(
+fn verify_new_transformed_grid_bounds(
     original_grid: &FieldGrid3,
     new_grid: &FieldGrid3,
-    transformation: &T,
-) where
-    T: PointTransformation2<fgr>,
-{
+    transformation: &dyn PointTransformation2<fgr>,
+) {
     exit_on_false!(
         original_grid.contains_transformed_grid(new_grid, transformation),
         "Error: The resampled grid extends outside a non-periodic boundary of the original grid"
@@ -541,26 +547,24 @@ fn compute_scaled_grid_shape(shape: &In3D<usize>, scales: &In3D<fgr>) -> In3D<us
     })
 }
 
-fn resample_snapshot_for_grid<P, T>(
+fn resample_snapshot_for_grid(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     new_grid: &Arc<FieldGrid3>,
-    transformation: T,
+    transformation: Box<dyn PointTransformation2<fgr>>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     verbosity: Verbosity,
     interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-    T: PointTransformation2<fgr>,
-{
+) {
     exit_on_error!(
         interpolator.verify_grid(provider.grid()),
         "Invalid input grid for resampling: {}"
     );
 
-    let provider = ResampledSnapshotProvider3::new(
+    let provider = Box::new(ResampledScalarFieldProvider3::new(
         provider,
         Arc::clone(new_grid),
         transformation,
@@ -568,76 +572,82 @@ fn resample_snapshot_for_grid<P, T>(
         interpolator,
         resampling_method,
         verbosity,
-    );
+    ));
 
-    run_snapshot_resampling_with_derive(arguments, provider, io_context);
+    run_snapshot_resampling_with_derive(arguments, metadata, provider, io_context);
 }
 
-fn run_snapshot_resampling_with_derive<P>(
+fn run_snapshot_resampling_with_derive(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
-        let provider = super::derive::create_derive_provider(derive_arguments, provider);
-        run_snapshot_resampling_with_synthesis(derive_arguments, provider, io_context);
+        let provider = Box::new(super::derive::create_derive_provider(
+            derive_arguments,
+            provider,
+        ));
+        run_snapshot_resampling_with_synthesis(derive_arguments, metadata, provider, io_context);
         return;
     }
 
-    run_snapshot_resampling_with_synthesis_added_caching(arguments, provider, io_context);
+    run_snapshot_resampling_with_synthesis_added_caching(arguments, metadata, provider, io_context);
 }
 
-fn run_snapshot_resampling_with_synthesis<P>(
+fn run_snapshot_resampling_with_synthesis(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynCachingScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: CachingSnapshotProvider3,
-{
+) {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-        let provider =
-            super::synthesize::create_synthesize_provider(synthesize_arguments, provider);
-        run_snapshot_resampling_for_provider(synthesize_arguments, provider, io_context);
-        return;
-    }
-
-    run_snapshot_resampling_for_provider(arguments, provider, io_context);
-}
-
-fn run_snapshot_resampling_with_synthesis_added_caching<P>(
-    arguments: &ArgMatches,
-    provider: P,
-    io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
-    #[cfg(feature = "synthesis")]
-    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-        let provider = super::synthesize::create_synthesize_provider_added_caching(
+        let provider = Box::new(super::synthesize::create_synthesize_provider(
             synthesize_arguments,
             provider,
-        );
-        run_snapshot_resampling_for_provider(synthesize_arguments, provider, io_context);
+        ));
+        run_snapshot_resampling_for_provider(synthesize_arguments, metadata, provider, io_context);
         return;
     }
 
-    run_snapshot_resampling_for_provider(arguments, provider, io_context);
+    run_snapshot_resampling_for_provider(
+        arguments,
+        metadata,
+        provider.as_scalar_field_provider(),
+        io_context,
+    );
 }
 
-fn run_snapshot_resampling_for_provider<P>(
+fn run_snapshot_resampling_with_synthesis_added_caching(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
+    #[cfg(feature = "synthesis")]
+    if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
+        let provider = Box::new(super::synthesize::create_synthesize_provider_added_caching(
+            synthesize_arguments,
+            provider,
+        ));
+        run_snapshot_resampling_for_provider(synthesize_arguments, metadata, provider, io_context);
+        return;
+    }
+
+    run_snapshot_resampling_for_provider(arguments, metadata, provider, io_context);
+}
+
+fn run_snapshot_resampling_for_provider(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        run_write_subcommand(write_arguments, provider, io_context);
+        run_write_subcommand(write_arguments, metadata, provider, io_context);
     } else if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-        run_inspect_subcommand(inspect_arguments, provider, io_context);
+        run_inspect_subcommand(inspect_arguments, metadata, provider, io_context);
     }
 }

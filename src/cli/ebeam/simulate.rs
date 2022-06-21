@@ -50,13 +50,13 @@ use crate::{
         BeamPropertiesCollection, ElectronBeamSwarm,
     },
     exit_on_error, exit_with_error,
-    field::ScalarFieldCacher3,
+    field::{DynCachingScalarFieldProvider3, DynScalarFieldProvider3, ScalarFieldCacher3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         InterpGridVerifier3, Interpolator3,
     },
     io::{
-        snapshot::{self, fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{self, fdt, SnapshotMetadata},
         utils::{AtomicOutputFile, IOContext},
     },
     tracing::stepping::rkf::{
@@ -217,13 +217,15 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
 }
 
 /// Runs the actions for the `ebeam-simulate` subcommand using the given arguments.
-pub fn run_simulate_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_simulate_subcommand(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
-    let snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
-    run_with_selected_detector(arguments, snapshot, io_context);
+    let snapshot = Box::new(ScalarFieldCacher3::new_manual_cacher(provider, verbosity));
+    run_with_selected_detector(arguments, metadata, snapshot, io_context);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -327,15 +329,18 @@ impl fmt::Display for OutputType {
     }
 }
 
-fn run_with_selected_detector<P>(arguments: &ArgMatches, snapshot: P, io_context: &mut IOContext)
-where
-    P: CachingSnapshotProvider3,
-{
+fn run_with_selected_detector(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
         let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
         run_with_selected_accelerator(
             arguments,
             detector_arguments,
+            metadata,
             snapshot,
             detector,
             io_context,
@@ -346,13 +351,15 @@ where
                 (
                     construct_simple_reconnection_site_detector_config_from_options(
                         detector_arguments,
-                        &snapshot,
+                        metadata.parameters(),
                     ),
                     detector_arguments,
                 )
             } else {
                 (
-                    SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(&snapshot),
+                    SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(
+                        metadata.parameters(),
+                    ),
                     arguments,
                 )
             };
@@ -366,6 +373,7 @@ where
         run_with_selected_accelerator(
             arguments,
             detector_arguments,
+            metadata,
             snapshot,
             detector,
             io_context,
@@ -373,26 +381,29 @@ where
     }
 }
 
-fn run_with_selected_accelerator<P, D>(
+fn run_with_selected_accelerator<D>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: P,
+    metadata: &dyn SnapshotMetadata,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     detector: D,
     io_context: &mut IOContext,
 ) where
-    P: CachingSnapshotProvider3,
     D: ReconnectionSiteDetector,
 {
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
         arguments.subcommand_matches("power_law_distribution")
     {
         (
-            construct_power_law_distribution_config_from_options(distribution_arguments, &snapshot),
+            construct_power_law_distribution_config_from_options(
+                distribution_arguments,
+                metadata.parameters(),
+            ),
             distribution_arguments,
         )
     } else {
         (
-            PowerLawDistributionConfig::with_defaults_from_param_file(&snapshot),
+            PowerLawDistributionConfig::with_defaults_from_param_file(metadata.parameters()),
             arguments,
         )
     };
@@ -406,7 +417,7 @@ fn run_with_selected_accelerator<P, D>(
     {
         let accelerator_config = construct_simple_power_law_accelerator_config_from_options(
             accelerator_arguments,
-            &snapshot,
+            metadata.parameters(),
         );
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
@@ -422,7 +433,7 @@ fn run_with_selected_accelerator<P, D>(
         );
     } else {
         let accelerator_config =
-            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(&snapshot);
+            SimplePowerLawAccelerationConfig::with_defaults_from_param_file(metadata.parameters());
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
         }
@@ -438,15 +449,14 @@ fn run_with_selected_accelerator<P, D>(
     };
 }
 
-fn run_with_selected_interpolator<P, D, A>(
+fn run_with_selected_interpolator<D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: P,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     detector: D,
     accelerator: A,
     io_context: &mut IOContext)
-where P: CachingSnapshotProvider3,
-      D: ReconnectionSiteDetector,
+where D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
       A::DistributionType: Send,
@@ -484,16 +494,15 @@ where P: CachingSnapshotProvider3,
     );
 }
 
-fn run_with_selected_stepper_factory<P, D, A>(
+fn run_with_selected_stepper_factory<D, A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    mut snapshot: P,
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     detector: D,
     accelerator: A,
     interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext)
-where P: CachingSnapshotProvider3,
-      D: ReconnectionSiteDetector,
+where D: ReconnectionSiteDetector,
       A: Accelerator + Sync + Send,
       A::DistributionType: Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
@@ -566,7 +575,7 @@ where P: CachingSnapshotProvider3,
             let stepper_factory = RKF23StepperFactory3::new(stepper_config);
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
-                    &mut snapshot,
+                    &mut *snapshot,
                     detector,
                     accelerator,
                     interpolator,
@@ -575,7 +584,7 @@ where P: CachingSnapshotProvider3,
                 )
             } else {
                 ElectronBeamSwarm::generate_propagated(
-                    &mut snapshot,
+                    &mut *snapshot,
                     detector,
                     accelerator,
                     interpolator,
@@ -588,7 +597,7 @@ where P: CachingSnapshotProvider3,
             let stepper_factory = RKF45StepperFactory3::new(stepper_config);
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
-                    &mut snapshot,
+                    &mut *snapshot,
                     detector,
                     accelerator,
                     interpolator,
@@ -597,7 +606,7 @@ where P: CachingSnapshotProvider3,
                 )
             } else {
                 ElectronBeamSwarm::generate_propagated(
-                    &mut snapshot,
+                    &mut *snapshot,
                     detector,
                     accelerator,
                     interpolator,
@@ -619,17 +628,16 @@ where P: CachingSnapshotProvider3,
     );
 }
 
-fn perform_post_simulation_actions<P, A>(
+fn perform_post_simulation_actions<A>(
     root_arguments: &ArgMatches,
     output_type: OutputType,
     atomic_output_file: AtomicOutputFile,
     extra_atomic_output_file: Option<AtomicOutputFile>,
     io_context: &IOContext,
-    mut provider: P,
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     mut beams: ElectronBeamSwarm<A>,
 ) where
-    P: SnapshotProvider3,
     A: Accelerator,
 {
     if let Some(extra_fixed_scalars) = root_arguments
@@ -640,7 +648,7 @@ fn perform_post_simulation_actions<P, A>(
             let name = name.to_lowercase();
             beams.extract_fixed_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(&name).as_ref(),
+                    snapshot.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
@@ -656,7 +664,7 @@ fn perform_post_simulation_actions<P, A>(
             let name = name.to_lowercase();
             beams.extract_fixed_vectors(
                 exit_on_error!(
-                    provider.provide_vector_field(&name).as_ref(),
+                    snapshot.provide_vector_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
@@ -672,7 +680,7 @@ fn perform_post_simulation_actions<P, A>(
             let name = name.to_lowercase();
             beams.extract_varying_scalars(
                 exit_on_error!(
-                    provider.provide_scalar_field(&name).as_ref(),
+                    snapshot.provide_scalar_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),
@@ -688,7 +696,7 @@ fn perform_post_simulation_actions<P, A>(
             let name = name.to_lowercase();
             beams.extract_varying_vectors(
                 exit_on_error!(
-                    provider.provide_vector_field(&name).as_ref(),
+                    snapshot.provide_vector_field(&name).as_ref(),
                     "Error: Could not read quantity {0} from snapshot: {1}",
                     &name
                 ),

@@ -11,7 +11,7 @@ use crate::{
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
     io::{
-        snapshot::{self, fdt, SnapshotProvider3},
+        snapshot::{self, fdt, SnapshotParameters},
         Verbosity,
     },
     plasma::ionization,
@@ -78,10 +78,11 @@ impl SimplePowerLawAccelerator {
     /// Smallest mean electron energy that will be used to compute Coulomb logarithms [keV].
     const MIN_COULOMB_LOG_MEAN_ENERGY: feb = 0.1;
 
-    fn determine_total_power_density<P>(&self, snapshot: &P, indices: &Idx3<usize>) -> feb
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    fn determine_total_power_density(
+        &self,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
+        indices: &Idx3<usize>,
+    ) -> feb {
         let joule_heating_field = snapshot.cached_scalar_field("qjoule");
         #[allow(clippy::useless_conversion)]
         let joule_heating = feb::from(joule_heating_field.value(indices));
@@ -90,27 +91,25 @@ impl SimplePowerLawAccelerator {
         self.config.particle_energy_fraction * joule_heating
     }
 
-    fn determine_acceleration_volume<P>(&self, snapshot: &P, indices: &Idx3<usize>) -> feb
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    fn determine_acceleration_volume(
+        &self,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
+        indices: &Idx3<usize>,
+    ) -> feb {
         snapshot.grid().grid_cell_volume(indices) * U_L3 // [cm^3]
     }
 
-    fn determine_acceleration_position<P>(snapshot: &P, indices: &Idx3<usize>) -> Point3<fgr>
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    fn determine_acceleration_position(
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
+        indices: &Idx3<usize>,
+    ) -> Point3<fgr> {
         snapshot.grid().centers().point(indices)
     }
 
-    fn determine_electric_field_direction<P>(
-        snapshot: &P,
+    fn determine_electric_field_direction(
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         indices: &Idx3<usize>,
-    ) -> Option<Vec3<fdt>>
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    ) -> Option<Vec3<fdt>> {
         let electric_field = snapshot.cached_vector_field("e");
         let grid = electric_field.grid();
 
@@ -153,14 +152,11 @@ impl SimplePowerLawAccelerator {
         }
     }
 
-    fn determine_magnetic_field_direction<P>(
-        snapshot: &P,
+    fn determine_magnetic_field_direction(
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
         acceleration_position: &Point3<fgr>,
-    ) -> Vec3<fdt>
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    ) -> Vec3<fdt> {
         let magnetic_field = snapshot.cached_vector_field("b");
         let mut magnetic_field_direction = interpolator
             .interp_vector_field(magnetic_field, acceleration_position)
@@ -206,26 +202,26 @@ impl SimplePowerLawAccelerator {
     }
 
     #[allow(clippy::useless_conversion)]
-    fn determine_temperature<P>(snapshot: &P, indices: &Idx3<usize>) -> feb
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    fn determine_temperature(
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
+        indices: &Idx3<usize>,
+    ) -> feb {
         feb::from(snapshot.cached_scalar_field("tg").value(indices))
     }
 
     #[allow(clippy::useless_conversion)]
-    fn determine_electron_density<P>(snapshot: &P, indices: &Idx3<usize>) -> feb
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    fn determine_electron_density(
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
+        indices: &Idx3<usize>,
+    ) -> feb {
         feb::from(snapshot.cached_scalar_field("nel").value(indices)) // [1/cm^3]
     }
 
     #[allow(clippy::useless_conversion)]
-    fn determine_mass_density<P>(snapshot: &P, indices: &Idx3<usize>) -> feb
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    fn determine_mass_density(
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
+        indices: &Idx3<usize>,
+    ) -> feb {
         feb::from(snapshot.cached_scalar_field("r").value(indices)) * U_R // [g/cm^3]
     }
 
@@ -353,9 +349,9 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
     type AccelerationDataCollectionType = ();
 
-    fn generate_distributions<P, D, StF>(
+    fn generate_distributions<D, StF>(
         &self,
-        snapshot: &mut P,
+        snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         detector: D,
         interpolator: &dyn Interpolator3<fdt>,
         _stepper_factory: &StF,
@@ -365,7 +361,6 @@ impl Accelerator for SimplePowerLawAccelerator {
         Self::AccelerationDataCollectionType,
     )>
     where
-        P: CachingScalarFieldProvider3<fdt>,
         D: ReconnectionSiteDetector,
         StF: StepperFactory3 + Sync,
     {
@@ -664,13 +659,10 @@ impl SimplePowerLawAccelerationConfig {
     /// Creates a set of simple power law accelerator configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<P>(provider: &P) -> Self
-    where
-        P: SnapshotProvider3,
-    {
+    pub fn with_defaults_from_param_file(parameters: &dyn SnapshotParameters) -> Self {
         let acceleration_duration =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "acceleration_duration",
                 "dt",
                 &|dt: feb| dt * U_T,
@@ -678,7 +670,7 @@ impl SimplePowerLawAccelerationConfig {
             );
         let particle_energy_fraction =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "particle_energy_fraction",
                 "qjoule_acc_frac",
                 &|qjoule_acc_frac: feb| qjoule_acc_frac,
@@ -686,7 +678,7 @@ impl SimplePowerLawAccelerationConfig {
             );
         let power_law_delta =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "power_law_delta",
                 "power_law_index",
                 &|power_law_index: feb| power_law_index,
@@ -694,7 +686,7 @@ impl SimplePowerLawAccelerationConfig {
             );
         let min_total_power_density =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "min_total_power_density",
                 "min_beam_en",
                 &|min_beam_en: feb| min_beam_en,
@@ -702,7 +694,7 @@ impl SimplePowerLawAccelerationConfig {
             );
         let min_depletion_distance =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "min_depletion_distance",
                 "min_stop_dist",
                 &|min_stop_dist: feb| min_stop_dist,

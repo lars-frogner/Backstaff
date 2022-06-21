@@ -10,21 +10,16 @@ pub mod utils;
 use super::{Endianness, Verbosity};
 use crate::{
     exit_on_false,
-    field::{
-        CachingScalarFieldProvider3, CustomScalarFieldGenerator3, FieldGrid3, ReducedVectorField3,
-        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldCacher3,
-        ScalarFieldProvider3,
-    },
+    field::FieldGrid3,
     geometry::{
         Dim3::{self, X, Y, Z},
-        Idx3, In2D, In3D, PointTransformation2,
+        In3D,
     },
-    grid::{fgr, Grid3},
-    interpolation::Interpolator3,
+    grid::Grid3,
 };
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{borrow::Cow, cell::RefCell, collections::HashMap, io, path::Path, str, sync::Arc};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, io, path::Path, str};
 
 #[cfg(feature = "for-testing")]
 use approx::{AbsDiffEq, RelativeEq};
@@ -84,26 +79,13 @@ pub const PRIMARY_VARIABLE_NAMES_HD: [&str; 5] = [
     ENERGY_DENSITY_VARIABLE_NAME,
 ];
 
-/// Defines the properties of a provider of 3D Bifrost snapshot variables.
-pub trait SnapshotProvider3: ScalarFieldProvider3<fdt> {
+/// Defines the properties of a collection of metadata associated with a Bifrost snapshot.
+pub trait SnapshotMetadata {
     /// Returns a reference to the parameters associated with the snapshot.
     fn parameters(&self) -> &dyn SnapshotParameters;
 
     /// Returns the assumed endianness of the snapshot.
     fn endianness(&self) -> Endianness;
-
-    /// Returns the names of all the variables that can be provided.
-    fn all_variable_names(&self) -> &[String];
-
-    /// Returns the names of all the variables that can be provided, except the ones
-    /// in the given list.
-    fn all_variable_names_except(&self, excluded_variable_names: &[String]) -> Vec<String> {
-        self.all_variable_names()
-            .iter()
-            .cloned()
-            .filter(|name| !excluded_variable_names.contains(name))
-            .collect::<Vec<_>>()
-    }
 
     /// Given a complete list of variable names, returns lists of the ones that
     /// should be considered primary and auxiliary, and whether the set of
@@ -149,22 +131,22 @@ pub trait SnapshotProvider3: ScalarFieldProvider3<fdt> {
         (primary_variable_names, auxiliary_variable_names, is_mhd)
     }
 
-    /// Returns whether the given variable can be provided.
-    fn has_variable(&self, variable_name: &str) -> bool;
+    /// Returns the name of the snapshot.
+    fn snap_name(&self) -> &str;
 
-    /// Returns the name and (if available) number of the snapshot.
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>);
+    /// Returns the number of the snapshot (if available).
+    fn snap_num(&self) -> Option<u64>;
 
     /// Returns the set of snapshot parameters, but modified to account for
     /// changes in the grid, snapshot name and number and included set of quantities.
     fn create_updated_parameters(
         &self,
+        grid: &FieldGrid3,
         snap_name: &str,
         signed_snap_num: i64,
         included_auxiliary_variable_names: &[String],
         is_mhd: bool,
-    ) -> Box<RefCell<dyn SnapshotParameters>> {
-        let grid = self.grid();
+    ) -> DynSnapshotParameters {
         let shape = grid.shape();
         let average_grid_cell_extents = grid.average_grid_cell_extents();
 
@@ -222,113 +204,6 @@ pub trait SnapshotProvider3: ScalarFieldProvider3<fdt> {
     }
 }
 
-/// Wrapper for a `ScalarFieldProvider3` that uses provided information
-/// about the snapshot to implement `SnapshotProvider3`.
-pub struct SnapshotProvider3Wrapper<P> {
-    provider: P,
-    snap_name: String,
-    snap_num: Option<u64>,
-    parameters: Box<MapOfSnapshotParameters>,
-    endianness: Endianness,
-    all_variable_names: Vec<String>,
-}
-
-impl<P> SnapshotProvider3Wrapper<P>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
-    /// Creates a new wrapper for the given provider with
-    /// the given snapshot information.
-    pub fn new(
-        provider: P,
-        snap_name: String,
-        snap_num: Option<u64>,
-        parameters: MapOfSnapshotParameters,
-        endianness: Endianness,
-        all_variable_names: Vec<String>,
-    ) -> Self {
-        Self {
-            provider,
-            snap_name,
-            snap_num,
-            parameters: Box::new(parameters),
-            endianness,
-            all_variable_names,
-        }
-    }
-}
-
-impl<P> ScalarFieldProvider3<fdt> for SnapshotProvider3Wrapper<P>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
-    fn grid(&self) -> &FieldGrid3 {
-        self.provider.grid()
-    }
-
-    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
-        self.provider.arc_with_grid()
-    }
-
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
-        self.provider.produce_scalar_field(variable_name)
-    }
-}
-
-impl<P> SnapshotProvider3 for SnapshotProvider3Wrapper<P>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.parameters.as_ref()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.endianness
-    }
-
-    fn all_variable_names(&self) -> &[String] {
-        &self.all_variable_names
-    }
-
-    fn has_variable(&self, variable_name: &str) -> bool {
-        self.all_variable_names()
-            .contains(&variable_name.to_string())
-    }
-
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        (self.snap_name.clone(), self.snap_num)
-    }
-}
-
-pub type CustomSnapshotGenerator3 = SnapshotProvider3Wrapper<CustomScalarFieldGenerator3<fdt>>;
-
-impl CustomScalarFieldGenerator3<fdt> {
-    /// Creates a wrapped version of the generator that
-    /// implements the `SnapshotProvider3` trait.
-    pub fn for_snapshot(
-        self,
-        snap_name: String,
-        snap_num: Option<u64>,
-        parameters: MapOfSnapshotParameters,
-    ) -> CustomSnapshotGenerator3 {
-        let all_variable_names = self.all_variable_names();
-        SnapshotProvider3Wrapper::new(
-            self,
-            snap_name,
-            snap_num,
-            parameters,
-            Endianness::Native,
-            all_variable_names,
-        )
-    }
-}
-
-pub trait SnapshotReader3: SnapshotProvider3 {
-    /// Reads the field of the specified 3D scalar variable and returns it by value.
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt>>;
-}
-
 #[cfg(feature = "for-testing")]
 #[macro_export]
 macro_rules! snapshots_eq {
@@ -357,158 +232,12 @@ macro_rules! snapshots_eq {
     }};
 }
 
-#[cfg(feature = "for-testing")]
-#[macro_export]
-macro_rules! snapshots_abs_diff_eq {
-    ($self:expr, $other:expr, $epsilon:expr) => {{
-        use approx::AbsDiffEq;
-        use $crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
-
-        let all_variable_names_self = $self.all_variable_names();
-        let all_variable_names_other = $other.all_variable_names();
-        if all_variable_names_self.len() != all_variable_names_other.len() {
-            false
-        } else {
-            if $self
-                .parameters()
-                .abs_diff_ne($other.parameters(), $epsilon as fpa)
-            {
-                false
-            } else {
-                all_variable_names_self.iter().all(|name| {
-                    match (
-                        $self.read_scalar_field(name),
-                        $other.read_scalar_field(name),
-                    ) {
-                        (Ok(a), Ok(b)) => a.abs_diff_eq(&b, $epsilon as fdt),
-                        _ => false,
-                    }
-                })
-            }
-        }
-    }};
-}
-
-#[cfg(feature = "for-testing")]
-#[macro_export]
-macro_rules! snapshots_relative_eq {
-    ($self:expr, $other:expr, $epsilon:expr, $max_relative:expr) => {{
-        use approx::RelativeEq;
-        use $crate::io::snapshot::{fdt, fpa, SnapshotProvider3, SnapshotReader3};
-
-        let all_variable_names_self = $self.all_variable_names();
-        let all_variable_names_other = $other.all_variable_names();
-        if all_variable_names_self.len() != all_variable_names_other.len() {
-            #[cfg(debug_assertions)]
-            {
-                println!("Number of variables not equal");
-                dbg!(
-                    all_variable_names_self.len(),
-                    all_variable_names_other.len()
-                );
-            }
-            Ok(false)
-        } else {
-            if !$self.parameters().relative_eq(
-                $other.parameters(),
-                $epsilon as fpa,
-                $max_relative as fpa,
-            ) {
-                #[cfg(debug_assertions)]
-                println!("Parameters not equal");
-                Ok(false)
-            } else {
-                let mut all_equal = true;
-                for name in all_variable_names_self.iter() {
-                    if all_variable_names_other.contains(name) {
-                        all_equal = $self.read_scalar_field(name)?.relative_eq(
-                            &$other.read_scalar_field(name)?,
-                            $epsilon as fdt,
-                            $max_relative as fdt,
-                        );
-                        #[cfg(debug_assertions)]
-                        if !all_equal {
-                            println!("Fields {} not equal", name);
-                        }
-                    } else {
-                        #[cfg(debug_assertions)]
-                        println!("Field {} not present in other", name);
-                        all_equal = false;
-                    }
-                    if !all_equal {
-                        break;
-                    }
-                }
-                Ok(all_equal)
-            }
-        }
-    }};
-}
-
-#[cfg(feature = "for-testing")]
-#[macro_export]
-macro_rules! snapshot_field_values_relative_eq {
-    ($self:expr, $other:expr, $epsilon:expr, $max_relative:expr) => {{
-        use approx::RelativeEq;
-        use $crate::{
-            field::ScalarField3,
-            io::snapshot::{fdt, SnapshotProvider3, SnapshotReader3},
-            num::ComparableSlice,
-        };
-
-        let all_variable_names_self = $self.all_variable_names();
-        let all_variable_names_other = $other.all_variable_names();
-        if all_variable_names_self.len() != all_variable_names_other.len() {
-            #[cfg(debug_assertions)]
-            {
-                println!("Number of variables not equal");
-                dbg!(
-                    all_variable_names_self.len(),
-                    all_variable_names_other.len()
-                );
-            }
-            Ok(false)
-        } else {
-            let mut all_equal = true;
-            for name in all_variable_names_self.iter() {
-                if all_variable_names_other.contains(name) {
-                    let self_field = $self.read_scalar_field(name)?;
-                    let other_field = $other.read_scalar_field(name)?;
-                    let self_values =
-                        ComparableSlice(self_field.values().as_slice_memory_order().unwrap());
-                    let other_values =
-                        ComparableSlice(other_field.values().as_slice_memory_order().unwrap());
-
-                    all_equal = self_values.relative_eq(
-                        &other_values,
-                        $epsilon as fdt,
-                        $max_relative as fdt,
-                    );
-                    #[cfg(debug_assertions)]
-                    if !all_equal {
-                        println!("Field values for {} not equal", name);
-                        let (indices, position, self_value, other_value) =
-                            $crate::find_largest_field_value_difference!(ScalarField3<fdt>, self_field, other_field);
-                        dbg!(indices, position, self_value, other_value);
-                    }
-                } else {
-                    #[cfg(debug_assertions)]
-                    println!("Field {} not present in other", name);
-                    all_equal = false;
-                }
-                if !all_equal {
-                    break;
-                }
-            }
-            Ok(all_equal)
-        }
-    }};
-}
+pub type DynSnapshotParameters = Box<RefCell<dyn SnapshotParameters>>;
 
 /// Parameters associated with a snapshot.
 pub trait SnapshotParameters {
     /// Returns a mutable reference to a clone of this parameter set living on the heap.
-    fn heap_clone(&self) -> Box<RefCell<dyn SnapshotParameters>>;
+    fn heap_clone(&self) -> DynSnapshotParameters;
 
     /// Returns the number of parameters associated with the snapshot.
     fn n_values(&self) -> usize;
@@ -791,7 +520,7 @@ impl MapOfSnapshotParameters {
 }
 
 impl SnapshotParameters for MapOfSnapshotParameters {
-    fn heap_clone(&self) -> Box<RefCell<dyn SnapshotParameters>> {
+    fn heap_clone(&self) -> DynSnapshotParameters {
         Box::new(RefCell::new(self.clone()))
     }
 
@@ -827,293 +556,6 @@ impl SnapshotParameters for MapOfSnapshotParameters {
             text = format!("{}{} = {}\n", &text, name, value.as_string());
         }
         text
-    }
-}
-
-/// Wrapper for a `SnapshotProvider3` that resamples the provided fields
-/// to a given grid.
-pub struct ResampledSnapshotProvider3<P, T> {
-    provider: P,
-    new_grid: Arc<FieldGrid3>,
-    transformation: T,
-    resampled_locations: In3D<ResampledCoordLocation>,
-    interpolator: Box<dyn Interpolator3<fdt>>,
-    resampling_method: ResamplingMethod,
-    verbosity: Verbosity,
-    stored_resampled_fields: HashMap<String, ScalarField3<fdt>>,
-}
-
-impl<P, T> ResampledSnapshotProvider3<P, T>
-where
-    P: SnapshotProvider3,
-    T: PointTransformation2<fgr>,
-{
-    pub fn new(
-        provider: P,
-        new_grid: Arc<FieldGrid3>,
-        transformation: T,
-        resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: Box<dyn Interpolator3<fdt>>,
-        resampling_method: ResamplingMethod,
-        verbosity: Verbosity,
-    ) -> Self {
-        Self {
-            provider,
-            new_grid,
-            transformation,
-            resampled_locations,
-            interpolator,
-            resampling_method,
-            verbosity,
-            stored_resampled_fields: HashMap::new(),
-        }
-    }
-}
-
-impl<P, T> ScalarFieldProvider3<fdt> for ResampledSnapshotProvider3<P, T>
-where
-    P: SnapshotProvider3,
-    T: PointTransformation2<fgr>,
-{
-    fn grid(&self) -> &FieldGrid3 {
-        self.new_grid.as_ref()
-    }
-
-    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
-        Arc::clone(&self.new_grid)
-    }
-
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
-        let field = self.provider.provide_scalar_field(variable_name)?;
-        Ok(if T::IS_IDENTITY {
-            if self.verbosity.print_messages() {
-                println!("Resampling {}", variable_name);
-            }
-            field.resampled_to_grid(
-                self.arc_with_grid(),
-                self.resampled_locations.clone(),
-                self.interpolator.as_ref(),
-                self.resampling_method,
-                &self.verbosity,
-            )
-        } else if let Some(resampled_field) = self
-            .stored_resampled_fields
-            .remove(&variable_name.to_string())
-        {
-            if self.verbosity.print_messages() {
-                println!("Using cached {}", variable_name);
-            }
-            resampled_field
-        } else {
-            if self.verbosity.print_messages() {
-                println!("Resampling {}", variable_name);
-            }
-            let resampled_field = field.resampled_to_transformed_grid(
-                self.arc_with_grid(),
-                &self.transformation,
-                self.resampled_locations.clone(),
-                self.interpolator.as_ref(),
-                self.resampling_method,
-                &self.verbosity,
-            );
-
-            if let Some((vector_name, dim @ (X | Y), component_names)) =
-                quantity_is_vector_component(variable_name)
-            {
-                let other_hor_component_name =
-                    component_names[if dim == X { Y } else { X }].as_str();
-
-                if self.verbosity.print_messages() {
-                    println!("Resampling {}", other_hor_component_name);
-                }
-                let resampled_other_hor_component_field = self
-                    .provider
-                    .provide_scalar_field(other_hor_component_name)?
-                    .resampled_to_transformed_grid(
-                        self.arc_with_grid(),
-                        &self.transformation,
-                        self.resampled_locations.clone(),
-                        self.interpolator.as_ref(),
-                        self.resampling_method,
-                        &self.verbosity,
-                    );
-
-                let components = if dim == X {
-                    In2D::new(resampled_field, resampled_other_hor_component_field)
-                } else {
-                    In2D::new(resampled_other_hor_component_field, resampled_field)
-                };
-
-                if self.verbosity.print_messages() {
-                    println!("Transforming {} vectors", &vector_name);
-                }
-
-                if self.resampled_locations[X] != self.resampled_locations[Y] {
-                    eprintln!(
-                        "Warning: Transformation will assume that the horizontal \
-                         components of {} are defined at the same location within \
-                         the grid cell, which they are not",
-                        &vector_name
-                    );
-                }
-
-                let mut hor_vector_field =
-                    ReducedVectorField3::new(vector_name, self.arc_with_grid(), components);
-
-                let inverse_transformation = self.transformation.inverse();
-                hor_vector_field.transform_vectors(&inverse_transformation, &self.verbosity);
-
-                let (transformed_x_components, transformed_y_components) =
-                    hor_vector_field.into_components().into_tuple();
-
-                let (transformed_resampled_field, transformed_resampled_other_hor_component_field) =
-                    if dim == X {
-                        (transformed_x_components, transformed_y_components)
-                    } else {
-                        (transformed_y_components, transformed_x_components)
-                    };
-
-                self.stored_resampled_fields.insert(
-                    other_hor_component_name.to_string(),
-                    transformed_resampled_other_hor_component_field,
-                );
-
-                transformed_resampled_field
-            } else {
-                resampled_field
-            }
-        })
-    }
-}
-
-impl<P, T> SnapshotProvider3 for ResampledSnapshotProvider3<P, T>
-where
-    P: SnapshotProvider3,
-    T: PointTransformation2<fgr>,
-{
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.provider.parameters()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.provider.endianness()
-    }
-
-    fn all_variable_names(&self) -> &[String] {
-        self.provider.all_variable_names()
-    }
-
-    fn has_variable(&self, variable_name: &str) -> bool {
-        self.provider.has_variable(variable_name)
-    }
-
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        self.provider.obtain_snap_name_and_num()
-    }
-}
-
-/// Wrapper for a `SnapshotProvider3` that extracts a subdomain of the
-/// provided fields.
-pub struct ExtractedSnapshotProvider3<P> {
-    provider: P,
-    new_grid: Arc<FieldGrid3>,
-    lower_indices: Idx3<usize>,
-    verbosity: Verbosity,
-}
-
-impl<P> ExtractedSnapshotProvider3<P>
-where
-    P: SnapshotProvider3,
-{
-    pub fn new(
-        provider: P,
-        lower_indices: Idx3<usize>,
-        upper_indices: Idx3<usize>,
-        verbosity: Verbosity,
-    ) -> Self {
-        let new_grid = Arc::new(provider.grid().subgrid(&lower_indices, &upper_indices));
-        Self {
-            provider,
-            new_grid,
-            lower_indices,
-            verbosity,
-        }
-    }
-}
-
-impl<P> ScalarFieldProvider3<fdt> for ExtractedSnapshotProvider3<P>
-where
-    P: SnapshotProvider3,
-{
-    fn grid(&self) -> &FieldGrid3 {
-        self.new_grid.as_ref()
-    }
-
-    fn arc_with_grid(&self) -> Arc<FieldGrid3> {
-        Arc::clone(&self.new_grid)
-    }
-
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
-        let field = self.provider.provide_scalar_field(variable_name)?;
-        if self.verbosity.print_messages() {
-            println!("Extracting {} in subgrid", variable_name);
-        }
-        Ok(field.subfield(self.arc_with_grid(), &self.lower_indices))
-    }
-}
-
-impl<P> SnapshotProvider3 for ExtractedSnapshotProvider3<P>
-where
-    P: SnapshotProvider3,
-{
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.provider.parameters()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.provider.endianness()
-    }
-
-    fn all_variable_names(&self) -> &[String] {
-        self.provider.all_variable_names()
-    }
-
-    fn has_variable(&self, variable_name: &str) -> bool {
-        self.provider.has_variable(variable_name)
-    }
-
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        self.provider.obtain_snap_name_and_num()
-    }
-}
-
-/// A provider of 3D Bifrost snapshot variables that also supports caching.
-pub trait CachingSnapshotProvider3: CachingScalarFieldProvider3<fdt> + SnapshotProvider3 {}
-
-impl<C> CachingSnapshotProvider3 for C where C: CachingScalarFieldProvider3<fdt> + SnapshotProvider3 {}
-
-impl<P> SnapshotProvider3 for ScalarFieldCacher3<fdt, P>
-where
-    P: SnapshotProvider3,
-{
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.provider().parameters()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.provider().endianness()
-    }
-
-    fn all_variable_names(&self) -> &[String] {
-        self.provider().all_variable_names()
-    }
-
-    fn has_variable(&self, variable_name: &str) -> bool {
-        self.provider().has_variable(variable_name)
-    }
-
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        self.provider().obtain_snap_name_and_num()
     }
 }
 
@@ -1193,7 +635,7 @@ fn parse_snapshot_file_path(file_path: &Path) -> (String, Option<String>) {
 /// If the given variable name is a vector component, return the name of the
 /// vector quantity, the dimension of the component and the name of all the
 /// component quantities.
-fn quantity_is_vector_component(variable_name: &str) -> Option<(String, Dim3, In3D<String>)> {
+pub fn quantity_is_vector_component(variable_name: &str) -> Option<(String, Dim3, In3D<String>)> {
     VECTOR_COMPONENT_REGEX.captures(variable_name).map(|caps| {
         let vector_name = caps[1].to_string();
         let dim = Dim3::from_char(caps[2].chars().next().unwrap()).unwrap();

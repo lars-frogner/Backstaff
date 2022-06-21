@@ -6,7 +6,11 @@ mod statistics;
 use crate::{
     cli::utils as cli_utils,
     exit_with_error,
-    io::{snapshot::SnapshotProvider3, utils::IOContext},
+    field::DynScalarFieldProvider3,
+    io::{
+        snapshot::{fdt, SnapshotMetadata},
+        utils::IOContext,
+    },
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -70,15 +74,17 @@ pub fn create_inspect_subcommand(_parent_command_name: &'static str) -> Command<
 }
 
 /// Runs the actions for the `snapshot-inspect` subcommand using the given arguments.
-pub fn run_inspect_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_inspect_subcommand(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbosity = cli_utils::parse_verbosity(arguments, false);
 
     let quantity_names =
-        super::parse_included_quantity_list(arguments, &provider, continue_on_warnings);
+        super::parse_included_quantity_list(arguments, &*provider, continue_on_warnings);
 
     if quantity_names.is_empty() {
         exit_with_error!("Aborted: No quantities to inspect");
@@ -88,6 +94,7 @@ where
     if let Some(statistics_arguments) = arguments.subcommand_matches("statistics") {
         run_statistics_subcommand(
             statistics_arguments,
+            metadata,
             provider,
             quantity_names,
             io_context,

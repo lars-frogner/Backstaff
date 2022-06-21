@@ -9,7 +9,7 @@ use crate::{
         utils,
     },
     exit_on_error, exit_with_error,
-    field::{self, ResampledCoordLocation, ScalarField3},
+    field::{self, DynScalarFieldProvider3, ResampledCoordLocation, ScalarField3},
     geometry::{
         CoordRefs3,
         Dim2::{X as X2, Y as Y2},
@@ -22,7 +22,7 @@ use crate::{
         Interpolator3,
     },
     io::{
-        snapshot::{fdt, SnapshotProvider3},
+        snapshot::{fdt, SnapshotMetadata},
         utils::IOContext,
         Verbosity,
     },
@@ -180,15 +180,14 @@ pub fn create_statistics_subcommand(_parent_command_name: &'static str) -> Comma
 }
 
 /// Runs the actions for the `snapshot-inspect-statistics` subcommand using the given arguments.
-pub fn run_statistics_subcommand<P>(
+pub fn run_statistics_subcommand(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     quantity_names: Vec<String>,
     io_context: &mut IOContext,
     verbosity: &Verbosity,
-) where
-    P: SnapshotProvider3,
-{
+) {
     let grid = provider.grid();
     let lower_bounds = grid.lower_bounds();
     let upper_bounds = grid.upper_bounds();
@@ -281,6 +280,7 @@ pub fn run_statistics_subcommand<P>(
 
             exit_on_error!(
                 print_statistics_reports(
+                    metadata,
                     provider,
                     &quantity_names,
                     value_range,
@@ -306,6 +306,7 @@ pub fn run_statistics_subcommand<P>(
 
             exit_on_error!(
                 print_statistics_reports(
+                    metadata,
                     provider,
                     &quantity_names,
                     value_range,
@@ -324,8 +325,9 @@ pub fn run_statistics_subcommand<P>(
     }
 }
 
-fn print_statistics_reports<P, W>(
-    mut provider: P,
+fn print_statistics_reports<W>(
+    metadata: &dyn SnapshotMetadata,
+    mut provider: DynScalarFieldProvider3<fdt>,
     quantity_names: &[String],
     value_range: (fdt, fdt),
     x_range: (fgr, fgr),
@@ -338,7 +340,6 @@ fn print_statistics_reports<P, W>(
     writer: &mut W,
 ) -> io::Result<()>
 where
-    P: SnapshotProvider3,
     W: Write,
 {
     for name in quantity_names {
@@ -349,7 +350,8 @@ where
         );
         print_statistics_report(
             field,
-            provider.obtain_snap_name_and_num(),
+            metadata.snap_name().to_string(),
+            metadata.snap_num(),
             value_range,
             x_range,
             y_range,
@@ -443,7 +445,8 @@ where
 
 fn print_statistics_report<W>(
     field: ScalarField3<fdt>,
-    snap_name_and_num: (String, Option<u64>),
+    snap_name: String,
+    snap_num: Option<u64>,
     value_range: (fdt, fdt),
     x_range: (fgr, fgr),
     y_range: (fgr, fgr),
@@ -470,9 +473,9 @@ where
         &format!(
             "Statistics for {} from {}",
             &quantity_name,
-            match snap_name_and_num {
-                (snap_name, Some(snap_num)) => format!("snapshot {} of {}", snap_num, snap_name),
-                (snap_name, None) => snap_name,
+            match snap_num {
+                Some(snap_num) => format!("snapshot {} of {}", snap_num, snap_name),
+                None => snap_name,
             }
         ),
         ' ',

@@ -1,14 +1,16 @@
 mod common;
 
-use std::path::PathBuf;
-
 use backstaff::{
     exit_on_error,
     geometry::Dim3::{X, Y, Z},
     grid::Grid3,
-    io::{snapshot::native::NATIVE_COORD_PRECISION, Verbosity},
-    with_new_snapshot_grid,
+    io::{
+        snapshot::{native::NATIVE_COORD_PRECISION, utils as snapshot_utils},
+        Verbosity,
+    },
 };
+use common::ENDIANNESS;
+use std::path::PathBuf;
 
 #[cfg(feature = "cli")]
 use common::run;
@@ -144,12 +146,13 @@ def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
 fn extract_with_too_large_subgrid_preserves_input_snapshot() {
-    let (lower_bounds, upper_bounds, extents) = exit_on_error!(
-        with_new_snapshot_grid!(PathBuf::from(input_snapshot), Verbosity::Quiet, |snapshot_grid| {
-            Ok((snapshot_grid.lower_bounds().clone(), snapshot_grid.upper_bounds().clone(), snapshot_grid.extents().clone()))
-        }),
+    let grid = exit_on_error!(
+        snapshot_utils::read_snapshot_grid(PathBuf::from(input_snapshot), ENDIANNESS, Verbosity::Quiet),
         "Error: {}"
     );
+    let lower_bounds = grid.lower_bounds();
+    let upper_bounds = grid.upper_bounds();
+    let extents = grid.extents();
     run(["snapshot",
          input_snapshot,
          "extract",
@@ -247,12 +250,12 @@ def_test!(
 IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 OUT[output_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 fn [<resampling_regular_to_regular_of_same_shape_and_shifted_bounds_with_ $resampling_method _preserves_input_snapshot>] () {
-    let (upper_bounds, extents) = exit_on_error!(
-        with_new_snapshot_grid!(PathBuf::from(input_snapshot), Verbosity::Quiet, |snapshot_grid| {
-            Ok((snapshot_grid.upper_bounds().clone(), snapshot_grid.extents().clone()))
-        }),
+    let grid = exit_on_error!(
+        snapshot_utils::read_snapshot_grid(PathBuf::from(input_snapshot), ENDIANNESS, Verbosity::Quiet),
         "Error: {}"
     );
+    let upper_bounds = grid.upper_bounds();
+    let extents = grid.extents();
     run(["snapshot",
         input_snapshot,
         "resample",
@@ -306,12 +309,13 @@ def_test!(
 IN[input_snapshot=MINIMAL_NATIVE_SNAP]
 OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
 fn [<resampling_to_regular_and_rotated_regular_without_rotation_with_ $resampling_method _gives_same_result>] () {
-    let (lower_bounds, upper_bounds, extents) = exit_on_error!(
-        with_new_snapshot_grid!(PathBuf::from(input_snapshot), Verbosity::Quiet, |snapshot_grid| {
-            Ok((snapshot_grid.lower_bounds().clone(), snapshot_grid.upper_bounds().clone(), snapshot_grid.extents().clone()))
-        }),
+    let grid = exit_on_error!(
+        snapshot_utils::read_snapshot_grid(PathBuf::from(input_snapshot), ENDIANNESS, Verbosity::Quiet),
         "Error: {}"
     );
+    let lower_bounds = grid.lower_bounds();
+    let upper_bounds = grid.upper_bounds();
+    let extents = grid.extents();
     run(["snapshot",
         input_snapshot,
         "resample",

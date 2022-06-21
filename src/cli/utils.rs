@@ -4,7 +4,7 @@ use crate::{
     exit_on_error, exit_on_false, exit_with_error,
     geometry::{Dim2, Dim3, In2D, In3D},
     io::{
-        snapshot::{self, fpa, SnapshotProvider3},
+        snapshot::{self, fpa, SnapshotParameters},
         utils as io_utils, OverwriteMode, Verbosity,
     },
     num::BFloat,
@@ -387,8 +387,8 @@ where
     })
 }
 
-pub fn get_value_from_param_file_argument_with_default<P, T>(
-    reader: &P,
+pub fn get_value_from_param_file_argument_with_default<T>(
+    parameters: &dyn SnapshotParameters,
     arguments: &ArgMatches,
     argument_name: &str,
     param_file_argument_name: &str,
@@ -396,13 +396,12 @@ pub fn get_value_from_param_file_argument_with_default<P, T>(
     default_value: T,
 ) -> T
 where
-    P: SnapshotProvider3,
     T: From<fpa> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
 {
     get_value_from_parseable_argument_with_custom_default(arguments, argument_name, &|| {
         snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-            reader.parameters(),
+            parameters,
             argument_name,
             param_file_argument_name,
             conversion_mapping,
@@ -411,8 +410,8 @@ where
     })
 }
 
-pub fn get_values_from_param_file_argument_with_defaults<P, T>(
-    reader: &P,
+pub fn get_values_from_param_file_argument_with_defaults<T>(
+    parameters: &dyn SnapshotParameters,
     arguments: &ArgMatches,
     argument_name: &str,
     param_file_argument_names: &[&str],
@@ -420,7 +419,6 @@ pub fn get_values_from_param_file_argument_with_defaults<P, T>(
     default_values: &[T],
 ) -> Vec<T>
 where
-    P: SnapshotProvider3,
     T: From<fpa> + std::fmt::Display + FromStr + Copy,
     <T as FromStr>::Err: std::fmt::Display,
 {
@@ -430,7 +428,7 @@ where
             .zip(default_values)
             .map(|(&param_file_argument_name, &default_value)| {
                 snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                    reader.parameters(),
+                    parameters,
                     argument_name,
                     param_file_argument_name,
                     conversion_mapping,

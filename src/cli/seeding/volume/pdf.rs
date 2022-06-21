@@ -4,10 +4,11 @@
 use crate::{
     cli::utils,
     exit_on_error,
+    field::CachingScalarFieldProvider3,
     geometry::{In3D, Point3, Vec3},
     grid::{fgr, regular::RegularGrid3, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::snapshot::fdt,
     seeding::volume::VolumeSeeder3,
     update_command_graph,
 };
@@ -64,16 +65,15 @@ pub fn create_value_pdf_subcommand(_parent_command_name: &'static str) -> Comman
 }
 
 /// Creates a volume PDF seeder based on the provided arguments.
-pub fn create_volume_pdf_seeder_from_arguments<P, S>(
+pub fn create_volume_pdf_seeder_from_arguments<S>(
     arguments: &ArgMatches,
     lower_bounds: Vec3<fgr>,
     upper_bounds: Vec3<fgr>,
-    provider: &mut P,
+    snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     satisfies_constraints: &S,
 ) -> VolumeSeeder3
 where
-    P: SnapshotProvider3,
     S: Fn(&Point3<fgr>) -> bool + Sync,
 {
     let quantity = arguments
@@ -85,7 +85,7 @@ where
     let power =
         utils::get_finite_float_value_from_required_parseable_argument::<fdt>(arguments, "power");
 
-    let grid_cell_extents = provider.grid().average_grid_cell_extents();
+    let grid_cell_extents = snapshot.grid().average_grid_cell_extents();
     let new_shape = In3D::with_each_component(|dim| {
         ((upper_bounds[dim] - lower_bounds[dim]) / grid_cell_extents[dim]).round() as usize
     });
@@ -93,7 +93,7 @@ where
 
     if arguments.is_present("is-vector-quantity") {
         let field = exit_on_error!(
-            provider.provide_vector_field(&quantity),
+            snapshot.provide_vector_field(&quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             &quantity
         );
@@ -108,7 +108,7 @@ where
         seeder
     } else {
         let field = exit_on_error!(
-            provider.provide_scalar_field(&quantity),
+            snapshot.provide_scalar_field(&quantity),
             "Error: Could not read quantity {0} in snapshot: {1}",
             &quantity
         );

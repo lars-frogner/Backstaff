@@ -8,7 +8,7 @@ use crate::{
     },
     ebeam::{distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig, feb},
     exit_on_error,
-    io::snapshot::SnapshotProvider3,
+    io::snapshot::SnapshotParameters,
     units::solar::U_T,
     update_command_graph,
 };
@@ -173,15 +173,12 @@ pub fn create_simple_power_law_accelerator_subcommand(
 
 /// Determines simple power-law distribution accelerator parameters
 /// based on provided options and values in parameter file.
-pub fn construct_simple_power_law_accelerator_config_from_options<P>(
+pub fn construct_simple_power_law_accelerator_config_from_options(
     arguments: &ArgMatches,
-    provider: &P,
-) -> SimplePowerLawAccelerationConfig
-where
-    P: SnapshotProvider3,
-{
+    parameters: &dyn SnapshotParameters,
+) -> SimplePowerLawAccelerationConfig {
     let acceleration_duration = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "acceleration-duration",
         "dt",
@@ -190,7 +187,7 @@ where
     );
 
     let particle_energy_fraction = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "particle-energy-fraction",
         "qjoule_acc_frac",
@@ -199,7 +196,7 @@ where
     );
 
     let power_law_delta = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "power-law-delta",
         "power_law_index",
@@ -208,7 +205,7 @@ where
     );
 
     let min_total_power_density = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "min-total-power-density",
         "min_beam_en",
@@ -217,7 +214,7 @@ where
     );
 
     let min_depletion_distance = utils::get_value_from_param_file_argument_with_default(
-        provider,
+        parameters,
         arguments,
         "min-depletion-distance",
         "min_stop_dist",

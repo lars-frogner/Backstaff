@@ -4,10 +4,10 @@ use crate::{
     cli::utils as cli_utils,
     exit_on_error, exit_with_error,
     field::{
-        quantities::{DerivedSnapshotProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
-        ScalarFieldCacher3,
+        quantities::{DerivedScalarFieldProvider3, AVAILABLE_QUANTITY_TABLE_STRING},
+        DynScalarFieldProvider3, ScalarFieldCacher3,
     },
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::snapshot::fdt,
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -67,13 +67,10 @@ pub fn create_derive_subcommand(_parent_command_name: &'static str) -> Command<'
 }
 
 /// Creates a `DerivedSnapshotProvider3` for the given arguments and snapshot provider.
-pub fn create_derive_provider<P>(
+pub fn create_derive_provider(
     arguments: &ArgMatches,
-    provider: P,
-) -> DerivedSnapshotProvider3<ScalarFieldCacher3<fdt, P>>
-where
-    P: SnapshotProvider3,
-{
+    provider: DynScalarFieldProvider3<fdt>,
+) -> DerivedScalarFieldProvider3 {
     let derived_quantity_names = arguments
         .values_of("quantities")
         .map(|values| values.collect::<Vec<_>>())
@@ -103,10 +100,13 @@ where
     let continue_on_warnings = arguments.is_present("ignore-warnings");
     let verbosity = cli_utils::parse_verbosity(arguments, true);
 
-    let cached_provider =
-        ScalarFieldCacher3::new_automatic_cacher(provider, max_memory_usage, verbosity.clone());
+    let cached_provider = Box::new(ScalarFieldCacher3::new_automatic_cacher(
+        provider,
+        max_memory_usage,
+        verbosity.clone(),
+    ));
 
-    DerivedSnapshotProvider3::new(
+    DerivedScalarFieldProvider3::new(
         cached_provider,
         derived_quantity_names,
         &|quantity_name, missing_dependencies| {

@@ -4,7 +4,7 @@ use super::super::{
     super::{utils, Verbosity},
     MapOfSnapshotParameters, ParameterValue, SnapshotParameters,
 };
-use crate::geometry::In3D;
+use crate::{geometry::In3D, io::snapshot::DynSnapshotParameters};
 use regex::{self, Captures, Regex};
 use std::{
     borrow::Cow,
@@ -102,7 +102,7 @@ impl NativeSnapshotParameters {
 }
 
 impl SnapshotParameters for NativeSnapshotParameters {
-    fn heap_clone(&self) -> Box<RefCell<dyn SnapshotParameters>> {
+    fn heap_clone(&self) -> DynSnapshotParameters {
         Box::new(RefCell::new(self.clone()))
     }
 

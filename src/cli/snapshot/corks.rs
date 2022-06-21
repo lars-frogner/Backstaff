@@ -14,15 +14,15 @@ use crate::{
         },
         utils as cli_utils,
     },
-    corks::{ConstantCorkAdvector, CorkAdvector, CorkSet, CorkStepper, HeunCorkStepper},
+    corks::{fco, ConstantCorkAdvector, CorkAdvector, CorkSet, CorkStepper, HeunCorkStepper},
     exit_on_error, exit_with_error,
-    field::ScalarFieldCacher3,
+    field::{DynCachingScalarFieldProvider3, DynScalarFieldProvider3, ScalarFieldCacher3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         InterpGridVerifier3, Interpolator3,
     },
     io::{
-        snapshot::{fdt, CachingSnapshotProvider3, SnapshotProvider3},
+        snapshot::{fdt, SnapshotMetadata, OUTPUT_TIME_STEP_NAME},
         utils::IOContext,
     },
     seeding::Seeder3,
@@ -119,14 +119,13 @@ pub fn create_corks_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 #[cfg(not(any(feature = "json", feature = "pickle")))]
-pub fn run_corks_subcommand<P>(
+pub fn run_corks_subcommand(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
-) where
-    P: SnapshotProvider3,
-{
+) {
     exit_with_error!(
         "Error: Compile with json and/or pickle feature in order to write cork output\n\
          Tip: Use cargo flag --features=json,pickle"
@@ -135,27 +134,25 @@ pub fn run_corks_subcommand<P>(
 
 /// Runs the actions for the `snapshot-corks` subcommand using the given arguments.
 #[cfg(any(feature = "json", feature = "pickle"))]
-pub fn run_corks_subcommand<P>(
+pub fn run_corks_subcommand(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
-) where
-    P: SnapshotProvider3,
-{
+) {
     let verbosity = cli_utils::parse_verbosity(arguments, false);
-    let mut snapshot = ScalarFieldCacher3::new_manual_cacher(provider, verbosity);
-    run_with_selected_interpolator(arguments, &mut snapshot, io_context, corks_state);
+    let snapshot = Box::new(ScalarFieldCacher3::new_manual_cacher(provider, verbosity));
+    run_with_selected_interpolator(arguments, metadata, snapshot, io_context, corks_state);
 }
 
-fn run_with_selected_interpolator<P>(
+fn run_with_selected_interpolator(
     root_arguments: &ArgMatches,
-    snapshot: &mut P,
+    metadata: &dyn SnapshotMetadata,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
-) where
-    P: CachingSnapshotProvider3,
-{
+) {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         root_arguments.subcommand_matches("poly_fit_interpolator")
     {
@@ -177,6 +174,7 @@ fn run_with_selected_interpolator<P>(
     run_tracing(
         root_arguments,
         interpolator_arguments,
+        metadata,
         snapshot,
         interpolator.as_ref(),
         io_context,
@@ -184,16 +182,15 @@ fn run_with_selected_interpolator<P>(
     );
 }
 
-fn run_tracing<P>(
+fn run_tracing(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut P,
+    metadata: &dyn SnapshotMetadata,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext,
     corks_state: &mut Option<CorksState>,
-) where
-    P: CachingSnapshotProvider3,
-{
+) {
     if is_first_iteration(corks_state) {
         initialize_with_selected_seeder(
             root_arguments,
@@ -204,7 +201,7 @@ fn run_tracing<P>(
         );
     } else {
         let corks = corks_state.as_mut().expect("Corks state not initialized");
-        advect_with_selected_advector(snapshot, interpolator, corks);
+        advect_with_selected_advector(metadata, snapshot, interpolator, corks);
     }
     write_output(root_arguments, io_context, corks_state);
 }
@@ -213,20 +210,20 @@ fn is_first_iteration(corks_state: &Option<CorksState>) -> bool {
     corks_state.is_none()
 }
 
-fn initialize_with_selected_seeder<P>(
+fn initialize_with_selected_seeder(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    snapshot: &mut P,
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     corks_state: &mut Option<CorksState>,
-) where
-    P: CachingSnapshotProvider3,
-{
+) {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
-        let seeder = create_slice_seeder_from_arguments(seeder_arguments, snapshot, interpolator);
+        let seeder =
+            create_slice_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
         initialize_corks(root_arguments, snapshot, interpolator, seeder, corks_state);
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
-        let seeder = create_volume_seeder_from_arguments(seeder_arguments, snapshot, interpolator);
+        let seeder =
+            create_volume_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
         initialize_corks(root_arguments, snapshot, interpolator, seeder, corks_state);
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
         let seeder = create_manual_seeder_from_arguments(seeder_arguments);
@@ -261,14 +258,13 @@ fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, V
     (scalar_quantity_names, vector_quantity_names)
 }
 
-fn initialize_corks<P, Sd>(
+fn initialize_corks<Sd>(
     root_arguments: &ArgMatches,
-    snapshot: &mut P,
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     seeder: Sd,
     corks_state: &mut Option<CorksState>,
 ) where
-    P: CachingSnapshotProvider3,
     Sd: Seeder3,
 {
     let (scalar_quantity_names, vector_quantity_names) =
@@ -278,7 +274,7 @@ fn initialize_corks<P, Sd>(
         CorkSet::new(
             seeder.number_of_points(),
             seeder,
-            snapshot,
+            &mut *snapshot,
             interpolator,
             scalar_quantity_names,
             vector_quantity_names,
@@ -289,25 +285,32 @@ fn initialize_corks<P, Sd>(
     snapshot.drop_all_fields();
 }
 
-fn advect_with_selected_advector<P>(
-    snapshot: &mut P,
+fn advect_with_selected_advector(
+    metadata: &dyn SnapshotMetadata,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     corks: &mut CorkSet,
-) where
-    P: CachingSnapshotProvider3,
-{
-    let advector = ConstantCorkAdvector;
+) {
+    let step_duration = exit_on_error!(
+        metadata
+            .parameters()
+            .get_value(OUTPUT_TIME_STEP_NAME)
+            .and_then(|value| value.try_as_float())
+            .map(|value| value as fco),
+        "Error: Could not determine step duration for cork tracing: {}"
+    );
+
+    let advector = ConstantCorkAdvector::new(step_duration);
 
     advect_with_selected_stepper(snapshot, interpolator, advector, corks);
 }
 
-fn advect_with_selected_stepper<P, A>(
-    snapshot: &mut P,
+fn advect_with_selected_stepper<A>(
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     advector: A,
     corks: &mut CorkSet,
 ) where
-    P: CachingSnapshotProvider3,
     A: CorkAdvector,
 {
     let stepper = HeunCorkStepper;
@@ -315,19 +318,18 @@ fn advect_with_selected_stepper<P, A>(
     advect_corks(snapshot, interpolator, advector, stepper, corks);
 }
 
-fn advect_corks<P, A, St>(
-    snapshot: &mut P,
+fn advect_corks<A, St>(
+    mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
     advector: A,
     stepper: St,
     corks: &mut CorkSet,
 ) where
-    P: CachingSnapshotProvider3,
     A: CorkAdvector,
     St: CorkStepper,
 {
     exit_on_error!(
-        advector.advect_corks(corks, snapshot, interpolator, &stepper),
+        advector.advect_corks(corks, &mut *snapshot, interpolator, &stepper),
         "Error: Could not advect corks: {}"
     );
     snapshot.drop_all_fields();

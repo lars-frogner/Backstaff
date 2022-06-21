@@ -15,7 +15,7 @@ use crate::{
     },
     grid::{fgr, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{self, fdt, SnapshotProvider3},
+    io::snapshot::{self, fdt, SnapshotParameters},
     math,
     plasma::ionization,
     tracing::{ftr, stepping::SteppingSense},
@@ -422,17 +422,14 @@ impl Distribution for PowerLawDistribution {
         }
     }
 
-    fn propagate<P>(
+    fn propagate(
         &mut self,
-        snapshot: &P,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
-    ) -> PropagationResult
-    where
-        P: CachingScalarFieldProvider3<fdt>,
-    {
+    ) -> PropagationResult {
         let mut deposition_position = new_position - displacement * 0.5;
 
         let deposition_indices = snapshot
@@ -544,13 +541,10 @@ impl PowerLawDistributionConfig {
     /// Creates a set of power law distribution configuration parameters with
     /// values read from the specified parameter file when available, otherwise
     /// falling back to the hardcoded defaults.
-    pub fn with_defaults_from_param_file<P>(provider: &P) -> Self
-    where
-        P: SnapshotProvider3,
-    {
+    pub fn with_defaults_from_param_file(parameters: &dyn SnapshotParameters) -> Self {
         let min_residual_factor =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "min_residual_factor",
                 "min_residual",
                 &|min_residual: feb| min_residual,
@@ -558,7 +552,7 @@ impl PowerLawDistributionConfig {
             );
         let min_deposited_power_per_distance =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "min_deposited_power_per_distance",
                 "min_dep_en",
                 &|min_dep_en: feb| min_dep_en,
@@ -566,7 +560,7 @@ impl PowerLawDistributionConfig {
             );
         let max_propagation_distance =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "max_propagation_distance",
                 "max_dist",
                 &|max_dist: feb| max_dist,
@@ -574,7 +568,7 @@ impl PowerLawDistributionConfig {
             );
         let outside_deposition_threshold =
             snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                provider.parameters(),
+                parameters,
                 "outside_deposition_threshold",
                 "out_dep_thresh",
                 &|out_dep_thresh: feb| out_dep_thresh,

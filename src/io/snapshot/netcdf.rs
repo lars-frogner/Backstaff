@@ -8,7 +8,7 @@ use super::{
         utils::{self},
         Endianness, Verbosity,
     },
-    fdt, SnapshotParameters, SnapshotProvider3, SnapshotReader3, COORDINATE_NAMES,
+    fdt, MapOfSnapshotParameters, SnapshotMetadata, SnapshotParameters, COORDINATE_NAMES,
     FALLBACK_SNAP_NUM,
 };
 use crate::{
@@ -17,11 +17,10 @@ use crate::{
         Dim3::{X, Y, Z},
         In3D,
     },
-    grid::{CoordLocation, Grid3, GridType},
+    grid::{CoordLocation, Grid3},
     io::utils::IOContext,
     io_result,
     num::BFloat,
-    with_io_err_msg,
 };
 use ndarray::prelude::*;
 use netcdf_rs::{self as nc, File, Group, GroupMut, MutableFile, Numeric};
@@ -31,7 +30,7 @@ use std::{
     sync::Arc,
 };
 
-pub use mesh::{read_grid_data, NetCDFGridData};
+pub use mesh::create_grid_from_netcdf_file;
 pub use param::{read_netcdf_snapshot_parameters, NetCDFSnapshotParameters};
 
 /// Configuration parameters for NetCDF snapshot reader.
@@ -43,79 +42,103 @@ pub struct NetCDFSnapshotReaderConfig {
     verbosity: Verbosity,
 }
 
+impl NetCDFSnapshotReaderConfig {
+    /// Creates a new set of snapshot reader configuration parameters.
+    pub fn new(file_path: PathBuf, verbosity: Verbosity) -> Self {
+        NetCDFSnapshotReaderConfig {
+            file_path,
+            verbosity,
+        }
+    }
+}
+
+/// Information associated with a Bifrost 3D simulation snapshot
+/// in NetCDF format.
+#[derive(Clone, Debug)]
+pub struct NetCDFSnapshotMetadata {
+    snap_name: String,
+    snap_num: Option<u64>,
+    endianness: Endianness,
+    parameters: Box<MapOfSnapshotParameters>,
+}
+
+impl NetCDFSnapshotMetadata {
+    fn new(file_path: &Path, parameters: MapOfSnapshotParameters, endianness: Endianness) -> Self {
+        let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(file_path);
+        Self {
+            snap_name,
+            snap_num,
+            endianness,
+            parameters: Box::new(parameters),
+        }
+    }
+}
+
+impl SnapshotMetadata for NetCDFSnapshotMetadata {
+    fn snap_name(&self) -> &str {
+        &self.snap_name
+    }
+
+    fn snap_num(&self) -> Option<u64> {
+        self.snap_num
+    }
+
+    fn parameters(&self) -> &dyn SnapshotParameters {
+        self.parameters.as_ref()
+    }
+
+    fn endianness(&self) -> Endianness {
+        self.endianness
+    }
+}
+
 /// Reader for NetCDF files associated with Bifrost 3D simulation snapshots.
 #[derive(Debug)]
 pub struct NetCDFSnapshotReader3 {
-    config: NetCDFSnapshotReaderConfig,
     file: File,
-    grid: Arc<FieldGrid3>,
-    parameters: Box<NetCDFSnapshotParameters>,
+    file_path: PathBuf,
     endianness: Endianness,
+    grid: Arc<FieldGrid3>,
     all_variable_names: Vec<String>,
+    verbosity: Verbosity,
 }
 
 impl NetCDFSnapshotReader3 {
     /// Creates a reader for a 3D Bifrost snapshot.
-    pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
-        let file = open_file(&config.file_path)?;
+    pub fn new(config: NetCDFSnapshotReaderConfig) -> io::Result<(Self, NetCDFSnapshotMetadata)> {
+        let NetCDFSnapshotReaderConfig {
+            file_path,
+            verbosity,
+        } = config;
 
-        let parameters = read_netcdf_snapshot_parameters(&file, config.verbosity())?;
+        let file = open_netcdf_file(&file_path)?;
+
+        let parameters = read_netcdf_snapshot_parameters(&file, &verbosity)?;
+
+        let root_group = file.root().unwrap();
+        let all_variable_names = read_all_non_coord_variable_names(&root_group);
 
         let is_periodic = parameters.determine_grid_periodicity()?;
-        let (grid, endianness) = mesh::read_grid(&file, is_periodic, config.verbosity())?;
+        let (grid, endianness) =
+            mesh::create_grid_from_open_netcdf_file(&file, is_periodic, &verbosity)?;
 
-        Ok(Self::new_from_parameters_and_grid(
-            config, file, parameters, grid, endianness,
+        let metadata = NetCDFSnapshotMetadata::new(file_path.as_path(), parameters, endianness);
+
+        Ok((
+            Self {
+                file,
+                file_path,
+                endianness,
+                grid: Arc::new(grid),
+                all_variable_names,
+                verbosity,
+            },
+            metadata,
         ))
     }
 
-    /// Returns the path to the file representing the snapshot.
-    pub fn path(&self) -> &Path {
-        self.config.file_path()
-    }
-
     pub fn verbosity(&self) -> &Verbosity {
-        self.config.verbosity()
-    }
-
-    /// Creates a reader for a 3D Bifrost snapshot.
-    pub fn new_from_parameters_and_grid(
-        config: NetCDFSnapshotReaderConfig,
-        file: File,
-        parameters: NetCDFSnapshotParameters,
-        grid: FieldGrid3,
-        endianness: Endianness,
-    ) -> Self {
-        let root_group = file.root().unwrap();
-
-        let all_variable_names = read_all_non_coord_variable_names(&root_group);
-
-        Self {
-            config,
-            file,
-            grid: Arc::new(grid),
-            parameters: Box::new(parameters),
-            endianness,
-            all_variable_names,
-        }
-    }
-
-    #[allow(dead_code)]
-    fn reread(&mut self) -> io::Result<()> {
-        let Self {
-            file,
-            grid,
-            parameters,
-            endianness,
-            ..
-        } = Self::new(self.config.clone())?;
-
-        self.file = file;
-        self.grid = grid;
-        self.parameters = parameters;
-        self.endianness = endianness;
-
-        Ok(())
+        &self.verbosity
     }
 }
 
@@ -128,20 +151,6 @@ impl ScalarFieldProvider3<fdt> for NetCDFSnapshotReader3 {
         Arc::clone(&self.grid)
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
-        self.read_scalar_field(variable_name)
-    }
-}
-
-impl SnapshotProvider3 for NetCDFSnapshotReader3 {
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.parameters.as_ref()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.endianness
-    }
-
     fn all_variable_names(&self) -> &[String] {
         &self.all_variable_names
     }
@@ -151,18 +160,12 @@ impl SnapshotProvider3 for NetCDFSnapshotReader3 {
             .contains(&variable_name.to_string())
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        super::extract_name_and_num_from_snapshot_path(self.config.file_path())
-    }
-}
-
-impl SnapshotReader3 for NetCDFSnapshotReader3 {
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
-        if self.config.verbosity.print_messages() {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
+        if self.verbosity().print_messages() {
             println!(
                 "Reading {} from {}",
                 variable_name,
-                self.config.file_path.file_name().unwrap().to_string_lossy()
+                self.file_path.file_name().unwrap().to_string_lossy()
             );
         }
         let (values, locations, endianness) = read_snapshot_3d_variable::<fdt>(
@@ -181,145 +184,24 @@ impl SnapshotReader3 for NetCDFSnapshotReader3 {
         }
         Ok(ScalarField3::new(
             variable_name.to_string(),
-            Arc::clone(&self.grid),
+            self.arc_with_grid(),
             locations,
             values,
         ))
     }
 }
 
-/// Helper object for interpreting NetCDF snapshot metadata and creating
-/// the corresponding reader object.
-#[derive(Debug)]
-pub struct NetCDFSnapshotMetadata {
-    reader_config: NetCDFSnapshotReaderConfig,
-    file: File,
-    parameters: NetCDFSnapshotParameters,
-    is_periodic: In3D<bool>,
-    grid_data: NetCDFGridData,
-}
-
-impl NetCDFSnapshotMetadata {
-    /// Gathers the metadata for the snapshot specified in the given
-    /// reader configuration and creates a new metadata object.
-    pub fn new(reader_config: NetCDFSnapshotReaderConfig) -> io::Result<Self> {
-        let file = with_io_err_msg!(
-            open_file(reader_config.file_path()),
-            "Could not open NetCDF file: {}"
-        )?;
-        let parameters = with_io_err_msg!(
-            read_netcdf_snapshot_parameters(&file, reader_config.verbosity()),
-            "Could not read snapshot parameters from NetCDF file: {}"
-        )?;
-        let grid_data = with_io_err_msg!(
-            read_grid_data(&file, reader_config.verbosity()),
-            "Could not read grid data from NetCDF file: {}"
-        )?;
-        let is_periodic = with_io_err_msg!(
-            parameters.determine_grid_periodicity(),
-            "Could not determine grid periodicity: {}"
-        )?;
-        Ok(Self {
-            reader_config,
-            file,
-            parameters,
-            is_periodic,
-            grid_data,
-        })
-    }
-
-    /// Returns the type of the grid used by this snapshot.
-    pub fn grid_type(&self) -> GridType {
-        self.grid_data.detected_grid_type
-    }
-
-    /// Creates a new snapshot reader from this metadata.
-    pub fn into_reader(self) -> NetCDFSnapshotReader3 {
-        let (reader_config, file, parameters, grid, endianness) = self.into_parameters_and_grid();
-
-        NetCDFSnapshotReader3::new_from_parameters_and_grid(
-            reader_config,
-            file,
-            parameters,
-            grid,
-            endianness,
-        )
-    }
-
-    /// Creates a new grid from this metadata.
-    pub fn into_grid(self) -> FieldGrid3 {
-        let (_, _, _, grid, _) = self.into_parameters_and_grid();
-        grid
-    }
-
-    fn into_parameters_and_grid(
-        self,
-    ) -> (
-        NetCDFSnapshotReaderConfig,
-        File,
-        NetCDFSnapshotParameters,
-        FieldGrid3,
-        Endianness,
-    ) {
-        let Self {
-            reader_config,
-            file,
-            parameters,
-            is_periodic,
-            grid_data,
-        } = self;
-
-        let NetCDFGridData {
-            detected_grid_type,
-            center_coords,
-            lower_edge_coords,
-            up_derivatives,
-            down_derivatives,
-            endianness,
-        } = grid_data;
-
-        let grid = FieldGrid3::from_coords_unchecked(
-            center_coords,
-            lower_edge_coords,
-            is_periodic,
-            up_derivatives,
-            down_derivatives,
-            detected_grid_type,
-        );
-        (reader_config, file, parameters, grid, endianness)
-    }
-}
-
-impl NetCDFSnapshotReaderConfig {
-    /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new(file_path: PathBuf, verbosity: Verbosity) -> Self {
-        NetCDFSnapshotReaderConfig {
-            file_path,
-            verbosity,
-        }
-    }
-
-    pub fn verbosity(&self) -> &Verbosity {
-        &self.verbosity
-    }
-
-    pub fn file_path(&self) -> &Path {
-        self.file_path.as_path()
-    }
-}
-
 /// Writes data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_new_snapshot<P>(
-    provider: &mut P,
+pub fn write_new_snapshot(
+    input_metadata: &dyn SnapshotMetadata,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     output_file_path: &Path,
     io_context: &IOContext,
     verbosity: &Verbosity,
-) -> io::Result<()>
-where
-    P: SnapshotProvider3,
-{
+) -> io::Result<()> {
     let quantity_names = provider.all_variable_names().to_vec();
     write_modified_snapshot(
+        input_metadata,
         provider,
         &quantity_names,
         output_file_path,
@@ -330,22 +212,20 @@ where
 }
 
 /// Writes modified data associated with the given snapshot to a NetCDF file at the given path.
-pub fn write_modified_snapshot<P>(
-    provider: &mut P,
+pub fn write_modified_snapshot(
+    input_metadata: &dyn SnapshotMetadata,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     quantity_names: &[String],
     output_file_path: &Path,
     strip_metadata: bool,
     io_context: &IOContext,
     verbosity: &Verbosity,
-) -> io::Result<()>
-where
-    P: SnapshotProvider3,
-{
+) -> io::Result<()> {
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_file_path);
     let snap_num = snap_num.unwrap_or(FALLBACK_SNAP_NUM) as i64;
 
     let (_, included_auxiliary_variable_names, is_mhd) =
-        provider.classify_variable_names(quantity_names);
+        input_metadata.classify_variable_names(quantity_names);
 
     let atomic_output_file =
         io_context.create_atomic_output_file(output_file_path.to_path_buf())?;
@@ -362,7 +242,8 @@ where
     let mut file = create_file(atomic_output_file.temporary_path())?;
     let mut root_group = file.root_mut().unwrap();
 
-    let new_parameters = provider.create_updated_parameters(
+    let new_parameters = input_metadata.create_updated_parameters(
+        provider.grid(),
         snap_name.as_str(),
         snap_num,
         &included_auxiliary_variable_names,
@@ -396,7 +277,7 @@ where
 }
 
 /// Opens an existing NetCDF file at the given path.
-pub fn open_file(path: &Path) -> io::Result<File> {
+pub fn open_netcdf_file(path: &Path) -> io::Result<File> {
     io_result!(nc::open(path))
 }
 

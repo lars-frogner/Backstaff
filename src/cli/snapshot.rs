@@ -24,16 +24,17 @@ use crate::{
     add_subcommand_combinations,
     cli::utils as cli_utils,
     exit_on_error, exit_on_false, exit_with_error,
+    field::{DynCachingScalarFieldProvider3, DynScalarFieldProvider3, ScalarFieldProvider3},
     io::{
         snapshot::{
-            self,
-            utils::{SnapNumInRange, SnapshotInputType},
-            CachingSnapshotProvider3, SnapshotProvider3,
+            self, fdt,
+            utils::{self as snapshot_utils, SnapNumInRange, SnapshotInputType},
+            SnapshotMetadata,
         },
         utils::IOContext,
         Endianness, Verbosity,
     },
-    update_command_graph, with_new_snapshot_reader,
+    update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command, ValueHint};
 use std::{collections::HashSet, path::PathBuf, str::FromStr};
@@ -54,7 +55,6 @@ use super::ebeam::create_ebeam_subcommand;
 use self::synthesize::create_synthesize_subcommand;
 
 /// Builds a representation of the `snapshot` command line subcommand.
-#[allow(clippy::let_and_return)]
 pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command<'static> {
     let command_name = "snapshot";
 
@@ -185,85 +185,90 @@ pub fn run_snapshot_subcommand(arguments: &ArgMatches, io_context: &mut IOContex
 
     for (file_path, snap_num_in_range) in input_snap_paths_and_num_offsets {
         io_context.set_snap_num_in_range(snap_num_in_range);
-        exit_on_error!(
-            with_new_snapshot_reader!(file_path, endianness, verbosity.clone(), |reader| {
-                run_snapshot_subcommand_with_derive(arguments, reader, io_context);
-                Ok(())
-            }),
+
+        let (reader, metadata) = exit_on_error!(
+            snapshot_utils::new_snapshot_reader(file_path, endianness, verbosity.clone()),
             "Error: {}"
         );
+        run_snapshot_subcommand_with_derive(arguments, &*metadata, reader, io_context);
     }
 }
 
-fn run_snapshot_subcommand_with_derive<P>(
+fn run_snapshot_subcommand_with_derive(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     #[cfg(feature = "derivation")]
     if let Some(derive_arguments) = arguments.subcommand_matches("derive") {
-        let provider = derive::create_derive_provider(derive_arguments, provider);
-        run_snapshot_subcommand_with_synthesis(derive_arguments, provider, io_context);
+        let provider = Box::new(derive::create_derive_provider(derive_arguments, provider));
+        run_snapshot_subcommand_with_synthesis(derive_arguments, metadata, provider, io_context);
         return;
     }
 
-    run_snapshot_subcommand_with_synthesis_added_caching(arguments, provider, io_context);
+    run_snapshot_subcommand_with_synthesis_added_caching(arguments, metadata, provider, io_context);
 }
 
-fn run_snapshot_subcommand_with_synthesis<P>(
+fn run_snapshot_subcommand_with_synthesis(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynCachingScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: CachingSnapshotProvider3,
-{
+) {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-        let provider = synthesize::create_synthesize_provider(synthesize_arguments, provider);
-        run_snapshot_subcommand_for_provider(synthesize_arguments, provider, io_context);
+        let provider = Box::new(synthesize::create_synthesize_provider(
+            synthesize_arguments,
+            provider,
+        ));
+        run_snapshot_subcommand_for_provider(synthesize_arguments, metadata, provider, io_context);
         return;
     }
 
-    run_snapshot_subcommand_for_provider(arguments, provider, io_context);
+    run_snapshot_subcommand_for_provider(
+        arguments,
+        metadata,
+        provider.as_scalar_field_provider(),
+        io_context,
+    );
 }
 
-fn run_snapshot_subcommand_with_synthesis_added_caching<P>(
+fn run_snapshot_subcommand_with_synthesis_added_caching(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     #[cfg(feature = "synthesis")]
     if let Some(synthesize_arguments) = arguments.subcommand_matches("synthesize") {
-        let provider =
-            synthesize::create_synthesize_provider_added_caching(synthesize_arguments, provider);
-        run_snapshot_subcommand_for_provider(synthesize_arguments, provider, io_context);
+        let provider = Box::new(synthesize::create_synthesize_provider_added_caching(
+            synthesize_arguments,
+            provider,
+        ));
+        run_snapshot_subcommand_for_provider(synthesize_arguments, metadata, provider, io_context);
         return;
     }
 
-    run_snapshot_subcommand_for_provider(arguments, provider, io_context);
+    run_snapshot_subcommand_for_provider(arguments, metadata, provider, io_context);
 }
 
-fn run_snapshot_subcommand_for_provider<P>(
+fn run_snapshot_subcommand_for_provider(
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     if let Some(inspect_arguments) = arguments.subcommand_matches("inspect") {
-        inspect::run_inspect_subcommand(inspect_arguments, provider, io_context);
+        inspect::run_inspect_subcommand(inspect_arguments, metadata, provider, io_context);
     } else if let Some(slice_arguments) = arguments.subcommand_matches("slice") {
         slice::run_slice_subcommand(slice_arguments, provider, io_context);
     } else if let Some(extract_arguments) = arguments.subcommand_matches("extract") {
-        extract::run_extract_subcommand(extract_arguments, provider, io_context);
+        extract::run_extract_subcommand(extract_arguments, metadata, provider, io_context);
     } else if let Some(resample_arguments) = arguments.subcommand_matches("resample") {
-        resample::run_resample_subcommand(resample_arguments, provider, io_context);
+        resample::run_resample_subcommand(resample_arguments, metadata, provider, io_context);
     } else if let Some(write_arguments) = arguments.subcommand_matches("write") {
-        write::run_write_subcommand(write_arguments, provider, io_context);
+        write::run_write_subcommand(write_arguments, metadata, provider, io_context);
     } else {
         let corks_arguments = if cfg!(feature = "corks") {
             arguments.subcommand_matches("corks")
@@ -286,6 +291,7 @@ fn run_snapshot_subcommand_for_provider<P>(
                 let mut corks_state: Option<CorksState> = None;
                 corks::run_corks_subcommand(
                     _corks_arguments,
+                    metadata,
                     provider,
                     io_context,
                     &mut corks_state,
@@ -296,19 +302,21 @@ fn run_snapshot_subcommand_for_provider<P>(
             crate::cli::tracing::run_trace_subcommand(_trace_arguments, provider, io_context);
         } else if let Some(_ebeam_arguments) = ebeam_arguments {
             #[cfg(feature = "ebeam")]
-            crate::cli::ebeam::run_ebeam_subcommand(_ebeam_arguments, provider, io_context);
+            crate::cli::ebeam::run_ebeam_subcommand(
+                _ebeam_arguments,
+                metadata,
+                provider,
+                io_context,
+            );
         }
     }
 }
 
-fn parse_included_quantity_list<P>(
+fn parse_included_quantity_list(
     arguments: &ArgMatches,
-    provider: &P,
+    provider: &dyn ScalarFieldProvider3<fdt>,
     continue_on_warnings: bool,
-) -> Vec<String>
-where
-    P: SnapshotProvider3,
-{
+) -> Vec<String> {
     remove_duplicate_quantities(
         if let Some(excluded_quantities) = arguments.values_of("excluded-quantities") {
             let excluded_quantities: Vec<_> = excluded_quantities

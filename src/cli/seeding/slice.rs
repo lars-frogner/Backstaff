@@ -14,10 +14,11 @@ use self::{
 use crate::{
     cli::utils,
     exit_with_error,
+    field::CachingScalarFieldProvider3,
     geometry::{Dim2, Dim3, Point2},
     grid::fgr,
     interpolation::Interpolator3,
-    io::snapshot::{fdt, SnapshotProvider3},
+    io::snapshot::fdt,
     seeding::slice::SliceSeeder3,
     update_command_graph,
 };
@@ -99,14 +100,11 @@ pub fn create_slice_seeder_subcommand(_parent_command_name: &'static str) -> Com
 }
 
 /// Creates a slice seeder based on the provided arguments.
-pub fn create_slice_seeder_from_arguments<P>(
+pub fn create_slice_seeder_from_arguments(
     arguments: &ArgMatches,
-    provider: &mut P,
+    snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
-) -> SliceSeeder3
-where
-    P: SnapshotProvider3,
-{
+) -> SliceSeeder3 {
     let axis = utils::get_value_from_required_constrained_argument(
         arguments,
         "axis",
@@ -144,28 +142,28 @@ where
         create_regular_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            provider.grid(),
+            snapshot.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("random") {
         create_random_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            provider.grid(),
+            snapshot.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("stratified") {
         create_stratified_slice_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            provider.grid(),
+            snapshot.grid(),
             &satisifes_constraints,
         )
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("value_pdf") {
         create_slice_pdf_seeder_from_arguments(
             seeder_arguments,
             &parameters,
-            provider,
+            snapshot,
             interpolator,
             &satisifes_constraints,
         )

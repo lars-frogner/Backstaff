@@ -12,7 +12,7 @@ use crate::{
         utils,
     },
     exit_on_error,
-    field::{ResampledCoordLocation, ResamplingMethod},
+    field::{DynScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Dim3::{X, Y, Z},
         In3D,
@@ -20,7 +20,7 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, native, SnapshotProvider3},
+        snapshot::{fdt, native, SnapshotMetadata},
         utils::IOContext,
         Verbosity,
     },
@@ -95,19 +95,18 @@ pub fn create_mesh_file_subcommand(_parent_command_name: &'static str) -> Comman
     )
 }
 
-pub fn run_resampling_for_mesh_file<P>(
+pub fn run_resampling_for_mesh_file(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     let mesh_file_path = exit_on_error!(
         PathBuf::from_str(
             root_arguments
@@ -160,6 +159,7 @@ pub fn run_resampling_for_mesh_file<P>(
         mesh_file_grid,
         new_shape,
         arguments,
+        metadata,
         provider,
         resampled_locations,
         resampling_method,

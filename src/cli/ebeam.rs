@@ -7,7 +7,11 @@ pub mod simulate;
 
 use self::simulate::{create_simulate_subcommand, run_simulate_subcommand};
 use crate::{
-    io::{snapshot::SnapshotProvider3, utils::IOContext},
+    field::DynScalarFieldProvider3,
+    io::{
+        snapshot::{fdt, SnapshotMetadata},
+        utils::IOContext,
+    },
     update_command_graph,
 };
 use clap::{ArgMatches, Command};
@@ -25,11 +29,13 @@ pub fn create_ebeam_subcommand(_parent_command_name: &'static str) -> Command<'s
 }
 
 /// Runs the actions for the `ebeam` subcommand using the given arguments.
-pub fn run_ebeam_subcommand<P>(arguments: &ArgMatches, provider: P, io_context: &mut IOContext)
-where
-    P: SnapshotProvider3,
-{
+pub fn run_ebeam_subcommand(
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
+    io_context: &mut IOContext,
+) {
     if let Some(simulate_arguments) = arguments.subcommand_matches("simulate") {
-        run_simulate_subcommand(simulate_arguments, provider, io_context);
+        run_simulate_subcommand(simulate_arguments, metadata, provider, io_context);
     }
 }

@@ -295,7 +295,7 @@ lazy_static! {
     static ref COMMAND: clap::Command<'static> = cli::build::build().no_binary_name(true);
 }
 
-const ENDIANNESS: Endianness = Endianness::Little;
+pub const ENDIANNESS: Endianness = Endianness::Little;
 
 fn file_content_is_identical<P1, P2>(file_path_1: P1, file_path_2: P2) -> io::Result<bool>
 where

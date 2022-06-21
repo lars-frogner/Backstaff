@@ -162,7 +162,7 @@ pub trait Interpolator3<F: BFloat>: InterpGridVerifier3 + Sync {
 }
 
 /// Defines the properties of a 2D interpolator.
-pub trait Interpolator2<F: BFloat>: Clone + Sync + Send {
+pub trait Interpolator2<F: BFloat>: Sync {
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///
@@ -293,7 +293,7 @@ pub trait Interpolator2<F: BFloat>: Clone + Sync + Send {
 }
 
 /// Defines the properties of a 1D interpolator.
-pub trait Interpolator1<F: BFloat>: Clone + Sync + Send {
+pub trait Interpolator1<F: BFloat>: Sync {
     /// Computes the interpolated value of a scalar field at the given coordinate,
     /// wrapping around any periodic boundaries.
     ///

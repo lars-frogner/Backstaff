@@ -8,8 +8,8 @@ use super::{
         utils::{self},
         Endianness, Verbosity,
     },
-    fdt, SnapshotParameters, SnapshotProvider3, SnapshotReader3, FALLBACK_SNAP_NUM,
-    PRIMARY_VARIABLE_NAMES_HD, PRIMARY_VARIABLE_NAMES_MHD,
+    fdt, SnapshotMetadata, SnapshotParameters, FALLBACK_SNAP_NUM, PRIMARY_VARIABLE_NAMES_HD,
+    PRIMARY_VARIABLE_NAMES_MHD,
 };
 use crate::{
     field::{FieldGrid3, ScalarField3, ScalarFieldProvider3},
@@ -19,10 +19,9 @@ use crate::{
     },
     grid::{
         CoordLocation::{self, Center, LowerEdge},
-        Grid3, GridType,
+        Grid3,
     },
     io::utils::IOContext,
-    with_io_err_msg,
 };
 use ndarray::prelude::*;
 use std::{
@@ -35,8 +34,8 @@ use std::{
 };
 
 pub use mesh::{
-    create_grid_from_mesh_file, parse_mesh_file, write_mesh_file_from_grid, NativeGridData,
-    NATIVE_COORD_PRECISION, NATIVE_COORD_WIDTH,
+    create_grid_from_mesh_file, write_mesh_file_from_grid, NATIVE_COORD_PRECISION,
+    NATIVE_COORD_WIDTH,
 };
 pub use param::NativeSnapshotParameters;
 
@@ -54,47 +53,86 @@ pub struct NativeSnapshotReaderConfig {
     verbosity: Verbosity,
 }
 
+impl NativeSnapshotReaderConfig {
+    /// Creates a new set of snapshot reader configuration parameters.
+    pub fn new(param_file_path: PathBuf, endianness: Endianness, verbosity: Verbosity) -> Self {
+        NativeSnapshotReaderConfig {
+            param_file_path,
+            endianness,
+            verbosity,
+        }
+    }
+}
+
+/// Information associated with a Bifrost 3D simulation snapshot
+/// in native format.
+#[derive(Clone, Debug)]
+pub struct NativeSnapshotMetadata {
+    snap_name: String,
+    snap_num: Option<u64>,
+    endianness: Endianness,
+    parameters: Box<NativeSnapshotParameters>,
+}
+
+impl NativeSnapshotMetadata {
+    fn new(parameters: NativeSnapshotParameters, endianness: Endianness) -> Self {
+        let (snap_name, snap_num) =
+            super::extract_name_and_num_from_snapshot_path(parameters.original_path());
+        Self {
+            snap_name,
+            snap_num,
+            endianness,
+            parameters: Box::new(parameters),
+        }
+    }
+
+    /// Returns the path of the parameter (.idl) file.
+    pub fn parameter_file_path(&self) -> &Path {
+        self.parameters.original_path()
+    }
+}
+
+impl SnapshotMetadata for NativeSnapshotMetadata {
+    fn snap_name(&self) -> &str {
+        &self.snap_name
+    }
+
+    fn snap_num(&self) -> Option<u64> {
+        self.snap_num
+    }
+
+    fn parameters(&self) -> &dyn SnapshotParameters {
+        self.parameters.as_ref()
+    }
+
+    fn endianness(&self) -> Endianness {
+        self.endianness
+    }
+}
+
 /// Reader for the native output files associated with Bifrost 3D simulation snapshots.
 #[derive(Clone, Debug)]
 pub struct NativeSnapshotReader3 {
-    config: NativeSnapshotReaderConfig,
-    parameters: Box<NativeSnapshotParameters>,
     snap_path: PathBuf,
     aux_path: PathBuf,
+    endianness: Endianness,
     grid: Arc<FieldGrid3>,
-    all_variable_names: Vec<String>,
     variable_descriptors: HashMap<String, VariableDescriptor>,
+    all_variable_names: Vec<String>,
+    verbosity: Verbosity,
 }
 
 impl NativeSnapshotReader3 {
     /// Creates a reader for a 3D Bifrost snapshot.
-    pub fn new(config: NativeSnapshotReaderConfig) -> io::Result<Self> {
-        let parameters =
-            NativeSnapshotParameters::new(config.param_file_path.clone(), config.verbosity())?;
+    pub fn new(config: NativeSnapshotReaderConfig) -> io::Result<(Self, NativeSnapshotMetadata)> {
+        let NativeSnapshotReaderConfig {
+            param_file_path,
+            endianness,
+            verbosity,
+        } = config;
 
-        let mesh_path = parameters.determine_mesh_path()?;
-        let is_periodic = parameters.determine_grid_periodicity()?;
+        let parameters = NativeSnapshotParameters::new(param_file_path, &verbosity)?;
 
-        let grid = create_grid_from_mesh_file(&mesh_path, is_periodic, config.verbosity())?;
-
-        Self::new_from_parameters_and_grid(config, parameters, grid)
-    }
-
-    /// Returns the path to the file representing the snapshot.
-    pub fn path(&self) -> &Path {
-        self.config.param_file_path()
-    }
-
-    pub fn verbosity(&self) -> &Verbosity {
-        self.config.verbosity()
-    }
-
-    /// Creates a reader for a 3D Bifrost snapshot.
-    pub fn new_from_parameters_and_grid(
-        config: NativeSnapshotReaderConfig,
-        parameters: NativeSnapshotParameters,
-        grid: FieldGrid3,
-    ) -> io::Result<Self> {
         let (snap_path, aux_path) = parameters.determine_snap_path()?;
 
         // Determine the set of primary variables to use
@@ -123,20 +161,25 @@ impl NativeSnapshotReader3 {
             &mut variable_descriptors,
         )?;
 
-        Ok(Self {
-            config,
-            parameters: Box::new(parameters),
-            snap_path,
-            aux_path,
-            grid: Arc::new(grid),
-            all_variable_names,
-            variable_descriptors,
-        })
-    }
+        let mesh_path = parameters.determine_mesh_path()?;
+        let is_periodic = parameters.determine_grid_periodicity()?;
 
-    /// Returns the path of the parameter (.idl) file.
-    pub fn parameter_file_path(&self) -> &Path {
-        self.config.param_file_path.as_path()
+        let grid = create_grid_from_mesh_file(&mesh_path, is_periodic, &verbosity)?;
+
+        let metadata = NativeSnapshotMetadata::new(parameters, endianness);
+
+        Ok((
+            Self {
+                snap_path,
+                aux_path,
+                endianness,
+                grid: Arc::new(grid),
+                variable_descriptors,
+                all_variable_names,
+                verbosity,
+            },
+            metadata,
+        ))
     }
 
     /// Returns the path of the primary variable (.snap) file.
@@ -147,6 +190,10 @@ impl NativeSnapshotReader3 {
     /// Returns the path of the auxiliary variable (.aux) file.
     pub fn auxiliary_variable_file_path(&self) -> &Path {
         self.aux_path.as_path()
+    }
+
+    pub fn verbosity(&self) -> &Verbosity {
+        &self.verbosity
     }
 
     fn insert_primary_variable_descriptors(
@@ -276,26 +323,6 @@ impl NativeSnapshotReader3 {
             )),
         }
     }
-
-    #[allow(dead_code)]
-    fn reread(&mut self) -> io::Result<()> {
-        let Self {
-            parameters,
-            snap_path,
-            aux_path,
-            grid,
-            variable_descriptors,
-            ..
-        } = Self::new(self.config.clone())?;
-
-        self.parameters = parameters;
-        self.snap_path = snap_path;
-        self.aux_path = aux_path;
-        self.grid = grid;
-        self.variable_descriptors = variable_descriptors;
-
-        Ok(())
-    }
 }
 
 impl ScalarFieldProvider3<fdt> for NativeSnapshotReader3 {
@@ -307,20 +334,6 @@ impl ScalarFieldProvider3<fdt> for NativeSnapshotReader3 {
         Arc::clone(&self.grid)
     }
 
-    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
-        self.read_scalar_field(variable_name)
-    }
-}
-
-impl SnapshotProvider3 for NativeSnapshotReader3 {
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.parameters.as_ref()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.config.endianness
-    }
-
     fn all_variable_names(&self) -> &[String] {
         &self.all_variable_names
     }
@@ -330,172 +343,50 @@ impl SnapshotProvider3 for NativeSnapshotReader3 {
             .contains(&variable_name.to_string())
     }
 
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        super::extract_name_and_num_from_snapshot_path(self.config.param_file_path())
-    }
-}
-
-impl SnapshotReader3 for NativeSnapshotReader3 {
-    fn read_scalar_field(&self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
+    fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
         let variable_descriptor = self.get_variable_descriptor(variable_name)?;
         let file_path = if variable_descriptor.is_primary {
-            &self.snap_path
+            self.primary_variable_file_path()
         } else {
-            &self.aux_path
+            self.auxiliary_variable_file_path()
         };
-        if self.config.verbosity.print_messages() {
+        if self.verbosity().print_messages() {
             println!(
                 "Reading {} from {}",
                 variable_name,
                 file_path.file_name().unwrap().to_string_lossy()
             );
         }
-        let shape = self.grid.shape();
+        let shape = self.grid().shape();
         let number_of_values = shape[X] * shape[Y] * shape[Z];
         let byte_offset = number_of_values * variable_descriptor.index * mem::size_of::<fdt>();
         let buffer = utils::read_from_binary_file(
             file_path,
             number_of_values,
             byte_offset,
-            self.config.endianness,
+            self.endianness,
         )?;
         let values = Array::from_shape_vec((shape[X], shape[Y], shape[Z]).f(), buffer).unwrap();
         Ok(ScalarField3::new(
             variable_name.to_string(),
-            Arc::clone(&self.grid),
+            self.arc_with_grid(),
             variable_descriptor.locations.clone(),
             values,
         ))
     }
 }
 
-impl NativeSnapshotReaderConfig {
-    /// Creates a new set of snapshot reader configuration parameters.
-    pub fn new(param_file_path: PathBuf, endianness: Endianness, verbosity: Verbosity) -> Self {
-        NativeSnapshotReaderConfig {
-            param_file_path,
-            endianness,
-            verbosity,
-        }
-    }
-
-    pub fn verbosity(&self) -> &Verbosity {
-        &self.verbosity
-    }
-
-    pub fn param_file_path(&self) -> &Path {
-        self.param_file_path.as_path()
-    }
-}
-
-/// Helper object for interpreting native snapshot metadata and creating
-/// the corresponding reader object.
-#[derive(Debug, Clone)]
-pub struct NativeSnapshotMetadata {
-    reader_config: NativeSnapshotReaderConfig,
-    parameters: NativeSnapshotParameters,
-    is_periodic: In3D<bool>,
-    grid_data: NativeGridData,
-}
-
-impl NativeSnapshotMetadata {
-    /// Gathers the metadata for the snapshot specified in the given
-    /// reader configuration and creates a new metadata object.
-    pub fn new(reader_config: NativeSnapshotReaderConfig) -> io::Result<Self> {
-        let parameters = with_io_err_msg!(
-            NativeSnapshotParameters::new(
-                reader_config.param_file_path().to_path_buf(),
-                reader_config.verbosity()
-            ),
-            "Could not read parameter file: {}"
-        )?;
-        let mesh_path = with_io_err_msg!(
-            parameters.determine_mesh_path(),
-            "Could not obtain path to mesh file: {}"
-        )?;
-        let is_periodic = with_io_err_msg!(
-            parameters.determine_grid_periodicity(),
-            "Could not determine grid periodicity: {}"
-        )?;
-        let grid_data = with_io_err_msg!(
-            parse_mesh_file(&mesh_path, reader_config.verbosity()),
-            "Could not parse mesh file: {}"
-        )?;
-        Ok(Self {
-            reader_config,
-            parameters,
-            is_periodic,
-            grid_data,
-        })
-    }
-
-    /// Returns the type of the grid used by this snapshot.
-    pub fn grid_type(&self) -> GridType {
-        self.grid_data.detected_grid_type
-    }
-
-    /// Creates a new snapshot reader from this metadata.
-    pub fn into_reader(self) -> io::Result<NativeSnapshotReader3> {
-        let (reader_config, parameters, grid) = self.into_parameters_and_grid();
-
-        with_io_err_msg!(
-            NativeSnapshotReader3::new_from_parameters_and_grid(reader_config, parameters, grid),
-            "Could not create snapshot reader: {}"
-        )
-    }
-
-    /// Creates a new grid from this metadata.
-    pub fn into_grid(self) -> FieldGrid3 {
-        let (_, _, grid) = self.into_parameters_and_grid();
-        grid
-    }
-
-    fn into_parameters_and_grid(
-        self,
-    ) -> (
-        NativeSnapshotReaderConfig,
-        NativeSnapshotParameters,
-        FieldGrid3,
-    ) {
-        let Self {
-            reader_config,
-            parameters,
-            is_periodic,
-            grid_data,
-        } = self;
-
-        let NativeGridData {
-            detected_grid_type,
-            center_coords,
-            lower_edge_coords,
-            up_derivatives,
-            down_derivatives,
-        } = grid_data;
-
-        let grid = FieldGrid3::from_coords_unchecked(
-            center_coords,
-            lower_edge_coords,
-            is_periodic,
-            Some(up_derivatives),
-            Some(down_derivatives),
-            detected_grid_type,
-        );
-        (reader_config, parameters, grid)
-    }
-}
-
 /// Writes the data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_new_snapshot<P>(
-    provider: &mut P,
+pub fn write_new_snapshot(
+    input_metadata: &dyn SnapshotMetadata,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     output_param_path: &Path,
     io_context: &IOContext,
     verbosity: &Verbosity,
-) -> io::Result<()>
-where
-    P: SnapshotProvider3,
-{
+) -> io::Result<()> {
     let quantity_names = provider.all_variable_names().to_vec();
     write_modified_snapshot(
+        input_metadata,
         provider,
         &quantity_names,
         output_param_path,
@@ -507,18 +398,16 @@ where
 }
 
 /// Writes modified data associated with the given snapshot to native snapshot files at the given path.
-pub fn write_modified_snapshot<P>(
-    provider: &mut P,
+pub fn write_modified_snapshot(
+    input_metadata: &dyn SnapshotMetadata,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     quantity_names: &[String],
     output_param_path: &Path,
     is_scratch: bool,
     write_mesh_file: bool,
     io_context: &IOContext,
     verbosity: &Verbosity,
-) -> io::Result<()>
-where
-    P: SnapshotProvider3,
-{
+) -> io::Result<()> {
     let (snap_name, snap_num) = super::extract_name_and_num_from_snapshot_path(output_param_path);
     let mut signed_snap_num =
         snap_num.unwrap_or(if is_scratch { 1 } else { FALLBACK_SNAP_NUM }) as i64;
@@ -527,7 +416,7 @@ where
     }
 
     let (included_primary_variable_names, included_auxiliary_variable_names, is_mhd) =
-        provider.classify_variable_names(quantity_names);
+        input_metadata.classify_variable_names(quantity_names);
 
     let has_primary = !included_primary_variable_names.is_empty();
     let has_auxiliary = !included_auxiliary_variable_names.is_empty();
@@ -578,7 +467,8 @@ where
             .unwrap()
             .to_string_lossy();
 
-        let new_parameters = provider.create_updated_parameters(
+        let new_parameters = input_metadata.create_updated_parameters(
+            provider.grid(),
             snap_name.as_str(),
             signed_snap_num,
             &included_auxiliary_variable_names,
@@ -608,7 +498,7 @@ where
         mesh::write_mesh_file_from_grid(provider.grid(), atomic_mesh_path.temporary_path())?;
     }
 
-    let endianness = provider.endianness();
+    let endianness = input_metadata.endianness();
 
     if write_snap_file {
         let output_snap_file_name = atomic_snap_file

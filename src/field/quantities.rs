@@ -2,8 +2,8 @@
 
 use crate::{
     field::{
-        self, CachingScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod, ScalarField3,
-        ScalarFieldProvider3, VectorField3,
+        self, CachingScalarFieldProvider3, DynCachingScalarFieldProvider3, FieldGrid3,
+        ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldProvider3, VectorField3,
     },
     geometry::{Idx3, In3D},
     grid::{CoordLocation, Grid3},
@@ -11,10 +11,7 @@ use crate::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
         InterpGridVerifier3,
     },
-    io::{
-        snapshot::{fdt, CachingSnapshotProvider3, SnapshotParameters, SnapshotProvider3},
-        Endianness, Verbosity,
-    },
+    io::{snapshot::fdt, Verbosity},
     io_result,
     units::solar::{U_B, U_E, U_L3, U_P, U_R, U_T, U_U},
 };
@@ -22,8 +19,6 @@ use lazy_static::lazy_static;
 use rayon::prelude::*;
 use regex::Regex;
 use std::{collections::HashMap, io, sync::Arc};
-
-use super::FieldGrid3;
 
 lazy_static! {
     static ref DERIVABLE_QUANTITIES: HashMap<&'static str, (&'static str, Vec<&'static str>)> =
@@ -170,29 +165,25 @@ fn create_available_quantity_table_string() -> String {
 }
 
 /// Computer of derived quantities from Bifrost 3D simulation snapshots.
-#[derive(Clone, Debug)]
-pub struct DerivedSnapshotProvider3<P> {
-    provider: P,
+pub struct DerivedScalarFieldProvider3 {
+    provider: DynCachingScalarFieldProvider3<fdt>,
     derived_quantity_names: Vec<String>,
     all_variable_names: Vec<String>,
     cached_scalar_fields: HashMap<String, Arc<ScalarField3<fdt>>>,
     verbosity: Verbosity,
 }
 
-impl<P> DerivedSnapshotProvider3<P>
-where
-    P: CachingSnapshotProvider3,
-{
+impl DerivedScalarFieldProvider3 {
     /// Creates a computer of derived 3D quantities.
     pub fn new(
-        provider: P,
+        provider: DynCachingScalarFieldProvider3<fdt>,
         derived_quantity_names: Vec<String>,
         handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
         verbosity: Verbosity,
     ) -> Self {
         let derived_quantity_names: Vec<_> = derived_quantity_names
             .into_iter()
-            .filter(|name| Self::verify_variable_availability(&provider, name, handle_unavailable))
+            .filter(|name| Self::verify_variable_availability(&*provider, name, handle_unavailable))
             .collect();
 
         let mut all_variable_names = provider.all_variable_names().to_vec();
@@ -207,6 +198,16 @@ where
         }
     }
 
+    /// Returns a reference to the wrapped provider.
+    pub fn provider(&self) -> &dyn CachingScalarFieldProvider3<fdt> {
+        &*self.provider
+    }
+
+    /// Returns a mutable reference to the wrapped provider.
+    pub fn provider_mut(&mut self) -> &mut dyn CachingScalarFieldProvider3<fdt> {
+        &mut *self.provider
+    }
+
     /// Returns the names of the derived quantities that this computer will provide as auxiliary variables.
     pub fn derived_quantity_names(&self) -> &[String] {
         &self.derived_quantity_names
@@ -216,8 +217,8 @@ where
         &mut self,
         variable_name: &str,
     ) -> io::Result<ScalarField3<fdt>> {
-        if self.provider.has_variable(variable_name) {
-            self.provider.produce_scalar_field(variable_name)
+        if self.provider().has_variable(variable_name) {
+            self.provider_mut().produce_scalar_field(variable_name)
         } else {
             let verbosity = self.verbosity.clone();
             compute_quantity(self, variable_name, &verbosity)
@@ -225,7 +226,7 @@ where
     }
 
     fn basic_variable_is_available(
-        provider: &P,
+        provider: &dyn CachingScalarFieldProvider3<fdt>,
         variable_name: &str,
     ) -> (bool, Option<Vec<&'static str>>) {
         if provider.has_variable(variable_name) {
@@ -249,12 +250,12 @@ where
     }
 
     fn verify_variable_availability(
-        provider: &P,
+        provider: &dyn CachingScalarFieldProvider3<fdt>,
         variable_name: &str,
         handle_unavailable: &dyn Fn(&str, Option<Vec<&str>>),
     ) -> bool {
         let (available, missing_dependencies) =
-            DerivedSnapshotProvider3::basic_variable_is_available(provider, variable_name);
+            Self::basic_variable_is_available(provider, variable_name);
         if available {
             true
         } else if let Some(cgs_base_name) = cgs_base_name(variable_name) {
@@ -262,11 +263,11 @@ where
                 mod_vec_component_names(cgs_base_name)
             {
                 let (available_x, missing_dependencies_x) =
-                    DerivedSnapshotProvider3::basic_variable_is_available(provider, &x_comp_name);
+                    Self::basic_variable_is_available(provider, &x_comp_name);
                 let (available_y, missing_dependencies_y) =
-                    DerivedSnapshotProvider3::basic_variable_is_available(provider, &y_comp_name);
+                    Self::basic_variable_is_available(provider, &y_comp_name);
                 let (available_z, missing_dependencies_z) =
-                    DerivedSnapshotProvider3::basic_variable_is_available(provider, &z_comp_name);
+                    Self::basic_variable_is_available(provider, &z_comp_name);
                 if available_x && available_y && available_z {
                     true
                 } else {
@@ -292,10 +293,7 @@ where
                 }
             } else if let Some(centered_base_name) = centered_base_name(cgs_base_name) {
                 let (available, missing_dependencies) =
-                    DerivedSnapshotProvider3::basic_variable_is_available(
-                        provider,
-                        centered_base_name,
-                    );
+                    Self::basic_variable_is_available(provider, centered_base_name);
                 if available {
                     true
                 } else {
@@ -304,7 +302,7 @@ where
                 }
             } else {
                 let (available, missing_dependencies) =
-                    DerivedSnapshotProvider3::basic_variable_is_available(provider, cgs_base_name);
+                    Self::basic_variable_is_available(provider, cgs_base_name);
                 if available {
                     true
                 } else {
@@ -316,11 +314,11 @@ where
             mod_vec_component_names(variable_name)
         {
             let (available_x, missing_dependencies_x) =
-                DerivedSnapshotProvider3::basic_variable_is_available(provider, &x_comp_name);
+                Self::basic_variable_is_available(provider, &x_comp_name);
             let (available_y, missing_dependencies_y) =
-                DerivedSnapshotProvider3::basic_variable_is_available(provider, &y_comp_name);
+                Self::basic_variable_is_available(provider, &y_comp_name);
             let (available_z, missing_dependencies_z) =
-                DerivedSnapshotProvider3::basic_variable_is_available(provider, &z_comp_name);
+                Self::basic_variable_is_available(provider, &z_comp_name);
             if available_x && available_y && available_z {
                 true
             } else {
@@ -346,7 +344,7 @@ where
             }
         } else if let Some(centered_base_name) = centered_base_name(variable_name) {
             let (available, missing_dependencies) =
-                DerivedSnapshotProvider3::basic_variable_is_available(provider, centered_base_name);
+                Self::basic_variable_is_available(provider, centered_base_name);
             if available {
                 true
             } else {
@@ -360,16 +358,21 @@ where
     }
 }
 
-impl<P> ScalarFieldProvider3<fdt> for DerivedSnapshotProvider3<P>
-where
-    P: CachingSnapshotProvider3,
-{
+impl ScalarFieldProvider3<fdt> for DerivedScalarFieldProvider3 {
     fn grid(&self) -> &FieldGrid3 {
-        self.provider.grid()
+        self.provider().grid()
     }
 
     fn arc_with_grid(&self) -> Arc<FieldGrid3> {
-        self.provider.arc_with_grid()
+        self.provider().arc_with_grid()
+    }
+
+    fn all_variable_names(&self) -> &[String] {
+        &self.all_variable_names
+    }
+
+    fn has_variable(&self, variable_name: &str) -> bool {
+        Self::verify_variable_availability(self.provider(), variable_name, &|_, _| {})
     }
 
     fn produce_scalar_field(&mut self, variable_name: &str) -> io::Result<ScalarField3<fdt>> {
@@ -389,22 +392,19 @@ where
     }
 }
 
-impl<P> CachingScalarFieldProvider3<fdt> for DerivedSnapshotProvider3<P>
-where
-    P: CachingSnapshotProvider3,
-{
+impl CachingScalarFieldProvider3<fdt> for DerivedScalarFieldProvider3 {
     fn scalar_field_is_cached(&self, variable_name: &str) -> bool {
         self.cached_scalar_fields.contains_key(variable_name)
-            || self.provider.scalar_field_is_cached(variable_name)
+            || self.provider().scalar_field_is_cached(variable_name)
     }
 
     fn vector_field_is_cached(&self, variable_name: &str) -> bool {
-        self.provider.vector_field_is_cached(variable_name)
+        self.provider().vector_field_is_cached(variable_name)
     }
 
     fn cache_scalar_field(&mut self, variable_name: &str) -> io::Result<()> {
-        if self.provider.has_variable(variable_name) {
-            self.provider.cache_scalar_field(variable_name)
+        if self.provider().has_variable(variable_name) {
+            self.provider_mut().cache_scalar_field(variable_name)
         } else {
             if !self.cached_scalar_fields.contains_key(variable_name) {
                 let field = self.provide_scalar_field(variable_name)?;
@@ -419,7 +419,7 @@ where
     }
 
     fn cache_vector_field(&mut self, variable_name: &str) -> io::Result<()> {
-        self.provider.cache_vector_field(variable_name)
+        self.provider_mut().cache_vector_field(variable_name)
     }
 
     fn arc_with_cached_scalar_field(&self, variable_name: &str) -> &Arc<ScalarField3<fdt>> {
@@ -429,12 +429,12 @@ where
             }
             field
         } else {
-            self.provider.arc_with_cached_scalar_field(variable_name)
+            self.provider().arc_with_cached_scalar_field(variable_name)
         }
     }
 
     fn arc_with_cached_vector_field(&self, variable_name: &str) -> &Arc<VectorField3<fdt>> {
-        self.provider.arc_with_cached_vector_field(variable_name)
+        self.provider().arc_with_cached_vector_field(variable_name)
     }
 
     fn drop_scalar_field(&mut self, variable_name: &str) {
@@ -444,42 +444,17 @@ where
             }
             self.cached_scalar_fields.remove(variable_name);
         } else {
-            self.provider.drop_scalar_field(variable_name)
+            self.provider_mut().drop_scalar_field(variable_name)
         }
     }
 
     fn drop_vector_field(&mut self, variable_name: &str) {
-        self.provider.drop_vector_field(variable_name)
+        self.provider_mut().drop_vector_field(variable_name)
     }
 
     fn drop_all_fields(&mut self) {
         self.cached_scalar_fields.clear();
-        self.provider.drop_all_fields()
-    }
-}
-
-impl<P> SnapshotProvider3 for DerivedSnapshotProvider3<P>
-where
-    P: CachingSnapshotProvider3,
-{
-    fn parameters(&self) -> &dyn SnapshotParameters {
-        self.provider.parameters()
-    }
-
-    fn endianness(&self) -> Endianness {
-        self.provider.endianness()
-    }
-
-    fn all_variable_names(&self) -> &[String] {
-        &self.all_variable_names
-    }
-
-    fn has_variable(&self, variable_name: &str) -> bool {
-        Self::verify_variable_availability(&self.provider, variable_name, &|_, _| {})
-    }
-
-    fn obtain_snap_name_and_num(&self) -> (String, Option<u64>) {
-        self.provider.obtain_snap_name_and_num()
+        self.provider_mut().drop_all_fields()
     }
 }
 
@@ -527,14 +502,11 @@ macro_rules! compute_derived_quantity {
 }
 
 /// Computes the derived quantity field with the given name.
-fn compute_quantity<P>(
-    provider: &mut P,
+fn compute_quantity(
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     quantity_name: &str,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: SnapshotProvider3,
-{
+) -> io::Result<ScalarField3<fdt>> {
     let grid = provider.arc_with_grid();
 
     if DERIVABLE_QUANTITIES.contains_key(quantity_name) {
@@ -619,16 +591,13 @@ where
     }
 }
 
-pub fn compute_scaled_quantity<P>(
+pub fn compute_scaled_quantity(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dep_name: &str,
     scale: fdt,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
+) -> io::Result<ScalarField3<fdt>> {
     if scale == 1.0 {
         provider
             .produce_scalar_field(dep_name)
@@ -644,16 +613,13 @@ where
     }
 }
 
-pub fn compute_centered_quantity<P>(
+pub fn compute_centered_quantity(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dep_name: &str,
     scale: fdt,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
+) -> io::Result<ScalarField3<fdt>> {
     if scale == 1.0 {
         compute_centered_general_single_dep_quantity(
             quantity_name,
@@ -673,17 +639,14 @@ where
     }
 }
 
-pub fn compute_quantity_product<P>(
+pub fn compute_quantity_product(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     factor_1_name: &str,
     factor_2_name: &str,
     scale: fdt,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
+) -> io::Result<ScalarField3<fdt>> {
     compute_general_double_dep_quantity(
         quantity_name,
         provider,
@@ -694,17 +657,14 @@ where
     )
 }
 
-pub fn compute_quantity_quotient<P>(
+pub fn compute_quantity_quotient(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dividend_name: &str,
     divisor_name: &str,
     scale: fdt,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
+) -> io::Result<ScalarField3<fdt>> {
     compute_general_double_dep_quantity(
         quantity_name,
         provider,
@@ -715,18 +675,15 @@ where
     )
 }
 
-pub fn compute_vector_quantity_norm<P>(
+pub fn compute_vector_quantity_norm(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     x_component_name: &str,
     y_component_name: &str,
     z_component_name: &str,
     scale: fdt,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
+) -> io::Result<ScalarField3<fdt>> {
     compute_general_triple_dep_quantity(
         quantity_name,
         provider,
@@ -740,18 +697,15 @@ where
     )
 }
 
-pub fn compute_sum_of_single_and_squared_term_quantity<P>(
+pub fn compute_sum_of_single_and_squared_term_quantity(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     single_name: &str,
     squared_name: &str,
     single_scale: fdt,
     squared_scale: fdt,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
+) -> io::Result<ScalarField3<fdt>> {
     compute_general_double_dep_quantity(
         quantity_name,
         provider,
@@ -762,19 +716,16 @@ where
     )
 }
 
-pub fn compute_sum_of_single_and_squared_term_quantity_product<P>(
+pub fn compute_sum_of_single_and_squared_term_quantity_product(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     factor_name: &str,
     single_name: &str,
     squared_name: &str,
     single_scale: fdt,
     squared_scale: fdt,
     verbosity: &Verbosity,
-) -> io::Result<ScalarField3<fdt>>
-where
-    P: ScalarFieldProvider3<fdt>,
-{
+) -> io::Result<ScalarField3<fdt>> {
     compute_general_triple_dep_quantity(
         quantity_name,
         provider,
@@ -788,15 +739,14 @@ where
     )
 }
 
-pub fn compute_general_single_dep_quantity<P, C>(
+pub fn compute_general_single_dep_quantity<C>(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dep_name: &str,
     compute: C,
     verbosity: &Verbosity,
 ) -> io::Result<ScalarField3<fdt>>
 where
-    P: ScalarFieldProvider3<fdt>,
     C: Fn(fdt) -> fdt + Sync,
 {
     let field = provider.produce_scalar_field(dep_name)?;
@@ -821,15 +771,14 @@ where
     ))
 }
 
-pub fn compute_centered_general_single_dep_quantity<P, C>(
+pub fn compute_centered_general_single_dep_quantity<C>(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dep_name: &str,
     compute: C,
     verbosity: &Verbosity,
 ) -> io::Result<ScalarField3<fdt>>
 where
-    P: ScalarFieldProvider3<fdt>,
     C: Fn(&mut fdt) + Sync + Send,
 {
     let center_locations = In3D::same(CoordLocation::Center);
@@ -864,15 +813,14 @@ where
     Ok(centered_field)
 }
 
-pub fn compute_general_single_dep_quantity_with_indices<P, C>(
+pub fn compute_general_single_dep_quantity_with_indices<C>(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dep_name: &str,
     compute: C,
     verbosity: &Verbosity,
 ) -> io::Result<ScalarField3<fdt>>
 where
-    P: ScalarFieldProvider3<fdt>,
     C: Fn(&Idx3<usize>, fdt) -> fdt + Sync,
 {
     let field = provider.produce_scalar_field(dep_name)?;
@@ -904,16 +852,15 @@ where
     ))
 }
 
-pub fn compute_general_double_dep_quantity<P, C>(
+pub fn compute_general_double_dep_quantity<C>(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dep_name_1: &str,
     dep_name_2: &str,
     compute: C,
     verbosity: &Verbosity,
 ) -> io::Result<ScalarField3<fdt>>
 where
-    P: ScalarFieldProvider3<fdt>,
     C: Fn(fdt, fdt) -> fdt + Sync,
 {
     let mut field_1 = provider.produce_scalar_field(dep_name_1)?;
@@ -970,9 +917,9 @@ where
     ))
 }
 
-pub fn compute_general_triple_dep_quantity<P, C>(
+pub fn compute_general_triple_dep_quantity<C>(
     quantity_name: &str,
-    provider: &mut P,
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
     dep_name_1: &str,
     dep_name_2: &str,
     dep_name_3: &str,
@@ -980,7 +927,6 @@ pub fn compute_general_triple_dep_quantity<P, C>(
     verbosity: &Verbosity,
 ) -> io::Result<ScalarField3<fdt>>
 where
-    P: ScalarFieldProvider3<fdt>,
     C: Fn(fdt, fdt, fdt) -> fdt + Sync,
 {
     let mut field_1 = provider.produce_scalar_field(dep_name_1)?;

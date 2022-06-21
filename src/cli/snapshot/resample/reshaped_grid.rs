@@ -12,7 +12,7 @@ use crate::{
         snapshot::{inspect::create_inspect_subcommand, write::create_write_subcommand},
         utils,
     },
-    field::{ResampledCoordLocation, ResamplingMethod},
+    field::{DynScalarFieldProvider3, ResampledCoordLocation, ResamplingMethod},
     geometry::{
         Dim3::{X, Y, Z},
         In3D,
@@ -20,7 +20,7 @@ use crate::{
     grid::Grid3,
     interpolation::Interpolator3,
     io::{
-        snapshot::{fdt, SnapshotProvider3},
+        snapshot::{fdt, SnapshotMetadata},
         utils::IOContext,
         Verbosity,
     },
@@ -86,19 +86,18 @@ pub fn create_reshaped_grid_subcommand(_parent_command_name: &'static str) -> Co
     )
 }
 
-pub fn run_resampling_for_reshaped_grid<P>(
+pub fn run_resampling_for_reshaped_grid(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
-    provider: P,
+    metadata: &dyn SnapshotMetadata,
+    provider: DynScalarFieldProvider3<fdt>,
     resampled_locations: &In3D<ResampledCoordLocation>,
     resampling_method: ResamplingMethod,
     continue_on_warnings: bool,
     verbosity: Verbosity,
     interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
-) where
-    P: SnapshotProvider3,
-{
+) {
     let original_shape = provider.grid().shape();
 
     let unscaled_shape =
@@ -131,6 +130,7 @@ pub fn run_resampling_for_reshaped_grid<P>(
         provider.grid().clone(),
         new_shape,
         arguments,
+        metadata,
         provider,
         resampled_locations,
         resampling_method,
