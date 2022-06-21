@@ -283,8 +283,8 @@ impl RKFStepper3 for RKF45Stepper3 {
     }
 }
 
-impl Stepper3 for RKF45Stepper3 {
-    fn place<F>(
+impl<F> Stepper3<F> for RKF45Stepper3 {
+    fn place(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
@@ -298,7 +298,7 @@ impl Stepper3 for RKF45Stepper3 {
         self.place_with_callback(field, interpolator, sense, position, callback)
     }
 
-    fn step<F>(
+    fn step(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
@@ -311,7 +311,7 @@ impl Stepper3 for RKF45Stepper3 {
         self.step_with_callback(field, interpolator, sense, callback)
     }
 
-    fn step_dense_output<F>(
+    fn step_dense_output(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
@@ -327,8 +327,13 @@ impl Stepper3 for RKF45Stepper3 {
     fn position(&self) -> &Point3<ftr> {
         &self.state().position
     }
+
     fn distance(&self) -> ftr {
         self.state().distance
+    }
+
+    fn heap_clone(&self) -> Box<dyn Stepper3<F>> {
+        Box::new(self.clone())
     }
 }
 
@@ -339,7 +344,7 @@ impl RKF45StepperFactory3 {
     }
 }
 
-impl StepperFactory3 for RKF45StepperFactory3 {
+impl<F> StepperFactory3<F> for RKF45StepperFactory3 {
     type Output = RKF45Stepper3;
     fn produce(&self) -> Self::Output {
         RKF45Stepper3::new(self.config.clone())

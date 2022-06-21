@@ -56,20 +56,14 @@ pub trait FieldLineTracer3 {
     ///
     /// - `Some`: Contains a `FieldLineData3` object representing the traced field line.
     /// - `None`: No field line was traced.
-    ///
-    /// # Type parameters
-    ///
-    /// - `St`: Type of stepper.
-    fn trace<St>(
+    fn trace(
         &self,
         field_name: &str,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper: St,
+        stepper: Box<dyn Stepper3<fdt>>,
         start_position: &Point3<ftr>,
-    ) -> Option<Self::Data>
-    where
-        St: Stepper3;
+    ) -> Option<Self::Data>;
 }
 
 /// Collection of 3D field lines.
@@ -147,7 +141,8 @@ impl FieldLineSet3 {
         Tr: FieldLineTracer3 + Sync,
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-        StF: StepperFactory3 + Sync,
+        StF: StepperFactory3<fdt> + Sync,
+        <StF as StepperFactory3<fdt>>::Output: 'static,
     {
         let number_of_points = seeder.number_of_points();
         if verbosity.print_messages() {
@@ -162,7 +157,7 @@ impl FieldLineSet3 {
                     field_name,
                     snapshot,
                     interpolator,
-                    stepper_factory.produce(),
+                    Box::new(stepper_factory.produce()),
                     &Point3::from(&start_position),
                 )
             })

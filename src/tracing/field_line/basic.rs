@@ -65,17 +65,14 @@ impl BasicFieldLineTracer3 {
 impl FieldLineTracer3 for BasicFieldLineTracer3 {
     type Data = BasicFieldLineData3;
 
-    fn trace<S>(
+    fn trace(
         &self,
         field_name: &str,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper: S,
+        stepper: Box<dyn Stepper3<fdt>>,
         start_position: &Point3<ftr>,
-    ) -> Option<Self::Data>
-    where
-        S: Stepper3,
-    {
+    ) -> Option<Self::Data> {
         let field = snapshot.cached_vector_field(field_name);
 
         let mut backward_path = (VecDeque::new(), VecDeque::new(), VecDeque::new());
@@ -99,7 +96,7 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
                     FieldLinePointSpacing::Regular => tracing::trace_3d_field_line_dense(
                         field,
                         interpolator,
-                        stepper.clone(),
+                        stepper.heap_clone(),
                         start_position,
                         SteppingSense::Opposite,
                         &mut callback,
@@ -107,7 +104,7 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
                     FieldLinePointSpacing::Natural => tracing::trace_3d_field_line(
                         field,
                         interpolator,
-                        stepper.clone(),
+                        stepper.heap_clone(),
                         start_position,
                         SteppingSense::Opposite,
                         &mut callback,
@@ -126,7 +123,7 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
                     FieldLinePointSpacing::Regular => tracing::trace_3d_field_line_dense(
                         field,
                         interpolator,
-                        stepper.clone(),
+                        stepper.heap_clone(),
                         start_position,
                         SteppingSense::Opposite,
                         &mut callback,
@@ -134,7 +131,7 @@ impl FieldLineTracer3 for BasicFieldLineTracer3 {
                     FieldLinePointSpacing::Natural => tracing::trace_3d_field_line(
                         field,
                         interpolator,
-                        stepper.clone(),
+                        stepper.heap_clone(),
                         start_position,
                         SteppingSense::Opposite,
                         &mut callback,

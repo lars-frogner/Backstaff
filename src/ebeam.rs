@@ -334,7 +334,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          StF: StepperFactory3 + Sync
+          StF: StepperFactory3<fdt> + Sync
     {
         let (distributions, acceleration_data) = accelerator
             .generate_distributions(
@@ -389,7 +389,8 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
           A: Accelerator + Sync + Send,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
-          StF: StepperFactory3 + Sync
+          StF: StepperFactory3<fdt> + Sync,
+          <StF as StepperFactory3<fdt>>::Output: 'static,
     {
         let (distributions, acceleration_data) = accelerator
             .generate_distributions(
@@ -425,7 +426,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                     snapshot,
                     &acceleration_map,
                     interpolator,
-                    stepper_factory.produce(),
+                    Box::new(stepper_factory.produce()),
                 )
             })
             .collect();
@@ -750,17 +751,14 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
     }
 }
 
-impl<'a, D: 'a + Distribution> PropagatedElectronBeam<D> {
-    fn generate<S>(
+impl<D: Distribution> PropagatedElectronBeam<D> {
+    fn generate(
         mut distribution: D,
-        snapshot: &'a dyn CachingScalarFieldProvider3<fdt>,
+        snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
-        stepper: S,
-    ) -> Option<Self>
-    where
-        S: Stepper3,
-    {
+        stepper: Box<dyn Stepper3<fdt>>,
+    ) -> Option<Self> {
         let magnetic_field = snapshot.cached_vector_field("b");
         let start_position = Point3::from(distribution.acceleration_position());
 

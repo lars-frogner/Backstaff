@@ -40,17 +40,16 @@ pub enum TracerResult {
 ///
 /// - `F`: Floating point type of the field data.
 /// - `S`: Type of stepper.
-pub fn trace_3d_field_line<F, St>(
+pub fn trace_3d_field_line<F>(
     field: &VectorField3<F>,
     interpolator: &dyn Interpolator3<F>,
-    mut stepper: St,
+    mut stepper: Box<dyn Stepper3<F>>,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
     callback: &mut SteppingCallback,
 ) -> TracerResult
 where
     F: BFloat,
-    St: Stepper3,
 {
     match stepper.place(field, interpolator, sense, start_position, callback) {
         StepperResult::Ok(_) => {}
@@ -86,17 +85,16 @@ where
 ///
 /// - `F`: Floating point type of the field data.
 /// - `St`: Type of stepper.
-pub fn trace_3d_field_line_dense<F, St>(
+pub fn trace_3d_field_line_dense<F>(
     field: &VectorField3<F>,
     interpolator: &dyn Interpolator3<F>,
-    mut stepper: St,
+    mut stepper: Box<dyn Stepper3<F>>,
     start_position: &Point3<ftr>,
     sense: SteppingSense,
     callback: &mut SteppingCallback,
 ) -> TracerResult
 where
     F: BFloat,
-    St: Stepper3,
 {
     match stepper.place(field, interpolator, sense, start_position, callback) {
         StepperResult::Ok(_) => {}

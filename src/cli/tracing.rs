@@ -354,7 +354,8 @@ fn run_with_selected_interpolator<Tr, StF>(
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-    StF: StepperFactory3 + Sync,
+    StF: StepperFactory3<fdt> + Sync,
+    <StF as StepperFactory3<fdt>>::Output: 'static,
 {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
@@ -401,7 +402,8 @@ fn run_with_selected_seeder<Tr, StF>(
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-    StF: StepperFactory3 + Sync,
+    StF: StepperFactory3<fdt> + Sync,
+    <StF as StepperFactory3<fdt>>::Output: 'static,
 {
     if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
         let seeder =
@@ -455,7 +457,8 @@ fn run_tracing<Tr, StF, Sd>(
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-    StF: StepperFactory3 + Sync,
+    StF: StepperFactory3<fdt> + Sync,
+    <StF as StepperFactory3<fdt>>::Output: 'static,
     Sd: Seeder3,
 {
     let mut output_file_path = exit_on_error!(

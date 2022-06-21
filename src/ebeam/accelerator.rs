@@ -31,5 +31,5 @@ pub trait Accelerator {
     )>
     where
         D: ReconnectionSiteDetector,
-        StF: StepperFactory3 + Sync;
+        StF: StepperFactory3<fdt> + Sync;
 }

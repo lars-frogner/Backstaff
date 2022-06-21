@@ -362,7 +362,7 @@ impl Accelerator for SimplePowerLawAccelerator {
     )>
     where
         D: ReconnectionSiteDetector,
-        StF: StepperFactory3 + Sync,
+        StF: StepperFactory3<fdt> + Sync,
     {
         let seeder = detector.detect_reconnection_sites(snapshot, verbosity);
         let number_of_locations = seeder.number_of_indices();

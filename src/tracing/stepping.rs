@@ -46,7 +46,11 @@ pub type SteppingCallback<'a> =
     dyn 'a + FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
 /// Defines the properties of a stepping scheme.
-pub trait Stepper3: Clone {
+///
+/// # Type parameters
+///
+/// - `F`: Floating point type of the field data.
+pub trait Stepper3<F> {
     /// Places the stepper inside the field.
     ///
     /// # Parameters
@@ -64,11 +68,7 @@ pub trait Stepper3: Clone {
     ///
     /// - `Ok`: Stepper placement succeeded.
     /// - `Stopped`: Contains a `StoppingCause` indicating why stepper placement failed.
-    ///
-    /// # Type parameters
-    ///
-    /// - `F`: Floating point type of the field data.
-    fn place<F>(
+    fn place(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
@@ -99,7 +99,7 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn step<F>(
+    fn step(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
@@ -129,7 +129,7 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    fn step_dense_output<F>(
+    fn step_dense_output(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
@@ -144,11 +144,14 @@ pub trait Stepper3: Clone {
 
     /// Retuns the current distance of the stepper along the field line.
     fn distance(&self) -> ftr;
+
+    /// Returns a mutable reference to a clone of this stepper living on the heap.
+    fn heap_clone(&self) -> Box<dyn Stepper3<F>>;
 }
 
 /// Defines the properties of a 3D stepper factory structure.
-pub trait StepperFactory3 {
-    type Output: Stepper3;
+pub trait StepperFactory3<F> {
+    type Output: Stepper3<F>;
 
     /// Creates a new 3D stepper.
     fn produce(&self) -> Self::Output;
