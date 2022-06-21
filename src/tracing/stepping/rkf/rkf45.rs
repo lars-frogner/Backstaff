@@ -3,7 +3,7 @@
 //! estimation through an embedded fourth-order step.
 
 use super::{
-    super::{Stepper3, StepperFactory3, StepperInstruction, StepperResult},
+    super::{Stepper3, StepperFactory3, StepperInstruction, StepperResult, SteppingSense},
     ComputedDirection3, PIControlParams, RKFStepper3, RKFStepperConfig, RKFStepperState3,
     StepAttempt3,
 };
@@ -122,46 +122,41 @@ impl RKFStepper3 for RKF45Stepper3 {
         &mut self.0
     }
 
-    fn attempt_step<F, D>(
+    fn attempt_step<F>(
         &self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
-        direction_computer: &D,
+        sense: SteppingSense,
     ) -> StepperResult<StepAttempt3>
     where
         F: BFloat,
-        D: Fn(&mut Vec3<ftr>),
     {
         let state = self.state();
 
         let mut next_position =
             &state.position + &state.direction * (Self::A21 * state.step_length);
 
-        let intermediate_direction_1 = match Self::compute_direction(
-            field,
-            interpolator,
-            direction_computer,
-            &next_position,
-        ) {
-            StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
-            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => direction,
-            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
-        };
+        let intermediate_direction_1 =
+            match Self::compute_direction(field, interpolator, sense, &next_position) {
+                StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
+                StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => {
+                    direction
+                }
+                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
+            };
 
         next_position = &state.position
             + (&state.direction * Self::A31 + &intermediate_direction_1 * Self::A32)
                 * state.step_length;
 
-        let intermediate_direction_2 = match Self::compute_direction(
-            field,
-            interpolator,
-            direction_computer,
-            &next_position,
-        ) {
-            StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
-            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => direction,
-            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
-        };
+        let intermediate_direction_2 =
+            match Self::compute_direction(field, interpolator, sense, &next_position) {
+                StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
+                StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => {
+                    direction
+                }
+                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
+            };
 
         next_position = &state.position
             + (&state.direction * Self::A41
@@ -169,16 +164,14 @@ impl RKFStepper3 for RKF45Stepper3 {
                 + &intermediate_direction_2 * Self::A43)
                 * state.step_length;
 
-        let intermediate_direction_3 = match Self::compute_direction(
-            field,
-            interpolator,
-            direction_computer,
-            &next_position,
-        ) {
-            StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
-            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => direction,
-            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
-        };
+        let intermediate_direction_3 =
+            match Self::compute_direction(field, interpolator, sense, &next_position) {
+                StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
+                StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => {
+                    direction
+                }
+                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
+            };
 
         next_position = &state.position
             + (&state.direction * Self::A51
@@ -187,16 +180,14 @@ impl RKFStepper3 for RKF45Stepper3 {
                 + &intermediate_direction_3 * Self::A54)
                 * state.step_length;
 
-        let intermediate_direction_4 = match Self::compute_direction(
-            field,
-            interpolator,
-            direction_computer,
-            &next_position,
-        ) {
-            StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
-            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => direction,
-            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
-        };
+        let intermediate_direction_4 =
+            match Self::compute_direction(field, interpolator, sense, &next_position) {
+                StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
+                StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => {
+                    direction
+                }
+                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
+            };
 
         next_position = &state.position
             + (&state.direction * Self::A61
@@ -206,16 +197,14 @@ impl RKFStepper3 for RKF45Stepper3 {
                 + &intermediate_direction_4 * Self::A65)
                 * state.step_length;
 
-        let intermediate_direction_5 = match Self::compute_direction(
-            field,
-            interpolator,
-            direction_computer,
-            &next_position,
-        ) {
-            StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
-            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => direction,
-            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
-        };
+        let intermediate_direction_5 =
+            match Self::compute_direction(field, interpolator, sense, &next_position) {
+                StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
+                StepperResult::Ok(ComputedDirection3::WithWrappedPosition((_, direction))) => {
+                    direction
+                }
+                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
+            };
 
         let step_displacement = (&state.direction * Self::A71
             + &intermediate_direction_2 * Self::A73
@@ -228,23 +217,19 @@ impl RKFStepper3 for RKF45Stepper3 {
 
         let mut step_wrapped = false;
 
-        let next_direction = match Self::compute_direction(
-            field,
-            interpolator,
-            direction_computer,
-            &next_position,
-        ) {
-            StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
-            StepperResult::Ok(ComputedDirection3::WithWrappedPosition((
-                wrapped_position,
-                direction,
-            ))) => {
-                step_wrapped = true;
-                next_position = wrapped_position;
-                direction
-            }
-            StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
-        };
+        let next_direction =
+            match Self::compute_direction(field, interpolator, sense, &next_position) {
+                StepperResult::Ok(ComputedDirection3::Standard(direction)) => direction,
+                StepperResult::Ok(ComputedDirection3::WithWrappedPosition((
+                    wrapped_position,
+                    direction,
+                ))) => {
+                    step_wrapped = true;
+                    next_position = wrapped_position;
+                    direction
+                }
+                StepperResult::Stopped(cause) => return StepperResult::Stopped(cause),
+            };
 
         StepperResult::Ok(StepAttempt3 {
             step_displacement,
@@ -299,50 +284,47 @@ impl RKFStepper3 for RKF45Stepper3 {
 }
 
 impl Stepper3 for RKF45Stepper3 {
-    fn place<F, D, C>(
+    fn place<F, C>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
-        direction_computer: &D,
+        sense: SteppingSense,
         position: &Point3<ftr>,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
-        self.place_with_callback(field, interpolator, direction_computer, position, callback)
+        self.place_with_callback(field, interpolator, sense, position, callback)
     }
 
-    fn step<F, D, C>(
+    fn step<F, C>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
-        direction_computer: &D,
+        sense: SteppingSense,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
-        self.step_with_callback(field, interpolator, direction_computer, callback)
+        self.step_with_callback(field, interpolator, sense, callback)
     }
 
-    fn step_dense_output<F, D, C>(
+    fn step_dense_output<F, C>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
-        direction_computer: &D,
+        sense: SteppingSense,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction,
     {
-        self.step_with_callback_dense_output(field, interpolator, direction_computer, callback)
+        self.step_with_callback_dense_output(field, interpolator, sense, callback)
     }
 
     fn position(&self) -> &Point3<ftr> {

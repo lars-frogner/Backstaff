@@ -50,7 +50,7 @@ pub trait Stepper3: Clone {
     ///
     /// - `field`: Vector field to step in.
     /// - `interpolator`: Interpolator to use.
-    /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
+    /// - `sense`: Whether the field line should be traced in the same or opposite direction as the field.
     /// - `position`: Position where the stepper should be placed.
     /// - `callback`: Closure that will be called with a zero-length displacement vector,
     /// the placed position and a zero-valued distance, if successful.
@@ -65,19 +65,17 @@ pub trait Stepper3: Clone {
     /// # Type parameters
     ///
     /// - `F`: Floating point type of the field data.
-    /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn place<F, D, C>(
+    fn place<F, C>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
-        direction_computer: &D,
+        sense: SteppingSense,
         position: &Point3<ftr>,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
     /// Performs a step.
@@ -86,7 +84,7 @@ pub trait Stepper3: Clone {
     ///
     /// - `field`: Vector field to step in.
     /// - `interpolator`: Interpolator to use.
-    /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
+    /// - `sense`: Whether the field line should be traced in the same or opposite direction as the field.
     /// - `callback`: Closure that will be called with the displacement vector from the previous to
     /// the current position, the current position and the total traced distance, if successful.
     ///
@@ -102,16 +100,15 @@ pub trait Stepper3: Clone {
     /// - `F`: Floating point type of the field data.
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn step<F, D, C>(
+    fn step<F, C>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
-        direction_computer: &D,
+        sense: SteppingSense,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
     /// Performs a step, producing regularly spaced output positions.
@@ -120,7 +117,7 @@ pub trait Stepper3: Clone {
     ///
     /// - `field`: Vector field to step in.
     /// - `interpolator`: Interpolator to use.
-    /// - `direction_computer`: Closure used to compute a stepping direction from a field vector.
+    /// - `sense`: Whether the field line should be traced in the same or opposite direction as the field.
     /// - `callback`: Closure that will be called with the displacement vector from the previous to
     /// the current output position, the current output position and the total traced distance, if successful.
     ///
@@ -136,16 +133,15 @@ pub trait Stepper3: Clone {
     /// - `F`: Floating point type of the field data.
     /// - `D`: Function type taking a mutable reference to a field vector.
     /// - `C`: Mutable function type taking a displacement, a direction, a position and a distance and returning a `StepperInstruction`.
-    fn step_dense_output<F, D, C>(
+    fn step_dense_output<F, C>(
         &mut self,
         field: &VectorField3<F>,
         interpolator: &dyn Interpolator3<F>,
-        direction_computer: &D,
+        sense: SteppingSense,
         callback: &mut C,
     ) -> StepperResult<()>
     where
         F: BFloat,
-        D: Fn(&mut Vec3<ftr>),
         C: FnMut(&Vec3<ftr>, &Vec3<ftr>, &Point3<ftr>, ftr) -> StepperInstruction;
 
     /// Returns a reference to the current stepper position.
