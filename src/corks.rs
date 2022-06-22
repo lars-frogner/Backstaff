@@ -9,6 +9,7 @@ use crate::{
         snapshot::{fdt, MASS_DENSITY_VARIABLE_NAME, MOMENTUM_VARIABLE_NAME},
         utils, Verbosity,
     },
+    seeding::Seeder3,
 };
 use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
@@ -259,7 +260,7 @@ impl CorkSet {
     /// # Parameters
     ///
     /// - `number_of_corks`: The total number of corks.
-    /// - `initial_positions`: Iterator over the positions of the corks at the initial time.
+    /// - `seeder`: Seeder providing the positions of the corks at the initial time.
     /// - `initial_snapshot`: Snapshot representing the atmosphere at the initial time.
     /// - `interpolator`: Interpolator to use.
     /// - `scalar_quantity_names`: List of scalar quantities to sample along cork trajectories.
@@ -272,18 +273,15 @@ impl CorkSet {
     ///
     /// - `Ok`: Contains a new `CorkSet` with initialized corks.
     /// - `Err`: Contains an error encountered while trying to read or interpret the initial snapshot.
-    pub fn new<Po>(
+    pub fn new(
         number_of_corks: usize,
-        initial_positions: Po,
+        seeder: &dyn Seeder3,
         initial_snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
         scalar_quantity_names: Vec<String>,
         vector_quantity_names: Vec<String>,
         verbosity: Verbosity,
-    ) -> io::Result<Self>
-    where
-        Po: IntoParallelIterator<Item = Point3<fco>>,
-    {
+    ) -> io::Result<Self> {
         initial_snapshot.cache_scalar_field(MASS_DENSITY_VARIABLE_NAME)?;
         initial_snapshot.cache_vector_field(MOMENTUM_VARIABLE_NAME)?;
 
@@ -301,12 +299,13 @@ impl CorkSet {
             .any(|name| name == MASS_DENSITY_VARIABLE_NAME);
 
         let mut corks = Self {
-            corks: initial_positions
-                .into_par_iter()
+            corks: seeder
+                .points()
+                .par_iter()
                 .progress_with(verbosity.create_progress_bar(number_of_corks))
                 .map(|position| {
                     Cork::new_from_fields(
-                        position,
+                        position.clone(),
                         0,
                         number_of_scalar_quantities,
                         number_of_vector_quantities,

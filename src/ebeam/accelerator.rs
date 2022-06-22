@@ -18,17 +18,15 @@ pub trait Accelerator {
 
     /// Generates a set of distributions with associated acceleration data in the given snapshot,
     /// at the 3D indices produced by the given seeder.
-    fn generate_distributions<D>(
+    fn generate_distributions(
         &self,
         snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
-        detector: D,
+        detector: &dyn ReconnectionSiteDetector,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: DynStepper3<fdt>,
         verbosity: &Verbosity,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
         Self::AccelerationDataCollectionType,
-    )>
-    where
-        D: ReconnectionSiteDetector;
+    )>;
 }

@@ -36,7 +36,7 @@ use crate::{
         accelerator::Accelerator,
         detection::{
             simple::{SimpleReconnectionSiteDetector, SimpleReconnectionSiteDetectorConfig},
-            ReconnectionSiteDetector,
+            DynReconnectionSiteDetector,
         },
         distribution::{
             power_law::{
@@ -330,24 +330,23 @@ impl fmt::Display for OutputType {
 }
 
 fn run_with_selected_detector(
-    arguments: &ArgMatches,
+    root_arguments: &ArgMatches,
     metadata: &dyn SnapshotMetadata,
     snapshot: DynCachingScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
 ) {
-    if let Some(detector_arguments) = arguments.subcommand_matches("manual_detector") {
-        let detector = construct_manual_reconnection_site_detector_from_options(detector_arguments);
-        run_with_selected_accelerator(
-            arguments,
-            detector_arguments,
-            metadata,
-            snapshot,
-            detector,
-            io_context,
-        );
-    } else {
-        let (detector_config, detector_arguments) =
-            if let Some(detector_arguments) = arguments.subcommand_matches("simple_detector") {
+    let (detector, detector_arguments) =
+        if let Some(detector_arguments) = root_arguments.subcommand_matches("manual_detector") {
+            (
+                Box::new(construct_manual_reconnection_site_detector_from_options(
+                    detector_arguments,
+                )) as DynReconnectionSiteDetector,
+                detector_arguments,
+            )
+        } else {
+            let (detector_config, detector_arguments) = if let Some(detector_arguments) =
+                root_arguments.subcommand_matches("simple_detector")
+            {
                 (
                     construct_simple_reconnection_site_detector_config_from_options(
                         detector_arguments,
@@ -360,37 +359,38 @@ fn run_with_selected_detector(
                     SimpleReconnectionSiteDetectorConfig::with_defaults_from_param_file(
                         metadata.parameters(),
                     ),
-                    arguments,
+                    root_arguments,
                 )
             };
 
-        if arguments.is_present("print-parameter-values") {
-            println!("{:#?}", detector_config);
-        }
+            if root_arguments.is_present("print-parameter-values") {
+                println!("{:#?}", detector_config);
+            }
 
-        let detector = SimpleReconnectionSiteDetector::new(detector_config);
-
-        run_with_selected_accelerator(
-            arguments,
-            detector_arguments,
-            metadata,
-            snapshot,
-            detector,
-            io_context,
-        );
-    }
+            (
+                Box::new(SimpleReconnectionSiteDetector::new(detector_config))
+                    as DynReconnectionSiteDetector,
+                detector_arguments,
+            )
+        };
+    run_with_selected_accelerator(
+        root_arguments,
+        detector_arguments,
+        metadata,
+        snapshot,
+        detector,
+        io_context,
+    );
 }
 
-fn run_with_selected_accelerator<D>(
+fn run_with_selected_accelerator(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     metadata: &dyn SnapshotMetadata,
     snapshot: DynCachingScalarFieldProvider3<fdt>,
-    detector: D,
+    detector: DynReconnectionSiteDetector,
     io_context: &mut IOContext,
-) where
-    D: ReconnectionSiteDetector,
-{
+) {
     let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
         arguments.subcommand_matches("power_law_distribution")
     {
@@ -449,15 +449,14 @@ fn run_with_selected_accelerator<D>(
     };
 }
 
-fn run_with_selected_interpolator<D, A>(
+fn run_with_selected_interpolator<A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: DynCachingScalarFieldProvider3<fdt>,
-    detector: D,
+    detector: DynReconnectionSiteDetector,
     accelerator: A,
     io_context: &mut IOContext)
-where D: ReconnectionSiteDetector,
-      A: Accelerator + Sync + Send,
+where A: Accelerator + Sync + Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
       A::DistributionType: Send,
 {
@@ -494,16 +493,15 @@ where D: ReconnectionSiteDetector,
     );
 }
 
-fn run_with_selected_stepper<D, A>(
+fn run_with_selected_stepper<A>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: DynCachingScalarFieldProvider3<fdt>,
-    detector: D,
+    detector: DynReconnectionSiteDetector,
     accelerator: A,
     interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext)
-where D: ReconnectionSiteDetector,
-      A: Accelerator + Sync + Send,
+where A: Accelerator + Sync + Send,
       A::DistributionType: Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
 {
@@ -576,7 +574,7 @@ where D: ReconnectionSiteDetector,
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
                     &mut *snapshot,
-                    detector,
+                    &*detector,
                     accelerator,
                     interpolator,
                     stepper,
@@ -585,7 +583,7 @@ where D: ReconnectionSiteDetector,
             } else {
                 ElectronBeamSwarm::generate_propagated(
                     &mut *snapshot,
-                    detector,
+                    &*detector,
                     accelerator,
                     interpolator,
                     stepper,
@@ -598,7 +596,7 @@ where D: ReconnectionSiteDetector,
             if root_arguments.is_present("generate-only") {
                 ElectronBeamSwarm::generate_unpropagated(
                     &mut *snapshot,
-                    detector,
+                    &*detector,
                     accelerator,
                     interpolator,
                     stepper,
@@ -607,7 +605,7 @@ where D: ReconnectionSiteDetector,
             } else {
                 ElectronBeamSwarm::generate_propagated(
                     &mut *snapshot,
-                    detector,
+                    &*detector,
                     accelerator,
                     interpolator,
                     stepper,

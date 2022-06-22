@@ -12,7 +12,6 @@ use crate::{
     num::BFloat,
 };
 use rayon::prelude::*;
-use std::vec;
 
 /// Generator for seed indices found by evaluating a criterion on values of a 3D field.
 #[derive(Clone, Debug)]
@@ -189,32 +188,13 @@ impl CriterionSeeder3 {
     }
 }
 
-impl IntoIterator for CriterionSeeder3 {
-    type Item = Idx3<usize>;
-    type IntoIter = vec::IntoIter<Self::Item>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.seed_indices.into_iter()
-    }
-}
-
-impl IntoParallelIterator for CriterionSeeder3 {
-    type Item = Idx3<usize>;
-    type Iter = rayon::vec::IntoIter<Self::Item>;
-    fn into_par_iter(self) -> Self::Iter {
-        self.seed_indices.into_par_iter()
-    }
-}
-
 impl IndexSeeder3 for CriterionSeeder3 {
     fn number_of_indices(&self) -> usize {
         self.seed_indices.len()
     }
 
-    fn retain_indices<P>(&mut self, predicate: P)
-    where
-        P: FnMut(&Idx3<usize>) -> bool,
-    {
-        self.seed_indices.retain(predicate);
+    fn indices(&self) -> &[Idx3<usize>] {
+        &self.seed_indices
     }
 
     fn to_point_seeder(&self, grid: &FieldGrid3) -> Vec<Point3<fgr>> {

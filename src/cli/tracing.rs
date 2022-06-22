@@ -34,7 +34,7 @@ use crate::{
         snapshot::{self, fdt},
         utils::{AtomicOutputFile, IOContext},
     },
-    seeding::Seeder3,
+    seeding::DynSeeder3,
     tracing::{
         field_line::{
             basic::{BasicFieldLineTracer3, BasicFieldLineTracerConfig},
@@ -398,59 +398,47 @@ fn run_with_selected_seeder<Tr>(
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
 {
-    if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
-        let seeder =
-            create_slice_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
-        run_tracing(
-            root_arguments,
-            snapshot,
-            tracer,
-            stepper,
+    let seeder = if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
+        Box::new(create_slice_seeder_from_arguments(
+            seeder_arguments,
+            &mut *snapshot,
             interpolator,
-            seeder,
-            io_context,
-        );
+        )) as DynSeeder3
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
-        let seeder =
-            create_volume_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
-        run_tracing(
-            root_arguments,
-            snapshot,
-            tracer,
-            stepper,
+        Box::new(create_volume_seeder_from_arguments(
+            seeder_arguments,
+            &mut *snapshot,
             interpolator,
-            seeder,
-            io_context,
-        );
+        )) as DynSeeder3
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
-        let seeder = create_manual_seeder_from_arguments(seeder_arguments);
-        run_tracing(
-            root_arguments,
-            snapshot,
-            tracer,
-            stepper,
-            interpolator,
-            seeder,
-            io_context,
-        );
+        Box::new(create_manual_seeder_from_arguments(seeder_arguments)) as DynSeeder3
     } else {
         exit_with_error!("Error: No seeder specified")
     };
+
+    run_tracing(
+        root_arguments,
+        snapshot,
+        tracer,
+        stepper,
+        interpolator,
+        seeder,
+        io_context,
+    );
 }
 
-fn run_tracing<Tr, Sd>(
+fn run_tracing<Tr>(
     root_arguments: &ArgMatches,
     mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     tracer: Tr,
     stepper: DynStepper3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
-    seeder: Sd,
+    seeder: DynSeeder3,
     io_context: &mut IOContext,
 ) where
     Tr: FieldLineTracer3 + Sync,
     <Tr as FieldLineTracer3>::Data: Send,
     FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
-    Sd: Seeder3,
 {
     let mut output_file_path = exit_on_error!(
         PathBuf::from_str(
@@ -517,7 +505,7 @@ fn run_tracing<Tr, Sd>(
     let field_lines = FieldLineSet3::trace(
         quantity,
         &*snapshot,
-        seeder,
+        &*seeder,
         &tracer,
         interpolator,
         stepper,

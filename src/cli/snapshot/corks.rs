@@ -25,7 +25,7 @@ use crate::{
         snapshot::{fdt, SnapshotMetadata, OUTPUT_TIME_STEP_NAME},
         utils::IOContext,
     },
-    seeding::Seeder3,
+    seeding::{DynSeeder3, Seeder3},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
@@ -217,20 +217,30 @@ fn initialize_with_selected_seeder(
     interpolator: &dyn Interpolator3<fdt>,
     corks_state: &mut Option<CorksState>,
 ) {
-    if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
-        let seeder =
-            create_slice_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
-        initialize_corks(root_arguments, snapshot, interpolator, seeder, corks_state);
+    let seeder = if let Some(seeder_arguments) = arguments.subcommand_matches("slice_seeder") {
+        Box::new(create_slice_seeder_from_arguments(
+            seeder_arguments,
+            &mut *snapshot,
+            interpolator,
+        )) as DynSeeder3
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("volume_seeder") {
-        let seeder =
-            create_volume_seeder_from_arguments(seeder_arguments, &mut *snapshot, interpolator);
-        initialize_corks(root_arguments, snapshot, interpolator, seeder, corks_state);
+        Box::new(create_volume_seeder_from_arguments(
+            seeder_arguments,
+            &mut *snapshot,
+            interpolator,
+        )) as DynSeeder3
     } else if let Some(seeder_arguments) = arguments.subcommand_matches("manual_seeder") {
-        let seeder = create_manual_seeder_from_arguments(seeder_arguments);
-        initialize_corks(root_arguments, snapshot, interpolator, seeder, corks_state);
+        Box::new(create_manual_seeder_from_arguments(seeder_arguments)) as DynSeeder3
     } else {
         exit_with_error!("Error: No seeder specified")
     };
+    initialize_corks(
+        root_arguments,
+        snapshot,
+        interpolator,
+        &*seeder,
+        corks_state,
+    );
 }
 
 fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, Vec<String>) {
@@ -258,15 +268,13 @@ fn obtain_sampled_quantity_names(root_arguments: &ArgMatches) -> (Vec<String>, V
     (scalar_quantity_names, vector_quantity_names)
 }
 
-fn initialize_corks<Sd>(
+fn initialize_corks(
     root_arguments: &ArgMatches,
     mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     interpolator: &dyn Interpolator3<fdt>,
-    seeder: Sd,
+    seeder: &dyn Seeder3,
     corks_state: &mut Option<CorksState>,
-) where
-    Sd: Seeder3,
-{
+) {
     let (scalar_quantity_names, vector_quantity_names) =
         obtain_sampled_quantity_names(root_arguments);
 

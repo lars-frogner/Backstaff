@@ -15,7 +15,6 @@ use crate::{
         Verbosity,
     },
     plasma::ionization,
-    seeding::IndexSeeder3,
     tracing::stepping::{DynStepper3, SteppingSense},
     units::solar::{U_E, U_L, U_L3, U_R, U_T},
 };
@@ -349,20 +348,17 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
     type AccelerationDataCollectionType = ();
 
-    fn generate_distributions<D>(
+    fn generate_distributions(
         &self,
         snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
-        detector: D,
+        detector: &dyn ReconnectionSiteDetector,
         interpolator: &dyn Interpolator3<fdt>,
         _stepper: DynStepper3<fdt>,
         verbosity: &Verbosity,
     ) -> io::Result<(
         Vec<Self::DistributionType>,
         Self::AccelerationDataCollectionType,
-    )>
-    where
-        D: ReconnectionSiteDetector,
-    {
+    )> {
         let seeder = detector.detect_reconnection_sites(snapshot, verbosity);
         let number_of_locations = seeder.number_of_indices();
 
@@ -371,7 +367,8 @@ impl Accelerator for SimplePowerLawAccelerator {
         }
         snapshot.cache_scalar_field("qjoule")?;
         let properties: Vec<_> = seeder
-            .into_par_iter()
+            .indices()
+            .par_iter()
             .progress_with(verbosity.create_progress_bar(number_of_locations))
             .filter_map(|indices| {
                 if self.config.inclusion_probability < 1.0
@@ -379,12 +376,11 @@ impl Accelerator for SimplePowerLawAccelerator {
                 {
                     None
                 } else {
-                    let total_power_density =
-                        self.determine_total_power_density(snapshot, &indices);
+                    let total_power_density = self.determine_total_power_density(snapshot, indices);
                     if total_power_density < self.config.min_total_power_density {
                         None
                     } else {
-                        Some((indices, total_power_density))
+                        Some((indices.clone(), total_power_density))
                     }
                 }
             })

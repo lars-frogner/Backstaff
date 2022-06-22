@@ -6,11 +6,9 @@ use crate::{
     geometry::{Idx3, Point3},
     io::utils,
 };
-use rayon::{self, prelude::*};
 use std::{
     io::{self, BufRead},
     path::Path,
-    vec,
 };
 
 /// Generator for 3D seed points read from an input file.
@@ -86,32 +84,13 @@ impl ManualSeeder3 {
     }
 }
 
-impl IntoIterator for ManualSeeder3 {
-    type Item = Point3<fgr>;
-    type IntoIter = vec::IntoIter<Self::Item>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.seed_points.into_iter()
-    }
-}
-
-impl IntoParallelIterator for ManualSeeder3 {
-    type Item = Point3<fgr>;
-    type Iter = rayon::vec::IntoIter<Self::Item>;
-    fn into_par_iter(self) -> Self::Iter {
-        self.seed_points.into_par_iter()
-    }
-}
-
 impl Seeder3 for ManualSeeder3 {
     fn number_of_points(&self) -> usize {
         self.seed_points.len()
     }
 
-    fn retain_points<P>(&mut self, predicate: P)
-    where
-        P: FnMut(&Point3<fgr>) -> bool,
-    {
-        self.seed_points.retain(predicate);
+    fn points(&self) -> &[Point3<fgr>] {
+        &self.seed_points
     }
 
     fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>> {

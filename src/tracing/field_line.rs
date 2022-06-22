@@ -121,19 +121,17 @@ impl FieldLineSet3 {
     ///
     /// # Type parameters
     ///
-    /// - `Sd`: Type of seeder.
     /// - `Tr`: Type of field line tracer.
-    pub fn trace<Sd, Tr>(
+    pub fn trace<Tr>(
         field_name: &str,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
-        seeder: Sd,
+        seeder: &dyn Seeder3,
         tracer: &Tr,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: DynStepper3<fdt>,
         verbosity: Verbosity,
     ) -> Self
     where
-        Sd: Seeder3,
         Tr: FieldLineTracer3 + Sync,
         <Tr as FieldLineTracer3>::Data: Send,
         FieldLineSetProperties3: FromParallelIterator<<Tr as FieldLineTracer3>::Data>,
@@ -144,7 +142,8 @@ impl FieldLineSet3 {
         }
 
         let properties: FieldLineSetProperties3 = seeder
-            .into_par_iter()
+            .points()
+            .par_iter()
             .progress_with(verbosity.create_progress_bar(number_of_points))
             .filter_map(|start_position| {
                 tracer.trace(
@@ -152,7 +151,7 @@ impl FieldLineSet3 {
                     snapshot,
                     interpolator,
                     stepper.heap_clone(),
-                    &Point3::from(&start_position),
+                    start_position,
                 )
             })
             .collect();

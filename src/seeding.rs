@@ -12,17 +12,16 @@ use crate::{
 };
 use rayon::prelude::*;
 
+pub type DynSeeder3 = Box<dyn Seeder3>;
+pub type DynIndexSeeder3 = Box<dyn IndexSeeder3>;
+
 /// Defines the properties of a 3D seed point generator.
-pub trait Seeder3:
-    IntoIterator<Item = Point3<fgr>> + IntoParallelIterator<Item = Point3<fgr>>
-{
+pub trait Seeder3 {
     /// Returns the number of seed points that will be produced by the seeder.
     fn number_of_points(&self) -> usize;
 
-    /// Filters the seed points using the given predicate.
-    fn retain_points<P>(&mut self, predicate: P)
-    where
-        P: FnMut(&Point3<fgr>) -> bool;
+    /// Returns a slice with all seed points.
+    fn points(&self) -> &[Point3<fgr>];
 
     /// Creates a list of seed indices from the seed points by looking up the grid cells
     /// of the given grid containing the seed points.
@@ -30,16 +29,12 @@ pub trait Seeder3:
 }
 
 /// Defines the properties of a 3D seed index generator.
-pub trait IndexSeeder3:
-    IntoIterator<Item = Idx3<usize>> + IntoParallelIterator<Item = Idx3<usize>>
-{
+pub trait IndexSeeder3 {
     /// Returns the number of seed indices that will be produced by the seeder.
     fn number_of_indices(&self) -> usize;
 
-    /// Filters the seed indices using the given predicate.
-    fn retain_indices<P>(&mut self, predicate: P)
-    where
-        P: FnMut(&Idx3<usize>) -> bool;
+    /// Returns a slice with all seed indices.
+    fn indices(&self) -> &[Idx3<usize>];
 
     /// Creates a list of seed points from the seed indices by indexing the center coordinates
     /// of the given grid.
@@ -52,11 +47,8 @@ impl Seeder3 for Vec<Point3<fgr>> {
         self.len()
     }
 
-    fn retain_points<P>(&mut self, predicate: P)
-    where
-        P: FnMut(&Point3<fgr>) -> bool,
-    {
-        self.retain(predicate);
+    fn points(&self) -> &[Point3<fgr>] {
+        self
     }
 
     fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>> {
@@ -75,11 +67,8 @@ impl IndexSeeder3 for Vec<Idx3<usize>> {
         self.len()
     }
 
-    fn retain_indices<P>(&mut self, predicate: P)
-    where
-        P: FnMut(&Idx3<usize>) -> bool,
-    {
-        self.retain(predicate);
+    fn indices(&self) -> &[Idx3<usize>] {
+        self
     }
 
     fn to_point_seeder(&self, grid: &FieldGrid3) -> Vec<Point3<fgr>> {

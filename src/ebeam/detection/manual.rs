@@ -3,9 +3,8 @@
 use super::ReconnectionSiteDetector;
 use crate::{
     field::CachingScalarFieldProvider3,
-    geometry::Idx3,
     io::{snapshot::fdt, Verbosity},
-    seeding::{manual::ManualSeeder3, Seeder3},
+    seeding::{manual::ManualSeeder3, DynIndexSeeder3, Seeder3},
 };
 use std::io;
 use std::path::Path;
@@ -28,13 +27,11 @@ impl ManualReconnectionSiteDetector {
 }
 
 impl ReconnectionSiteDetector for ManualReconnectionSiteDetector {
-    type Seeder = Vec<Idx3<usize>>;
-
     fn detect_reconnection_sites(
         &self,
         snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         _verbosity: &Verbosity,
-    ) -> Self::Seeder {
-        self.seeder.to_index_seeder(snapshot.grid())
+    ) -> DynIndexSeeder3 {
+        Box::new(self.seeder.to_index_seeder(snapshot.grid())) as DynIndexSeeder3
     }
 }

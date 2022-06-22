@@ -14,7 +14,7 @@ use crate::{
 };
 use rand::distributions::{uniform::SampleUniform, Distribution, Uniform};
 use rayon::{self, prelude::*};
-use std::{collections::HashSet, iter::FromIterator, vec};
+use std::{collections::HashSet, iter::FromIterator};
 
 /// Generator for seed points in a volume of a 3D field.
 #[derive(Clone, Debug)]
@@ -284,32 +284,13 @@ impl VolumeSeeder3 {
     }
 }
 
-impl IntoIterator for VolumeSeeder3 {
-    type Item = Point3<fgr>;
-    type IntoIter = vec::IntoIter<Self::Item>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.seed_points.into_iter()
-    }
-}
-
-impl IntoParallelIterator for VolumeSeeder3 {
-    type Item = Point3<fgr>;
-    type Iter = rayon::vec::IntoIter<Self::Item>;
-    fn into_par_iter(self) -> Self::Iter {
-        self.seed_points.into_par_iter()
-    }
-}
-
 impl Seeder3 for VolumeSeeder3 {
     fn number_of_points(&self) -> usize {
         self.seed_points.len()
     }
 
-    fn retain_points<P>(&mut self, predicate: P)
-    where
-        P: FnMut(&Point3<fgr>) -> bool,
-    {
-        self.seed_points.retain(predicate);
+    fn points(&self) -> &[Point3<fgr>] {
+        &self.seed_points
     }
 
     fn to_index_seeder(&self, grid: &FieldGrid3) -> Vec<Idx3<usize>> {

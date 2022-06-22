@@ -9,7 +9,7 @@ use crate::{
         snapshot::{self, fdt, fpa, SnapshotParameters},
         Verbosity,
     },
-    seeding::{criterion::CriterionSeeder3, IndexSeeder3},
+    seeding::{criterion::CriterionSeeder3, DynIndexSeeder3, IndexSeeder3},
 };
 
 /// Configuration parameters for the simple reconnection site detection method.
@@ -39,13 +39,11 @@ impl SimpleReconnectionSiteDetector {
 }
 
 impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
-    type Seeder = CriterionSeeder3;
-
     fn detect_reconnection_sites(
         &self,
         provider: &mut dyn CachingScalarFieldProvider3<fdt>,
         verbosity: &Verbosity,
-    ) -> Self::Seeder {
+    ) -> DynIndexSeeder3 {
         let reconnection_factor_field = exit_on_error!(
             provider.provide_scalar_field("krec"),
             "Error: Could not read reconnection factor field from snapshot: {}"
@@ -64,7 +62,7 @@ impl ReconnectionSiteDetector for SimpleReconnectionSiteDetector {
         if verbosity.print_messages() {
             println!("Found {} acceleration sites", seeder.number_of_indices());
         }
-        seeder
+        Box::new(seeder) as DynIndexSeeder3
     }
 }
 

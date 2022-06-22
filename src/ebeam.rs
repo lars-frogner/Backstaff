@@ -323,14 +323,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Returns
     ///
     /// A new `ElectronBeamSwarm` with unpropagated electron beams.
-    ///
-    /// # Type parameters
-    ///
-    /// - `D`: Type of reconnection site detector.
-    pub fn generate_unpropagated<D>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
+    pub fn generate_unpropagated(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: &dyn ReconnectionSiteDetector, accelerator: A,
         interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity) -> Self
-    where D: ReconnectionSiteDetector,
-          A: Accelerator + Sync,
+    where A: Accelerator + Sync,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
     {
@@ -370,14 +365,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Returns
     ///
     /// A new `ElectronBeamSwarm` with propagated electron beams.
-    ///
-    /// # Type parameters
-    ///
-    /// - `D`: Type of reconnection site detector.
-    pub fn generate_propagated<D>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: D, accelerator: A,
+    pub fn generate_propagated(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: &dyn ReconnectionSiteDetector, accelerator: A,
         interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity) -> Self
-    where D: ReconnectionSiteDetector,
-          A: Accelerator + Sync + Send,
+    where A: Accelerator + Sync + Send,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
     {
