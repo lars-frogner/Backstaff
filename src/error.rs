@@ -1,3 +1,5 @@
+//! Error handling.
+
 #[cfg(not(feature = "for-testing"))]
 #[macro_export]
 macro_rules! exit_with_error {
