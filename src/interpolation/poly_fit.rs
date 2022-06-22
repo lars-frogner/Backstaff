@@ -1481,6 +1481,66 @@ fn interp_extrap_vector_field_2d<
     )
 }
 
+macro_rules! call_interp_1d {
+    ($order:expr , $function_name:ident [ $($available_order:expr),* ] $args:tt) => {{
+        $(
+            paste::paste! { const [<POINTS_ $available_order>]: usize = $available_order + 1; }
+        )*
+        match $order {
+            $(
+                $available_order => {
+                    paste::paste! { call_interp_1d!(@call $function_name::<_, [<POINTS_ $available_order>]>$args) }
+                },
+            )*
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }};
+    (@call $function_name:ident::<_, $points:ident>($($arg:expr),*)) => {
+        $function_name::<_, $points>($($arg,)*)
+    }
+}
+
+macro_rules! call_interp_2d {
+    ($order:expr , $function_name:ident [ $($available_order:expr),* ] $args:tt) => {{
+        $(
+            paste::paste! { const [<POINTS_ $available_order>]: usize = $available_order + 1; }
+            paste::paste! { const [<POINTS_SQ_ $available_order>]: usize = ($available_order + 1)*($available_order + 1); }
+        )*
+        match $order {
+            $(
+                $available_order => {
+                    paste::paste! { call_interp_2d!(@call $function_name::<_, [<POINTS_ $available_order>], [<POINTS_SQ_ $available_order>]>$args) }
+                },
+            )*
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }};
+    (@call $function_name:ident::<_, $points:ident, $points_squared:ident>($($arg:expr),*)) => {
+        $function_name::<_, $points, $points_squared>($($arg,)*)
+    }
+}
+
+macro_rules! call_interp_3d {
+    ($order:expr , $function_name:ident [ $($available_order:expr),* ] $args:tt) => {{
+        $(
+            paste::paste! { const [<POINTS_ $available_order>]: usize = $available_order + 1; }
+            paste::paste! { const [<POINTS_SQ_ $available_order>]: usize = ($available_order + 1)*($available_order + 1); }
+            paste::paste! { const [<POINTS_CB_ $available_order>]: usize = ($available_order + 1)*($available_order + 1)*($available_order + 1); }
+        )*
+        match $order {
+            $(
+                $available_order => {
+                    paste::paste! { call_interp_3d!(@call $function_name::<_, [<POINTS_ $available_order>], [<POINTS_SQ_ $available_order>], [<POINTS_CB_ $available_order>]>$args) }
+                },
+            )*
+            order => panic!("Invalid interpolation order: {}", order),
+        }
+    }};
+    (@call $function_name:ident::<_, $points:ident, $points_squared:ident, $points_cubed:ident>($($arg:expr),*)) => {
+        $function_name::<_, $points, $points_squared, $points_cubed>($($arg,)*)
+    }
+}
+
 /// Configuration parameters for polynomial fitting interpolators.
 #[derive(Clone, Debug)]
 pub struct PolyFitInterpolatorConfig {
@@ -1532,34 +1592,13 @@ impl<F: BFloat> Interpolator3<F> for PolyFitInterpolator3 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_scalar_field_3d::<_, 2, 4, 8>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_scalar_field_3d::<_, 3, 9, 27>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_scalar_field_3d::<_, 4, 16, 64>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_scalar_field_3d::<_, 5, 25, 125>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_scalar_field_3d::<_, 6, 36, 216>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_3d!(
+            self.config.order,
+            interp_scalar_field_3d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_scalar_field_known_cell(
@@ -1583,39 +1622,13 @@ impl<F: BFloat> Interpolator3<F> for PolyFitInterpolator3 {
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_scalar_field_in_known_grid_cell_3d::<_, 2, 4, 8>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_scalar_field_in_known_grid_cell_3d::<_, 3, 9, 27>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_scalar_field_in_known_grid_cell_3d::<_, 4, 16, 64>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_scalar_field_in_known_grid_cell_3d::<_, 5, 25, 125>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_scalar_field_in_known_grid_cell_3d::<_, 6, 36, 216>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_3d!(
+            self.config.order,
+            interp_scalar_field_in_known_grid_cell_3d [1, 2, 3, 4, 5] (
+                field, interp_point, interp_indices, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_extrap_scalar_field(
@@ -1628,34 +1641,13 @@ impl<F: BFloat> Interpolator3<F> for PolyFitInterpolator3 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_extrap_scalar_field_3d::<_, 2, 4, 8>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_extrap_scalar_field_3d::<_, 3, 9, 27>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_extrap_scalar_field_3d::<_, 4, 16, 64>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_extrap_scalar_field_3d::<_, 5, 25, 125>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_extrap_scalar_field_3d::<_, 6, 36, 216>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_3d!(
+            self.config.order,
+            interp_extrap_scalar_field_3d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_vector_field(
@@ -1668,34 +1660,13 @@ impl<F: BFloat> Interpolator3<F> for PolyFitInterpolator3 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_vector_field_3d::<_, 2, 4, 8>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_vector_field_3d::<_, 3, 9, 27>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_vector_field_3d::<_, 4, 16, 64>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_vector_field_3d::<_, 5, 25, 125>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_vector_field_3d::<_, 6, 36, 216>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_3d!(
+            self.config.order,
+            interp_vector_field_3d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_vector_field_known_cell(
@@ -1719,39 +1690,13 @@ impl<F: BFloat> Interpolator3<F> for PolyFitInterpolator3 {
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_vector_field_in_known_grid_cell_3d::<_, 2, 4, 8>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_vector_field_in_known_grid_cell_3d::<_, 3, 9, 27>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_vector_field_in_known_grid_cell_3d::<_, 4, 16, 64>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_vector_field_in_known_grid_cell_3d::<_, 5, 25, 125>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_vector_field_in_known_grid_cell_3d::<_, 6, 36, 216>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_3d!(
+            self.config.order,
+            interp_vector_field_in_known_grid_cell_3d [1, 2, 3, 4, 5] (
+                field, interp_point, interp_indices, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_extrap_vector_field(
@@ -1764,34 +1709,13 @@ impl<F: BFloat> Interpolator3<F> for PolyFitInterpolator3 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_extrap_vector_field_3d::<_, 2, 4, 8>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_extrap_vector_field_3d::<_, 3, 9, 27>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_extrap_vector_field_3d::<_, 4, 16, 64>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_extrap_vector_field_3d::<_, 5, 25, 125>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_extrap_vector_field_3d::<_, 6, 36, 216>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_3d!(
+            self.config.order,
+            interp_extrap_vector_field_3d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 }
 
@@ -1820,34 +1744,13 @@ impl<F: BFloat> Interpolator2<F> for PolyFitInterpolator2 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_scalar_field_2d::<_, 2, 4>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_scalar_field_2d::<_, 3, 9>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_scalar_field_2d::<_, 4, 16>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_scalar_field_2d::<_, 5, 25>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_scalar_field_2d::<_, 6, 36>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_2d!(
+            self.config.order,
+            interp_scalar_field_2d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_scalar_field_known_cell(
@@ -1871,39 +1774,13 @@ impl<F: BFloat> Interpolator2<F> for PolyFitInterpolator2 {
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_scalar_field_in_known_grid_cell_2d::<_, 2, 4>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_scalar_field_in_known_grid_cell_2d::<_, 3, 9>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_scalar_field_in_known_grid_cell_2d::<_, 4, 16>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_scalar_field_in_known_grid_cell_2d::<_, 5, 25>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_scalar_field_in_known_grid_cell_2d::<_, 6, 36>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_2d!(
+            self.config.order,
+            interp_scalar_field_in_known_grid_cell_2d [1, 2, 3, 4, 5] (
+                field, interp_point, interp_indices, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_extrap_scalar_field(
@@ -1916,34 +1793,13 @@ impl<F: BFloat> Interpolator2<F> for PolyFitInterpolator2 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_extrap_scalar_field_2d::<_, 2, 4>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_extrap_scalar_field_2d::<_, 3, 9>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_extrap_scalar_field_2d::<_, 4, 16>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_extrap_scalar_field_2d::<_, 5, 25>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_extrap_scalar_field_2d::<_, 6, 36>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_2d!(
+            self.config.order,
+            interp_extrap_scalar_field_2d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_vector_field(
@@ -1956,34 +1812,13 @@ impl<F: BFloat> Interpolator2<F> for PolyFitInterpolator2 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_vector_field_2d::<_, 2, 4>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_vector_field_2d::<_, 3, 9>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_vector_field_2d::<_, 4, 16>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_vector_field_2d::<_, 5, 25>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_vector_field_2d::<_, 6, 36>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_2d!(
+            self.config.order,
+            interp_vector_field_2d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_vector_field_known_cell(
@@ -2007,39 +1842,13 @@ impl<F: BFloat> Interpolator2<F> for PolyFitInterpolator2 {
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_vector_field_in_known_grid_cell_2d::<_, 2, 4>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_vector_field_in_known_grid_cell_2d::<_, 3, 9>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_vector_field_in_known_grid_cell_2d::<_, 4, 16>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_vector_field_in_known_grid_cell_2d::<_, 5, 25>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_vector_field_in_known_grid_cell_2d::<_, 6, 36>(
-                field,
-                interp_point,
-                interp_indices,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_2d!(
+            self.config.order,
+            interp_vector_field_in_known_grid_cell_2d [1, 2, 3, 4, 5] (
+                field, interp_point, interp_indices, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_extrap_vector_field(
@@ -2052,34 +1861,13 @@ impl<F: BFloat> Interpolator2<F> for PolyFitInterpolator2 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_extrap_vector_field_2d::<_, 2, 4>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_extrap_vector_field_2d::<_, 3, 9>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_extrap_vector_field_2d::<_, 4, 16>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_extrap_vector_field_2d::<_, 5, 25>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_extrap_vector_field_2d::<_, 6, 36>(
-                field,
-                interp_point,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_2d!(
+            self.config.order,
+            interp_extrap_vector_field_2d [1, 2, 3, 4, 5] (
+                field, interp_point, variation_threshold_for_linear
+            )
+        )
     }
 }
 
@@ -2108,24 +1896,13 @@ impl<F: BFloat> Interpolator1<F> for PolyFitInterpolator1 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => {
-                interp_scalar_field_1d::<_, 2>(field, interp_coord, variation_threshold_for_linear)
-            }
-            2 => {
-                interp_scalar_field_1d::<_, 3>(field, interp_coord, variation_threshold_for_linear)
-            }
-            3 => {
-                interp_scalar_field_1d::<_, 4>(field, interp_coord, variation_threshold_for_linear)
-            }
-            4 => {
-                interp_scalar_field_1d::<_, 5>(field, interp_coord, variation_threshold_for_linear)
-            }
-            5 => {
-                interp_scalar_field_1d::<_, 6>(field, interp_coord, variation_threshold_for_linear)
-            }
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_1d!(
+            self.config.order,
+            interp_scalar_field_1d [1, 2, 3, 4, 5] (
+                field, interp_coord, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_scalar_field_known_cell(
@@ -2147,39 +1924,13 @@ impl<F: BFloat> Interpolator1<F> for PolyFitInterpolator1 {
 
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_scalar_field_in_known_grid_cell_1d::<_, 2>(
-                field,
-                interp_coord,
-                interp_idx,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_scalar_field_in_known_grid_cell_1d::<_, 3>(
-                field,
-                interp_coord,
-                interp_idx,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_scalar_field_in_known_grid_cell_1d::<_, 4>(
-                field,
-                interp_coord,
-                interp_idx,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_scalar_field_in_known_grid_cell_1d::<_, 5>(
-                field,
-                interp_coord,
-                interp_idx,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_scalar_field_in_known_grid_cell_1d::<_, 6>(
-                field,
-                interp_coord,
-                interp_idx,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_1d!(
+            self.config.order,
+            interp_scalar_field_in_known_grid_cell_1d [1, 2, 3, 4, 5] (
+                field, interp_coord, interp_idx, variation_threshold_for_linear
+            )
+        )
     }
 
     fn interp_extrap_scalar_field(
@@ -2192,34 +1943,13 @@ impl<F: BFloat> Interpolator1<F> for PolyFitInterpolator1 {
     {
         let variation_threshold_for_linear =
             F::from(self.config.variation_threshold_for_linear).unwrap();
-        match self.config.order {
-            1 => interp_extrap_scalar_field_1d::<_, 2>(
-                field,
-                interp_coord,
-                variation_threshold_for_linear,
-            ),
-            2 => interp_extrap_scalar_field_1d::<_, 3>(
-                field,
-                interp_coord,
-                variation_threshold_for_linear,
-            ),
-            3 => interp_extrap_scalar_field_1d::<_, 4>(
-                field,
-                interp_coord,
-                variation_threshold_for_linear,
-            ),
-            4 => interp_extrap_scalar_field_1d::<_, 5>(
-                field,
-                interp_coord,
-                variation_threshold_for_linear,
-            ),
-            5 => interp_extrap_scalar_field_1d::<_, 6>(
-                field,
-                interp_coord,
-                variation_threshold_for_linear,
-            ),
-            order => panic!("Invalid interpolation order: {}", order),
-        }
+
+        call_interp_1d!(
+            self.config.order,
+            interp_extrap_scalar_field_1d [1, 2, 3, 4, 5] (
+                field, interp_coord, variation_threshold_for_linear
+            )
+        )
     }
 }
 

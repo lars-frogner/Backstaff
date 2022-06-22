@@ -8,7 +8,7 @@ default-run = "backstaff"
 
 [features]
 default = ["cli", "statistics"]
-cli = ["chrono", "clap", "clap_complete", "paste"]
+cli = ["chrono", "clap", "clap_complete"]
 command-graph = ["cli", "petgraph"]
 statistics = ["cli", "float-pretty-print", "ndarray-stats", "noisy_float", "pad"]
 derivation = []
@@ -40,6 +40,7 @@ indicatif = {version = "*", features = ["rayon"]}
 lazy_static = "*"
 ndarray = { version = "*", features = ["rayon"] }
 num = "*"
+paste = "*"
 rayon = "*"
 regex = "*"
 sysinfo = { version = "*", default-features = false }
@@ -50,7 +51,6 @@ quit = "*"
 chrono = { version = "*", optional = true }
 clap = { version = ">=3.0.0", features = ["default", "cargo"], optional = true }
 clap_complete = { version = "*", optional = true }
-paste = { version = "*", optional = true }
 
 # Dependencies for command-graph
 petgraph = { version = "*", features = [], optional = true }
