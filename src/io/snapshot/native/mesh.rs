@@ -16,9 +16,9 @@ use std::{collections::VecDeque, io, io::BufRead, path::Path};
 use approx::RelativeEq;
 
 /// Width of formatted coordinate values in native mesh files.
-pub const NATIVE_COORD_WIDTH: usize = 15;
+pub const NATIVE_COORD_WIDTH: usize = 17;
 /// Precision of formatted coordinate values in native mesh files.
-pub const NATIVE_COORD_PRECISION: usize = 8;
+pub const NATIVE_COORD_PRECISION: usize = 10;
 
 /// Constructs a grid from a Bifrost mesh file.
 ///
