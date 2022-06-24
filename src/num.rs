@@ -65,10 +65,12 @@ where
     }
 
     fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
-        self.0
-            .iter()
-            .zip(other.0.iter())
-            .all(|(a, b)| T::abs_diff_eq(a, b, epsilon))
+        self.0.len() == other.0.len()
+            && self
+                .0
+                .iter()
+                .zip(other.0.iter())
+                .all(|(a, b)| T::abs_diff_eq(a, b, epsilon))
     }
 }
 
@@ -88,9 +90,11 @@ where
         epsilon: Self::Epsilon,
         max_relative: Self::Epsilon,
     ) -> bool {
-        self.0
-            .iter()
-            .zip(other.0.iter())
-            .all(|(a, b)| T::relative_eq(a, b, epsilon, max_relative))
+        self.0.len() == other.0.len()
+            && self
+                .0
+                .iter()
+                .zip(other.0.iter())
+                .all(|(a, b)| T::relative_eq(a, b, epsilon, max_relative))
     }
 }
