@@ -606,6 +606,7 @@ where
         computer: FieldValueComputer<F>,
         locations: In3D<CoordLocation>,
     ) -> Self {
+        self.all_variable_names.push(name.clone());
         self.variable_computers.insert(name, (computer, locations));
         self
     }
