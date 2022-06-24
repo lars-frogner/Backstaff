@@ -183,16 +183,22 @@ pub trait ScalarFieldProvider3<F: BFloat>: AsScalarFieldProvider3<F> + Sync {
                         ComparableSlice(field_self.values().as_slice_memory_order().unwrap());
                     let values_other =
                         ComparableSlice(field_other.values().as_slice_memory_order().unwrap());
-                    all_equal = values_self.relative_eq(&values_other, epsilon, max_relative);
-                    #[cfg(debug_assertions)]
-                    if !all_equal {
-                        println!("Values of fields {} not equal", name);
-                        let (indices, position, self_value, other_value) = crate::find_largest_field_value_rel_difference!(
-                            ScalarField3<F>,
-                            field_self,
-                            field_other
-                        );
-                        dbg!(indices, position, self_value, other_value);
+                    if values_self.0.len() != values_other.0.len() {
+                        println!("Shapes of fields {} not equal", name);
+                        dbg!(field_self.shape(), field_other.shape());
+                        all_equal = false;
+                    } else {
+                        all_equal = values_self.relative_eq(&values_other, epsilon, max_relative);
+                        #[cfg(debug_assertions)]
+                        if !all_equal {
+                            println!("Values of fields {} not equal", name);
+                            let (indices, position, self_value, other_value) = crate::find_largest_field_value_rel_difference!(
+                                ScalarField3<F>,
+                                field_self,
+                                field_other
+                            );
+                            dbg!(indices, position, self_value, other_value);
+                        }
                     }
                 } else {
                     #[cfg(debug_assertions)]
