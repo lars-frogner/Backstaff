@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::common;
+use backstaff::grid::fgr;
 use lazy_static::lazy_static;
 use std::{
     env,
@@ -63,9 +64,13 @@ impl RegressionTest {
     }
 
     #[cfg(feature = "for-testing")]
-    pub fn assert_mesh_files_equal(&self) {
+    pub fn assert_mesh_files_equal(&self, max_relative_diff: fgr) {
         if let RegressionTestAction::Compare = CONTEXT.action {
-            common::assert_mesh_files_equal(self.actual_output_path(), self.expected_output_path());
+            common::assert_mesh_files_equal(
+                self.actual_output_path(),
+                self.expected_output_path(),
+                max_relative_diff,
+            );
         }
     }
 

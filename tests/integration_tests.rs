@@ -1,11 +1,15 @@
 mod common;
 
 use backstaff::{
-    exit_on_error,
+    exit_on_error, field_value_computer,
     geometry::Dim3::{X, Y, Z},
-    grid::Grid3,
+    grid::{fgr, Grid3},
     io::{
-        snapshot::{native::NATIVE_COORD_PRECISION, utils as snapshot_utils},
+        snapshot::{
+            fdt,
+            native::NATIVE_COORD_PRECISION,
+            utils::{self as snapshot_utils},
+        },
         Verbosity,
     },
 };
@@ -14,6 +18,9 @@ use std::path::PathBuf;
 
 #[cfg(feature = "cli")]
 use common::run;
+
+#[cfg(feature = "for-testing")]
+use approx::RelativeEq;
 
 const MINIMAL_NATIVE_MESH: &str = "minimal.mesh";
 const MINIMAL_NATIVE_SNAP: &str = "minimal_001.idl";
@@ -47,7 +54,7 @@ fn regular_hor_regular_mesh_is_regular() {
          Y_BOUNDS,
          Z_BOUNDS,
     ]);
-    common::assert_mesh_files_equal(regular, hor_regular);
+    common::assert_mesh_files_equal(regular, hor_regular, fgr::default_max_relative());
 });
 
 #[cfg(all(feature = "cli", feature = "for-testing"))]
@@ -60,7 +67,7 @@ fn write_preserves_native_input_snapshot() {
          "write",
          output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, fdt::default_max_relative());
 });
 
 #[cfg(all(feature = "cli", feature = "for-testing", feature = "netcdf"))]
@@ -73,7 +80,7 @@ fn write_preserves_netcdf_input_snapshot() {
          "write",
          output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, fdt::default_max_relative());
 });
 
 #[cfg(all(feature = "cli", feature = "for-testing", feature = "netcdf"))]
@@ -86,7 +93,7 @@ fn conversion_to_netcdf_preserves_native_input_snapshot() {
          "write",
          output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, fdt::default_max_relative());
 });
 
 #[cfg(all(feature = "cli", feature = "for-testing", feature = "netcdf"))]
@@ -99,7 +106,7 @@ fn conversion_to_native_preserves_netcdf_input_snapshot() {
          "write",
          output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, fdt::default_max_relative());
 });
 
 #[cfg(all(feature = "cli", feature = "for-testing"))]
@@ -138,7 +145,7 @@ fn extract_with_original_bounds_preserves_input_snapshot() {
          "write",
          output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, fdt::default_max_relative());
 });
 
 #[cfg(all(feature = "cli", feature = "for-testing"))]
@@ -171,7 +178,7 @@ fn extract_with_too_large_subgrid_preserves_input_snapshot() {
          "write",
          output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, fdt::default_max_relative());
 });
 
 macro_rules! define_test_for_each_resampling_method {
@@ -198,33 +205,29 @@ fn [<resampling_to_reshaped_of_same_shape_with_ $resampling_method _preserves_in
         "write",
         output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, 1e-4);
 });
 }};}
 define_test_for_each_resampling_method!(resampling_test);
 
 // Shadow the above macro with the same name
-macro_rules! resampling_test {
-    ($resampling_method:ident) => {
-        paste::paste! {
-        def_test!(
-        IN[input_mesh=MINIMAL_NATIVE_MESH, input_snapshot=MINIMAL_NATIVE_SNAP]
-        OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
-        fn [<resampling_to_original_mesh_file_with_ $resampling_method _preserves_input_snapshot>] () {
-            run(["snapshot",
-                    input_snapshot,
-                    "resample",
-                    "mesh_file",
-                    input_mesh,
-                    stringify!($resampling_method),
-                    "write",
-                    output_snapshot,
-            ]);
-            common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
-        });
-        }
-    };
-}
+macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
+def_test!(
+IN[input_mesh=MINIMAL_NATIVE_MESH, input_snapshot=MINIMAL_NATIVE_SNAP]
+OUT[output_snapshot=MINIMAL_NATIVE_SNAP]
+fn [<resampling_to_original_mesh_file_with_ $resampling_method _preserves_input_snapshot>] () {
+    run(["snapshot",
+            input_snapshot,
+            "resample",
+            "mesh_file",
+            input_mesh,
+            stringify!($resampling_method),
+            "write",
+            output_snapshot,
+    ]);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, 1e-4);
+});
+}};}
 define_test_for_each_resampling_method!(resampling_test);
 
 macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
@@ -240,7 +243,7 @@ fn [<resampling_regular_to_regular_of_same_bounds_and_shape_with_ $resampling_me
         "write",
         output_snapshot,
     ]);
-    common::assert_snapshot_files_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_files_equal(input_snapshot, output_snapshot, 1e-6);
 });
 }};}
 define_test_for_each_resampling_method!(resampling_test);
@@ -260,6 +263,7 @@ fn [<resampling_regular_to_regular_of_same_shape_and_shifted_bounds_with_ $resam
         input_snapshot,
         "resample",
         "regular_grid",
+        "--shape=same,same,same",
         &format!(
             "--x-bounds={:.precision$E},{:.precision$E}",
             upper_bounds[X], upper_bounds[X] + extents[X],
@@ -269,7 +273,7 @@ fn [<resampling_regular_to_regular_of_same_shape_and_shifted_bounds_with_ $resam
         "write",
         output_snapshot,
     ]);
-    common::assert_snapshot_field_values_equal(input_snapshot, output_snapshot);
+    common::assert_snapshot_field_values_equal(input_snapshot, output_snapshot, 1e-5);
 });
 }};}
 define_test_for_each_resampling_method!(resampling_test);
@@ -299,7 +303,7 @@ fn [<resampling_to_reshaped_and_reshaped_original_mesh_file_with_ $resampling_me
         "write",
         output_snapshot_2,
     ]);
-    common::assert_snapshot_files_equal(output_snapshot_1, output_snapshot_2);
+    common::assert_snapshot_files_equal(output_snapshot_1, output_snapshot_2, fdt::default_max_relative());
 });
 }};}
 define_test_for_each_resampling_method!(resampling_test);
@@ -346,25 +350,171 @@ fn [<resampling_to_regular_and_rotated_regular_without_rotation_with_ $resamplin
         "write",
         output_snapshot_2,
     ]);
-    common::assert_snapshot_field_values_equal(output_snapshot_1, output_snapshot_2);
+    common::assert_snapshot_field_values_equal(output_snapshot_1, output_snapshot_2, 1e-4);
 });
 }};}
 define_test_for_each_resampling_method!(resampling_test);
 
-// Resampling to regular grid with only one grid cell using sample averaging gives the grid cell a value equal to the mean of the resampled field
+def_test!(
+IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
+OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]
+fn upsampling_regular_with_sample_averaging_and_direct_sampling_gives_same_result() {
+    const SCALES_ARG: &str ="--scales=2,2,2";
+    run(["snapshot",
+        input_snapshot,
+        "resample",
+        "reshaped_grid",
+        SCALES_ARG,
+        "sample_averaging",
+        "write",
+        output_snapshot_1,
+    ]);
+    run(["snapshot",
+        input_snapshot,
+        "resample",
+        "reshaped_grid",
+        SCALES_ARG,
+        "direct_sampling",
+        "write",
+        output_snapshot_2,
+    ]);
+    common::assert_snapshot_files_equal(output_snapshot_1, output_snapshot_2, fdt::default_max_relative());
+});
 
-// Resampling to regular grid with only one grid cell using cell averaging gives the grid cell a value equal to the mean of the resampled field
+macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
+def_test!(
+IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
+OUT[output_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
+fn [<resampling_to_single_cell_for_regular_with_ $resampling_method _gives_mean_value>] () {
+    run(["snapshot",
+        input_snapshot,
+        "resample",
+        "reshaped_grid",
+        "--shape=1,1,1",
+        stringify!($resampling_method),
+        "write",
+        output_snapshot,
+    ]);
+    common::assert_snapshot_field_values_custom_equal(output_snapshot, input_snapshot, &|resampled_values, input_values| {
+        let mean_of_input_values = input_values.iter().sum::<fdt>() / (input_values.len() as fdt);
+        resampled_values.len() == 1 && approx::relative_eq!(resampled_values[0], mean_of_input_values, max_relative=1e-4)
+    });
+});
+}};}
+#[cfg(all(feature = "cli", feature = "for-testing"))]
+resampling_test!(sample_averaging);
+#[cfg(all(feature = "cli", feature = "for-testing"))]
+resampling_test!(cell_averaging);
+
+macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
+def_test!(
+IN[input_snapshot=MINIMAL_NATIVE_SNAP]
+OUT[generated_output_snapshot="gen/out_001.idl", resampled_output_snapshot="res/out_001.idl"]
+fn [<resampling_uniform_valued_to_regular_with_ $resampling_method _preserves_input_values>] () {
+    let grid = exit_on_error!(
+        snapshot_utils::read_snapshot_grid(PathBuf::from(input_snapshot), ENDIANNESS, Verbosity::Quiet),
+        "Error: {}"
+    );
+    common::write_snapshot_with_computed_variable(
+        grid.clone(),
+        "tg", field_value_computer!(constant = 1e3; (fdt)),
+        generated_output_snapshot
+    );
+
+    let lower_bounds = grid.lower_bounds();
+    let upper_bounds = grid.upper_bounds();
+    let extents = grid.extents();
+    let bounds_arg = |dim| format!(
+        "--{}-bounds={:.precision$E},{:.precision$E}",
+        dim,
+        lower_bounds[dim] + 0.25 * extents[dim],
+        upper_bounds[dim] - 0.25 * extents[dim],
+        precision = NATIVE_COORD_PRECISION
+    );
+    run(["snapshot",
+        generated_output_snapshot,
+        "resample",
+        "regular_grid",
+        "--shape=same,same,same",
+        &bounds_arg(X),
+        &bounds_arg(Y),
+        &bounds_arg(Z),
+        stringify!($resampling_method),
+        "write",
+        resampled_output_snapshot,
+    ]);
+
+    common::assert_snapshot_field_values_equal(
+        generated_output_snapshot, resampled_output_snapshot,
+        fdt::default_max_relative()
+    );
+});
+}};}
+define_test_for_each_resampling_method!(resampling_test);
+
+macro_rules! resampling_test { ($resampling_method:ident) => { paste::paste! {
+def_test!(
+IN[input_snapshot=MINIMAL_NATIVE_SNAP]
+OUT[generated_output_snapshot="gen/out_001.idl", resampled_output_snapshot="res/out_001.idl"]
+fn [<resampling_uniform_valued_to_rotated_regular_with_ $resampling_method _preserves_input_values>] () {
+    let grid = exit_on_error!(
+        snapshot_utils::read_snapshot_grid(PathBuf::from(input_snapshot), ENDIANNESS, Verbosity::Quiet),
+        "Error: {}"
+    );
+    common::write_snapshot_with_computed_variable(
+        grid.clone(),
+        "tg", field_value_computer!(constant = 1e3; (fdt)),
+        generated_output_snapshot
+    );
+
+    let lower_bounds = grid.lower_bounds();
+    let upper_bounds = grid.upper_bounds();
+    let extents = grid.extents();
+    run(["snapshot",
+        generated_output_snapshot,
+        "resample",
+        "rotated_regular_grid",
+        "--shape=same,same,same",
+        &format!(
+            "--x-start={:.precision$E},{:.precision$E}",
+            upper_bounds[X] - 0.25 * extents[X],
+            lower_bounds[Y] + 0.25 * extents[Y],
+            precision = NATIVE_COORD_PRECISION
+        ),
+        &format!(
+            "--x-end={:.precision$E},{:.precision$E}",
+            upper_bounds[X] - 0.25 * extents[X],
+            upper_bounds[Y] - 0.25 * extents[Y],
+            precision = NATIVE_COORD_PRECISION
+        ),
+        &format!(
+            "--y-extent={:.precision$E}",
+            0.5 * extents[X],
+            precision = NATIVE_COORD_PRECISION
+        ),
+        &format!(
+            "--z-bounds={:.precision$E},{:.precision$E}",
+            lower_bounds[Z] + 0.25 * extents[Z],
+            upper_bounds[Z] - 0.25 * extents[Z],
+            precision = NATIVE_COORD_PRECISION
+        ),
+        stringify!($resampling_method),
+        "write",
+        resampled_output_snapshot,
+    ]);
+
+    common::assert_snapshot_field_values_equal(
+        generated_output_snapshot, resampled_output_snapshot,
+        fdt::default_max_relative()
+    );
+});
+}};}
+define_test_for_each_resampling_method!(resampling_test);
 
 // Resampling a field where the value is an n-th order polynomial function of the grid coordinates using direct sampling with n-th order (or higher) polynomial fitting interpolation gives (a part of) the same field
 
-// Upsampling with sample averaging gives same snapshot as upsampling with direct sampling
-
-// Resampling a uniform valued field with sample averaging gives the same field
-
-// Resampling a uniform valued field with cell averaging gives the same field
-
 macro_rules! create_combination_test {
-    ($fn_name:ident, $command:expr) => {
+    ($fn_name:ident, $commands:expr) => {
 def_test!(
 IN[input_snapshot=REALISTIC_NATIVE_SNAP]
 OUT[output_snapshot="snapshot_001.idl",
@@ -439,38 +589,38 @@ fn $fn_name() {
 
     // Command runs before inspect
     #[cfg(feature = "statistics")]
-    run([snapshot!(), $command, inspect!()].concat());
+    run([snapshot!(), $commands, inspect!()].concat());
 
     // Command runs before write
-    run([snapshot!(), $command, write!()].concat());
+    run([snapshot!(), $commands, write!()].concat());
 
     // Command runs before extract
-    run([snapshot!(), $command, extract!(), write!()].concat());
+    run([snapshot!(), $commands, extract!(), write!()].concat());
 
     // Command runs before resample
-    run([snapshot!(), $command, resample!(), write!()].concat());
+    run([snapshot!(), $commands, resample!(), write!()].concat());
 
     // Command runs before slice
     #[cfg(feature = "pickle")]
-    run([snapshot!(), $command, slice!()].concat());
+    run([snapshot!(), $commands, slice!()].concat());
 
     // Command runs after extract
-    run([snapshot!(), extract!(), $command, write!()].concat());
+    run([snapshot!(), extract!(), $commands, write!()].concat());
 
     // Command runs after resample
-    run([snapshot!(), resample!(), $command, write!()].concat());
+    run([snapshot!(), resample!(), $commands, write!()].concat());
 
     // Command runs before corks
     #[cfg(all(feature = "corks", any(feature = "pickle", feature = "json")))]
-    run([snapshot!(), $command, corks!()].concat());
+    run([snapshot!(), $commands, corks!()].concat());
 
     // Command runs before trace
     #[cfg(feature = "tracing")]
-    run([snapshot!(), $command, trace!()].concat());
+    run([snapshot!(), $commands, trace!()].concat());
 
     // Command runs before ebeam
     #[cfg(feature = "ebeam")]
-    run([snapshot!(), $command, ebeam!()].concat());
+    run([snapshot!(), $commands, ebeam!()].concat());
 });
 };
 }
@@ -478,5 +628,5 @@ fn $fn_name() {
 #[cfg(all(feature = "cli", feature = "for-testing", feature = "derivation"))]
 create_combination_test!(derive_combinations_work, vec!["derive"]);
 
-#[cfg(all(feature = "cli", feature = "for-testing", feature = "synthesis"))]
-create_combination_test!(synthesize_combinations_work, vec!["synthesize"]);
+// #[cfg(all(feature = "cli", feature = "for-testing", feature = "synthesis"))]
+// create_combination_test!(synthesize_combinations_work, vec!["synthesize"]);

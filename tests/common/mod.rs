@@ -2,9 +2,13 @@
 
 use backstaff::{
     exit_on_error,
+    field::{CustomScalarFieldGenerator3, FieldGrid3, FieldValueComputer},
     grid::fgr,
     io::{
-        snapshot::{fdt, native, utils as snapshot_utils},
+        snapshot::{
+            fdt, native,
+            utils::{self as snapshot_utils, OutputSnapshotMetadata},
+        },
         utils::{self as io_utils, IOContext},
         Endianness, Verbosity,
     },
@@ -15,6 +19,7 @@ use std::{
     fs,
     io::{self, Read},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 #[cfg(feature = "cli")]
@@ -113,7 +118,7 @@ where
 }
 
 #[cfg(feature = "for-testing")]
-pub fn assert_mesh_files_equal<P1, P2>(mesh_path_1: P1, mesh_path_2: P2)
+pub fn assert_mesh_files_equal<P1, P2>(mesh_path_1: P1, mesh_path_2: P2, max_relative_diff: fgr)
 where
     P1: AsRef<Path>,
     P2: AsRef<Path>,
@@ -127,7 +132,7 @@ where
             mesh_path_2,
             &Verbosity::Quiet,
             fgr::EPSILON,
-            <fgr as approx::RelativeEq>::default_max_relative()
+            max_relative_diff
         ),
         "Error: Could not parse mesh files for comparison: {}"
     );
@@ -140,7 +145,7 @@ where
 }
 
 #[cfg(feature = "for-testing")]
-pub fn assert_snapshot_files_equal<P1, P2>(file_path_1: P1, file_path_2: P2)
+pub fn assert_snapshot_files_equal<P1, P2>(file_path_1: P1, file_path_2: P2, max_relative_diff: fdt)
 where
     P1: AsRef<Path>,
     P2: AsRef<Path>,
@@ -155,7 +160,7 @@ where
             ENDIANNESS,
             Verbosity::Quiet,
             fdt::EPSILON,
-            <fdt as approx::RelativeEq>::default_max_relative(),
+            max_relative_diff,
         ),
         "Error: Could not read snapshot files for comparison: {}"
     );
@@ -168,8 +173,11 @@ where
 }
 
 #[cfg(feature = "for-testing")]
-pub fn assert_snapshot_field_values_equal<P1, P2>(file_path_1: P1, file_path_2: P2)
-where
+pub fn assert_snapshot_field_values_equal<P1, P2>(
+    file_path_1: P1,
+    file_path_2: P2,
+    max_relative_diff: fdt,
+) where
     P1: AsRef<Path>,
     P2: AsRef<Path>,
 {
@@ -183,7 +191,7 @@ where
             ENDIANNESS,
             Verbosity::Quiet,
             fdt::EPSILON,
-            <fdt as approx::RelativeEq>::default_max_relative(),
+            max_relative_diff,
         ),
         "Error: Could not read snapshot files for comparison: {}"
     );
@@ -192,6 +200,86 @@ where
         "Values for snapshot files {} and {} not equal",
         file_path_1.to_string_lossy(),
         file_path_2.to_string_lossy()
+    );
+}
+
+#[cfg(feature = "for-testing")]
+pub fn assert_snapshot_field_values_custom_equal<P1, P2>(
+    input_file_path: P1,
+    reference_file_path: P2,
+    are_equal: &dyn Fn(&[fdt], &[fdt]) -> bool,
+) where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    let input_file_path = input_file_path.as_ref();
+    let reference_file_path = reference_file_path.as_ref();
+
+    let (mut reference_reader, _) = exit_on_error!(
+        snapshot_utils::new_snapshot_reader(
+            reference_file_path.to_path_buf(),
+            ENDIANNESS,
+            Verbosity::Quiet
+        ),
+        "Error: Could not read reference snapshot file for custom comparison: {}"
+    );
+    let all_variable_names = reference_reader.all_variable_names().to_vec();
+    let owned_reference_field_values: Vec<_> = all_variable_names
+        .iter()
+        .map(|name| {
+            exit_on_error!(
+                reference_reader.produce_scalar_field(name.as_str()),
+                "Error: Could not read field {} in reference snapshot: {}",
+                name
+            )
+        })
+        .collect();
+    let reference_field_values = all_variable_names
+        .into_iter()
+        .zip(owned_reference_field_values.iter())
+        .map(|(name, values)| (name, values.values().as_slice_memory_order().unwrap()))
+        .collect();
+
+    let equal = exit_on_error!(
+        snapshot_utils::read_snapshot_has_given_field_values_custom_eq(
+            input_file_path.to_path_buf(),
+            ENDIANNESS,
+            Verbosity::Quiet,
+            reference_field_values,
+            are_equal,
+        ),
+        "Error: Could not read snapshot file for custom comparison: {}"
+    );
+    assert!(
+        equal,
+        "Values for snapshot file {} not custom equal to reference values in {}",
+        input_file_path.to_string_lossy(),
+        reference_file_path.to_string_lossy()
+    );
+}
+
+pub fn write_snapshot_with_computed_variable<P: AsRef<Path>>(
+    grid: Arc<FieldGrid3>,
+    variable_name: &str,
+    variable_computer: FieldValueComputer<fdt>,
+    output_path: P,
+) {
+    let metadata = Box::new(OutputSnapshotMetadata::new());
+
+    let mut generator = Box::new(
+        CustomScalarFieldGenerator3::new(grid, Verbosity::Quiet)
+            .with_variable(variable_name.to_string(), variable_computer),
+    );
+
+    exit_on_error!(
+        native::write_new_snapshot(
+            &*metadata,
+            &mut *generator,
+            output_path.as_ref(),
+            &IOContext::new(),
+            &Verbosity::Quiet,
+        ),
+        "Error: {}"
     );
 }
 

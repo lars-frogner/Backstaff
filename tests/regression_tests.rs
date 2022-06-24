@@ -1,10 +1,14 @@
 mod common;
 mod regression;
 
+use backstaff::grid::fgr;
 use regression::{Actual, Expected, RegressionTest};
 
 #[cfg(feature = "cli")]
 use common::run;
+
+#[cfg(feature = "for-testing")]
+use approx::RelativeEq;
 
 #[cfg(all(feature = "cli", feature = "for-testing"))]
 #[test]
@@ -20,7 +24,7 @@ fn regular_mesh_is_correct() {
         "--y-bounds=-1,2",
         "--z-bounds=1,1.5",
     ]);
-    test.assert_mesh_files_equal();
+    test.assert_mesh_files_equal(fgr::default_max_relative());
 }
 
 #[cfg(all(feature = "cli", feature = "for-testing"))]
@@ -40,5 +44,5 @@ fn hor_regular_mesh_is_correct() {
         "--interior-z=-2.5,0",
         "--interior-dz-scales=10,10",
     ]);
-    test.assert_mesh_files_equal();
+    test.assert_mesh_files_equal(fgr::default_max_relative());
 }
