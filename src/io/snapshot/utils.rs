@@ -3,7 +3,7 @@
 use super::{
     fdt, fpa,
     native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
-    SnapshotMetadata,
+    MapOfSnapshotParameters, SnapshotMetadata, SnapshotParameters,
 };
 use crate::{
     exit_with_error,
@@ -19,6 +19,44 @@ use std::{
 
 #[cfg(feature = "netcdf")]
 use super::netcdf::{NetCDFSnapshotReader3, NetCDFSnapshotReaderConfig};
+
+/// Dummy metadata type that can be used for writing a snapshot
+/// generated in Backstaff rather than read from files.
+pub struct OutputSnapshotMetadata {
+    parameters: Box<MapOfSnapshotParameters>,
+}
+
+impl OutputSnapshotMetadata {
+    pub fn new() -> Self {
+        Self {
+            parameters: Box::new(MapOfSnapshotParameters::empty()),
+        }
+    }
+}
+
+impl Default for OutputSnapshotMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SnapshotMetadata for OutputSnapshotMetadata {
+    fn parameters(&self) -> &dyn SnapshotParameters {
+        &*self.parameters
+    }
+
+    fn snap_name(&self) -> &str {
+        ""
+    }
+
+    fn snap_num(&self) -> Option<u64> {
+        None
+    }
+
+    fn endianness(&self) -> Endianness {
+        Endianness::Native
+    }
+}
 
 /// Type of an input snapshot file (or set of files).|
 #[derive(Clone, Debug)]
@@ -234,12 +272,12 @@ pub fn read_snapshot_values_eq(
 /// compares for equality to the corresponding given field values
 /// using the given closure.
 #[cfg(feature = "for-testing")]
-pub fn read_snapshot_has_given_fields_custom_eq<'a>(
+pub fn read_snapshot_has_given_field_values_custom_eq(
     input_file_path: PathBuf,
     endianness: Endianness,
     verbosity: Verbosity,
-    reference_field_values: Vec<(String, &'a [fdt])>,
-    are_equal: &dyn Fn(&[fdt], &'a [fdt]) -> bool,
+    reference_field_values: Vec<(String, &[fdt])>,
+    are_equal: &dyn Fn(&[fdt], &[fdt]) -> bool,
 ) -> io::Result<bool> {
     let (mut reader, _) = new_snapshot_reader(input_file_path, endianness, verbosity)?;
 

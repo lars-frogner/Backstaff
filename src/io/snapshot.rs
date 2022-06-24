@@ -497,6 +497,10 @@ impl MapOfSnapshotParameters {
         Self(parameters)
     }
 
+    pub fn empty() -> Self {
+        Self::new(HashMap::new())
+    }
+
     pub fn parameters(&self) -> &HashMap<String, ParameterValue> {
         &self.0
     }
