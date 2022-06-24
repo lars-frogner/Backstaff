@@ -1473,11 +1473,11 @@ pub fn verify_coordinate_arrays<F: BFloat>(
             ));
         }
 
-        if length < 2 {
+        if length < 1 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "Insufficient number of {}-coordinates (must be at least 2)",
+                    "Insufficient number of {}-coordinates (must be at least 1)",
                     dim
                 ),
             ));
