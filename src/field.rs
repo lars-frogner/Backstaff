@@ -177,11 +177,12 @@ pub trait ScalarFieldProvider3<F: BFloat>: AsScalarFieldProvider3<F> + Sync {
             let mut all_equal = true;
             for name in all_variable_names_self.iter() {
                 if all_variable_names_other.contains(name) {
-                    let field_self = self.produce_scalar_field(name)?.into_values();
-                    let field_other = self.produce_scalar_field(name)?.into_values();
-                    let values_self = ComparableSlice(field_self.as_slice_memory_order().unwrap());
+                    let field_self = self.produce_scalar_field(name)?;
+                    let field_other = other.produce_scalar_field(name)?;
+                    let values_self =
+                        ComparableSlice(field_self.values().as_slice_memory_order().unwrap());
                     let values_other =
-                        ComparableSlice(field_other.as_slice_memory_order().unwrap());
+                        ComparableSlice(field_other.values().as_slice_memory_order().unwrap());
                     all_equal = values_self.relative_eq(&values_other, epsilon, max_relative);
                     #[cfg(debug_assertions)]
                     if !all_equal {
