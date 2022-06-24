@@ -187,6 +187,12 @@ pub trait ScalarFieldProvider3<F: BFloat>: AsScalarFieldProvider3<F> + Sync {
                     #[cfg(debug_assertions)]
                     if !all_equal {
                         println!("Values of fields {} not equal", name);
+                        let (indices, position, self_value, other_value) = crate::find_largest_field_value_rel_difference!(
+                            ScalarField3<F>,
+                            field_self,
+                            field_other
+                        );
+                        dbg!(indices, position, self_value, other_value);
                     }
                 } else {
                     #[cfg(debug_assertions)]
@@ -2354,21 +2360,21 @@ where
 
 #[cfg(feature = "for-testing")]
 #[macro_export]
-macro_rules! find_largest_field_value_difference {
+macro_rules! find_largest_field_value_rel_difference {
     ($T:ident <$F:ident>, $field_1:expr, $field_2:expr) => {{
-        let mut abs_diff_values = $field_1.values() - $field_2.values();
-        let abs_diff_buffer = abs_diff_values.as_slice_memory_order_mut().unwrap();
-        abs_diff_buffer
+        let mut rel_diff_values = ($field_1.values() - $field_2.values()) / ($field_2.values());
+        let rel_diff_buffer = rel_diff_values.as_slice_memory_order_mut().unwrap();
+        rel_diff_buffer
             .iter_mut()
             .for_each(|diff| *diff = <$F as num::Float>::abs(*diff));
-        let abs_diff_field = $T::new(
+        let rel_diff_field = $T::new(
             $field_1.name().to_string(),
             $field_1.arc_with_grid(),
             $field_1.locations().clone(),
-            abs_diff_values,
+            rel_diff_values,
         );
         let (indices_of_largest_difference, _) =
-            abs_diff_field.find_maximum().expect("No finite values");
+            rel_diff_field.find_maximum().expect("No finite values");
         (
             indices_of_largest_difference.clone(),
             $field_1
@@ -2465,7 +2471,7 @@ macro_rules! impl_relative_eq_for_field {
                     {
                         println!("Values for {} not equal", self.name());
                         let (indices, position, self_value, other_value) =
-                            $crate::find_largest_field_value_difference!($T<$F>, self, other);
+                            $crate::find_largest_field_value_rel_difference!($T<$F>, self, other);
                         dbg!(indices, position, self_value, other_value);
                     }
                     return false;
