@@ -823,12 +823,14 @@ impl ScalarFieldProvider3<fdt> for ResampledScalarFieldProvider3 {
                 let other_hor_component_name =
                     component_names[if dim == X { Y } else { X }].as_str();
 
+                let other_hor_component_field = self
+                    .provider_mut()
+                    .provide_scalar_field(other_hor_component_name)?;
+
                 if self.verbosity.print_messages() {
                     println!("Resampling {}", other_hor_component_name);
                 }
-                let resampled_other_hor_component_field = self
-                    .provider_mut()
-                    .provide_scalar_field(other_hor_component_name)?
+                let resampled_other_hor_component_field = other_hor_component_field
                     .resampled_to_transformed_grid(
                         self.arc_with_grid(),
                         self.transformation(),
