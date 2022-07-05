@@ -150,11 +150,20 @@ without_regex_match() {
     echo "$input" | sed "s/\(^\|[[:space:]]\)$expression\([[:space:]]\|\$\)//"
 }
 
+feature_explicitly_in_args() {
+    local feature_name="$1"
+    if [[ $(regex_matches_arg "--features(=|\s+)([a-z0-9_-]+,)*$feature_name(,[a-z0-9_-]+)*") = 1 ]]; then
+        echo 1
+    else
+        echo 0
+    fi
+}
+
 feature_in_args() {
     local feature_name="$1"
-    if [[ $(regex_matches_arg --all-features) = 1 ]]; then
-        echo 1
-    elif [[ $(regex_matches_arg "--features(=|\s+)([a-z0-9_-]+,)*$feature_name(,[a-z0-9_-]+)*") = 1 ]]; then
+    if [[ $(regex_matches_arg --all-features) = 1           || \
+          $(feature_explicitly_in_args all-non-testing) = 1 || \
+          $(feature_explicitly_in_args "$feature_name") = 1 ]]; then
         echo 1
     else
         echo 0
@@ -433,16 +442,23 @@ setup_env_and_run_cargo() {
         NO_TO_ALL=1
     fi
 
-    if [[ $(feature_in_args synthesis) = 1 ]]; then
+    HAS_PYTHON_FEATURE=$(feature_in_args python)
+    HAS_SYNTHESIS_FEATURE=$(feature_in_args synthesis)
+    HAS_HDF5_FEATURE=$(feature_in_args hdf5)
+    HAS_NETCDF_FEATURE=$(feature_in_args netcdf)
+
+    if [[ $HAS_PYTHON_FEATURE = 1 || $HAS_SYNTHESIS_FEATURE = 1 ]]; then
         setup_python
-        verify_chianti
+        if [[ $HAS_SYNTHESIS_FEATURE = 1 ]]; then
+            verify_chianti
+        fi
     fi
 
-    if [[ $(feature_in_args netcdf) = 1 ]]; then
+    if [[ $HAS_HDF5_FEATURE = 1 || $HAS_NETCDF_FEATURE = 1 ]]; then
         setup_hdf5
-        setup_netcdf
-    elif [[ $(feature_in_args hdf5) = 1 ]]; then
-        setup_hdf5
+        if [[ $HAS_NETCDF_FEATURE = 1 ]]; then
+            setup_netcdf
+        fi
     fi
 
     print_configured_env_vars
