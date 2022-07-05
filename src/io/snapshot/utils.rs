@@ -1,7 +1,7 @@
 //! Utilities for reading and writing of Bifrost simulation data.
 
 use super::{
-    fdt, fpa,
+    fdt,
     native::{NativeSnapshotReader3, NativeSnapshotReaderConfig},
     MapOfSnapshotParameters, SnapshotMetadata, SnapshotParameters,
 };
@@ -243,8 +243,8 @@ pub fn read_snapshots_eq(
 
     if metadata_1.parameters().relative_eq(
         metadata_2.parameters(),
-        epsilon as fpa,
-        max_relative as fpa,
+        epsilon as super::fpa,
+        max_relative as super::fpa,
     ) {
         reader_1.relative_eq(&mut *reader_2, epsilon, max_relative)
     } else {
