@@ -12,7 +12,6 @@ use crate::{
     num::BFloat,
     seeding::Seeder3,
 };
-use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
 use std::{collections::HashMap, fs, io, mem, path::Path};
 
@@ -140,19 +139,21 @@ impl FieldLineSet3 {
         if verbosity.print_messages() {
             println!("Found {} start positions", number_of_points);
         }
+        let progress_bar = verbosity.create_progress_bar(number_of_points);
 
         let properties: FieldLineSetProperties3 = seeder
             .points()
             .par_iter()
-            .progress_with(verbosity.create_progress_bar(number_of_points))
             .filter_map(|start_position| {
-                tracer.trace(
+                let properties = tracer.trace(
                     field_name,
                     snapshot,
                     interpolator,
                     stepper.heap_clone(),
                     start_position,
-                )
+                );
+                progress_bar.inc();
+                properties
             })
             .collect();
 
@@ -193,12 +194,13 @@ impl FieldLineSet3 {
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
+
+        let progress_bar = self
+            .verbosity()
+            .create_progress_bar(self.number_of_field_lines());
+
         let values = initial_coords_x
             .into_par_iter()
-            .progress_with(
-                self.verbosity()
-                    .create_progress_bar(self.number_of_field_lines()),
-            )
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&field_line_x0, &field_line_y0), &field_line_z0)| {
@@ -207,7 +209,9 @@ impl FieldLineSet3 {
                 let value = interpolator
                     .interp_scalar_field(field, &acceleration_position)
                     .expect_inside();
-                num::NumCast::from(value).expect("Conversion failed")
+                let value = num::NumCast::from(value).expect("Conversion failed");
+                progress_bar.inc();
+                value
             })
             .collect();
         self.properties
@@ -229,12 +233,13 @@ impl FieldLineSet3 {
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
+
+        let progress_bar = self
+            .verbosity()
+            .create_progress_bar(self.number_of_field_lines());
+
         let vectors = initial_coords_x
             .into_par_iter()
-            .progress_with(
-                self.verbosity()
-                    .create_progress_bar(self.number_of_field_lines()),
-            )
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&field_line_x0, &field_line_y0), &field_line_z0)| {
@@ -243,7 +248,9 @@ impl FieldLineSet3 {
                 let vector = interpolator
                     .interp_vector_field(field, &acceleration_position)
                     .expect_inside();
-                Vec3::from(&vector)
+                let vector = Vec3::from(&vector);
+                progress_bar.inc();
+                vector
             })
             .collect();
         self.properties
@@ -265,17 +272,18 @@ impl FieldLineSet3 {
         let coords_x = &self.properties.varying_scalar_values["x"];
         let coords_y = &self.properties.varying_scalar_values["y"];
         let coords_z = &self.properties.varying_scalar_values["z"];
+
+        let progress_bar = self
+            .verbosity()
+            .create_progress_bar(self.number_of_field_lines());
+
         let values = coords_x
             .into_par_iter()
-            .progress_with(
-                self.verbosity()
-                    .create_progress_bar(self.number_of_field_lines()),
-            )
             .zip(coords_y)
             .zip(coords_z)
             .map(
                 |((field_line_coords_x, field_line_coords_y), field_line_coords_z)| {
-                    field_line_coords_x
+                    let values = field_line_coords_x
                         .iter()
                         .zip(field_line_coords_y)
                         .zip(field_line_coords_z)
@@ -286,7 +294,9 @@ impl FieldLineSet3 {
                                 .expect_inside();
                             num::NumCast::from(value).expect("Conversion failed")
                         })
-                        .collect()
+                        .collect();
+                    progress_bar.inc();
+                    values
                 },
             )
             .collect();
@@ -309,17 +319,18 @@ impl FieldLineSet3 {
         let coords_x = &self.properties.varying_scalar_values["x"];
         let coords_y = &self.properties.varying_scalar_values["y"];
         let coords_z = &self.properties.varying_scalar_values["z"];
+
+        let progress_bar = self
+            .verbosity()
+            .create_progress_bar(self.number_of_field_lines());
+
         let vectors = coords_x
             .into_par_iter()
-            .progress_with(
-                self.verbosity()
-                    .create_progress_bar(self.number_of_field_lines()),
-            )
             .zip(coords_y)
             .zip(coords_z)
             .map(
                 |((field_line_coords_x, field_line_coords_y), field_line_coords_z)| {
-                    field_line_coords_x
+                    let vectors = field_line_coords_x
                         .iter()
                         .zip(field_line_coords_y)
                         .zip(field_line_coords_z)
@@ -330,7 +341,9 @@ impl FieldLineSet3 {
                                 .expect_inside();
                             Vec3::from(&vector)
                         })
-                        .collect()
+                        .collect();
+                    progress_bar.inc();
+                    vectors
                 },
             )
             .collect();

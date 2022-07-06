@@ -27,7 +27,6 @@ use crate::{
         TracerResult,
     },
 };
-use indicatif::ParallelProgressIterator;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use std::{
@@ -395,18 +394,20 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             );
         }
         let number_of_beams = distributions.len();
+        let progress_bar = verbosity.create_progress_bar(number_of_beams);
 
         let properties: ElectronBeamSwarmProperties = distributions
             .into_par_iter()
-            .progress_with(verbosity.create_progress_bar(number_of_beams))
             .filter_map(|distribution| {
-                PropagatedElectronBeam::<A::DistributionType>::generate(
+                let properties = PropagatedElectronBeam::<A::DistributionType>::generate(
                     distribution,
                     snapshot,
                     &acceleration_map,
                     interpolator,
                     stepper.heap_clone(),
-                )
+                );
+                progress_bar.inc();
+                properties
             })
             .collect();
 
@@ -462,10 +463,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
+
         let number_of_beams = self.number_of_beams();
+        let progress_bar = self.verbosity().create_progress_bar(number_of_beams);
+
         let values = initial_coords_x
             .into_par_iter()
-            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&beam_x0, &beam_y0), &beam_z0)| {
@@ -473,7 +476,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                 let value = interpolator
                     .interp_scalar_field(field, &acceleration_position)
                     .expect_inside();
-                num::NumCast::from(value).expect("Conversion failed")
+                let value = num::NumCast::from(value).expect("Conversion failed");
+                progress_bar.inc();
+                value
             })
             .collect();
         self.properties
@@ -495,10 +500,12 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let initial_coords_x = &self.properties.fixed_scalar_values["x0"];
         let initial_coords_y = &self.properties.fixed_scalar_values["y0"];
         let initial_coords_z = &self.properties.fixed_scalar_values["z0"];
+
         let number_of_beams = self.number_of_beams();
+        let progress_bar = self.verbosity().create_progress_bar(number_of_beams);
+
         let vectors = initial_coords_x
             .into_par_iter()
-            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(initial_coords_y)
             .zip(initial_coords_z)
             .map(|((&beam_x0, &beam_y0), &beam_z0)| {
@@ -506,7 +513,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                 let vector = interpolator
                     .interp_vector_field(field, &acceleration_position)
                     .expect_inside();
-                Vec3::from(&vector)
+                let vector = Vec3::from(&vector);
+                progress_bar.inc();
+                vector
             })
             .collect();
         self.properties
@@ -528,14 +537,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let coords_x = &self.properties.varying_scalar_values["x"];
         let coords_y = &self.properties.varying_scalar_values["y"];
         let coords_z = &self.properties.varying_scalar_values["z"];
+
         let number_of_beams = self.number_of_beams();
+        let progress_bar = self.verbosity().create_progress_bar(number_of_beams);
+
         let values = coords_x
             .into_par_iter()
-            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(coords_y)
             .zip(coords_z)
             .map(|((beam_coords_x, beam_coords_y), beam_coords_z)| {
-                beam_coords_x
+                let values = beam_coords_x
                     .iter()
                     .zip(beam_coords_y)
                     .zip(beam_coords_z)
@@ -546,7 +557,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                             .expect_inside();
                         num::NumCast::from(value).expect("Conversion failed")
                     })
-                    .collect()
+                    .collect();
+                progress_bar.inc();
+                values
             })
             .collect();
         self.properties
@@ -568,14 +581,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
         let coords_x = &self.properties.varying_scalar_values["x"];
         let coords_y = &self.properties.varying_scalar_values["y"];
         let coords_z = &self.properties.varying_scalar_values["z"];
+
         let number_of_beams = self.number_of_beams();
+        let progress_bar = self.verbosity().create_progress_bar(number_of_beams);
+
         let vectors = coords_x
             .into_par_iter()
-            .progress_with(self.verbosity().create_progress_bar(number_of_beams))
             .zip(coords_y)
             .zip(coords_z)
             .map(|((beam_coords_x, beam_coords_y), beam_coords_z)| {
-                beam_coords_x
+                let vectors = beam_coords_x
                     .iter()
                     .zip(beam_coords_y)
                     .zip(beam_coords_z)
@@ -586,7 +601,9 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                             .expect_inside();
                         Vec3::from(&vector)
                     })
-                    .collect()
+                    .collect();
+                progress_bar.inc();
+                vectors
             })
             .collect();
         self.properties

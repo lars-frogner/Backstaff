@@ -11,7 +11,6 @@ use crate::{
     },
     seeding::Seeder3,
 };
-use indicatif::ParallelProgressIterator;
 use rayon::prelude::*;
 use std::{io, iter, path::Path};
 
@@ -298,13 +297,14 @@ impl CorkSet {
             .iter()
             .any(|name| name == MASS_DENSITY_VARIABLE_NAME);
 
+        let progress_bar = verbosity.create_progress_bar(number_of_corks);
+
         let mut corks = Self {
             corks: seeder
                 .points()
                 .par_iter()
-                .progress_with(verbosity.create_progress_bar(number_of_corks))
                 .map(|position| {
-                    Cork::new_from_fields(
+                    let corks = Cork::new_from_fields(
                         position.clone(),
                         0,
                         number_of_scalar_quantities,
@@ -312,7 +312,9 @@ impl CorkSet {
                         mass_density_field,
                         momentum_field,
                         interpolator,
-                    )
+                    );
+                    progress_bar.inc();
+                    corks
                 })
                 .collect(),
             times: vec![0.0],

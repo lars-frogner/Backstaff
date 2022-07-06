@@ -18,7 +18,6 @@ use crate::{
     tracing::stepping::{DynStepper3, SteppingSense},
     units::solar::{U_E, U_L, U_L3, U_R, U_T},
 };
-use indicatif::ParallelProgressIterator;
 use rand::{self, Rng};
 use rayon::prelude::*;
 use std::io;
@@ -365,13 +364,14 @@ impl Accelerator for SimplePowerLawAccelerator {
         if verbosity.print_messages() {
             println!("Computing total beam powers");
         }
+        let progress_bar = verbosity.create_progress_bar(number_of_locations);
+
         snapshot.cache_scalar_field("qjoule")?;
         let properties: Vec<_> = seeder
             .indices()
             .par_iter()
-            .progress_with(verbosity.create_progress_bar(number_of_locations))
             .filter_map(|indices| {
-                if self.config.inclusion_probability < 1.0
+                let property = if self.config.inclusion_probability < 1.0
                     && rand::thread_rng().gen::<feb>() >= self.config.inclusion_probability
                 {
                     None
@@ -382,7 +382,9 @@ impl Accelerator for SimplePowerLawAccelerator {
                     } else {
                         Some((indices.clone(), total_power_density))
                     }
-                }
+                };
+                progress_bar.inc();
+                property
             })
             .collect();
         snapshot.drop_scalar_field("qjoule");
@@ -391,15 +393,17 @@ impl Accelerator for SimplePowerLawAccelerator {
             println!("Computing magnetic and electric field directions");
         }
         let number_of_locations = properties.len();
+        let progress_bar = verbosity.create_progress_bar(number_of_locations);
+
         snapshot.cache_vector_field("b")?;
         snapshot.cache_vector_field("e")?;
         let properties: Vec<_> = properties
             .into_par_iter()
-            .progress_with(verbosity.create_progress_bar(number_of_locations))
             .filter_map(|(indices, total_power_density)| {
                 let acceleration_position =
                     Self::determine_acceleration_position(snapshot, &indices);
-                match Self::determine_electric_field_direction(snapshot, &indices) {
+                let properties = match Self::determine_electric_field_direction(snapshot, &indices)
+                {
                     Some(electric_field_direction) => {
                         let magnetic_field_direction = Self::determine_magnetic_field_direction(
                             snapshot,
@@ -427,7 +431,9 @@ impl Accelerator for SimplePowerLawAccelerator {
                         }
                     }
                     None => None,
-                }
+                };
+                progress_bar.inc();
+                properties
             })
             .collect();
         snapshot.drop_vector_field("e");
@@ -436,12 +442,13 @@ impl Accelerator for SimplePowerLawAccelerator {
             println!("Computing lower cutoff energies and estimating stopping distances");
         }
         let number_of_locations = properties.len();
+        let progress_bar = verbosity.create_progress_bar(number_of_locations);
+
         snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("r")?;
         snapshot.cache_scalar_field("tg")?;
         let distributions = properties
             .into_par_iter()
-            .progress_with(verbosity.create_progress_bar(number_of_locations))
             .filter_map(
                 |(
                     indices,
@@ -519,7 +526,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                             electron_coulomb_logarithm,
                         );
 
-                    if temperature < self.config.min_temperature
+                    let distributions = if temperature < self.config.min_temperature
                         && mass_density > self.config.max_mass_density
                     {
                         None
@@ -626,7 +633,9 @@ impl Accelerator for SimplePowerLawAccelerator {
                         } else {
                             Some(distributions)
                         }
-                    }
+                    };
+                    progress_bar.inc();
+                    distributions
                 },
             )
             .flatten()

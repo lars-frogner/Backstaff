@@ -25,7 +25,6 @@ use crate::{
     num::{BFloat, KeyValueOrderableByValue},
 };
 use ieee754::Ieee754;
-use indicatif::ParallelProgressIterator;
 use ndarray::prelude::*;
 use rayon::prelude::*;
 use std::{
@@ -1270,13 +1269,12 @@ where
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
-        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer
-            .par_iter_mut()
-            .enumerate()
-            .progress_with(verbosity.create_progress_bar(n_overlying_values))
-            .for_each(|(overlying_idx, overlying_value)| {
+        let n_overlying_values = overlying_values_buffer.len();
+        let progress_bar = verbosity.create_progress_bar(n_overlying_values);
+
+        overlying_values_buffer.par_iter_mut().enumerate().for_each(
+            |(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -1369,7 +1367,10 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            });
+
+                progress_bar.inc();
+            },
+        );
         let overlying_values = unsafe { overlying_values.assume_init() };
 
         ScalarField3::new(
@@ -1406,13 +1407,12 @@ where
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
-        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer
-            .par_iter_mut()
-            .enumerate()
-            .progress_with(verbosity.create_progress_bar(n_overlying_values))
-            .for_each(|(overlying_idx, overlying_value)| {
+        let n_overlying_values = overlying_values_buffer.len();
+        let progress_bar = verbosity.create_progress_bar(n_overlying_values);
+
+        overlying_values_buffer.par_iter_mut().enumerate().for_each(
+            |(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -1552,7 +1552,10 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            });
+
+                progress_bar.inc();
+            },
+        );
         let overlying_values = unsafe { overlying_values.assume_init() };
 
         ScalarField3::new(
@@ -1581,13 +1584,12 @@ where
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
-        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer
-            .par_iter_mut()
-            .enumerate()
-            .progress_with(verbosity.create_progress_bar(n_overlying_values))
-            .for_each(|(overlying_idx, overlying_value)| {
+        let n_overlying_values = overlying_values_buffer.len();
+        let progress_bar = verbosity.create_progress_bar(n_overlying_values);
+
+        overlying_values_buffer.par_iter_mut().enumerate().for_each(
+            |(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -1660,7 +1662,10 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            });
+
+                progress_bar.inc();
+            },
+        );
         let overlying_values = unsafe { overlying_values.assume_init() };
         ScalarField3::new(
             self.name.clone(),
@@ -1693,13 +1698,12 @@ where
             ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
         let mut overlying_values = Array3::uninit(overlying_grid.shape().to_tuple().f());
         let overlying_values_buffer = overlying_values.as_slice_memory_order_mut().unwrap();
-        let n_overlying_values = overlying_values_buffer.len();
 
-        overlying_values_buffer
-            .par_iter_mut()
-            .enumerate()
-            .progress_with(verbosity.create_progress_bar(n_overlying_values))
-            .for_each(|(overlying_idx, overlying_value)| {
+        let n_overlying_values = overlying_values_buffer.len();
+        let progress_bar = verbosity.create_progress_bar(n_overlying_values);
+
+        overlying_values_buffer.par_iter_mut().enumerate().for_each(
+            |(overlying_idx, overlying_value)| {
                 let (mut lower_overlying_corner, mut upper_overlying_corner) =
                     Self::compute_overlying_grid_cell_corners_for_resampling(
                         overlying_grid.as_ref(),
@@ -1818,7 +1822,10 @@ where
                 );
 
                 overlying_value.write(F::from(accum_value / accum_weight).unwrap());
-            });
+
+                progress_bar.inc();
+            },
+        );
         let overlying_values = unsafe { overlying_values.assume_init() };
         ScalarField3::new(
             self.name.clone(),
@@ -1851,10 +1858,11 @@ where
         let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
         let n_values = values_buffer.len();
 
+        let progress_bar = verbosity.create_progress_bar(n_values);
+
         values_buffer
             .par_iter_mut()
             .enumerate()
-            .progress_with(verbosity.create_progress_bar(n_values))
             .for_each(|(idx, value)| {
                 let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = new_coords.point(&indices);
@@ -1866,42 +1874,7 @@ where
                     )
                     .unwrap(),
                 );
-            });
-        let new_values = unsafe { new_values.assume_init() };
-        ScalarField3::new(self.name.clone(), grid, locations, new_values)
-    }
-
-    pub fn resampled_to_grid_with_direct_sampling_nongen(
-        &self,
-        grid: Arc<FieldGrid3>,
-        resampled_locations: In3D<ResampledCoordLocation>,
-        interpolator: &dyn Interpolator3<F>,
-        verbosity: &Verbosity,
-    ) -> ScalarField3<F> {
-        let locations =
-            ResampledCoordLocation::convert_to_locations_3d(resampled_locations, self.locations());
-        let new_coords = Self::coords_from_grid(grid.as_ref(), &locations);
-
-        let grid_shape = grid.shape();
-        let mut new_values = Array3::uninit(grid_shape.to_tuple().f());
-        let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
-        let n_values = values_buffer.len();
-
-        values_buffer
-            .par_iter_mut()
-            .enumerate()
-            .progress_with(verbosity.create_progress_bar(n_values))
-            .for_each(|(idx, value)| {
-                let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
-                let point = new_coords.point(&indices);
-                value.write(
-                    F::from(
-                        interpolator
-                            .interp_scalar_field(self, &point)
-                            .expect_inside_or_moved(),
-                    )
-                    .unwrap(),
-                );
+                progress_bar.inc();
             });
         let new_values = unsafe { new_values.assume_init() };
         ScalarField3::new(self.name.clone(), grid, locations, new_values)
@@ -1931,12 +1904,13 @@ where
         let grid_shape = grid.shape();
         let mut new_values = Array3::uninit(grid_shape.to_tuple().f());
         let values_buffer = new_values.as_slice_memory_order_mut().unwrap();
+
         let n_values = values_buffer.len();
+        let progress_bar = verbosity.create_progress_bar(n_values);
 
         values_buffer
             .par_iter_mut()
             .enumerate()
-            .progress_with(verbosity.create_progress_bar(n_values))
             .for_each(|(idx, value)| {
                 let indices = compute_3d_array_indices_from_flat_idx(grid_shape, idx);
                 let point = new_coords.point(&indices);
@@ -1949,6 +1923,7 @@ where
                     )
                     .unwrap(),
                 );
+                progress_bar.inc();
             });
         let new_values = unsafe { new_values.assume_init() };
         ScalarField3::new(self.name.clone(), grid, locations, new_values)
@@ -2876,17 +2851,19 @@ where
             .values_mut()
             .as_slice_memory_order_mut()
             .unwrap();
+
         let n_values = x_component_buffer.len();
+        let progress_bar = verbosity.create_progress_bar(n_values);
 
         x_component_buffer
             .par_iter_mut()
             .zip(y_component_buffer.par_iter_mut())
-            .progress_with(verbosity.create_progress_bar(n_values))
             .for_each(|(x_component, y_component)| {
                 let vector = Vec2::from_components(*x_component, *y_component);
                 let transformed_vector = transformation.inverse_transform_vec(&vector);
                 *x_component = F::from(transformed_vector[Dim2::X]).unwrap();
                 *y_component = F::from(transformed_vector[Dim2::Y]).unwrap();
+                progress_bar.inc();
             });
 
         self.components[Dim2::X] = Some(x_components);
