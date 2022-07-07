@@ -2,7 +2,7 @@
 
 use crate::{
     constants::{AMU, CLIGHT, KBOLTZMANN},
-    exit_on_none,
+    exit_on_none, exit_with_error,
     field::{
         quantities::{
             compute_quantity_product, compute_scaled_quantity,
@@ -32,7 +32,6 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     env, io,
     mem::MaybeUninit,
-    process,
     str::FromStr,
     sync::Arc,
 };
@@ -611,8 +610,9 @@ where
     Python::with_gil(|py| match set_pythonpaths(py).and_then(|_| command(py)) {
         Ok(result) => result,
         Err(err) => {
+            eprintln!("Python error:");
             err.print(py);
-            process::exit(1)
+            exit_with_error!("Aborting due to Python error");
         }
     })
 }
