@@ -820,12 +820,29 @@ where
             )?
             .extract()?;
 
-        let log_table_temperatures: &PyArray1<fgr> = log_table_temperatures.extract()?;
-        let log_table_electron_densities: &PyArray1<fgr> =
-            log_table_electron_densities.extract()?;
+        let log_table_temperatures: &PyArray1<F> = log_table_temperatures.extract()?;
+        let log_table_electron_densities: &PyArray1<F> = log_table_electron_densities.extract()?;
         let line_names: Vec<String> = line_names.extract()?;
         let wavelengths: &PyArray1<F> = wavelengths.extract()?;
         let emissivity_tables: Vec<&PyArray2<F>> = emissivity_tables.extract()?;
+
+        let log_table_temperatures = log_table_temperatures
+            .readonly()
+            .to_vec()
+            .expect("Array not contiguous");
+        let log_table_electron_densities = log_table_electron_densities
+            .readonly()
+            .to_vec()
+            .expect("Array not contiguous");
+
+        let log_table_temperatures = log_table_temperatures
+            .into_iter()
+            .map(|value| F::to_f64(&value).unwrap() as fgr)
+            .collect();
+        let log_table_electron_densities = log_table_electron_densities
+            .into_iter()
+            .map(|value| F::to_f64(&value).unwrap() as fgr)
+            .collect();
 
         let emissivity_tables = line_names
             .into_iter()
@@ -837,14 +854,8 @@ where
             .collect();
 
         Ok((
-            log_table_temperatures
-                .readonly()
-                .to_vec()
-                .expect("Array not contiguous"),
-            log_table_electron_densities
-                .readonly()
-                .to_vec()
-                .expect("Array not contiguous"),
+            log_table_temperatures,
+            log_table_electron_densities,
             emissivity_tables,
         ))
     }
