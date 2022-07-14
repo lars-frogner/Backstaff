@@ -70,9 +70,6 @@ lazy_static! {
         ("bx", (*U_B as fdt)),
         ("by", (*U_B as fdt)),
         ("bz", (*U_B as fdt)),
-        ("ux", U_U as fdt),
-        ("uy", U_U as fdt),
-        ("uz", U_U as fdt),
         ("p", (U_P as fdt)),
         ("tg", 1.0),
         ("cs", (U_P as fdt)),
@@ -513,7 +510,7 @@ fn compute_quantity(
         match quantity_name {
             "ux" => compute_quantity_quotient("ux", provider, "px", "r", 1.0, verbosity),
             "uy" => compute_quantity_quotient("uy", provider, "py", "r", 1.0, verbosity),
-            "uz" => compute_quantity_quotient("uz", provider, "py", "r", 1.0, verbosity),
+            "uz" => compute_quantity_quotient("uz", provider, "pz", "r", 1.0, verbosity),
             "ubeam" => compute_derived_quantity!(ubeam,
                 with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices) as fdt,
                 provider, verbosity
