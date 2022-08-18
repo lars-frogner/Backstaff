@@ -154,9 +154,9 @@ In the render view you should see the outline of the simulation box. We can add 
 ### 2D slice
 
 We start by rendering a 2D slice through the simulation box. Click Filters -> Common -> Slice to create a Slice filter. The position and orientation of the slice plane can be adjusted either by pulling on the plane or its normal vector in the render view, or by using the relevant widgets in the Properties panel. Once happy, hit Apply and the slice will be rendered. Dissapointingly, it is just plain white. We can fix that by going to the Coloring section of the Properties panel and changing from Solid Color to `tg` in the dropdown list, which will color the slice according to the local temperature. You can change or adjust the color map in the Color Map Editor (make sure the Slice filter is selected in the Pipeline Browser). You may end up with something that looks like this:
-![slice](/Backstaff/figures/tutorial_paraview_slice.jpg "2D slice in ParaView")
+![slice](/Backstaff/assets/images/tutorial_paraview_slice.jpg "2D slice in ParaView")
 
 ### Isosurfaces
 
 Let us try something a bit more exciting and render some isosurfaces. Hide our slice plane by clicking on the eye next to Slice1 in the Pipeline Browser. Then, select `en2431em_413.nc`, as we will apply the new filter to the original data source, not the data outputted from the Slice filter. Click Filters -> Common -> Contour. In the properties of the newly created Contour filter, select `tg` in the Contour By list, and then add `1e4` and `2e6` in the Isosurfaces box below. Hit Apply and behold the isosurfaces for 10 000 K and 2 MK. By default, the coloring of the surfaces is based on the quantity we create the contours for, but that can easily be changed by selecting another quantity under Coloring in the Properties panel. Here is what you might get if you color the contours by resistive heating (`qjoule`):
-![contours](/Backstaff/figures/tutorial_paraview_contours.jpg "Isosurfaces in ParaView")
+![contours](/Backstaff/assets/images/tutorial_paraview_contours.jpg "Isosurfaces in ParaView")
