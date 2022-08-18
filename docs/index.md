@@ -1,5 +1,3 @@
-# Preparing Bifrost data for visualization using Backstaff
-
 ## Installing the `backstaff` tool
 
 ### Making sure NetCDF is available
