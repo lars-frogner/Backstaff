@@ -4,6 +4,7 @@ MIN_PYTHON_MAJOR_VERSION=3
 MIN_PYTHON_MINOR_VERSION=7
 MIN_PYTHON_VERSION=$MIN_PYTHON_MAJOR_VERSION.$MIN_PYTHON_MINOR_VERSION
 REQUIRED_PYTHON_PACKAGES='numpy scipy numba ChiantiPy'
+DEFAULT_VERSION=0.3.0
 
 resolve_symlink() {
     local path="$1"
@@ -355,6 +356,8 @@ install_backstaff() {
     CONFIGURED_ENV_VARS=''
 
     ask_and_add_feature_default_yes statistics
+    ask_and_add_feature derivation
+
     ask_and_add_feature tracing
     ask_and_add_feature corks
     if [[ $(ask_feature synthesis) = 1 ]]; then
@@ -385,10 +388,16 @@ install_backstaff() {
         local profile_arg='--profile=release-lto'
     fi
 
-    echo "Default repository branch is main"
-    if [[ $(user_says_yes 'Use a different branch?') = 1 ]]; then
-        local branch="$(get_user_input 'Enter branch to use:')"
-        local branch_arg="--branch=$branch"
+    echo "Default version to download is $DEFAULT_VERSION"
+    if [[ $(user_says_yes 'Use a different version?') = 1 ]]; then
+        local version="$(get_user_input 'Enter version number to use (must be an existing release), or "main" to use latest commit:')"
+        if [[ "$version" = "main" ]]; then
+            local version_arg="--branch=$version"
+        else
+            local version_arg="--tag=$version"
+        fi
+    else
+        local version_arg="--tag=$DEFAULT_VERSION"
     fi
 
     echo "Default installation directory is $HOME/.cargo/bin"
@@ -402,7 +411,7 @@ install_backstaff() {
 
     print_configured_env_vars
 
-    local install_command="$(strip_duplicate_spaces "cargo install --locked --git=https://github.com/lars-frogner/Backstaff.git $branch_arg $root_arg $profile_arg --no-default-features --features=$FEATURES")"
+    local install_command="$(strip_duplicate_spaces "cargo install --locked --git=https://github.com/lars-frogner/Backstaff.git $version_arg $root_arg $profile_arg --no-default-features --features=$FEATURES")"
     echo 'Will now install Backstaff using the following command:'
     echo "$install_command"
     echo
@@ -426,11 +435,12 @@ run_interactive_installation() {
     fi
 
     echo
+    echo 'Done'
+
+    echo
     if [[ $(user_says_yes 'Setup tab-completion (available for bash, zsh and fish)?') = 1 ]]; then
         setup_tab_completion
     fi
-
-    echo 'Done'
 }
 
 setup_env_and_run_cargo() {
