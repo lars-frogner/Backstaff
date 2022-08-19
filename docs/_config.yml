@@ -8,4 +8,3 @@ color:
   link: "#1e6bb8"
 plugins:
 - jekyll-remote-theme
-baseurl: /tutorial
