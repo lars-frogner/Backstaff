@@ -1,6 +1,11 @@
+title: Preparing Bifrost data for visualization using Backstaff
+remote_theme: tuur29/pages-themes-cayman
+darkmode: true
+color:
+  header: "#000"
+  gradient_left: "#ffc70b"
+  gradient_right: "#f57c00"
+  link: "#1e6bb8"
 plugins:
 - jekyll-remote-theme
-remote_theme: tuur29/pages-themes-cayman
-title: Preparing Bifrost data for visualization using Backstaff
-description: ""
-darkmode: false
+baseurl: /tutorial

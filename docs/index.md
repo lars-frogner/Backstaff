@@ -1,4 +1,6 @@
-## Installing the `backstaff` tool
+This tutorial gives an introduction to the `backstaff` command line tool and how it can be used to convert and process [Bifrost](https://www.aanda.org/articles/aa/full_html/2011/07/aa16520-11/aa16520-11.html) simulation data in order to visualize it. It also gives a primer on how [ParaView](https://www.paraview.org/) can be used to visualize the data.
+
+## Installing the command line tool
 
 ### Making sure NetCDF is available
 
@@ -18,7 +20,7 @@ or (on Linux)
 sudo apt install netcdf
 ```
 
-### Running the `setup_backstaff` installation script
+### Running the installation script
 
 The Backstaff repository contains an interactive shell script called `setup_backstaff` that lets you select the desired features, verifies any dependencies and builds and installs the `backstaff` binary.
 
