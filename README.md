@@ -2,6 +2,10 @@
 
 A flexible tookit for working with [Bifrost](https://www.aanda.org/articles/aa/full_html/2011/07/aa16520-11/aa16520-11.html) simulations, written in [Rust](https://www.rust-lang.org/).
 
+## Getting started
+
+Check out the tutorial: [Preparing Bifrost data for visualization using Backstaff](https://lars-frogner.github.io/Backstaff/)
+
 ## Purpose
 
 The purpose of this project is to provide a fast, reliable and flexible framework for computations on Bifrost simulation data. The original motivation for the project was for me to have a way of experimenting with electron beam simulations. Using the Fortran module integrated in Bifrost would be too cumbersome, and a Python script would be far too slow. As I implemented necessary capabilities like reading and representing snapshots, interpolation and field line tracing, I began to see a lot of uses apart from electron beam simulations, and therefore adopted a modular structure where it would be easy to add new capabilities. Since the design is based on interfaces and generics it is also convenient to manage several different implementations of the same functionality. In the long term, I think such a unified framework would be the ideal place to implement common tasks like snapshot preparation and analysis or experiment with potential Bifrost features.
