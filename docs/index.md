@@ -49,7 +49,7 @@ You should see a help text like this:
 ```
 backstaff 0.3.0
 Lars Frogner <lars.frogner@astro.uio.no>
-A flexible tookit for working with Bifrost simulations
+A flexible toolkit for working with Bifrost simulations
 
 For documentation, see https://github.com/lars-frogner/Backstaff
 
