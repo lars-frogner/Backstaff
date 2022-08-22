@@ -1,6 +1,6 @@
 # Backstaff
 
-A flexible tookit for working with [Bifrost](https://www.aanda.org/articles/aa/full_html/2011/07/aa16520-11/aa16520-11.html) simulations, written in [Rust](https://www.rust-lang.org/).
+A flexible toolkit for working with [Bifrost](https://www.aanda.org/articles/aa/full_html/2011/07/aa16520-11/aa16520-11.html) simulations, written in [Rust](https://www.rust-lang.org/).
 
 ## Getting started
 
