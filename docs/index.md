@@ -107,9 +107,9 @@ Reading grid from en2431em.mesh
 Detected horizontally regular grid
 Reading r from en2431em_413.snap
 ================================================================================
-                 Statistics for r from snapshot 413 of en2431em                 
+                 Statistics for r from snapshot 413 of en2431em
 --------------------------------------------------------------------------------
-                         For all r, all x, all y, all z                         
+                         For all r, all x, all y, all z
 ================================================================================
 Number of values:    1000000
 Minimum value:       1.8765084e-8 at ( 17.864,   9.944,  -9.409) [ 74,  41,   9]
@@ -117,9 +117,9 @@ Maximum value:       263.97241211 at (  2.744,  17.144,   2.445) [ 11,  71,  99]
 Average value:       12.518044472
 Reading tg from en2431em_413.aux
 ================================================================================
-                Statistics for tg from snapshot 413 of en2431em                 
+                Statistics for tg from snapshot 413 of en2431em
 --------------------------------------------------------------------------------
-                        For all tg, all x, all y, all z                         
+                        For all tg, all x, all y, all z
 ================================================================================
 Number of values:    1000000
 Minimum value:       1998.7069092 at (  7.304,  10.184,  -1.540) [ 30,  42,  62]
@@ -175,7 +175,7 @@ backstaff snapshot -h
 ```
 Here is the output:
 ```
-backstaff-snapshot 
+backstaff-snapshot
 Specify input snapshot to perform further actions on
 
 USAGE:
@@ -213,7 +213,7 @@ Notice that we have moved the `-h` flag to after `resample`, which will give us 
 
 Here is the output:
 ```
-backstaff-snapshot-resample 
+backstaff-snapshot-resample
 Create a resampled version of the snapshot
 
 USAGE:
@@ -241,7 +241,7 @@ backstaff snapshot en2431em_413.idl \
     resample -p --sample-location=center reshaped_grid -h
 ```
 ```
-backstaff-snapshot-resample-reshaped_grid 
+backstaff-snapshot-resample-reshaped_grid
 Resample to a reshaped version of the original grid
 
 USAGE:
@@ -274,7 +274,7 @@ backstaff snapshot en2431em_413.idl \
 ```
 Our last help text looks like this:
 ```
-backstaff-snapshot-resample-reshaped_grid-write 
+backstaff-snapshot-resample-reshaped_grid-write
 Write snapshot data to file
 
 USAGE:
@@ -344,4 +344,16 @@ as well as the output file `en2431em_upsampled_413.nc`. If we load it in ParaVie
 
 [![upsampled_contour](/Backstaff/assets/images/tutorial_paraview_upsampled_contour.jpg "Smoother isosurface")](https://lars-frogner.github.io/Backstaff/assets/images/tutorial_paraview_upsampled_contour.jpg)
 
-The upsampling seems to have worked! 
+The upsampling seems to have worked!
+
+**_NOTE:_** This example is admittedly somewhat contrived, since we ordinarily wouldn't want to upsample simulation data for visualization. A more realistic use case for upsampling would be to produce a higher-resolution version of a snapshot for further simulation. The command for that would be identical except for the `--sample-location` option and that we would use `idl` as the extension for the output file instead of `nc`.
+
+### Resampling to a regular grid
+
+As we saw in the previous example, the `resample` subcommand has several subcommands representing different ways in which the snapshot can be resampled. One that is particularly useful for visualization is `regular_grid`. As the name implies, this subcommand resamples the snapshot to a grid where the grid cell extent is constant along all dimensions. This is different from the grids used in most Bifrost simulations, which tend to have a varying resolution in the z-direction.
+
+While varying vertical resolution is good for simulations, it causes problems when we want to do interactive volume rendering. Volume rendering is a technique where we assign a specific color and opacity to each grid cell based on the local value of the quantity we want to visualize. By blending the colors together along each line of sight from a given view point, we obtain an image that resembles what we would see if we were looking into a cloud of emissive gas from the view point. Here is an example of a temperature field volume rendered in ParaView:
+
+[![volume_rendering_example](/Backstaff/figures/volume_rendering.png "Volume rendering example")](https://lars-frogner.github.io/Backstaff/figures/volume_rendering.png)
+
+When volume rendering is done on a GPU, relatively large fields can be visualized at interactive speeds. But in ParaView, the GPU implementation of volume rendering only supports uniform grids. So if we want to volume render our snapshot, we must resample it first.
