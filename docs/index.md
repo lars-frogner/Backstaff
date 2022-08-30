@@ -352,8 +352,92 @@ The upsampling seems to have worked!
 
 As we saw in the previous example, the `resample` subcommand has several subcommands representing different ways in which the snapshot can be resampled. One that is particularly useful for visualization is `regular_grid`. As the name implies, this subcommand resamples the snapshot to a grid where the grid cell extent is constant along all dimensions. This is different from the grids used in most Bifrost simulations, which tend to have a varying resolution in the z-direction.
 
-While varying vertical resolution is good for simulations, it causes problems when we want to do interactive volume rendering. Volume rendering is a technique where we assign a specific color and opacity to each grid cell based on the local value of the quantity we want to visualize. By blending the colors together along each line of sight from a given view point, we obtain an image that resembles what we would see if we were looking into a cloud of emissive gas from the view point. Here is an example of a temperature field volume rendered in ParaView:
+While varying vertical resolution is good for simulations, it causes problems when we want to do interactive volume rendering. Volume rendering is a technique where we assign a specific color and opacity to each grid cell based on the local value of the quantity we want to visualize. By blending the colors together along each line of sight from a given view point, we obtain an image that resembles what we would see if we were looking into a cloud of emissive gas from the view point. Here is an example of a ParaView volume rendering of the transition region temperatures in a snapshot:
 
-[![volume_rendering_example](/Backstaff/figures/volume_rendering.png "Volume rendering example")](https://lars-frogner.github.io/Backstaff/figures/volume_rendering.png)
+[![volume_rendering_example](/Backstaff/assets/images/volume_rendering_example.jpg "Volume rendering example")](https://lars-frogner.github.io/Backstaff/assets/images/volume_rendering_example.jpg)
 
-When volume rendering is done on a GPU, relatively large fields can be visualized at interactive speeds. But in ParaView, the GPU implementation of volume rendering only supports uniform grids. So if we want to volume render our snapshot, we must resample it first.
+Volume rendering can be done very efficiently on a GPU, enabling relatively large fields to be visualized at interactive speeds. Unfortunately, this speed is only attainable if the grid is regular. If not, rendering will be orders of magnitude slower. So if we want to volume render our snapshot, we must resample it first.
+
+To do this with `backstaff`, we can recycle most of the command we used for upsampling in the previous section. Let us change the output file name to `en2431em_regular_413.nc` and swap out the `reshaped_grid` subcommand and its option for the `regular_grid` subcommand with a `-h` flag.
+```
+backstaff snapshot en2431em_413.idl \
+    resample -p --sample-location=center regular_grid -h \
+    write en2431em_regular_413.nc
+```
+Recall that as long as there is a a help flag somewhere in the command, the only thing the command will do is to print out the corresponding help text.
+```
+backstaff-snapshot-resample-regular_grid
+Resample to a regular grid
+
+USAGE:
+    backstaff snapshot resample regular_grid [OPTIONS] <SUBCOMMAND>
+
+OPTIONS:
+    -s, --shape=<NX>,<NY>,<NZ>        Shape of the resampled grid (`auto` approximates original cell
+                                      extent) [default: auto,auto,auto]
+    -c, --scales=<SX>,<SY>,<SZ>       Factors for scaling the dimensions specified in the `shape`
+                                      argument [default: 1,1,1]
+    -x, --x-bounds=<LOWER>,<UPPER>    Limits for the x-coordinates of the resampled grid [default:
+                                      min,max]
+    -y, --y-bounds=<LOWER>,<UPPER>    Limits for the y-coordinates of the resampled grid [default:
+                                      min,max]
+    -z, --z-bounds=<LOWER>,<UPPER>    Limits for the z-coordinates of the resampled grid [default:
+                                      min,max]
+    -h, --help                        Print help information
+
+SUBCOMMANDS:
+    sample_averaging    Use the weighted sample averaging method
+    cell_averaging      Use the weighted cell averaging method
+    direct_sampling     Use the direct sampling method
+    derive              Compute derived quantities for the snapshot
+    write               Write snapshot data to file
+    inspect             Inspect properties of the snapshot
+
+You can use a subcommand to configure the resampling method. If left unspecified,
+sample averaging with the default prameters is used.
+```
+
+All options here are, well, optional. If we don't specify otherwise, `regular_grid` will resample our snapshot to a regular grid with the same bounds and dimensions as the original grid. For our small demo snapshots, this is fine. If our snapshots had a high-resolution grid, say 768 grid cells in each dimension, we would probably want a somewhat downsampled regular grid in order to keep the visualisation interactive. To achieve this we could for instance specify `--scale=0.5,0.5,0.5` to get half the original resolution, or `--shape=512,512,512` to get exactly 512 grid cells in each dimension. Or we might instead only be interested in looking at some limited subdomain of the simulation box. Then we could specify the lower and upper bounds of the subdomain in each dimension with the `-x`, `-y` and `-z` options, and obtain a snapshot with a regular grid covering only this subdomain.
+
+For this example we will leave `regular_grid` without options (so remove the `-h` flag). Instead, let us add some options to the `snapshot` and `write` subcommands:
+```
+backstaff snapshot en2431em_413.idl --snap-range=413,415 \
+    resample -p --sample-location=center regular_grid \
+    write -v -I=r,tg,nel,qjoule en2431em_regular_413.nc
+```
+
+The option we have added to `snapshot` is `--snap-range=413,415`. The `--snap-range` option is very useful for processing a sequence of snapshots from the same simulation in one go. It will make the program read all of the snapshots in the specified range (in this case snaps `413`, `414` and `415`) one by one and run the other subcommands on each of them. The snapshot numbers in the output files will be incremented accordingly.
+
+For the `write` subcommand, we have added a `-I` (long form `--included-quantities`) option to limit the quantities in the output files to those we might be most interested in volume rendering. We have also added the `-v` flag to see the command is building up the output files.
+
+The command spits out the following to the terminal:
+```
+Writing grid to en2431em_regular_413.nc
+Resampling r
+Writing r to en2431em_regular_413.nc
+Resampling tg
+Writing tg to en2431em_regular_413.nc
+Resampling nel
+Writing nel to en2431em_regular_413.nc
+Resampling qjoule
+Writing qjoule to en2431em_regular_413.nc
+Writing grid to en2431em_regular_414.nc
+Resampling r
+Writing r to en2431em_regular_414.nc
+Resampling tg
+Writing tg to en2431em_regular_414.nc
+Resampling nel
+Writing nel to en2431em_regular_414.nc
+Resampling qjoule
+Writing qjoule to en2431em_regular_414.nc
+Writing grid to en2431em_regular_415.nc
+Resampling r
+Writing r to en2431em_regular_415.nc
+Resampling tg
+Writing tg to en2431em_regular_415.nc
+Resampling nel
+Writing nel to en2431em_regular_415.nc
+Resampling qjoule
+Writing qjoule to en2431em_regular_415.nc
+```
+We are left with three resampled snapshot files: `en2431em_regular_413.nc`, `en2431em_regular_414.nc` and `en2431em_regular_415.nc`.
