@@ -458,7 +458,7 @@ It is usually neccesary to tweak the opacity transfer function in order to get t
 
 The Color Map Editor contains an interactive plot of the opacity transfer function. Its initial form is a linear function that is 0 for the minimum value of the field and 1 for the maximum value. Directly below the graph is a rectangular area with a color gradient. This represents the color transfer function (or color map), which maps field values to colors.
 
-[![transfer_functions](/Backstaff/assets/images/transfer_functions.jpg "Opacity and color transfer function"){:style="max-width: 30rem; display: block; margin-left: auto; margin-right: auto;"}](https://lars-frogner.github.io/Backstaff/assets/images/transfer_functions.jpg)
+[![transfer_functions](/Backstaff/assets/images/transfer_functions.jpg "Opacity and color transfer function"){:style="min-width: 100px; max-width: min(30rem, 100%); display: block; margin-left: auto; margin-right: auto;"}](https://lars-frogner.github.io/Backstaff/assets/images/transfer_functions.jpg)
 
 Before we begin to adjust transfer functions, it is a good idea to set the color map range. This is the range of field values that will be represented in the transfer functions. Values below and above this range will simply be assigned the first and last value in the transfer functions, respectively.  By default, the color map range is the full range of values present in the field. If we want to want to focus on a smaller range of values, we can specify the range by clicking the Rescale to custom range button (green double arrow to the left of the transfer function view, second from the top) and specify a new range. For this example, let us specify an upper limit of 2 MK.
 
