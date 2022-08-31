@@ -1,5 +1,9 @@
 This tutorial gives an introduction to the `backstaff` command line tool and how it can be used to convert and process [Bifrost](https://www.aanda.org/articles/aa/full_html/2011/07/aa16520-11/aa16520-11.html) simulation data to visualize it. It also gives a primer on how [ParaView](https://www.paraview.org/) can be used to visualize the data.
 
+<h2 class="no_toc">Table of contents</h2>
+* List that will be converted to a table of contents
+{:toc}
+
 ## Installing the command line tool
 
 ### Making sure NetCDF is available
@@ -358,7 +362,7 @@ While varying vertical resolution is good for simulations, it causes problems wh
 
 Volume rendering can be done very efficiently on a GPU, enabling relatively large fields to be visualized at interactive speeds. Unfortunately, this speed is only attainable if the grid is regular. If not, rendering will be orders of magnitude slower. So if we want to volume render our snapshot, we must resample it first.
 
-To do this with `backstaff`, we can recycle most of the command we used for upsampling in the previous section. Let us change the output file name to `en2431em_regular_413.nc` and swap out the `reshaped_grid` subcommand and its option for the `regular_grid` subcommand with a `-h` flag.
+To do this with `backstaff`, we can recycle most of the command we used for upsampling in the [previous section](#resampling-to-a-reshaped-grid). Let us change the output file name to `en2431em_regular_413.nc` and swap out the `reshaped_grid` subcommand and its option for the `regular_grid` subcommand with a `-h` flag.
 ```
 backstaff snapshot en2431em_413.idl \
     resample -p --sample-location=center regular_grid -h \
@@ -441,3 +445,21 @@ Resampling qjoule
 Writing qjoule to en2431em_regular_415.nc
 ```
 We are left with three resampled snapshot files: `en2431em_regular_413.nc`, `en2431em_regular_414.nc` and `en2431em_regular_415.nc`.
+
+## Volume rendering with ParaView
+
+We will now use Paraview to volume render the snapshots that we resampled to a regular grid in the [previous section](#resampling-to-a-regular-grid).
+
+Start by loading the `en2431em_regular_*.nc` files in ParaView as described in the [section on loading data](#loading-the-data). You will notice that ParaView file browser recognises the three snapshots as belonging to the same group. Opening the whole group instead of individual files will cause the snapshots to be loaded as a time sequence, enabling us to play through the snapshots or select specific times in the time control toolbar near the top of the application.
+
+To produce a volume rendering, find the Representation dropdown list under Display in the Properties panel and change the representation from Outline to Volume. We can see which quantity is being rendered in the dropdown list under Coloring just below. Let us change it to `tg` to view the temperature.
+
+It is usually neccesary to tweak the opacity transfer function in order to get the visualisation we want. The opacity transfer function is responsible for converting the field values to opacities. By manipulating it we can make the values we are uninterested in more transparent to better reveal the values that we do want to see.
+
+The Color Map Editor contains an interactive plot of the opacity transfer function. Its initial form is a linear function that is 0 for the minimum value of the field and 1 for the maximum value. Directly below the graph is a rectangular area with a color gradient. This represents the color transfer function (or color map), which maps field values to colors.
+
+[![transfer_functions](/Backstaff/assets/images/transfer_functions.jpg "Opacity and color transfer function")](https://lars-frogner.github.io/Backstaff/assets/images/transfer_functions.jpg)
+
+Before we begin to adjust transfer functions, it is a good idea to set the color map range. This is the range of field values that will be represented in the transfer functions. Values below and above this range will simply be assigned the first and last value in the transfer functions, respectively.  By default, the color map range is the full range of values present in the field. If we want to want to focus on a smaller range of values, we can specify the range by clicking the Rescale to custom range button (green double arrow to the left of the transfer function view, second from the top) and specify a new range. For this example, let us specify an upper limit of 2 MK.
+
+Next, we'll tweak the opacities. Let's say we want to visualise the structure of the transition region. Grid cells with temperatures of 2 MK and above are not really interesting for this purpose, and only serve to block the view of the transition region. By dragging the right end node of the opacity transfer function (in the upper right) from 1 to 0, we can hide those pesky hot regions. Unfortunately, this collapses the whole linear function and hides everything else as well. We can fix this by adding a new node by clicking anywhere in the opacity transfer funciton view, and dragging it to give more opacity to the temperatures we are interested in. Feel free to play around by adjusting ranges, adding and moving nodes, or even freehand drawing a transfer function. If you mess things up too much, scroll to the bottom of the editor and click the "recycle" button to restore the default transfer functions.
