@@ -39,11 +39,11 @@ We can then move on to selecting features.
 
 The feature system allows us to include only the functionality we need when building the binary. By not having unneeded features, we can avoid unnecessary dependencies and reduce the compilation time and executable binary size. You can find descriptions of the available features at https://github.com/lars-frogner/Backstaff/blob/main/README.md#features.
 
-For this tutorial, we will need the `statistics`, `derivation`, `tracing`, and `netcdf` features, so say yes to include each of these when prompted. If you think you may need additional features in the future, you can include those now as well. You can always re-run the installation script at a later point to change the feature set.
+For this tutorial, we will need the `statistics` and `netcdf` features, so say yes to include each of these when prompted. If you think you may need additional features in the future, you can include those now as well. You can always re-run the installation script at a later point to change the feature set.
 
 When prompted about link time optimization, you can say no, and you should say no to using a different version than the default. Finally, you may specify the path where the binary should be installed or just accept the default path.
 
-When the installation has finished, you will be asked if you want to set up tab-completion for the `backstaff` command. Say yes and follow the instructions if you want that. But be aware that this may affect the responsiveness of constructing commands if you include a lot of features.
+When the installation has finished, you will be asked if you want to set up tab-completion for the `backstaff` command. If you want that, say yes and follow the instructions. But be aware that this may affect the responsiveness of constructing commands if you include a lot of features.
 
 If you installed `backstaff` to a directory in your `$PATH`, you should now be able to execute the binary:
 ```
@@ -90,7 +90,7 @@ curl -LO https://github.com/lars-frogner/Backstaff/releases/latest/download/demo
 unzip demo_snapshots.zip
 ```
 
-In the extracted `demo_snapshots` folder, you will find three sets of files representing a snapshot of the simulation at three points in time. Each snapshot has a `*.idl` parameter file containing all metadata for the snapshot in plaintext, as well as a binary `*.snap` and `*.aux` file containing the actual values for respectively the primary and auxiliary quantities. There is also a shared `*.mesh` text file that defines the simulation grid.
+In the extracted `demo_snapshots` folder, you will find three sets of files representing a snapshot of the simulation at three points in time (snapshots 413, 414 and 415). Each snapshot has a `*.idl` parameter file containing all metadata for the snapshot in plaintext, as well as a binary `*.snap` and `*.aux` file containing the actual values for respectively the primary and auxiliary quantities. There is also a shared `*.mesh` text file that defines the simulation grid.
 
 ## Inspecting a snapshot
 
@@ -200,13 +200,11 @@ OPTIONS:
     -h, --help                         Print help information
 
 SUBCOMMANDS:
-    derive      Compute derived quantities for the snapshot
     inspect     Inspect properties of the snapshot
     slice       Extract a 2D slice of a quantity field in the snapshot
     extract     Extract a subdomain of the snapshot
     resample    Create a resampled version of the snapshot
     write       Write snapshot data to file
-    trace       Trace field lines of a vector field in the snapshot
 ```
 
 We see that `resample` is available as a subcommand of `snapshot`, so we should add that to our command. But before adding `resample`, we must remember to add any arguments and options we want to pass to the `snapshot` subcommand. In this case we'll just specify the input file path. This is our new command:
@@ -262,7 +260,6 @@ SUBCOMMANDS:
     sample_averaging    Use the weighted sample averaging method
     cell_averaging      Use the weighted cell averaging method
     direct_sampling     Use the direct sampling method
-    derive              Compute derived quantities for the snapshot
     write               Write snapshot data to file
     inspect             Inspect properties of the snapshot
 
@@ -393,7 +390,6 @@ SUBCOMMANDS:
     sample_averaging    Use the weighted sample averaging method
     cell_averaging      Use the weighted cell averaging method
     direct_sampling     Use the direct sampling method
-    derive              Compute derived quantities for the snapshot
     write               Write snapshot data to file
     inspect             Inspect properties of the snapshot
 
@@ -410,7 +406,7 @@ backstaff snapshot en2431em_413.idl --snap-range=413,415 \
     write -v -I=r,tg,nel,qjoule en2431em_regular_413.nc
 ```
 
-The option we have added to `snapshot` is `--snap-range=413,415`. The `--snap-range` option is very useful for processing a sequence of snapshots from the same simulation in one go. It will make the program read all of the snapshots in the specified range (in this case snaps `413`, `414` and `415`) one by one and run the other subcommands on each of them. The snapshot numbers in the output files will be incremented accordingly.
+The option we have added to `snapshot` is `--snap-range=413,415`. The `--snap-range` option is very useful for processing a sequence of snapshots from the same simulation in one go. It will make the program read all of the snapshots in the specified range (in this case snaps 413, 414 and 415) one by one and run the other subcommands on each of them. The snapshot numbers in the output files will be incremented accordingly.
 
 For the `write` subcommand, we have added a `-I` (long form `--included-quantities`) option to limit the quantities in the output files to those we might be most interested in volume rendering. We have also added the `-v` flag to see the command is building up the output files.
 
