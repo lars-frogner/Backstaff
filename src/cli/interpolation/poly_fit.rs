@@ -39,7 +39,7 @@ pub fn create_poly_fit_interpolator_subcommand(
                      surrounding the interpolation point exceeds this",
                 )
                 .takes_value(true)
-                .default_value("0.3"),
+                .default_value("0.25"),
         )
 }
 

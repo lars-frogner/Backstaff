@@ -1955,7 +1955,7 @@ impl<F: BFloat> Interpolator1<F> for PolyFitInterpolator1 {
 
 impl PolyFitInterpolatorConfig {
     pub const DEFAULT_ORDER: usize = 3;
-    pub const DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR: f64 = 0.3;
+    pub const DEFAULT_VARIATION_THRESHOLD_FOR_LINEAR: f64 = 0.25;
 
     /// Panics if any of the configuration parameter values are invalid.
     fn validate(&self) {
