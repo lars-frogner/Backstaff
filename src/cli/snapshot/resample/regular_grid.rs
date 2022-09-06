@@ -44,7 +44,7 @@ pub fn create_regular_grid_subcommand(_parent_command_name: &'static str) -> Com
         .long_about("Resample to a regular grid of configurable shape and bounds.")
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
-             sample averaging with the default prameters is used.",
+             sample averaging with the default parameters is used.",
         )
         .arg(
             Arg::new("shape")

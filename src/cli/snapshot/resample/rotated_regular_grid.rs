@@ -51,7 +51,7 @@ pub fn create_rotated_regular_grid_subcommand(
         )
         .after_help(
             "You can use a subcommand to configure the resampling method. If left unspecified,\n\
-             sample averaging with the default prameters is used.",
+             sample averaging with the default parameters is used.",
         )
         .arg(
             Arg::new("shape")
