@@ -981,11 +981,18 @@ impl ResampledCoordLocation {
 }
 
 /// Method for resampling a field.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ResamplingMethod {
     SampleAveraging,
     CellAveraging,
     DirectSampling,
+}
+
+impl ResamplingMethod {
+    /// Whether the resampling method makes use of an interpolator.
+    pub fn uses_interpolator(&self) -> bool {
+        *self != Self::CellAveraging
+    }
 }
 
 /// The type of grid held by 3D fields.

@@ -393,51 +393,70 @@ fn create_reshaped_hor_regular_version_of_grid(
     let horizontal_centers = horizontal_grid.centers();
     let horizontal_lower_edges = horizontal_grid.lower_edges();
 
-    let lower_bound_z = grid.lower_bounds()[Z];
-    let upper_bound_z = grid.upper_bounds()[Z];
-    let lower_edges_z = &grid.lower_edges()[Z];
+    let (centers_z, lower_edges_z, up_derivatives_z, down_derivatives_z) = if new_shape[Z]
+        != grid.shape()[Z]
+    {
+        let lower_bound_z = grid.lower_bounds()[Z];
+        let upper_bound_z = grid.upper_bounds()[Z];
+        let lower_edges_z = &grid.lower_edges()[Z];
 
-    let size_z = lower_edges_z.len();
-    let stride = usize::max(
-        1,
-        f32::floor((size_z as f32) / TARGET_CONTROL_SIZE as f32) as usize,
-    );
-    let mut control_coords: Vec<_> = lower_edges_z.iter().copied().step_by(stride).collect();
-    let mut control_grid_cell_extents: Vec<_> = lower_edges_z
-        .iter()
-        .step_by(stride)
-        .zip(
-            lower_edges_z
-                .iter()
-                .skip(1)
-                .chain(iter::once(&upper_bound_z))
-                .step_by(stride),
+        let size_z = lower_edges_z.len();
+        let stride = usize::max(
+            1,
+            f32::floor((size_z as f32) / TARGET_CONTROL_SIZE as f32) as usize,
+        );
+        let mut control_coords: Vec<_> = lower_edges_z.iter().copied().step_by(stride).collect();
+        let mut control_grid_cell_extents: Vec<_> = lower_edges_z
+            .iter()
+            .step_by(stride)
+            .zip(
+                lower_edges_z
+                    .iter()
+                    .skip(1)
+                    .chain(iter::once(&upper_bound_z))
+                    .step_by(stride),
+            )
+            .map(|(lower_edge, upper_edge)| upper_edge - lower_edge)
+            .collect();
+        *control_coords.last_mut().unwrap() = upper_bound_z;
+        *control_grid_cell_extents.last_mut().unwrap() = upper_bound_z - lower_edges_z[size_z - 1];
+
+        let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig {
+            order: 1,
+            ..PolyFitInterpolatorConfig::default()
+        });
+        let (new_centers_z, new_lower_edges_z) = exit_on_error!(
+            grid::create_new_grid_coords_from_control_extents(
+                new_shape[Z],
+                lower_bound_z,
+                upper_bound_z,
+                &control_coords,
+                &control_grid_cell_extents,
+                &interpolator,
+            ),
+            "Error: Could not compute new z-coordinates for grid: {}"
+        );
+
+        let (up_derivatives_z, down_derivatives_z) =
+            grid::compute_up_and_down_derivatives(&new_centers_z);
+
+        (
+            new_centers_z,
+            new_lower_edges_z,
+            up_derivatives_z,
+            down_derivatives_z,
         )
-        .map(|(lower_edge, upper_edge)| upper_edge - lower_edge)
-        .collect();
-    *control_coords.last_mut().unwrap() = upper_bound_z;
-    *control_grid_cell_extents.last_mut().unwrap() = upper_bound_z - lower_edges_z[size_z - 1];
-
-    let interpolator = PolyFitInterpolator1::new(PolyFitInterpolatorConfig {
-        order: 1,
-        ..PolyFitInterpolatorConfig::default()
-    });
-    let (new_centers_z, new_lower_edges_z) = exit_on_error!(
-        grid::create_new_grid_coords_from_control_extents(
-            new_shape[Z],
-            lower_bound_z,
-            upper_bound_z,
-            &control_coords,
-            &control_grid_cell_extents,
-            &interpolator,
-        ),
-        "Error: Could not compute new z-coordinates for grid: {}"
-    );
+    } else {
+        (
+            grid.centers()[Z].clone(),
+            grid.lower_edges()[Z].clone(),
+            grid.up_derivatives().unwrap()[Z].clone(),
+            grid.down_derivatives().unwrap()[Z].clone(),
+        )
+    };
 
     let mut up_derivatives = horizontal_grid.up_derivatives().unwrap().clone();
     let mut down_derivatives = horizontal_grid.down_derivatives().unwrap().clone();
-    let (up_derivatives_z, down_derivatives_z) =
-        grid::compute_up_and_down_derivatives(&new_centers_z);
     up_derivatives[Z] = up_derivatives_z;
     down_derivatives[Z] = down_derivatives_z;
 
@@ -445,12 +464,12 @@ fn create_reshaped_hor_regular_version_of_grid(
         Coords3::new(
             horizontal_centers[X].clone(),
             horizontal_centers[Y].clone(),
-            new_centers_z,
+            centers_z,
         ),
         Coords3::new(
             horizontal_lower_edges[X].clone(),
             horizontal_lower_edges[Y].clone(),
-            new_lower_edges_z,
+            lower_edges_z,
         ),
         grid.periodicity().clone(),
         Some(up_derivatives),
@@ -559,10 +578,12 @@ fn resample_snapshot_for_grid(
     interpolator: Box<dyn Interpolator3<fdt>>,
     io_context: &mut IOContext,
 ) {
-    exit_on_error!(
-        interpolator.verify_grid(provider.grid()),
-        "Invalid input grid for resampling: {}"
-    );
+    if resampling_method.uses_interpolator() {
+        exit_on_error!(
+            interpolator.verify_grid(provider.grid()),
+            "Invalid input grid for resampling: {}"
+        );
+    }
 
     let provider = Box::new(ResampledScalarFieldProvider3::new(
         provider,
