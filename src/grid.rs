@@ -1692,6 +1692,8 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1<f
 
     let mut correction_scale = 1.0 / extent;
     let mut iterations = 0;
+    let mut correction_step = 0.1 * correction_scale;
+
     loop {
         // Make sure grid cells near lower boundary have uniform extent
         let grid_cell_extent = evaluate_grid_cell_extent(0.0)? * correction_scale;
@@ -1701,14 +1703,12 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1<f
         // Make sure interpolation to follow starts at coordinate 0.0
         let offset = -grid_cell_edges[UNIFORM_CELLS];
 
+        let mut overshot = false;
+
         for i in UNIFORM_CELLS..temp_upper_boundary_index {
-            if offset + grid_cell_edges[i] > 1.0 {
-                // If we pass the upper boundary too early, stop interpolation
-                // and simply repeat the last grid cell extent
-                let grid_cell_extent = evaluate_grid_cell_extent(1.0)? * correction_scale;
-                for j in i..temp_upper_boundary_index {
-                    grid_cell_edges[j + 1] = grid_cell_edges[j] + grid_cell_extent;
-                }
+            overshot = offset + grid_cell_edges[i] > 1.0;
+
+            if overshot {
                 break;
             }
 
@@ -1727,13 +1727,28 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1<f
 
         iterations += 1;
 
-        // Check whether we hit the upper boundary (1.0).
-        // If not, adjust the correction scale and retry.
-        let upper_boundary = offset + grid_cell_edges[temp_upper_boundary_index - 1];
-        if f64::abs(upper_boundary - 1.0) > TOLERANCE {
-            correction_scale *= 1.0 / upper_boundary;
+        if iterations == 1 && overshot {
+            correction_step = -correction_step;
+        }
+
+        if overshot {
+            if correction_step > 0.0 {
+                correction_step = -0.5 * correction_step;
+            }
+            correction_scale += correction_step;
         } else {
-            break;
+            let upper_boundary = offset + grid_cell_edges[temp_upper_boundary_index - 1];
+
+            // Check whether we hit the upper boundary (1.0).
+            // If not, adjust the correction scale and retry.
+            if f64::abs(upper_boundary - 1.0) > TOLERANCE {
+                if correction_step < 0.0 {
+                    correction_step = -0.5 * correction_step;
+                }
+                correction_scale += correction_step;
+            } else {
+                break;
+            }
         }
 
         if iterations > MAX_ITERATIONS {
