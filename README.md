@@ -1,6 +1,10 @@
 # Backstaff
 
-A flexible tookit for working with Bifrost simulations, written in [Rust](https://www.rust-lang.org/).
+A flexible toolkit for working with [Bifrost](https://www.aanda.org/articles/aa/full_html/2011/07/aa16520-11/aa16520-11.html) simulations, written in [Rust](https://www.rust-lang.org/).
+
+## Getting started
+
+Check out the tutorial: [Preparing Bifrost data for visualization using Backstaff](https://lars-frogner.github.io/Backstaff/)
 
 ## Purpose
 
@@ -90,7 +94,7 @@ bash setup_backstaff build --features=netcdf,... --release
 
 ## Using the command line program
 
-If you have installed the binary, simply run the `backstaff` command. If you instead are running directly from the repository, the simplest way to run the command line executable is with `cargo run` command. This will also perform any necessary compilation prior to running the program. All arguments following a double dash (`--`) will then be passed along to the `backstaff` program.
+If you have installed the binary, simply run the `backstaff` command. If you instead are running directly from the repository, the simplest way to run the command line executable is with the `cargo run` command. This will also perform any necessary compilation prior to running the program. All arguments following a double dash (`--`) will then be passed along to the `backstaff` program.
 
 Actions are specified and configured through a hierachy of subcommands, which can be inspected by looking at their help texts. For example, the help text for the `snapshot` subcommand can be viewed as follows:
 ```
