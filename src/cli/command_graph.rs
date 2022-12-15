@@ -25,6 +25,7 @@ pub const CONFIG_COMMANDS: [&str; 24] = [
     "statistics",
     "regular",
     "horizontally_regular",
+    "horizontally_extended",
     "mesh_file",
     "regular_grid",
     "rotated_regular_grid",

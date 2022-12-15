@@ -1,9 +1,13 @@
 //! Command line interface for creating Bifrost mesh files.
 
+mod horizontally_extended;
 mod horizontally_regular;
 mod regular;
 
 use self::{
+    horizontally_extended::{
+        create_horizontally_extended_subcommand, run_horizontally_extended_subcommand,
+    },
     horizontally_regular::{
         create_horizontally_regular_subcommand, run_horizontally_regular_subcommand,
     },
@@ -55,6 +59,7 @@ pub fn create_create_mesh_subcommand(_parent_command_name: &'static str) -> Comm
         )
         .subcommand(create_regular_subcommand(command_name))
         .subcommand(create_horizontally_regular_subcommand(command_name))
+        .subcommand(create_horizontally_extended_subcommand(command_name))
 }
 
 /// Runs the actions for the `create_mesh` subcommand using the given arguments.
@@ -65,6 +70,14 @@ pub fn run_create_mesh_subcommand(arguments: &ArgMatches, io_context: &mut IOCon
         arguments.subcommand_matches("horizontally_regular")
     {
         run_horizontally_regular_subcommand(arguments, horizontally_regular_arguments, io_context);
+    } else if let Some(horizontally_extended_arguments) =
+        arguments.subcommand_matches("horizontally_extended")
+    {
+        run_horizontally_extended_subcommand(
+            arguments,
+            horizontally_extended_arguments,
+            io_context,
+        );
     } else {
         exit_with_error!("Error: No resampling mode specified");
     };
