@@ -355,6 +355,7 @@ fn [<resampling_to_regular_and_rotated_regular_without_rotation_with_ $resamplin
 }};}
 define_test_for_each_resampling_method!(resampling_test);
 
+#[cfg(all(feature = "cli", feature = "for-testing"))]
 def_test!(
 IN[input_snapshot=MINIMAL_REGULAR_NATIVE_SNAP]
 OUT[output_snapshot_1="a/out_001.idl", output_snapshot_2="b/out_001.idl"]

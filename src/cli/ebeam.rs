@@ -3,6 +3,7 @@
 pub mod accelerator;
 pub mod detection;
 pub mod distribution;
+pub mod propagator;
 pub mod simulate;
 
 use self::simulate::{create_simulate_subcommand, run_simulate_subcommand};

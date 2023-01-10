@@ -1,5 +1,6 @@
 //! Command line interface for the simple power-law distribution accelerator.
 
+use super::super::propagator::analytical::create_analytical_propagator_subcommand;
 use crate::{
     add_subcommand_combinations,
     cli::{
@@ -69,17 +70,6 @@ pub fn create_simple_power_law_accelerator_subcommand(
                 .help(
                     "Distributions with total power densities smaller than this value\n\
                      are discarded [erg/(cm^3 s)] [default: from param file]",
-                )
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("min-depletion-distance")
-                .long("min-depletion-distance")
-                .require_equals(true)
-                .value_name("VALUE")
-                .help(
-                    "Distributions with an estimated depletion distance smaller\n\
-                     than this value are discarded [Mm] [default: from param file]",
                 )
                 .takes_value(true),
         )
@@ -166,7 +156,8 @@ pub fn create_simple_power_law_accelerator_subcommand(
                 .help("Maximum number of iterations when estimating lower cut-off energy\n")
                 .takes_value(true)
                 .default_value("100"),
-        );
+        )
+        .subcommand(create_analytical_propagator_subcommand(command_name));
 
     add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }
@@ -211,15 +202,6 @@ pub fn construct_simple_power_law_accelerator_config_from_options(
         "min_beam_en",
         &|min_beam_en: feb| min_beam_en,
         SimplePowerLawAccelerationConfig::DEFAULT_MIN_TOTAL_POWER_DENSITY,
-    );
-
-    let min_depletion_distance = utils::get_value_from_param_file_argument_with_default(
-        parameters,
-        arguments,
-        "min-depletion-distance",
-        "min_stop_dist",
-        &|min_stop_dist: feb| min_stop_dist,
-        SimplePowerLawAccelerationConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
     let max_pitch_angle = utils::get_finite_float_value_from_required_parseable_argument(
@@ -271,7 +253,6 @@ pub fn construct_simple_power_law_accelerator_config_from_options(
         particle_energy_fraction,
         power_law_delta,
         min_total_power_density,
-        min_depletion_distance,
         max_pitch_angle,
         max_electric_field_angle,
         min_temperature,

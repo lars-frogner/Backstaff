@@ -1,11 +1,11 @@
 //! Simple model for acceleration of non-thermal electron beams described by power-law distributions.
 
-use super::super::{
-    super::super::{accelerator::Accelerator, detection::ReconnectionSiteDetector, feb},
-    PowerLawDistribution, PowerLawDistributionConfig, PowerLawDistributionData,
-};
+use super::super::PowerLawDistribution;
 use crate::{
     constants::{INFINITY, KBOLTZMANN, KEV_TO_ERG, PI},
+    ebeam::{
+        accelerator::Accelerator, detection::ReconnectionSiteDetector, feb, propagation::Propagator,
+    },
     field::CachingScalarFieldProvider3,
     geometry::{Dim3, Idx3, Point3, Vec3},
     grid::{fgr, Grid3},
@@ -14,9 +14,8 @@ use crate::{
         snapshot::{self, fdt, SnapshotParameters},
         Verbosity,
     },
-    plasma::ionization,
     tracing::stepping::{DynStepper3, SteppingSense},
-    units::solar::{U_E, U_L, U_L3, U_R, U_T},
+    units::solar::{U_E, U_L3, U_R, U_T},
 };
 use rand::{self, Rng};
 use rayon::prelude::*;
@@ -34,9 +33,6 @@ pub struct SimplePowerLawAccelerationConfig {
     pub power_law_delta: feb,
     /// Distributions with total power densities smaller than this value are discarded [erg/(cm^3 s)].
     pub min_total_power_density: feb,
-    /// Distributions with an estimated depletion distance smaller than this value
-    /// are discarded [Mm].
-    pub min_depletion_distance: feb,
     /// Distributions with initial absolute pitch angles larger than this are discarded [deg].
     pub max_pitch_angle: feb,
     /// Distributions with electric field directions angled more than this away from
@@ -61,7 +57,6 @@ pub struct SimplePowerLawAccelerationConfig {
 // Simple acceleration process producing power-law distributions of non-thermal electrons.
 #[derive(Clone, Debug)]
 pub struct SimplePowerLawAccelerator {
-    distribution_config: PowerLawDistributionConfig,
     config: SimplePowerLawAccelerationConfig,
     pitch_angle_cosine_threshold: feb,
     #[allow(dead_code)]
@@ -72,9 +67,6 @@ impl SimplePowerLawAccelerator {
     /// How many adjacent grid cells in each direction to include when
     /// computing the average electric field around the acceleration site.
     const ELECTRIC_FIELD_PROBING_SPAN: isize = 0;
-
-    /// Smallest mean electron energy that will be used to compute Coulomb logarithms [keV].
-    const MIN_COULOMB_LOG_MEAN_ENERGY: feb = 0.1;
 
     fn determine_total_power_density(
         &self,
@@ -317,17 +309,12 @@ impl SimplePowerLawAccelerator {
     ///
     /// # Parameters
     ///
-    /// - `distribution_config`: Configuration parameters for the distribution.
     /// - `config`: Configuration parameters for the accelerator.
     ///
     /// # Returns
     ///
     /// A new `SimplePowerLawAccelerator`.
-    pub fn new(
-        distribution_config: PowerLawDistributionConfig,
-        config: SimplePowerLawAccelerationConfig,
-    ) -> Self {
-        distribution_config.validate();
+    pub fn new(config: SimplePowerLawAccelerationConfig) -> Self {
         config.validate();
 
         let pitch_angle_cosine_threshold = feb::cos(config.max_pitch_angle.to_radians());
@@ -335,7 +322,6 @@ impl SimplePowerLawAccelerator {
             feb::cos(config.max_electric_field_angle.to_radians());
 
         SimplePowerLawAccelerator {
-            distribution_config,
             config,
             pitch_angle_cosine_threshold,
             electric_field_angle_cosine_threshold,
@@ -347,17 +333,18 @@ impl Accelerator for SimplePowerLawAccelerator {
     type DistributionType = PowerLawDistribution;
     type AccelerationDataCollectionType = ();
 
-    fn generate_distributions(
+    fn generate_propagators_with_distributions<P>(
         &self,
+        propagator_config: P::Config,
         snapshot: &mut dyn CachingScalarFieldProvider3<fdt>,
         detector: &dyn ReconnectionSiteDetector,
         interpolator: &dyn Interpolator3<fdt>,
         _stepper: DynStepper3<fdt>,
         verbosity: &Verbosity,
-    ) -> io::Result<(
-        Vec<Self::DistributionType>,
-        Self::AccelerationDataCollectionType,
-    )> {
+    ) -> io::Result<(Vec<P>, Self::AccelerationDataCollectionType)>
+    where
+        P: Propagator<Self::DistributionType>,
+    {
         let seeder = detector.detect_reconnection_sites(snapshot, verbosity);
         let number_of_locations = seeder.number_of_indices();
 
@@ -447,7 +434,7 @@ impl Accelerator for SimplePowerLawAccelerator {
         snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("r")?;
         snapshot.cache_scalar_field("tg")?;
-        let distributions = properties
+        let propagators = properties
             .into_par_iter()
             .filter_map(
                 |(
@@ -457,30 +444,32 @@ impl Accelerator for SimplePowerLawAccelerator {
                     partitioned_power_densities,
                     electric_field_angle_cosine,
                 )| {
-                    let electron_density = Self::determine_electron_density(snapshot, &indices);
+                    let ambient_electron_density =
+                        Self::determine_electron_density(snapshot, &indices);
                     assert!(
-                        electron_density > 0.0,
+                        ambient_electron_density > 0.0,
                         "Electron density must be larger than zero."
                     );
 
-                    let temperature = Self::determine_temperature(snapshot, &indices);
-                    assert!(temperature > 0.0, "Temperature must be larger than zero.");
+                    let ambient_temperature = Self::determine_temperature(snapshot, &indices);
+                    assert!(
+                        ambient_temperature > 0.0,
+                        "Temperature must be larger than zero."
+                    );
+
+                    let ambient_mass_density = Self::determine_mass_density(snapshot, &indices);
 
                     let lower_cutoff_energy = match self.compute_lower_cutoff_energy(
-                        temperature,
-                        electron_density,
+                        ambient_temperature,
+                        ambient_electron_density,
                         total_power_density,
                     ) {
                         Some(energy) => energy,
                         None => return None,
                     };
-                    let mean_energy = PowerLawDistribution::compute_mean_energy(
-                        self.config.power_law_delta,
-                        lower_cutoff_energy,
-                    );
 
                     let initial_pitch_angle_cosine = match self.compute_initial_pitch_angle_cosine(
-                        temperature,
+                        ambient_temperature,
                         self.config.power_law_delta,
                         lower_cutoff_energy,
                     ) {
@@ -488,96 +477,39 @@ impl Accelerator for SimplePowerLawAccelerator {
                         None => return None,
                     };
 
-                    let coulomb_logarithm_energy =
-                        feb::max(mean_energy, Self::MIN_COULOMB_LOG_MEAN_ENERGY);
-
-                    let electron_coulomb_logarithm =
-                        PowerLawDistribution::compute_electron_coulomb_logarithm(
-                            electron_density,
-                            coulomb_logarithm_energy,
-                        );
-                    let neutral_hydrogen_coulomb_logarithm =
-                        PowerLawDistribution::compute_neutral_hydrogen_coulomb_logarithm(
-                            coulomb_logarithm_energy,
-                        );
-
-                    let ionization_fraction =
-                        ionization::compute_equilibrium_hydrogen_ionization_fraction(
-                            temperature,
-                            electron_density,
-                        );
-                    let effective_coulomb_logarithm =
-                        PowerLawDistribution::compute_effective_coulomb_logarithm(
-                            ionization_fraction,
-                            electron_coulomb_logarithm,
-                            neutral_hydrogen_coulomb_logarithm,
-                        );
-                    let mass_density = Self::determine_mass_density(snapshot, &indices);
-                    let total_hydrogen_density =
-                        PowerLawDistribution::compute_total_hydrogen_density(mass_density);
-
                     let acceleration_volume =
                         self.determine_acceleration_volume(snapshot, &indices);
 
-                    let stopping_ionized_column_depth =
-                        PowerLawDistribution::compute_stopping_column_depth(
-                            initial_pitch_angle_cosine,
-                            lower_cutoff_energy,
-                            electron_coulomb_logarithm,
-                        );
-
-                    let distributions = if temperature < self.config.min_temperature
-                        && mass_density > self.config.max_mass_density
+                    let propagators = if ambient_temperature < self.config.min_temperature
+                        && ambient_mass_density > self.config.max_mass_density
                     {
                         None
                     } else {
-                        let mut distributions = Vec::with_capacity(2);
+                        let mut propagators = Vec::with_capacity(2);
                         if let (Some(backward_power_density), _) = partitioned_power_densities {
                             let backward_power = PowerLawDistribution::compute_total_power(
                                 backward_power_density,
                                 acceleration_volume,
                             );
-                            let heating_scale = PowerLawDistribution::compute_heating_scale(
-                                backward_power,
-                                self.config.power_law_delta,
+                            let distribution = PowerLawDistribution {
+                                delta: self.config.power_law_delta,
                                 initial_pitch_angle_cosine,
+                                total_power: backward_power,
+                                total_power_density: backward_power_density,
                                 lower_cutoff_energy,
-                            );
-                            let estimated_depletion_distance =
-                                PowerLawDistribution::estimate_depletion_distance(
-                                    self.config.power_law_delta,
-                                    self.distribution_config.min_residual_factor,
-                                    self.distribution_config.min_deposited_power_per_distance,
-                                    total_hydrogen_density,
-                                    effective_coulomb_logarithm,
-                                    electron_coulomb_logarithm,
-                                    stopping_ionized_column_depth,
-                                    heating_scale,
-                                );
-                            if estimated_depletion_distance
-                                >= self.config.min_depletion_distance * U_L
+                                propagation_sense: SteppingSense::Opposite,
+                                electric_field_angle_cosine,
+                                acceleration_position: acceleration_position.clone(),
+                                acceleration_indices: indices.clone(),
+                                acceleration_volume,
+                                ambient_mass_density,
+                                ambient_electron_density,
+                                ambient_temperature,
+                            };
+                            if let Some(propagator) =
+                                P::new(propagator_config.clone(), distribution)
                             {
-                                let distribution_data = PowerLawDistributionData {
-                                    delta: self.config.power_law_delta,
-                                    initial_pitch_angle_cosine,
-                                    total_power: backward_power,
-                                    total_power_density: backward_power_density,
-                                    lower_cutoff_energy,
-                                    acceleration_position: acceleration_position.clone(),
-                                    acceleration_indices: indices.clone(),
-                                    acceleration_volume,
-                                    propagation_sense: SteppingSense::Opposite,
-                                    electron_coulomb_logarithm,
-                                    neutral_hydrogen_coulomb_logarithm,
-                                    heating_scale,
-                                    stopping_ionized_column_depth,
-                                    estimated_depletion_distance,
-                                    electric_field_angle_cosine,
-                                };
-                                distributions.push(PowerLawDistribution::new(
-                                    self.distribution_config.clone(),
-                                    distribution_data,
-                                ));
+                                propagators.push(propagator);
                             }
                         }
                         if let (_, Some(forward_power_density)) = partitioned_power_densities {
@@ -585,63 +517,41 @@ impl Accelerator for SimplePowerLawAccelerator {
                                 forward_power_density,
                                 acceleration_volume,
                             );
-                            let heating_scale = PowerLawDistribution::compute_heating_scale(
-                                forward_power,
-                                self.config.power_law_delta,
+                            let distribution = PowerLawDistribution {
+                                delta: self.config.power_law_delta,
                                 initial_pitch_angle_cosine,
+                                total_power: forward_power,
+                                total_power_density: forward_power_density,
                                 lower_cutoff_energy,
-                            );
-                            let estimated_depletion_distance =
-                                PowerLawDistribution::estimate_depletion_distance(
-                                    self.config.power_law_delta,
-                                    self.distribution_config.min_residual_factor,
-                                    self.distribution_config.min_deposited_power_per_distance,
-                                    total_hydrogen_density,
-                                    effective_coulomb_logarithm,
-                                    electron_coulomb_logarithm,
-                                    stopping_ionized_column_depth,
-                                    heating_scale,
-                                );
-                            if estimated_depletion_distance
-                                >= self.config.min_depletion_distance * U_L
+                                propagation_sense: SteppingSense::Same,
+                                electric_field_angle_cosine,
+                                acceleration_position,
+                                acceleration_indices: indices,
+                                acceleration_volume,
+                                ambient_mass_density,
+                                ambient_electron_density,
+                                ambient_temperature,
+                            };
+                            if let Some(propagator) =
+                                P::new(propagator_config.clone(), distribution)
                             {
-                                let distribution_data = PowerLawDistributionData {
-                                    delta: self.config.power_law_delta,
-                                    initial_pitch_angle_cosine,
-                                    total_power: forward_power,
-                                    total_power_density: forward_power_density,
-                                    lower_cutoff_energy,
-                                    acceleration_position,
-                                    acceleration_indices: indices,
-                                    acceleration_volume,
-                                    propagation_sense: SteppingSense::Same,
-                                    electron_coulomb_logarithm,
-                                    neutral_hydrogen_coulomb_logarithm,
-                                    heating_scale,
-                                    stopping_ionized_column_depth,
-                                    estimated_depletion_distance,
-                                    electric_field_angle_cosine,
-                                };
-                                distributions.push(PowerLawDistribution::new(
-                                    self.distribution_config.clone(),
-                                    distribution_data,
-                                ));
+                                propagators.push(propagator);
                             }
                         }
-                        if distributions.is_empty() {
+                        if propagators.is_empty() {
                             None
                         } else {
-                            Some(distributions)
+                            Some(propagators)
                         }
                     };
                     progress_bar.inc();
-                    distributions
+                    propagators
                 },
             )
             .flatten()
             .collect();
 
-        Ok((distributions, ()))
+        Ok((propagators, ()))
     }
 }
 
@@ -650,7 +560,6 @@ impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_PARTICLE_ENERGY_FRACTION: feb = 0.2;
     pub const DEFAULT_POWER_LAW_DELTA: feb = 4.0;
     pub const DEFAULT_MIN_TOTAL_POWER_DENSITY: feb = 1e-2; // [erg/s/cm^3]
-    pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
     pub const DEFAULT_MAX_PITCH_ANGLE: feb = 70.0; // [deg]
     pub const DEFAULT_MAX_ELECTRIC_FIELD_ANGLE: feb = 90.0; // [deg]
     pub const DEFAULT_MIN_TEMPERATURE: feb = 0.0; // [K]
@@ -696,20 +605,11 @@ impl SimplePowerLawAccelerationConfig {
                 &|min_beam_en: feb| min_beam_en,
                 Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
             );
-        let min_depletion_distance =
-            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                parameters,
-                "min_depletion_distance",
-                "min_stop_dist",
-                &|min_stop_dist: feb| min_stop_dist,
-                Self::DEFAULT_MIN_DEPLETION_DISTANCE,
-            );
         SimplePowerLawAccelerationConfig {
             acceleration_duration,
             particle_energy_fraction,
             power_law_delta,
             min_total_power_density,
-            min_depletion_distance,
             ..Self::default()
         }
     }
@@ -731,10 +631,6 @@ impl SimplePowerLawAccelerationConfig {
         assert!(
             self.min_total_power_density >= 0.0,
             "Minimum total power density must be larger than or equal to zero."
-        );
-        assert!(
-            self.min_depletion_distance >= 0.0,
-            "Minimum stopping distance must be larger than or equal to zero."
         );
         assert!(
             self.max_pitch_angle >= 0.0 && self.max_pitch_angle < 90.0,
@@ -778,7 +674,6 @@ impl Default for SimplePowerLawAccelerationConfig {
             particle_energy_fraction: Self::DEFAULT_PARTICLE_ENERGY_FRACTION,
             power_law_delta: Self::DEFAULT_POWER_LAW_DELTA,
             min_total_power_density: Self::DEFAULT_MIN_TOTAL_POWER_DENSITY,
-            min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             max_pitch_angle: Self::DEFAULT_MAX_PITCH_ANGLE,
             max_electric_field_angle: Self::DEFAULT_MAX_ELECTRIC_FIELD_ANGLE,
             min_temperature: Self::DEFAULT_MIN_TEMPERATURE,

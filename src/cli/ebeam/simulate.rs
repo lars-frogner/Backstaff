@@ -15,9 +15,10 @@ use super::{
             create_simple_reconnection_site_detector_subcommand,
         },
     },
-    distribution::power_law::{
-        construct_power_law_distribution_config_from_options,
-        create_power_law_distribution_subcommand,
+    distribution::power_law::create_power_law_distribution_subcommand,
+    propagator::analytical::{
+        construct_analytical_propagator_config_from_options,
+        create_analytical_propagator_subcommand,
     },
 };
 use crate::{
@@ -39,13 +40,14 @@ use crate::{
             DynReconnectionSiteDetector,
         },
         distribution::{
-            power_law::{
-                acceleration::simple::{
-                    SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
-                },
-                PowerLawDistributionConfig,
+            power_law::acceleration::simple::{
+                SimplePowerLawAccelerationConfig, SimplePowerLawAccelerator,
             },
             Distribution,
+        },
+        propagation::{
+            analytical::{AnalyticalPropagator, AnalyticalPropagatorConfig},
+            Propagator,
         },
         BeamPropertiesCollection, ElectronBeamSwarm,
     },
@@ -211,7 +213,8 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
             command_name,
         ))
         .subcommand(create_power_law_distribution_subcommand(command_name))
-        .subcommand(create_simple_power_law_accelerator_subcommand(command_name));
+        .subcommand(create_simple_power_law_accelerator_subcommand(command_name))
+        .subcommand(create_analytical_propagator_subcommand(command_name));
 
     add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }
@@ -391,26 +394,9 @@ fn run_with_selected_accelerator(
     detector: DynReconnectionSiteDetector,
     io_context: &mut IOContext,
 ) {
-    let (distribution_config, distribution_arguments) = if let Some(distribution_arguments) =
-        arguments.subcommand_matches("power_law_distribution")
-    {
-        (
-            construct_power_law_distribution_config_from_options(
-                distribution_arguments,
-                metadata.parameters(),
-            ),
-            distribution_arguments,
-        )
-    } else {
-        (
-            PowerLawDistributionConfig::with_defaults_from_param_file(metadata.parameters()),
-            arguments,
-        )
-    };
-
-    if root_arguments.is_present("print-parameter-values") {
-        println!("{:#?}", distribution_config);
-    }
+    let distribution_arguments = arguments
+        .subcommand_matches("power_law_distribution")
+        .unwrap_or(arguments);
 
     if let Some(accelerator_arguments) =
         distribution_arguments.subcommand_matches("simple_power_law_accelerator")
@@ -422,10 +408,11 @@ fn run_with_selected_accelerator(
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
         }
-        let accelerator = SimplePowerLawAccelerator::new(distribution_config, accelerator_config);
-        run_with_selected_interpolator(
+        let accelerator = SimplePowerLawAccelerator::new(accelerator_config);
+        run_with_simple_accelerator_and_selected_propagator(
             root_arguments,
             accelerator_arguments,
+            metadata,
             snapshot,
             detector,
             accelerator,
@@ -437,10 +424,11 @@ fn run_with_selected_accelerator(
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", accelerator_config);
         }
-        let accelerator = SimplePowerLawAccelerator::new(distribution_config, accelerator_config);
-        run_with_selected_interpolator(
+        let accelerator = SimplePowerLawAccelerator::new(accelerator_config);
+        run_with_simple_accelerator_and_selected_propagator(
             root_arguments,
             distribution_arguments,
+            metadata,
             snapshot,
             detector,
             accelerator,
@@ -449,17 +437,63 @@ fn run_with_selected_accelerator(
     };
 }
 
-fn run_with_selected_interpolator<A>(
+fn run_with_simple_accelerator_and_selected_propagator(
+    root_arguments: &ArgMatches,
+    arguments: &ArgMatches,
+    metadata: &dyn SnapshotMetadata,
+    snapshot: DynCachingScalarFieldProvider3<fdt>,
+    detector: DynReconnectionSiteDetector,
+    accelerator: SimplePowerLawAccelerator,
+    io_context: &mut IOContext,
+) {
+    if let Some(propagator_arguments) = arguments.subcommand_matches("analytical_propagator") {
+        let propagator_config = construct_analytical_propagator_config_from_options(
+            propagator_arguments,
+            metadata.parameters(),
+        );
+        if root_arguments.is_present("print-parameter-values") {
+            println!("{:#?}", propagator_config);
+        }
+        run_with_selected_interpolator::<_, AnalyticalPropagator>(
+            root_arguments,
+            propagator_arguments,
+            snapshot,
+            detector,
+            accelerator,
+            propagator_config,
+            io_context,
+        );
+    } else {
+        let propagator_config =
+            AnalyticalPropagatorConfig::with_defaults_from_param_file(metadata.parameters());
+        if root_arguments.is_present("print-parameter-values") {
+            println!("{:#?}", propagator_config);
+        }
+        run_with_selected_interpolator::<_, AnalyticalPropagator>(
+            root_arguments,
+            arguments,
+            snapshot,
+            detector,
+            accelerator,
+            propagator_config,
+            io_context,
+        );
+    }
+}
+
+fn run_with_selected_interpolator<A, P>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     snapshot: DynCachingScalarFieldProvider3<fdt>,
     detector: DynReconnectionSiteDetector,
     accelerator: A,
+    propagator_config: P::Config,
     io_context: &mut IOContext)
 where A: Accelerator + Sync + Send,
+      P: Propagator<<A as Accelerator>::DistributionType>,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
       A::DistributionType: Send,
-{
+    {
     let (interpolator_config, interpolator_arguments) = if let Some(interpolator_arguments) =
         arguments.subcommand_matches("poly_fit_interpolator")
     {
@@ -482,26 +516,29 @@ where A: Accelerator + Sync + Send,
         "Invalid input grid for simulating electron beams: {}"
     );
 
-    run_with_selected_stepper(
+    run_with_selected_stepper::<A, P>(
         root_arguments,
         interpolator_arguments,
         snapshot,
         detector,
         accelerator,
+        propagator_config,
         interpolator.as_ref(),
         io_context,
     );
 }
 
-fn run_with_selected_stepper<A>(
+fn run_with_selected_stepper<A, P>(
     root_arguments: &ArgMatches,
     arguments: &ArgMatches,
     mut snapshot: DynCachingScalarFieldProvider3<fdt>,
     detector: DynReconnectionSiteDetector,
     accelerator: A,
+    propagator_config: P::Config,
     interpolator: &dyn Interpolator3<fdt>,
     io_context: &mut IOContext)
 where A: Accelerator + Sync + Send,
+      P: Propagator<<A as Accelerator>::DistributionType>,
       A::DistributionType: Send,
       <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
 {
@@ -572,19 +609,21 @@ where A: Accelerator + Sync + Send,
         RKFStepperType::RKF23 => {
             let stepper = Box::new(RKF23Stepper3::new(stepper_config));
             if root_arguments.is_present("generate-only") {
-                ElectronBeamSwarm::generate_unpropagated(
+                ElectronBeamSwarm::generate_unpropagated::<P>(
                     &mut *snapshot,
                     &*detector,
                     accelerator,
+                    propagator_config,
                     interpolator,
                     stepper,
                     verbosity,
                 )
             } else {
-                ElectronBeamSwarm::generate_propagated(
+                ElectronBeamSwarm::generate_propagated::<P>(
                     &mut *snapshot,
                     &*detector,
                     accelerator,
+                    propagator_config,
                     interpolator,
                     stepper,
                     verbosity,
@@ -594,19 +633,21 @@ where A: Accelerator + Sync + Send,
         RKFStepperType::RKF45 => {
             let stepper = Box::new(RKF45Stepper3::new(stepper_config));
             if root_arguments.is_present("generate-only") {
-                ElectronBeamSwarm::generate_unpropagated(
+                ElectronBeamSwarm::generate_unpropagated::<P>(
                     &mut *snapshot,
                     &*detector,
                     accelerator,
+                    propagator_config,
                     interpolator,
                     stepper,
                     verbosity,
                 )
             } else {
-                ElectronBeamSwarm::generate_propagated(
+                ElectronBeamSwarm::generate_propagated::<P>(
                     &mut *snapshot,
                     &*detector,
                     accelerator,
+                    propagator_config,
                     interpolator,
                     stepper,
                     verbosity,

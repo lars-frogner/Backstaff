@@ -3,11 +3,13 @@
 pub mod accelerator;
 pub mod detection;
 pub mod distribution;
+pub mod propagation;
 
 use self::{
     accelerator::Accelerator,
     detection::ReconnectionSiteDetector,
-    distribution::{DepletionStatus, Distribution, PropagationResult},
+    distribution::Distribution,
+    propagation::{DepletionStatus, PropagationResult, Propagator},
 };
 use crate::{
     field::{CachingScalarFieldProvider3, ScalarField3, VectorField3},
@@ -307,14 +309,15 @@ where
 }
 
 impl<A: Accelerator> ElectronBeamSwarm<A> {
-    /// Generates a set of electron beams using the given seeder and accelerator
-    /// but does not propagate them.
+    /// Generates a set of electron beams using the given seeder, accelerator and
+    /// propagator, but does not propagate them.
     ///
     /// # Parameters
     ///
     /// - `snapshot`: Snapshot representing the atmosphere.
     /// - `detector`: Reconnection site detector to use for obtaining acceleration positions.
     /// - `accelerator`: Accelerator to use for generating electron distributions.
+    /// - `propagator_config`: Configuration for the propagator to use for discarding distributions.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper`: Stepper for field line tracing.
     /// - `verbosity`: Whether and how to pass non-essential information to user.
@@ -322,19 +325,31 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Returns
     ///
     /// A new `ElectronBeamSwarm` with unpropagated electron beams.
-    pub fn generate_unpropagated(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: &dyn ReconnectionSiteDetector, accelerator: A,
+    pub fn generate_unpropagated<P>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: &dyn ReconnectionSiteDetector, accelerator: A, propagator_config: P::Config,
         interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity) -> Self
     where A: Accelerator + Sync,
+          P: Propagator<A::DistributionType>,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
     {
-        let (distributions, acceleration_data) = accelerator
-            .generate_distributions(snapshot, detector, interpolator, stepper, &verbosity)
+        let (propagators, acceleration_data) = accelerator
+            .generate_propagators_with_distributions::<P>(
+                propagator_config,
+                snapshot,
+                detector,
+                interpolator,
+                stepper,
+                &verbosity,
+            )
             .unwrap_or_else(|err| panic!("Could not read field from snapshot: {}", err));
 
-        let properties: ElectronBeamSwarmProperties = distributions
+        let properties: ElectronBeamSwarmProperties = propagators
             .into_par_iter()
-            .map(UnpropagatedElectronBeam::<A::DistributionType>::generate)
+            .map(|propagator| {
+                UnpropagatedElectronBeam::<A::DistributionType>::generate(
+                    propagator.into_distribution(),
+                )
+            })
             .collect();
 
         let lower_bounds = Vec3::from(snapshot.grid().lower_bounds());
@@ -357,6 +372,7 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `snapshot`: Snapshot representing the atmosphere.
     /// - `detector`: Reconnection site detector to use for obtaining acceleration positions.
     /// - `accelerator`: Accelerator to use for generating initial electron distributions.
+    /// - `propagator_config`: Configuration for the propagator to use for transporting distributions.
     /// - `interpolator`: Interpolator to use.
     /// - `stepper`: Stepper for field line tracing.
     /// - `verbosity`: Whether and how to pass non-essential information to user.
@@ -364,14 +380,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// # Returns
     ///
     /// A new `ElectronBeamSwarm` with propagated electron beams.
-    pub fn generate_propagated(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: &dyn ReconnectionSiteDetector, accelerator: A,
+    pub fn generate_propagated<P>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: &dyn ReconnectionSiteDetector, accelerator: A, propagator_config: P::Config,
         interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity) -> Self
     where A: Accelerator + Sync + Send,
+          P: Propagator<<A as Accelerator>::DistributionType>,
           A::DistributionType: Send,
           <A::DistributionType as Distribution>::PropertiesCollectionType: ParallelExtend<<<A::DistributionType as Distribution>::PropertiesCollectionType as BeamPropertiesCollection>::Item>,
     {
-        let (distributions, acceleration_data) = accelerator
-            .generate_distributions(
+        let (propagators, acceleration_data) = accelerator
+            .generate_propagators_with_distributions::<P>(
+                propagator_config,
                 snapshot,
                 detector,
                 interpolator,
@@ -382,25 +400,25 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
 
         let mut acceleration_map = Array::from_elem(snapshot.grid().shape().to_tuple(), false);
 
-        for distribution in distributions.iter() {
-            let indices = distribution.acceleration_indices();
+        for propagator in propagators.iter() {
+            let indices = propagator.distribution().acceleration_indices();
             acceleration_map[(indices[X], indices[Y], indices[Z])] = true;
         }
 
         if verbosity.print_messages() {
             println!(
                 "Attempting to propagate {} electron beams",
-                distributions.len()
+                propagators.len()
             );
         }
-        let number_of_beams = distributions.len();
+        let number_of_beams = propagators.len();
         let progress_bar = verbosity.create_progress_bar(number_of_beams);
 
-        let properties: ElectronBeamSwarmProperties = distributions
+        let properties: ElectronBeamSwarmProperties = propagators
             .into_par_iter()
-            .filter_map(|distribution| {
+            .filter_map(|propagator| {
                 let properties = PropagatedElectronBeam::<A::DistributionType>::generate(
-                    distribution,
+                    propagator,
                     snapshot,
                     &acceleration_map,
                     interpolator,
@@ -748,15 +766,18 @@ impl<D: Distribution> UnpropagatedElectronBeam<D> {
 }
 
 impl<D: Distribution> PropagatedElectronBeam<D> {
-    fn generate(
-        mut distribution: D,
+    fn generate<P>(
+        mut propagator: P,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
         stepper: DynStepper3<fdt>,
-    ) -> Option<Self> {
+    ) -> Option<Self>
+    where
+        P: Propagator<D>,
+    {
         let magnetic_field = snapshot.cached_vector_field("b");
-        let start_position = Point3::from(distribution.acceleration_position());
+        let start_position = Point3::from(propagator.distribution().acceleration_position());
 
         let mut trajectory = (
             vec![start_position[X]],
@@ -773,9 +794,9 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             interpolator,
             stepper,
             &start_position,
-            distribution.propagation_sense(),
+            propagator.distribution().propagation_sense(),
             &mut |displacement, _, position, distance| {
-                if distance > distribution.max_propagation_distance() {
+                if distance > propagator.max_propagation_distance() {
                     StepperInstruction::Terminate
                 } else if distance > 0.0 {
                     let PropagationResult {
@@ -784,7 +805,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                         deposited_power_density,
                         deposition_position,
                         depletion_status,
-                    } = distribution.propagate(
+                    } = propagator.propagate(
                         snapshot,
                         acceleration_map,
                         interpolator,
@@ -810,7 +831,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             },
         );
 
-        let distribution_properties = distribution.properties();
+        let distribution_properties = propagator.into_distribution().properties();
 
         match tracer_result {
             TracerResult::Ok(_) => Some(PropagatedElectronBeam {
