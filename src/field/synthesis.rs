@@ -198,7 +198,7 @@ fn create_synthesizable_quantity_table_string() -> String {
 
 lazy_static! {
     static ref EMISSIVITY_QUANTITY_REGEX: Regex =
-        Regex::new(r"^([a-zA-Z]+)_([a-zA-Z]+_[0-9ivxlcdmIVXLCDM]+_[0-9]+(:?\.[0-9]*)?)$").unwrap();
+        Regex::new(r"^([a-zA-Z_]+)_([a-zA-Z]+_[0-9ivxlcdmIVXLCDM]+_[0-9]+(:?\.[0-9]*)?)$").unwrap();
 }
 
 fn parse_line_quantity_name(line_quantity_name: &str) -> io::Result<(String, String)> {
