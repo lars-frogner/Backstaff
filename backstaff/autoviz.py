@@ -1496,6 +1496,7 @@ class Visualizer:
         self,
         *plot_descriptions,
         overwrite=False,
+        save_field_data=False,
         job_idx=0,
         show_progress=True,
         new_logger_builder=None,
@@ -1590,6 +1591,10 @@ class Visualizer:
                     bifrost_data.set_snap(snap_num)
 
                     field = plot_description.get_field(bifrost_data)
+
+                    if save_field_data:
+                        field.save(output_path.with_suffix(".npz"), overwrite=overwrite)
+
                     self._plot_frame(bifrost_data, plot_description, field, output_path)
 
                 if self._simulation_run.video_config is not None:
@@ -1869,6 +1874,11 @@ if __name__ == "__main__":
         help="only generate videos from existing frames",
     )
     parser.add_argument(
+        "--save-data",
+        action="store_true",
+        help="whether to save the raw data of the frames as .npz files",
+    )
+    parser.add_argument(
         "-o",
         "--overwrite",
         action="store_true",
@@ -1933,6 +1943,7 @@ if __name__ == "__main__":
             delayed(
                 lambda idx, v: v.visualize(
                     overwrite=args.overwrite,
+                    save_field_data=args.save_data,
                     job_idx=idx,
                     show_progress=(not args.hide_progress),
                     new_logger_builder=(None if n_jobs == 1 else logger_builder),
