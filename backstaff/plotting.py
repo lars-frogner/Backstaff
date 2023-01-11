@@ -2,7 +2,7 @@ import copy
 import numpy as np
 import matplotlib as mpl
 
-# mpl.use('agg')
+mpl.use("agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpl_patches
 import matplotlib.colors as mpl_colors
@@ -74,9 +74,9 @@ def set_3d_axes_equal(ax):
     ax.set_box_aspect([2 * radius] * 3)
 
 
-def set_2d_axis_labels(ax, xlabel, ylabel, xcolor="k", ycolor="k"):
-    ax.set_xlabel(xlabel, color=xcolor)
-    ax.set_ylabel(ylabel, color=ycolor)
+def set_2d_axis_labels(ax, xlabel, ylabel, xcolor="k", ycolor="k", labelpad=2):
+    ax.set_xlabel(xlabel, color=xcolor, labelpad=labelpad)
+    ax.set_ylabel(ylabel, color=ycolor, labelpad=labelpad)
 
 
 def set_3d_axis_labels(ax, xlabel, ylabel, zlabel):
@@ -186,6 +186,7 @@ def add_2d_colorbar(
     minorticks_on=False,
     opposite_side_ticks=False,
     tick_formatter=None,
+    labelpad=2,
     label="",
 ):
     cax = create_colorbar_axis(ax, loc=loc, pad=pad)
@@ -193,10 +194,10 @@ def add_2d_colorbar(
     cb = fig.colorbar(
         mappeable,
         cax=cax,
-        label=label,
         orientation=("vertical" if loc in ["left", "right"] else "horizontal"),
         ticklocation=loc,
     )
+    cb.set_label(label, labelpad=labelpad)
 
     if minorticks_on:
         cb.ax.minorticks_on()
@@ -328,7 +329,10 @@ def render(
         fig.tight_layout()
     if output_path is not None:
         fig.savefig(
-            output_path, bbox_extra_artists=bbox_extra_artists, bbox_inches=bbox_inches
+            output_path,
+            pad_inches=0.1,
+            bbox_extra_artists=bbox_extra_artists,
+            bbox_inches=bbox_inches,
         )
         if force_show:
             plt.show()
@@ -440,6 +444,7 @@ def plot_2d_field(
     cbar_pad=0.05,
     cbar_minorticks_on=False,
     cbar_opposite_side_ticks=False,
+    cbar_tick_formatter=None,
     contour_levels=None,
     contour_colors="r",
     contour_alpha=1.0,
@@ -458,7 +463,6 @@ def plot_2d_field(
     render_now=True,
     fig_kwargs=dict(width=None, aspect_ratio=None),
 ):
-
     if fig is None or ax is None:
         width = fig_kwargs.pop("width", None)
         aspect_ratio = fig_kwargs.pop("aspect_ratio", None)
@@ -473,7 +477,9 @@ def plot_2d_field(
                 if aspect_equal
                 else (4 / 3)
             )
-        fig, ax = create_2d_subplots(aspect_ratio=aspect_ratio, **fig_kwargs)
+        fig, ax = create_2d_subplots(
+            width=width, aspect_ratio=aspect_ratio, dpi=dpi, **fig_kwargs
+        )
 
     if symlog:
         norm = get_symlog_normalizer(vmin, vmax, linthresh, linscale=linscale)
@@ -536,6 +542,7 @@ def plot_2d_field(
             pad=cbar_pad,
             minorticks_on=cbar_minorticks_on,
             opposite_side_ticks=cbar_opposite_side_ticks,
+            tick_formatter=cbar_tick_formatter,
             label=clabel,
         )
 
