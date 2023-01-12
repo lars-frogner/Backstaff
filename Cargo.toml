@@ -44,6 +44,7 @@ num = "*"
 paste = "*"
 rayon = "*"
 regex = "*"
+roots = "*"
 sysinfo = { version = "*", default-features = false }
 tempfile = "*"
 quit = "*"
