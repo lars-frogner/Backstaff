@@ -83,7 +83,7 @@ impl AnalyticalPropagator {
     const NEUTRAL_HYDROGEN_COULOMB_OFFSET: feb = 4.891;
 
     /// Smallest mean electron energy that will be used to compute Coulomb logarithms [keV].
-    const MIN_COULOMB_LOG_MEAN_ENERGY: feb = 0.1;
+    pub const MIN_COULOMB_LOG_MEAN_ENERGY: feb = 0.1;
 
     pub fn compute_total_hydrogen_density(mass_density: feb) -> feb {
         (Self::HYDROGEN_MASS_FRACTION / M_H) * mass_density // [hydrogen/cm^3]
@@ -113,7 +113,7 @@ impl AnalyticalPropagator {
             + (1.0 - ionization_fraction) * neutral_hydrogen_coulomb_logarithm
     }
 
-    fn estimate_depletion_distance(
+    pub fn estimate_depletion_distance(
         delta: feb,
         min_residual_factor: feb,
         min_deposited_power_per_distance: feb,
@@ -135,7 +135,7 @@ impl AnalyticalPropagator {
             )
     }
 
-    fn compute_heating_scale(
+    pub fn compute_heating_scale(
         total_power: feb,
         delta: feb,
         pitch_angle_cosine: feb,
@@ -145,7 +145,7 @@ impl AnalyticalPropagator {
             / (2.0 * feb::abs(pitch_angle_cosine) * feb::powi(lower_cutoff_energy, 2))
     }
 
-    fn compute_stopping_column_depth(
+    pub fn compute_stopping_column_depth(
         pitch_angle_cosine: feb,
         electron_energy: feb,
         coulomb_logarithm: feb,
@@ -353,7 +353,6 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
                 self.outside_distance += displacement.length();
             }
             PropagationResult {
-                residual_factor: 0.0,
                 deposited_power: 0.0,
                 deposited_power_density: 0.0,
                 deposition_position,
@@ -426,7 +425,6 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
             };
 
             PropagationResult {
-                residual_factor,
                 deposited_power,
                 deposited_power_density,
                 deposition_position,
