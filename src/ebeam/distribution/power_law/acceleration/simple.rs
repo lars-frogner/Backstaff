@@ -265,7 +265,7 @@ impl SimplePowerLawAccelerator {
             number_of_iterations += 1;
 
             if number_of_iterations > self.config.max_root_finding_iterations {
-                println!(
+                eprintln!(
                     "Cut-off energy estimation reached maximum number of iterations with error {}",
                     difference
                 );
