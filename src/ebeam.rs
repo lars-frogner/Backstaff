@@ -122,7 +122,6 @@ struct PropagatedElectronBeam<D: Distribution> {
     trajectory: BeamTrajectory,
     distribution_properties: <D::PropertiesCollectionType as BeamPropertiesCollection>::Item,
     total_propagation_distance: feb,
-    residual_factors: Vec<feb>,
     deposited_powers: Vec<feb>,
     deposited_power_densities: Vec<feb>,
 }
@@ -222,10 +221,7 @@ where
                             beam.distribution_properties,
                             (
                                 beam.total_propagation_distance,
-                                (
-                                    beam.residual_factors,
-                                    (beam.deposited_powers, beam.deposited_power_densities),
-                                ),
+                                (beam.deposited_powers, beam.deposited_power_densities),
                             ),
                         ),
                     ),
@@ -245,10 +241,8 @@ where
         let (distribution_properties, nested_tuples): (D::PropertiesCollectionType, Vec<_>) =
             nested_tuples.into_par_iter().unzip();
 
-        let (total_propagation_distances, (residual_factors, nested_tuples)): (
-            Vec<_>,
-            (Vec<_>, Vec<_>),
-        ) = nested_tuples.into_par_iter().unzip();
+        let (total_propagation_distances, nested_tuples): (Vec<_>, Vec<_>) =
+            nested_tuples.into_par_iter().unzip();
 
         let (deposited_powers, deposited_power_densities): (Vec<_>, Vec<_>) =
             nested_tuples.into_par_iter().unzip();
@@ -291,7 +285,6 @@ where
         varying_scalar_values.insert("x".to_string(), trajectories_x);
         varying_scalar_values.insert("y".to_string(), trajectories_y);
         varying_scalar_values.insert("z".to_string(), trajectories_z);
-        varying_scalar_values.insert("residual_factor".to_string(), residual_factors);
         varying_scalar_values.insert("deposited_power".to_string(), deposited_powers);
         varying_scalar_values.insert(
             "deposited_power_density".to_string(),
@@ -784,7 +777,6 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             vec![start_position[Y]],
             vec![start_position[Z]],
         );
-        let mut residual_factors = vec![0.0];
         let mut deposited_powers = vec![0.0];
         let mut deposited_power_densities = vec![0.0];
         let mut total_propagation_distance = 0.0;
@@ -800,7 +792,6 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                     StepperInstruction::Terminate
                 } else if distance > 0.0 {
                     let PropagationResult {
-                        residual_factor,
                         deposited_power,
                         deposited_power_density,
                         deposition_position,
@@ -816,7 +807,6 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                     trajectory.0.push(deposition_position[X]);
                     trajectory.1.push(deposition_position[Y]);
                     trajectory.2.push(deposition_position[Z]);
-                    residual_factors.push(residual_factor);
                     deposited_powers.push(deposited_power);
                     deposited_power_densities.push(deposited_power_density);
                     total_propagation_distance = distance;
@@ -838,7 +828,6 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
                 trajectory,
                 distribution_properties,
                 total_propagation_distance,
-                residual_factors,
                 deposited_powers,
                 deposited_power_densities,
             }),

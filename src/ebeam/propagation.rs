@@ -1,6 +1,7 @@
 //! Propagation of non-thermal electron distributions.
 
 pub mod analytical;
+pub mod fp_characteristics;
 
 use super::{distribution::Distribution, feb};
 use crate::{
@@ -22,8 +23,6 @@ pub enum DepletionStatus {
 /// Holds the result of propagating the electron distribution.
 #[derive(Clone, Debug)]
 pub struct PropagationResult {
-    /// Factor governing the reduction of heating due to energy depletion.
-    pub residual_factor: feb,
     /// Total power deposited during propagation.
     pub deposited_power: feb,
     /// Total power density deposited during propagation.
