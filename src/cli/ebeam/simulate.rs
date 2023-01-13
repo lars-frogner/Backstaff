@@ -572,7 +572,7 @@ where A: Accelerator + Sync + Send,
         ));
     }
 
-    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(arguments);
+    let overwrite_mode = cli_utils::overwrite_mode_from_arguments(root_arguments);
     let verbosity = cli_utils::parse_verbosity(root_arguments, true);
 
     io_context.set_overwrite_mode(overwrite_mode);

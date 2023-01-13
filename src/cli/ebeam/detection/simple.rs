@@ -1,8 +1,17 @@
 //! Command line interface for the simple reconnection site detector.
 
-use super::super::distribution::power_law::create_power_law_distribution_subcommand;
 use crate::{
-    cli::utils,
+    add_subcommand_combinations,
+    cli::{
+        ebeam::{
+            accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand,
+            distribution::power_law::create_power_law_distribution_subcommand,
+            propagator::analytical::create_analytical_propagator_subcommand,
+        },
+        interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
+        tracing::stepping::rkf::create_rkf_stepper_subcommand,
+        utils,
+    },
     ebeam::detection::simple::SimpleReconnectionSiteDetectorConfig,
     io::snapshot::{fpa, SnapshotParameters},
     update_command_graph,
@@ -17,7 +26,7 @@ pub fn create_simple_reconnection_site_detector_subcommand(
 
     update_command_graph!(_parent_command_name, command_name);
 
-    Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Use the simple reconnection site detection method")
         .long_about(
             "Use the simple reconnection site detection method.\n\
@@ -52,6 +61,10 @@ pub fn create_simple_reconnection_site_detector_subcommand(
                 .number_of_values(2),
         )
         .subcommand(create_power_law_distribution_subcommand(command_name))
+        .subcommand(create_simple_power_law_accelerator_subcommand(command_name))
+        .subcommand(create_analytical_propagator_subcommand(command_name));
+
+    add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }
 
 /// Determines simple reconnection site detector parameters

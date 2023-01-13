@@ -2,7 +2,11 @@
 //! propagator.
 
 use crate::{
-    cli::utils,
+    add_subcommand_combinations,
+    cli::{
+        interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
+        tracing::stepping::rkf::create_rkf_stepper_subcommand, utils,
+    },
     ebeam::{feb, propagation::analytical::AnalyticalPropagatorConfig},
     io::snapshot::SnapshotParameters,
     update_command_graph,
@@ -17,7 +21,7 @@ pub fn create_analytical_propagator_subcommand(
 
     update_command_graph!(_parent_command_name, command_name);
 
-    Command::new(command_name)
+    let command = Command::new(command_name)
         .about("Use the analytical propagation method")
         .long_about(
             "Use the analytical propagation method.\n\
@@ -85,7 +89,9 @@ pub fn create_analytical_propagator_subcommand(
             Arg::new("continue-depleted-beams")
                 .long("continue-depleted-beams")
                 .help("Keep propagating beams even after they are considered depleted"),
-        )
+        );
+
+    add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }
 
 /// Determines analytical propagator parameters based on
