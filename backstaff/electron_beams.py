@@ -222,6 +222,9 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         if "total_energy_density" in derived_quantities:
             self._obtain_total_energy_densities()
 
+        if "beam_electron_density" in derived_quantities:
+            self._obtain_beam_electron_densities()
+
         if "non_thermal_energy_per_thermal_electron" in derived_quantities:
             self.fixed_scalar_values[
                 "non_thermal_energy_per_thermal_electron"
@@ -231,6 +234,9 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
         if "mean_electron_energy" in derived_quantities:
             self._obtain_mean_electron_energies()
+
+        if "mean_electron_speed" in derived_quantities:
+            self._obtain_mean_electron_speeds()
 
         if "acceleration_height" in derived_quantities:
             self.fixed_scalar_values["acceleration_height"] = np.asfarray(
@@ -427,6 +433,23 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 )
             ]
 
+        if "total_hydrogen_density" in derived_quantities:
+            self.varying_scalar_values["total_hydrogen_density"] = [
+                beam_heating.compute_total_hydrogen_density(
+                    self.varying_scalar_values["r"][i] * units.U_R
+                )
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if "ionization_fraction" in derived_quantities:
+            self.varying_scalar_values["ionization_fraction"] = [
+                beam_heating.compute_equilibrium_hydrogen_ionization_fraction(
+                    self.varying_scalar_values["tg"][i],
+                    self.varying_scalar_values["nel"][i],
+                )
+                for i in range(self.get_number_of_beams())
+            ]
+
     def _obtain_mean_electron_energies(self):
         if not self.has_fixed_scalar_values("mean_electron_energy"):
             assert self.has_param("power_law_delta")
@@ -451,6 +474,22 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
             )  # [cm/s]
 
         return self.get_fixed_scalar_values("mean_electron_speed")
+
+    def _obtain_beam_electron_densities(self):
+        if not self.has_fixed_scalar_values("beam_electron_density"):
+            assert self.has_param("power_law_delta")
+            delta = self.get_param("power_law_delta")
+            self.fixed_scalar_values["beam_electron_density"] = (
+                (
+                    ((2 * delta - 3.0) / (2 * delta - 1))
+                    / (
+                        self.get_fixed_scalar_values("lower_cutoff_energy")
+                        * units.KEV_TO_ERG
+                    )
+                )
+                * self.get_fixed_scalar_values("total_power")
+                / self.get_fixed_scalar_values("acceleration_volume")
+            )
 
     def _obtain_acceleration_site_electron_densities(self):
         if not self.has_fixed_scalar_values("acceleration_site_electron_density"):
