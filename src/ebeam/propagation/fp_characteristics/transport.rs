@@ -2,7 +2,7 @@
 
 use super::atmosphere::HybridCoulombLogarithm;
 use crate::{
-    constants::{PI, Q_ELECTRON},
+    constants::{M_ELECTRON, PI, Q_ELECTRON},
     ebeam::feb,
 };
 use roots::{self, SimpleConvergency};
@@ -31,6 +31,12 @@ pub struct AnalyticalTransporterConfig {
     pub max_pitch_angle_cos: feb,
     pub max_magnetic_field_factor: feb,
     pub max_electric_field_factor: feb,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum TransportResult {
+    NewEnergyAndPitchAngleCos((feb, feb)),
+    Thermalized,
 }
 
 impl Transporter {
@@ -81,21 +87,104 @@ impl Transporter {
         initial_energy: feb,
         initial_pitch_angle_cos: feb,
         col_depth_increase: feb,
-    ) -> (feb, feb) {
-        self.analytical_transporter
-            .try_advancing_energy_and_pitch_angle_cos(
-                &self.hybrid_coulomb_log,
-                initial_energy,
-                initial_pitch_angle_cos,
-                col_depth_increase,
-            )
-            .unwrap_or_else(|| {
-                self.advance_energy_and_pitch_angle_cos_with_second_order_heun(
+    ) -> TransportResult {
+        if initial_pitch_angle_cos <= 0.0 {
+            TransportResult::Thermalized
+        } else {
+            self.analytical_transporter
+                .try_advancing_energy_and_pitch_angle_cos(
+                    &self.hybrid_coulomb_log,
                     initial_energy,
                     initial_pitch_angle_cos,
                     col_depth_increase,
                 )
-            })
+                .unwrap_or_else(|| {
+                    self.advance_energy_and_pitch_angle_cos_with_second_order_heun(
+                        initial_energy,
+                        initial_pitch_angle_cos,
+                        col_depth_increase,
+                    )
+                })
+        }
+    }
+
+    pub fn advance_number_densities(
+        &self,
+        energies: &[feb],
+        pitch_angle_cosines: &[feb],
+        number_densities: &mut [feb],
+        col_depth_increase: feb,
+    ) {
+        energies
+            .iter()
+            .zip(pitch_angle_cosines.iter())
+            .zip(number_densities.iter_mut())
+            .for_each(|((&energy, &pitch_angle_cos), number_density)| {
+                let number_density_col_depth_deriv_per_number_density = self
+                    .compute_number_density_col_depth_deriv_per_number_density(
+                        energy,
+                        pitch_angle_cos,
+                    );
+                *number_density *=
+                    1.0 + number_density_col_depth_deriv_per_number_density * col_depth_increase;
+            });
+    }
+
+    pub fn compute_deposited_power_density(
+        &self,
+        energies: &[feb],
+        initial_energies: &[feb],
+        pitch_angle_cosines: &[feb],
+        number_densities: &[feb],
+    ) -> feb {
+        assert_eq!(initial_energies.len(), energies.len());
+        assert_eq!(pitch_angle_cosines.len(), energies.len());
+        assert_eq!(number_densities.len(), energies.len());
+
+        let deposited_power_initial_energy_derivs: Vec<_> = energies
+            .iter()
+            .zip(initial_energies.iter())
+            .zip(pitch_angle_cosines.iter())
+            .zip(number_densities.iter())
+            .map(
+                |(((&energy, &initial_energy), &pitch_angle_cos), &number_density)| {
+                    if initial_energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density <= 0.0 {
+                        0.0
+                    } else {
+                        let energy_col_depth_deriv =
+                            self.compute_energy_col_depth_deriv(energy, pitch_angle_cos);
+                        let initial_energy_col_depth_deriv =
+                            self.compute_energy_col_depth_deriv(initial_energy, pitch_angle_cos);
+
+                        (energy_col_depth_deriv / initial_energy_col_depth_deriv)
+                            * number_density
+                            * (-energy_col_depth_deriv
+                                * self.total_hydrogen_density
+                                * pitch_angle_cos
+                                * feb::sqrt(2.0 * energy / M_ELECTRON))
+                    }
+                },
+            )
+            .collect();
+
+        // Integrate deposited power over initial energies using the trapezoidal method
+        let deposited_power = 0.5
+            * initial_energies
+                .iter()
+                .zip(initial_energies.iter().skip(1))
+                .zip(
+                    deposited_power_initial_energy_derivs
+                        .iter()
+                        .zip(deposited_power_initial_energy_derivs.iter().skip(1)),
+                )
+                .fold(
+                    0.0,
+                    |acc, ((&initial_energy, &initial_energy_up), (&deriv, &deriv_up))| {
+                        acc + (deriv + deriv_up) * (initial_energy_up - initial_energy)
+                    },
+                );
+
+        deposited_power
     }
 
     fn advance_energy_and_pitch_angle_cos_with_second_order_heun(
@@ -103,7 +192,7 @@ impl Transporter {
         initial_energy: feb,
         initial_pitch_angle_cos: feb,
         col_depth_increase: feb,
-    ) -> (feb, feb) {
+    ) -> TransportResult {
         let energy_col_depth_deriv_1 =
             self.compute_energy_col_depth_deriv(initial_energy, initial_pitch_angle_cos);
         let pitch_angle_cos_col_depth_deriv_1 =
@@ -114,7 +203,7 @@ impl Transporter {
             initial_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase;
 
         if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
-            return (0.0, 0.0);
+            return TransportResult::Thermalized;
         }
 
         let energy_col_depth_deriv_2 =
@@ -130,9 +219,9 @@ impl Transporter {
                 * col_depth_increase;
 
         if energy <= 0.0 || pitch_angle_cos <= 0.0 {
-            (0.0, 0.0)
+            TransportResult::Thermalized
         } else {
-            (energy, pitch_angle_cos)
+            TransportResult::NewEnergyAndPitchAngleCos((energy, pitch_angle_cos))
         }
     }
 
@@ -189,7 +278,7 @@ impl AnalyticalTransporter {
         initial_energy: feb,
         initial_pitch_angle_cos: feb,
         col_depth_increase: feb,
-    ) -> Option<(feb, feb)> {
+    ) -> Option<TransportResult> {
         let magnetic_field_factor =
             self.magnetic_field_scale * initial_energy * initial_energy / initial_pitch_angle_cos;
         let electric_field_factor =
@@ -206,7 +295,106 @@ impl AnalyticalTransporter {
         }
 
         let beta = hybrid_coulomb_log.for_pitch_angle_for_energy_ratio();
-        let beta_not_2 = feb::min(1.9999, beta);
+
+        if 2.0 - beta < 0.05 {
+            // The more efficient solution for ionized plasma (beta = 2)
+            // can safely be used until beta deviates significantly from 2
+            self.try_advancing_energy_and_pitch_angle_cos_ionized(
+                hybrid_coulomb_log,
+                initial_energy,
+                initial_pitch_angle_cos,
+                col_depth_increase,
+                magnetic_field_factor,
+                electric_field_factor,
+            )
+        } else {
+            self.try_advancing_energy_and_pitch_angle_cos_unionized(
+                hybrid_coulomb_log,
+                initial_energy,
+                initial_pitch_angle_cos,
+                col_depth_increase,
+                magnetic_field_factor,
+                electric_field_factor,
+            )
+        }
+    }
+
+    fn try_advancing_energy_and_pitch_angle_cos_ionized(
+        &self,
+        hybrid_coulomb_log: &HybridCoulombLogarithm,
+        initial_energy: feb,
+        initial_pitch_angle_cos: feb,
+        col_depth_increase: feb,
+        magnetic_field_factor: feb,
+        electric_field_factor: feb,
+    ) -> Option<TransportResult> {
+        let offset = COLLISION_SCALE * hybrid_coulomb_log.for_energy() * col_depth_increase
+            / (initial_pitch_angle_cos * initial_energy * initial_energy)
+            - (1.0 - 0.125 * magnetic_field_factor - electric_field_factor / 6.0) / 3.0;
+
+        if offset >= 0.0 {
+            // The electron will thermalize
+            return Some(TransportResult::Thermalized);
+        }
+
+        let f = |ln_x| {
+            let x = feb::exp(ln_x);
+            x * x
+                * x
+                * (1.0 - 0.5 * magnetic_field_factor
+                    + electric_field_factor * (0.5 * ln_x - 1.0 / 6.0))
+                / 3.0
+                + x * x * x * x * magnetic_field_factor * 0.125
+                + offset
+        };
+
+        let dfdlnx = |ln_x| {
+            let x = feb::exp(ln_x);
+            x * x
+                * x
+                * (1.0
+                    + 0.5 * magnetic_field_factor * (x - 1.0)
+                    + 0.5 * electric_field_factor * ln_x)
+        };
+
+        let mut convergency = SimpleConvergency {
+            eps: 3e-4,
+            max_iter: 30,
+        };
+        match roots::find_root_newton_raphson(0.0, &f, &dfdlnx, &mut convergency) {
+            Ok(ln_x) => {
+                let x = feb::exp(ln_x);
+                let energy = initial_energy * x;
+
+                let pitch_angle_cos = initial_pitch_angle_cos * x
+                    + 0.5 * self.magnetic_field_scale * energy * energy * (1.0 - 1.0 / x)
+                    + self.electric_field_scale * energy * ln_x;
+
+                Some(TransportResult::NewEnergyAndPitchAngleCos((
+                    energy,
+                    pitch_angle_cos,
+                )))
+            }
+            Err(error) => {
+                eprintln!(
+                    "Convergence failed when advancing energy and pitch angle analytically: {}",
+                    error
+                );
+                None
+            }
+        }
+    }
+
+    fn try_advancing_energy_and_pitch_angle_cos_unionized(
+        &self,
+        hybrid_coulomb_log: &HybridCoulombLogarithm,
+        initial_energy: feb,
+        initial_pitch_angle_cos: feb,
+        col_depth_increase: feb,
+        magnetic_field_factor: feb,
+        electric_field_factor: feb,
+    ) -> Option<TransportResult> {
+        let beta = hybrid_coulomb_log.for_pitch_angle_for_energy_ratio();
 
         let offset = COLLISION_SCALE * hybrid_coulomb_log.for_energy() * col_depth_increase
             / (initial_pitch_angle_cos * initial_energy * initial_energy)
@@ -215,7 +403,7 @@ impl AnalyticalTransporter {
 
         if offset >= 0.0 {
             // The electron will thermalize
-            return Some((0.0, 0.0));
+            return Some(TransportResult::Thermalized);
         }
 
         let f = |ln_x| {
@@ -223,10 +411,10 @@ impl AnalyticalTransporter {
             x.powf(2.0 + 0.5 * beta)
                 * (1.0
                     - magnetic_field_factor / (4.0 - beta)
-                    - electric_field_factor / (2.0 - beta_not_2))
+                    - electric_field_factor / (2.0 - beta))
                 / (2.0 + 0.5 * beta)
                 + x * x * x * x * magnetic_field_factor / (4.0 * (4.0 - beta))
-                + x * x * x * electric_field_factor / (3.0 * (2.0 - beta_not_2))
+                + x * x * x * electric_field_factor / (3.0 * (2.0 - beta))
                 + offset
         };
 
@@ -235,35 +423,39 @@ impl AnalyticalTransporter {
             x * (x.powf(1.0 + 0.5 * beta)
                 * (1.0
                     - magnetic_field_factor / (4.0 - beta)
-                    - electric_field_factor / (2.0 - beta_not_2))
+                    - electric_field_factor / (2.0 - beta))
                 + x * x * x * magnetic_field_factor / (4.0 - beta)
-                + x * x * electric_field_factor / (2.0 - beta_not_2))
+                + x * x * electric_field_factor / (2.0 - beta))
         };
 
         let mut convergency = SimpleConvergency {
-            eps: 1e-5,
+            eps: 3e-4,
             max_iter: 30,
         };
         match roots::find_root_newton_raphson(0.0, &f, &dfdlnx, &mut convergency) {
             Ok(ln_x) => {
-                let energy = initial_energy * feb::exp(ln_x);
+                let x = feb::exp(ln_x);
+                let energy = initial_energy * x;
 
-                let pitch_angle_cos = (energy / initial_energy).powf(0.5 * beta)
+                let pitch_angle_cos = x.powf(0.5 * beta)
                     * (initial_pitch_angle_cos
                         - initial_energy * initial_energy * self.magnetic_field_scale
                             / (4.0 - beta)
-                        - initial_energy * self.electric_field_scale / (2.0 - beta_not_2))
+                        - initial_energy * self.electric_field_scale / (2.0 - beta))
                     + energy * energy * self.magnetic_field_scale / (4.0 - beta)
-                    + energy * self.electric_field_scale / (2.0 - beta_not_2);
+                    + energy * self.electric_field_scale / (2.0 - beta);
 
-                Some((energy, pitch_angle_cos))
+                Some(TransportResult::NewEnergyAndPitchAngleCos((
+                    energy,
+                    pitch_angle_cos,
+                )))
             }
             Err(error) => {
                 eprintln!(
                     "Convergence failed when advancing energy and pitch angle analytically: {}",
                     error
                 );
-                Some((0.0, 0.0))
+                None
             }
         }
     }
@@ -276,11 +468,11 @@ impl AnalyticalTransporter {
         electric_field: feb,
     ) {
         self.magnetic_field_scale = Self::compute_magnetic_field_scale(
-            &hybrid_coulomb_log,
+            hybrid_coulomb_log,
             log_magnetic_field_col_depth_deriv,
         );
         self.electric_field_scale = Self::compute_electric_field_scale(
-            &hybrid_coulomb_log,
+            hybrid_coulomb_log,
             total_hydrogen_density,
             electric_field,
         );

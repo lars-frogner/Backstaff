@@ -11,7 +11,6 @@ pub struct CoulombLogarithm {
 
 #[derive(Clone, Debug)]
 pub struct HybridCoulombLogarithm {
-    coulomb_log: CoulombLogarithm,
     for_energy: feb,
     for_pitch_angle: feb,
     for_number_density: feb,
@@ -31,12 +30,7 @@ impl CoulombLogarithm {
     /// Smallest mean electron energy that will be used to compute Coulomb logarithms [erg].
     const MIN_COULOMB_LOG_MEAN_ENERGY: feb = 1e-3 * KEV_TO_ERG;
 
-    pub fn new(
-        total_hydrogen_density: feb,
-        ionization_fraction: feb,
-        electron_energy: feb,
-    ) -> Self {
-        let electron_density = ionization_fraction * total_hydrogen_density;
+    pub fn new(electron_density: feb, electron_energy: feb) -> Self {
         Self {
             with_electrons_protons: Self::compute_coulomb_log_with_electrons_protons(
                 electron_density,
@@ -97,7 +91,6 @@ impl HybridCoulombLogarithm {
         let for_pitch_angle_for_energy_ratio = for_pitch_angle / for_energy;
 
         Self {
-            coulomb_log,
             for_energy,
             for_pitch_angle,
             for_number_density,
@@ -143,7 +136,7 @@ impl HybridCoulombLogarithm {
     ) -> feb {
         ionization_fraction * coulomb_log.with_electrons_protons()
             + (1.0 - ionization_fraction)
-                * (coulomb_log.with_neutral_hydrogen_for_energy()
-                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
+                * (coulomb_log.with_neutral_hydrogen_for_pitch_angle()
+                    - coulomb_log.with_neutral_hydrogen_for_energy())
     }
 }

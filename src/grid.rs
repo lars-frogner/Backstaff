@@ -1904,7 +1904,7 @@ fn upper_edge_from_center_and_lower_edge<F: BFloat>(center: F, lower_edge: F) ->
     lower_edge + cell_extent_from_center_and_lower_edge(center, lower_edge)
 }
 
-fn search_idx_of_coord<F: BFloat>(lower_edges: &[F], coord: F) -> Option<usize> {
+pub fn search_idx_of_coord<F: BFloat>(lower_edges: &[F], coord: F) -> Option<usize> {
     let mut low = 0;
     let mut high = lower_edges.len() - 1;
     let mut mid;

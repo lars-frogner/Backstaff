@@ -35,6 +35,7 @@ use std::{
     collections::HashMap,
     io::{self, Write},
     path::Path,
+    time::Instant,
 };
 
 #[cfg(feature = "serialization")]
@@ -369,12 +370,13 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
     /// - `interpolator`: Interpolator to use.
     /// - `stepper`: Stepper for field line tracing.
     /// - `verbosity`: Whether and how to pass non-essential information to user.
+    /// - `time_propagation`: Whether to measure and print the time it takes to propagate the beams.
     ///
     /// # Returns
     ///
     /// A new `ElectronBeamSwarm` with propagated electron beams.
     pub fn generate_propagated<P>(snapshot: &mut dyn CachingScalarFieldProvider3<fdt>, detector: &dyn ReconnectionSiteDetector, accelerator: A, propagator_config: P::Config,
-        interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity) -> Self
+        interpolator: &dyn Interpolator3<fdt>, stepper: DynStepper3<fdt>, verbosity: Verbosity, time_propagation: bool) -> Self
     where A: Accelerator + Sync + Send,
           P: Propagator<<A as Accelerator>::DistributionType>,
           A::DistributionType: Send,
@@ -404,8 +406,11 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
                 propagators.len()
             );
         }
+
         let number_of_beams = propagators.len();
         let progress_bar = verbosity.create_progress_bar(number_of_beams);
+
+        let start_instant = Instant::now();
 
         let properties: ElectronBeamSwarmProperties = propagators
             .into_par_iter()
@@ -422,11 +427,16 @@ impl<A: Accelerator> ElectronBeamSwarm<A> {
             })
             .collect();
 
+        let elapsed_duration = start_instant.elapsed();
+
         if verbosity.print_messages() {
             println!(
                 "Successfully propagated {} electron beams",
                 properties.number_of_beams
             );
+        }
+        if time_propagation {
+            println!("Propagation took {} s", elapsed_duration.as_secs_f64());
         }
 
         let lower_bounds = Vec3::from(snapshot.grid().lower_bounds());

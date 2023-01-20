@@ -6,7 +6,10 @@ use crate::{
         ebeam::{
             accelerator::simple_power_law::create_simple_power_law_accelerator_subcommand,
             distribution::power_law::create_power_law_distribution_subcommand,
-            propagator::analytical::create_analytical_propagator_subcommand,
+            propagator::{
+                analytical::create_analytical_propagator_subcommand,
+                fp_characteristics::create_characteristics_propagator_subcommand,
+            },
         },
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
         tracing::stepping::rkf::create_rkf_stepper_subcommand,
@@ -45,7 +48,8 @@ pub fn create_manual_reconnection_site_detector_subcommand(
         )
         .subcommand(create_power_law_distribution_subcommand(command_name))
         .subcommand(create_simple_power_law_accelerator_subcommand(command_name))
-        .subcommand(create_analytical_propagator_subcommand(command_name));
+        .subcommand(create_analytical_propagator_subcommand(command_name))
+        .subcommand(create_characteristics_propagator_subcommand(command_name));
 
     add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }

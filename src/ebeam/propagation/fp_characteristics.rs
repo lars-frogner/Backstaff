@@ -9,9 +9,11 @@
 mod atmosphere;
 mod transport;
 
+pub use transport::AnalyticalTransporterConfig;
+
 use self::{
     atmosphere::{CoulombLogarithm, HybridCoulombLogarithm},
-    transport::{AnalyticalTransporterConfig, Transporter},
+    transport::{TransportResult, Transporter},
 };
 use super::analytical::AnalyticalPropagator;
 use crate::{
@@ -22,12 +24,9 @@ use crate::{
         propagation::{DepletionStatus, PropagationResult, Propagator},
     },
     field::CachingScalarFieldProvider3,
-    geometry::{
-        Dim3::{X, Y, Z},
-        Point3, Vec3,
-    },
-    grid::Grid3,
-    interpolation::Interpolator3,
+    geometry::{Point3, Vec3},
+    grid::{self, Grid3},
+    interpolation::{self, Interpolator3},
     io::snapshot::{self, fdt, SnapshotParameters},
     plasma::ionization,
     tracing::ftr,
@@ -55,9 +54,6 @@ pub struct CharacteristicsPropagatorConfig {
     pub min_deposited_power_per_distance: feb,
     /// Maximum distance the distribution can propagate before propagation should be terminated [Mm].
     pub max_propagation_distance: ftr,
-    /// Maximum distance outside the initial extended acceleration region the
-    /// distribution can propagate before energy deposition starts [Mm].
-    pub outside_deposition_threshold: feb,
     /// Whether to keep propagating beams even after they are considered depleted.
     pub continue_depleted_beams: bool,
 }
@@ -70,10 +66,12 @@ pub struct CharacteristicsPropagator {
     distribution: PowerLawDistribution,
     transporter: Transporter,
     coulomb_log: CoulombLogarithm,
-    energies: Array1<feb>,
-    initial_energies: Array1<feb>,
-    pitch_angle_cosines: Array1<feb>,
-    electron_numbers: Array1<feb>,
+    energies: Vec<feb>,
+    log10_energies: Vec<feb>,
+    initial_energies: Vec<feb>,
+    pitch_angle_cosines: Vec<feb>,
+    electron_numbers_per_dist: Vec<feb>,
+    delta_log10_energy: feb,
 }
 
 impl CharacteristicsPropagator {
@@ -85,7 +83,233 @@ impl CharacteristicsPropagator {
         current_electric_field: feb,
         col_depth_increase: feb,
     ) -> feb {
-        todo!()
+        let mut stepped_energies = vec![0.0; self.config.n_energies];
+        let mut stepped_pitch_angle_cosines = vec![0.0; self.config.n_energies];
+        let mut first_valid_stepped_idx = 0;
+
+        for (idx, (&energy, &pitch_angle_cos)) in self
+            .energies
+            .iter()
+            .zip(self.pitch_angle_cosines.iter())
+            .enumerate()
+            .rev()
+        {
+            match self.transporter.advance_energy_and_pitch_angle_cos(
+                energy,
+                pitch_angle_cos,
+                col_depth_increase,
+            ) {
+                TransportResult::NewEnergyAndPitchAngleCos((new_energy, new_pitch_angle_cos)) => {
+                    stepped_energies[idx] = new_energy;
+                    stepped_pitch_angle_cosines[idx] = new_pitch_angle_cos;
+                }
+                TransportResult::Thermalized => {
+                    first_valid_stepped_idx = idx + 1;
+                    break;
+                }
+            }
+        }
+
+        let all_thermalized_stepped = || ..first_valid_stepped_idx;
+        let all_valid_stepped = || first_valid_stepped_idx..;
+
+        let valid_stepped_energies = &stepped_energies[all_valid_stepped()];
+        let log10_valid_stepped_energies: Vec<_> = valid_stepped_energies
+            .iter()
+            .map(|&energy| feb::log10(energy))
+            .collect();
+        let valid_stepped_pitch_angle_cosines = &stepped_pitch_angle_cosines[all_valid_stepped()];
+
+        let mut deposited_power_per_dist = 0.0;
+
+        if first_valid_stepped_idx > 0 {
+            // Add deposited power of all thermalized electrons
+            deposited_power_per_dist += self.transporter.compute_deposited_power_density(
+                &self.energies[all_thermalized_stepped()],
+                &self.initial_energies[all_thermalized_stepped()],
+                &self.pitch_angle_cosines[all_thermalized_stepped()],
+                &self.electron_numbers_per_dist[all_thermalized_stepped()],
+            );
+
+            if first_valid_stepped_idx >= self.config.n_energies - 1 {
+                return deposited_power_per_dist;
+            }
+        }
+
+        self.transporter.advance_number_densities(
+            &self.energies[all_valid_stepped()],
+            &self.pitch_angle_cosines[all_valid_stepped()],
+            &mut self.electron_numbers_per_dist[all_valid_stepped()],
+            col_depth_increase,
+        );
+
+        let first_valid_idx = self
+            .energies
+            .iter()
+            .enumerate()
+            .find_map(|(idx, &energy)| {
+                if energy > valid_stepped_energies[0] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
+        let all_valid = || first_valid_idx..;
+        let all_valid_downshifted = || ..(self.config.n_energies - first_valid_idx);
+
+        let (mut resampled_initial_energies, mut resampled_electron_numbers_per_dist) =
+            Self::interpolate_to_grid(
+                &self.distribution,
+                &self.log10_energies[all_valid()],
+                &log10_valid_stepped_energies,
+                valid_stepped_pitch_angle_cosines,
+                &self.initial_energies[all_valid_stepped()],
+                &self.electron_numbers_per_dist[all_valid_stepped()],
+                &mut self.pitch_angle_cosines[all_valid_downshifted()],
+            );
+        self.initial_energies[all_valid_downshifted()]
+            .swap_with_slice(&mut resampled_initial_energies);
+        self.electron_numbers_per_dist[all_valid_downshifted()]
+            .swap_with_slice(&mut resampled_electron_numbers_per_dist);
+
+        if first_valid_idx > 0 {
+            self.shift_energies_down(first_valid_idx);
+            self.fill_in_initial_conditions_after_shift(first_valid_idx);
+        }
+
+        self.transporter.update_conditions(
+            current_hybrid_coulomb_log,
+            current_total_hydrogen_density,
+            current_log_magnetic_field_col_depth_deriv,
+            current_electric_field,
+        );
+
+        deposited_power_per_dist += self.transporter.compute_deposited_power_density(
+            &self.energies,
+            &self.initial_energies,
+            &self.pitch_angle_cosines,
+            &self.electron_numbers_per_dist,
+        );
+
+        deposited_power_per_dist
+    }
+
+    pub fn interpolate_to_grid(
+        distribution: &PowerLawDistribution,
+        log10_energies: &[feb],
+        log10_stepped_energies: &[feb],
+        stepped_pitch_angle_cosines: &[feb],
+        stepped_initial_energies: &[feb],
+        stepped_electron_numbers_per_dist: &[feb],
+        pitch_angle_cosines: &mut [feb],
+    ) -> (Vec<feb>, Vec<feb>) {
+        let n_data = log10_stepped_energies.len();
+        assert!(n_data > 1);
+        assert_eq!(n_data, stepped_pitch_angle_cosines.len());
+        assert_eq!(n_data, stepped_initial_energies.len());
+        assert_eq!(n_data, stepped_electron_numbers_per_dist.len());
+        assert_eq!(pitch_angle_cosines.len(), log10_energies.len());
+
+        fn lerp(x_data: &[feb], f_data: &[feb], idx: usize, x: feb) -> feb {
+            f_data[idx]
+                + (x - x_data[idx]) * (f_data[idx + 1] - f_data[idx])
+                    / (x_data[idx + 1] - x_data[idx])
+        }
+
+        let (initial_energies, electron_numbers_per_dist) = log10_energies
+            .iter()
+            .zip(pitch_angle_cosines.iter_mut())
+            .map(|(&log10_energy, pitch_angle_cosine)| {
+                // Extrapolate if out of bounds
+                let idx = usize::min(
+                    n_data - 2,
+                    grid::search_idx_of_coord(log10_stepped_energies, log10_energy).unwrap_or(0),
+                );
+
+                *pitch_angle_cosine = feb::min(
+                    lerp(
+                        log10_stepped_energies,
+                        stepped_pitch_angle_cosines,
+                        idx,
+                        log10_energy,
+                    ),
+                    distribution.initial_pitch_angle_cosine,
+                );
+
+                let initial_energy = lerp(
+                    log10_stepped_energies,
+                    stepped_initial_energies,
+                    idx,
+                    log10_energy,
+                );
+
+                let electron_number_per_dist = feb::max(
+                    lerp(
+                        log10_stepped_energies,
+                        stepped_electron_numbers_per_dist,
+                        idx,
+                        log10_energy,
+                    ),
+                    0.0,
+                );
+
+                (initial_energy, electron_number_per_dist)
+            })
+            .unzip();
+
+        (initial_energies, electron_numbers_per_dist)
+    }
+
+    fn shift_energies_down(&mut self, shift: usize) {
+        assert!(shift > 0);
+        assert!(shift < self.config.n_energies);
+
+        self.log10_energies.rotate_left(shift);
+        self.energies.rotate_left(shift);
+    }
+
+    fn fill_in_initial_conditions_after_shift(&mut self, shift: usize) {
+        assert!(shift > 0);
+        assert!(shift < self.config.n_energies);
+
+        let first_idx_to_fill = self.config.n_energies - shift;
+        let log10_upper_energy_before_shift = self.log10_energies[first_idx_to_fill - 1];
+
+        self.log10_energies[first_idx_to_fill..]
+            .iter_mut()
+            .zip(self.energies[first_idx_to_fill..].iter_mut())
+            .zip(self.initial_energies[first_idx_to_fill..].iter_mut())
+            .zip(self.pitch_angle_cosines[first_idx_to_fill..].iter_mut())
+            .zip(self.electron_numbers_per_dist[first_idx_to_fill..].iter_mut())
+            .enumerate()
+            .for_each(
+                |(
+                    idx,
+                    (
+                        (((log10_energy, energy), initial_energy), pitch_angle_cosine),
+                        electron_number_per_dist,
+                    ),
+                )| {
+                    *log10_energy = log10_upper_energy_before_shift
+                        + ((idx + 1) as feb) * self.delta_log10_energy;
+
+                    *energy = feb::powf(10.0, *log10_energy);
+
+                    *initial_energy = *energy;
+
+                    *pitch_angle_cosine = self.distribution.initial_pitch_angle_cosine;
+
+                    *electron_number_per_dist =
+                        PowerLawDistribution::evaluate_electron_number_per_dist(
+                            self.distribution.total_power,
+                            self.distribution.lower_cutoff_energy * KEV_TO_ERG,
+                            self.distribution.delta,
+                            *energy,
+                        );
+                },
+            );
     }
 }
 
@@ -112,8 +336,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             AnalyticalPropagator::compute_total_hydrogen_density(distribution.ambient_mass_density);
 
         let coulomb_log = CoulombLogarithm::new(
-            total_hydrogen_density,
-            ionization_fraction,
+            distribution.ambient_electron_density,
             coulomb_logarithm_energy,
         );
         let hybrid_coulomb_log =
@@ -162,25 +385,37 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             let log10_min_energy = feb::log10(min_energy);
             let log10_max_energy = feb::log10(max_energy);
 
-            let log10_energies = Array::linspace(min_energy, max_energy, config.n_energies);
-            let energies = log10_energies.map(|&log10_energy| feb::powf(10.0, log10_energy));
+            let delta_log10_energy =
+                (log10_max_energy - log10_min_energy) / ((config.n_energies - 1) as feb);
+
+            let log10_energies: Vec<_> = (0..config.n_energies)
+                .map(|i| log10_min_energy + (i as feb) * delta_log10_energy)
+                .collect();
+
+            let energies: Vec<_> = log10_energies
+                .iter()
+                .map(|&log10_energy| feb::powf(10.0, log10_energy))
+                .collect();
 
             let lower_cutoff_energy = distribution.lower_cutoff_energy * KEV_TO_ERG;
-            let electron_numbers = energies.map(|&energy| {
-                if energy >= lower_cutoff_energy {
-                    PowerLawDistribution::evaluate_electron_number(
-                        distribution.total_power,
-                        lower_cutoff_energy,
-                        distribution.delta,
-                        energy,
-                    )
-                } else {
-                    0.0
-                }
-            });
+            let electron_numbers_per_dist = energies
+                .iter()
+                .map(|&energy| {
+                    if energy >= lower_cutoff_energy {
+                        PowerLawDistribution::evaluate_electron_number_per_dist(
+                            distribution.total_power,
+                            lower_cutoff_energy,
+                            distribution.delta,
+                            energy,
+                        )
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
 
             let pitch_angle_cosines =
-                Array::from_elem(config.n_energies, distribution.initial_pitch_angle_cosine);
+                vec![distribution.initial_pitch_angle_cosine; config.n_energies];
 
             let initial_energies = energies.clone();
 
@@ -190,9 +425,11 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 transporter,
                 coulomb_log,
                 energies,
+                log10_energies,
                 initial_energies,
                 pitch_angle_cosines,
-                electron_numbers,
+                electron_numbers_per_dist,
+                delta_log10_energy,
             })
         } else {
             None
@@ -204,16 +441,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
     }
 
     fn into_distribution(self) -> PowerLawDistribution {
-        let Self {
-            config: _,
-            distribution,
-            transporter: _,
-            coulomb_log: _,
-            energies: _,
-            initial_energies: _,
-            pitch_angle_cosines: _,
-            electron_numbers: _,
-        } = self;
+        let Self { distribution, .. } = self;
         distribution
     }
 
@@ -224,7 +452,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
     fn propagate(
         &mut self,
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
-        acceleration_map: &Array3<bool>,
+        _acceleration_map: &Array3<bool>,
         interpolator: &dyn Interpolator3<fdt>,
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
@@ -275,18 +503,19 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let step_length = displacement.length() * U_L; // [cm]
         let col_depth_increase = step_length * total_hydrogen_density;
 
-        let deposited_power = self.advance_distributions(
+        let deposited_power_per_dist = self.advance_distributions(
             hybrid_coulomb_log,
             total_hydrogen_density,
             0.0,
             0.0,
             col_depth_increase,
         );
-
+        let deposited_power = deposited_power_per_dist * step_length;
         let volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
         let deposited_power_density = deposited_power / volume;
 
-        let depletion_status = if self.config.continue_depleted_beams
+        let depletion_status = if true
+            || self.config.continue_depleted_beams
             || deposited_power / step_length >= self.config.min_deposited_power_per_distance
         {
             DepletionStatus::Undepleted
@@ -311,7 +540,6 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-5;
     pub const DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE: feb = 1e5; // [erg/s/cm]
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
-    pub const DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD: feb = 0.1; // [Mm]
     pub const DEFAULT_CONTINUE_DEPLETED_BEAMS: bool = false;
 
     /// Creates a set of analytical propagator configuration parameters with
@@ -350,14 +578,6 @@ impl CharacteristicsPropagatorConfig {
                 &|max_dist: feb| max_dist,
                 Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             );
-        let outside_deposition_threshold =
-            snapshot::get_converted_numerical_param_or_fallback_to_default_with_warning(
-                parameters,
-                "outside_deposition_threshold",
-                "out_dep_thresh",
-                &|out_dep_thresh: feb| out_dep_thresh,
-                Self::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
-            );
         CharacteristicsPropagatorConfig {
             analytical_transporter_config: AnalyticalTransporterConfig::default(),
             n_energies: Self::DEFAULT_N_ENERGIES,
@@ -367,13 +587,16 @@ impl CharacteristicsPropagatorConfig {
             min_residual_factor,
             min_deposited_power_per_distance,
             max_propagation_distance,
-            outside_deposition_threshold,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
     }
 
     /// Panics if any of the configuration parameter values are invalid.
     pub fn validate(&self) {
+        assert!(
+            self.n_energies > 1,
+            "Number of energies must be larger than one"
+        );
         assert!(
             self.min_energy_relative_to_cutoff > 0.0,
             "Minimum energy must be larger than zero"
@@ -398,10 +621,6 @@ impl CharacteristicsPropagatorConfig {
             self.max_propagation_distance >= 0.0,
             "Maximum propagation distance must be larger than or equal to zero."
         );
-        assert!(
-            self.outside_deposition_threshold >= 0.0,
-            "Outside deposition threshold must be larger than or equal to zero."
-        );
     }
 }
 
@@ -416,7 +635,6 @@ impl Default for CharacteristicsPropagatorConfig {
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             min_deposited_power_per_distance: Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
-            outside_deposition_threshold: Self::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
         }
     }

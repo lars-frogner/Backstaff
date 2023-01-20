@@ -16,9 +16,15 @@ use super::{
         },
     },
     distribution::power_law::create_power_law_distribution_subcommand,
-    propagator::analytical::{
-        construct_analytical_propagator_config_from_options,
-        create_analytical_propagator_subcommand,
+    propagator::{
+        analytical::{
+            construct_analytical_propagator_config_from_options,
+            create_analytical_propagator_subcommand,
+        },
+        fp_characteristics::{
+            construct_characteristics_propagator_config_from_options,
+            create_characteristics_propagator_subcommand,
+        },
     },
 };
 use crate::{
@@ -47,6 +53,7 @@ use crate::{
         },
         propagation::{
             analytical::{AnalyticalPropagator, AnalyticalPropagatorConfig},
+            fp_characteristics::CharacteristicsPropagator,
             Propagator,
         },
         BeamPropertiesCollection, ElectronBeamSwarm,
@@ -60,6 +67,7 @@ use crate::{
     io::{
         snapshot::{self, fdt, SnapshotMetadata},
         utils::{AtomicOutputFile, IOContext},
+        Verbosity,
     },
     tracing::stepping::rkf::{
         rkf23::RKF23Stepper3, rkf45::RKF45Stepper3, RKFStepperConfig, RKFStepperType,
@@ -90,8 +98,8 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
              with the surrounding plasma.",
         )
         .after_help(
-            "You can use subcommands to configure each action. The subcommands must be specified\n\
-             in the order detector -> distribution -> accelerator -> interpolator -> stepper,\n\
+            "You can use subcommands to configure each action. The subcommands must be specified in\n\
+             the order detector -> distribution -> accelerator -> propagator -> interpolator -> stepper,
              with options for each action directly following the subcommand. Any action(s) can be\n\
              left unspecified, in which case the default implementation and parameters are used\n\
              for that action.",
@@ -201,6 +209,12 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
                 .help("Show progress bar for simulation (also implies `verbose`)"),
         )
         .arg(
+            Arg::new("time-propagation")
+                .short('t')
+                .long("time-propagation")
+                .help("Measure and report the time it takes to propagate the beams"),
+        )
+        .arg(
             Arg::new("print-parameter-values")
                 .long("print-parameter-values")
                 .help("Prints the values of all the parameters that will be used")
@@ -214,7 +228,8 @@ pub fn create_simulate_subcommand(_parent_command_name: &'static str) -> Command
         ))
         .subcommand(create_power_law_distribution_subcommand(command_name))
         .subcommand(create_simple_power_law_accelerator_subcommand(command_name))
-        .subcommand(create_analytical_propagator_subcommand(command_name));
+        .subcommand(create_analytical_propagator_subcommand(command_name))
+        .subcommand(create_characteristics_propagator_subcommand(command_name));
 
     add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
 }
@@ -226,8 +241,10 @@ pub fn run_simulate_subcommand(
     provider: DynScalarFieldProvider3<fdt>,
     io_context: &mut IOContext,
 ) {
-    let verbosity = cli_utils::parse_verbosity(arguments, false);
-    let snapshot = Box::new(ScalarFieldCacher3::new_manual_cacher(provider, verbosity));
+    let snapshot = Box::new(ScalarFieldCacher3::new_manual_cacher(
+        provider,
+        Verbosity::Quiet,
+    ));
     run_with_selected_detector(arguments, metadata, snapshot, io_context);
 }
 
@@ -463,6 +480,25 @@ fn run_with_simple_accelerator_and_selected_propagator(
             propagator_config,
             io_context,
         );
+    } else if let Some(propagator_arguments) =
+        arguments.subcommand_matches("characteristics_propagator")
+    {
+        let propagator_config = construct_characteristics_propagator_config_from_options(
+            propagator_arguments,
+            metadata.parameters(),
+        );
+        if root_arguments.is_present("print-parameter-values") {
+            println!("{:#?}", propagator_config);
+        }
+        run_with_selected_interpolator::<_, CharacteristicsPropagator>(
+            root_arguments,
+            propagator_arguments,
+            snapshot,
+            detector,
+            accelerator,
+            propagator_config,
+            io_context,
+        );
     } else {
         let propagator_config =
             AnalyticalPropagatorConfig::with_defaults_from_param_file(metadata.parameters());
@@ -605,6 +641,8 @@ where A: Accelerator + Sync + Send,
         _ => None,
     };
 
+    let time_propagation = root_arguments.is_present("time-propagation");
+
     let beams = match stepper_type {
         RKFStepperType::RKF23 => {
             let stepper = Box::new(RKF23Stepper3::new(stepper_config));
@@ -627,6 +665,7 @@ where A: Accelerator + Sync + Send,
                     interpolator,
                     stepper,
                     verbosity,
+                    time_propagation,
                 )
             }
         }
@@ -651,6 +690,7 @@ where A: Accelerator + Sync + Send,
                     interpolator,
                     stepper,
                     verbosity,
+                    time_propagation,
                 )
             }
         }

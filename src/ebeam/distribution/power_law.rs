@@ -85,18 +85,17 @@ impl PowerLawDistribution {
         lower_cutoff_energy * (delta - 0.5) / (delta - 1.5)
     }
 
-    pub fn evaluate_electron_number(
+    pub fn evaluate_electron_number_per_dist(
         total_power: feb,
         lower_cutoff_energy: feb,
         delta: feb,
         energy: feb,
     ) -> feb {
-        total_power
-            * ((delta - 2.0)
-                / (lower_cutoff_energy
-                    * lower_cutoff_energy
-                    * feb::sqrt(2.0 * energy / M_ELECTRON)))
-            * (lower_cutoff_energy / energy).powf(delta)
+        (total_power * (delta - 2.0)
+            / (lower_cutoff_energy
+                * lower_cutoff_energy
+                * feb::sqrt(2.0 * lower_cutoff_energy / M_ELECTRON)))
+            * (lower_cutoff_energy / energy).powf(delta + 0.5)
     }
 }
 

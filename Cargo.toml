@@ -21,7 +21,7 @@ hdf5 = ["dep:hdf5-rs", "dep:regex"]
 seeding = ["dep:rand"]
 corks = ["seeding"]
 tracing = ["seeding"]
-ebeam = ["tracing", "dep:rand", "dep:special"]
+ebeam = ["tracing", "dep:rand", "dep:roots", "dep:special"]
 synthesis = ["derivation", "python", "dep:roman"]
 for-testing = ["dep:approx"]
 all-non-testing = [
@@ -44,7 +44,6 @@ num = "*"
 paste = "*"
 rayon = "*"
 regex = "*"
-roots = "*"
 sysinfo = { version = "*", default-features = false }
 tempfile = "*"
 quit = "*"
@@ -83,6 +82,7 @@ netcdf-rs = { package = "netcdf", version = "*", optional = true }
 hdf5-rs = { package = "hdf5", version = "*", optional = true }
 
 # Dependencies for ebeam
+roots = { version = "*", optional = true }
 special = { version = "*", optional = true }
 
 # Dependency for seeding and ebeam
