@@ -15,6 +15,7 @@ pub struct HybridCoulombLogarithm {
     for_pitch_angle: feb,
     for_number_density: feb,
     for_pitch_angle_for_energy_ratio: feb,
+    for_number_density_for_energy_ratio: feb,
 }
 
 impl CoulombLogarithm {
@@ -89,12 +90,14 @@ impl HybridCoulombLogarithm {
         let for_number_density =
             Self::compute_hybrid_coulomb_log_for_number_density(&coulomb_log, ionization_fraction);
         let for_pitch_angle_for_energy_ratio = for_pitch_angle / for_energy;
+        let for_number_density_for_energy_ratio = for_number_density / for_energy;
 
         Self {
             for_energy,
             for_pitch_angle,
             for_number_density,
             for_pitch_angle_for_energy_ratio,
+            for_number_density_for_energy_ratio,
         }
     }
 
@@ -112,6 +115,10 @@ impl HybridCoulombLogarithm {
 
     pub fn for_pitch_angle_for_energy_ratio(&self) -> feb {
         self.for_pitch_angle_for_energy_ratio
+    }
+
+    pub fn for_number_density_for_energy_ratio(&self) -> feb {
+        self.for_number_density_for_energy_ratio
     }
 
     fn compute_hybrid_coulomb_log_for_energy(

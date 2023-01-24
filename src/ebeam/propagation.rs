@@ -14,7 +14,7 @@ use crate::{
 use ndarray::prelude::*;
 
 /// Whether or not a distribution is depleted.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DepletionStatus {
     Undepleted,
     Depleted,

@@ -56,6 +56,13 @@ pub fn create_characteristics_propagator_subcommand(
                 .default_value("1e-1,1e2"),
         )
         .arg(
+            Arg::new("enable-analytical-solver")
+                .long("enable-analytical-solver")
+                .help(
+                    "Use analytical solutions for electron propagation when applicable",
+                ),
+        )
+        .arg(
             Arg::new("min-depletion-distance")
                 .long("min-depletion-distance")
                 .require_equals(true)
@@ -136,6 +143,8 @@ pub fn construct_characteristics_propagator_config_from_options(
         CharacteristicsPropagatorConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
+    let enable_analytical_transporter = arguments.is_present("enable-analytical-solver");
+
     let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
         parameters,
         arguments,
@@ -166,7 +175,10 @@ pub fn construct_characteristics_propagator_config_from_options(
     let continue_depleted_beams = arguments.is_present("continue-depleted-beams");
 
     let config = CharacteristicsPropagatorConfig {
-        analytical_transporter_config: AnalyticalTransporterConfig::default(),
+        analytical_transporter_config: AnalyticalTransporterConfig {
+            enabled: enable_analytical_transporter,
+            ..AnalyticalTransporterConfig::default()
+        },
         n_energies,
         min_energy_relative_to_cutoff,
         max_energy_relative_to_cutoff,
