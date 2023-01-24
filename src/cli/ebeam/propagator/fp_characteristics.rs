@@ -56,6 +56,20 @@ pub fn create_characteristics_propagator_subcommand(
                 .default_value("1e-1,1e2"),
         )
         .arg(
+            Arg::new("disable-return-current")
+                .long("disable-return-current")
+                .help(
+                    "Do not account for return current when propagating a distribution",
+                ),
+        )
+        .arg(
+            Arg::new("disable-magnetic-mirroring")
+                .long("disable-magnetic-mirroring")
+                .help(
+                    "Do not account for magnetic mirroring when propagating a distribution",
+                ),
+        )
+        .arg(
             Arg::new("enable-analytical-solver")
                 .long("enable-analytical-solver")
                 .help(
@@ -143,6 +157,8 @@ pub fn construct_characteristics_propagator_config_from_options(
         CharacteristicsPropagatorConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
+    let include_return_current = !arguments.is_present("disable-return-current");
+    let include_magnetic_mirroring = !arguments.is_present("disable-magnetic-mirroring");
     let enable_analytical_transporter = arguments.is_present("enable-analytical-solver");
 
     let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
@@ -182,6 +198,8 @@ pub fn construct_characteristics_propagator_config_from_options(
         n_energies,
         min_energy_relative_to_cutoff,
         max_energy_relative_to_cutoff,
+        include_return_current,
+        include_magnetic_mirroring,
         min_depletion_distance,
         min_residual_factor,
         min_deposited_power_per_distance,

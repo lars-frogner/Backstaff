@@ -15,7 +15,7 @@ use crate::{
         Verbosity,
     },
     tracing::stepping::{DynStepper3, SteppingSense},
-    units::solar::{U_E, U_L3, U_R, U_T},
+    units::solar::{U_B, U_E, U_EL, U_L3, U_R, U_T},
 };
 use rand::{self, Rng};
 use rayon::prelude::*;
@@ -96,10 +96,10 @@ impl SimplePowerLawAccelerator {
         snapshot.grid().centers().point(indices)
     }
 
-    fn determine_electric_field_direction(
+    fn determine_electric_field_strength_and_direction(
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         indices: &Idx3<usize>,
-    ) -> Option<Vec3<fdt>> {
+    ) -> Option<(fdt, Vec3<fdt>)> {
         let electric_field = snapshot.cached_vector_field("e");
         let grid = electric_field.grid();
 
@@ -136,23 +136,27 @@ impl SimplePowerLawAccelerator {
         let squared_total_electric_vector = total_electric_vector.squared_length();
 
         if squared_total_electric_vector > fdt::EPSILON {
-            Some(total_electric_vector / fdt::sqrt(squared_total_electric_vector))
+            let electric_field_strength = fdt::sqrt(squared_total_electric_vector);
+            Some((
+                electric_field_strength,
+                total_electric_vector / electric_field_strength,
+            ))
         } else {
             None
         }
     }
 
-    fn determine_magnetic_field_direction(
+    fn determine_magnetic_field_strength_and_direction(
         snapshot: &dyn CachingScalarFieldProvider3<fdt>,
         interpolator: &dyn Interpolator3<fdt>,
         acceleration_position: &Point3<fgr>,
-    ) -> Vec3<fdt> {
+    ) -> (fgr, Vec3<fdt>) {
         let magnetic_field = snapshot.cached_vector_field("b");
         let mut magnetic_field_direction = interpolator
             .interp_vector_field(magnetic_field, acceleration_position)
             .expect_inside();
-        magnetic_field_direction.normalize();
-        magnetic_field_direction.cast()
+        let magnetic_field_strength = magnetic_field_direction.normalize_and_get_length();
+        (magnetic_field_strength, magnetic_field_direction.cast())
     }
 
     fn compute_electric_field_angle_cosine(
@@ -389,41 +393,45 @@ impl Accelerator for SimplePowerLawAccelerator {
             .filter_map(|(indices, total_power_density)| {
                 let acceleration_position =
                     Self::determine_acceleration_position(snapshot, &indices);
-                let properties = match Self::determine_electric_field_direction(snapshot, &indices)
-                {
-                    Some(electric_field_direction) => {
-                        let magnetic_field_direction = Self::determine_magnetic_field_direction(
-                            snapshot,
-                            interpolator,
-                            &acceleration_position,
-                        );
-                        let electric_field_angle_cosine = self.compute_electric_field_angle_cosine(
-                            &magnetic_field_direction,
-                            &electric_field_direction,
-                        );
-                        let partitioned_power_densities = self.compute_power_density_partition(
-                            total_power_density,
-                            electric_field_angle_cosine,
-                        );
-                        if let (None, None) = partitioned_power_densities {
-                            None
-                        } else {
-                            Some((
-                                indices,
+                let properties =
+                    match Self::determine_electric_field_strength_and_direction(snapshot, &indices)
+                    {
+                        Some((electric_field_strength, electric_field_direction)) => {
+                            let (magnetic_field_strength, magnetic_field_direction) =
+                                Self::determine_magnetic_field_strength_and_direction(
+                                    snapshot,
+                                    interpolator,
+                                    &acceleration_position,
+                                );
+                            let electric_field_angle_cosine = self
+                                .compute_electric_field_angle_cosine(
+                                    &magnetic_field_direction,
+                                    &electric_field_direction,
+                                );
+                            let partitioned_power_densities = self.compute_power_density_partition(
                                 total_power_density,
-                                acceleration_position,
-                                partitioned_power_densities,
                                 electric_field_angle_cosine,
-                            ))
+                            );
+                            if let (None, None) = partitioned_power_densities {
+                                None
+                            } else {
+                                Some((
+                                    indices,
+                                    total_power_density,
+                                    acceleration_position,
+                                    partitioned_power_densities,
+                                    electric_field_angle_cosine,
+                                    electric_field_strength as feb,
+                                    magnetic_field_strength as feb,
+                                ))
+                            }
                         }
-                    }
-                    None => None,
-                };
+                        None => None,
+                    };
                 progress_bar.inc();
                 properties
             })
             .collect();
-        snapshot.drop_vector_field("e");
 
         if verbosity.print_messages() {
             println!("Computing lower cutoff energies and estimating stopping distances");
@@ -443,6 +451,8 @@ impl Accelerator for SimplePowerLawAccelerator {
                     acceleration_position,
                     partitioned_power_densities,
                     electric_field_angle_cosine,
+                    electric_field_strength,
+                    magnetic_field_strength,
                 )| {
                     let ambient_electron_density =
                         Self::determine_electron_density(snapshot, &indices);
@@ -505,6 +515,8 @@ impl Accelerator for SimplePowerLawAccelerator {
                                 ambient_mass_density,
                                 ambient_electron_density,
                                 ambient_temperature,
+                                ambient_electric_field_strength: electric_field_strength * (*U_EL),
+                                ambient_magnetic_field_strength: magnetic_field_strength * (*U_B),
                             };
                             if let Some(propagator) =
                                 P::new(propagator_config.clone(), distribution)
@@ -531,6 +543,8 @@ impl Accelerator for SimplePowerLawAccelerator {
                                 ambient_mass_density,
                                 ambient_electron_density,
                                 ambient_temperature,
+                                ambient_electric_field_strength: electric_field_strength * (*U_EL),
+                                ambient_magnetic_field_strength: magnetic_field_strength * (*U_B),
                             };
                             if let Some(propagator) =
                                 P::new(propagator_config.clone(), distribution)

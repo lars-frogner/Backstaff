@@ -14,15 +14,16 @@ pub struct Transporter {
     analytical_transporter: AnalyticalTransporter,
     hybrid_coulomb_log: HybridCoulombLogarithm,
     total_hydrogen_density: feb,
+    electric_field_strength: feb,
+    magnetic_field_strength: feb,
     log_magnetic_field_col_depth_deriv: feb,
-    electric_field: feb,
 }
 
 #[derive(Clone, Debug)]
 struct AnalyticalTransporter {
     config: AnalyticalTransporterConfig,
-    magnetic_field_scale: feb,
     electric_field_scale: feb,
+    magnetic_field_scale: feb,
 }
 
 #[derive(Clone, Debug)]
@@ -41,62 +42,58 @@ pub enum TransportResult {
 }
 
 impl Transporter {
+    const MIN_MAGNETIC_FIELD: feb = 0.1;
+
     pub fn new(
         config: AnalyticalTransporterConfig,
         hybrid_coulomb_log: HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        log_magnetic_field_col_depth_deriv: feb,
-        electric_field: feb,
+        electric_field_strength: feb,
+        magnetic_field_strength: feb,
     ) -> Self {
+        let log_magnetic_field_col_depth_deriv = 0.0;
         let analytical_advancer = AnalyticalTransporter::new(
             config,
             &hybrid_coulomb_log,
             total_hydrogen_density,
+            electric_field_strength,
             log_magnetic_field_col_depth_deriv,
-            electric_field,
         );
         Self {
             analytical_transporter: analytical_advancer,
             hybrid_coulomb_log,
             total_hydrogen_density,
+            electric_field_strength,
+            magnetic_field_strength,
             log_magnetic_field_col_depth_deriv,
-            electric_field,
         }
-    }
-
-    pub fn hybrid_coulomb_log(&self) -> &HybridCoulombLogarithm {
-        &self.hybrid_coulomb_log
-    }
-
-    pub fn total_hydrogen_density(&self) -> feb {
-        self.total_hydrogen_density
-    }
-
-    pub fn log_magnetic_field_col_depth_deriv(&self) -> feb {
-        self.log_magnetic_field_col_depth_deriv
-    }
-
-    pub fn electric_field(&self) -> feb {
-        self.electric_field
     }
 
     pub fn update_conditions(
         &mut self,
         hybrid_coulomb_log: HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        log_magnetic_field_col_depth_deriv: feb,
-        electric_field: feb,
+        electric_field_strength: feb,
+        magnetic_field_strength: feb,
+        col_depth_increase: feb,
     ) {
+        let log_magnetic_field_col_depth_deriv = Self::compute_log_magnetic_field_col_depth_deriv(
+            self.magnetic_field_strength,
+            magnetic_field_strength,
+            col_depth_increase,
+        );
+
         self.analytical_transporter.update_conditions(
             &hybrid_coulomb_log,
             total_hydrogen_density,
+            electric_field_strength,
             log_magnetic_field_col_depth_deriv,
-            electric_field,
         );
         self.hybrid_coulomb_log = hybrid_coulomb_log;
         self.total_hydrogen_density = total_hydrogen_density;
+        self.electric_field_strength = electric_field_strength;
+        self.magnetic_field_strength = magnetic_field_strength;
         self.log_magnetic_field_col_depth_deriv = log_magnetic_field_col_depth_deriv;
-        self.electric_field = electric_field;
     }
 
     pub fn advance_quantities(
@@ -197,6 +194,21 @@ impl Transporter {
         deposited_power
     }
 
+    fn compute_log_magnetic_field_col_depth_deriv(
+        prev_magnetic_field_strength: feb,
+        magnetic_field_strength: feb,
+        col_depth_increase: feb,
+    ) -> feb {
+        let mean_magnetic_field_strength =
+            0.5 * (prev_magnetic_field_strength + magnetic_field_strength);
+        if mean_magnetic_field_strength >= Self::MIN_MAGNETIC_FIELD {
+            (magnetic_field_strength - prev_magnetic_field_strength)
+                / (mean_magnetic_field_strength * col_depth_increase)
+        } else {
+            0.0
+        }
+    }
+
     fn advance_quantities_with_second_order_heun(
         &self,
         initial_energy: feb,
@@ -245,7 +257,7 @@ impl Transporter {
                 * (number_density_col_depth_deriv_1 + number_density_col_depth_deriv_2)
                 * col_depth_increase;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density_1 <= 0.0 {
+        if energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density <= 0.0 {
             TransportResult::Thermalized
         } else {
             TransportResult::NewValues((energy, pitch_angle_cos, number_density))
@@ -328,13 +340,14 @@ impl Transporter {
 
     fn compute_energy_col_depth_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
         -COLLISION_SCALE * self.hybrid_coulomb_log.for_energy() / (pitch_angle_cos * energy)
-            - Q_ELECTRON * self.electric_field / self.total_hydrogen_density
+            - Q_ELECTRON * self.electric_field_strength / self.total_hydrogen_density
     }
 
     fn compute_pitch_angle_cos_col_depth_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
         -COLLISION_SCALE * self.hybrid_coulomb_log.for_pitch_angle() / (2.0 * energy * energy)
             - (self.log_magnetic_field_col_depth_deriv
-                + Q_ELECTRON * self.electric_field / (self.total_hydrogen_density * energy))
+                + Q_ELECTRON * self.electric_field_strength
+                    / (self.total_hydrogen_density * energy))
                 * (1.0 - pitch_angle_cos * pitch_angle_cos)
                 / (2.0 * pitch_angle_cos)
     }
@@ -360,26 +373,29 @@ impl Transporter {
 }
 
 impl AnalyticalTransporter {
+    const NEWTON_EPS: feb = 2e-5;
+    const NEWTON_MAX_ITER: usize = 100;
+
     fn new(
         config: AnalyticalTransporterConfig,
         hybrid_coulomb_log: &HybridCoulombLogarithm,
         total_hydrogen_density: feb,
+        electric_field_strength: feb,
         log_magnetic_field_col_depth_deriv: feb,
-        electric_field: feb,
     ) -> Self {
+        let electric_field_scale = Self::compute_electric_field_scale(
+            hybrid_coulomb_log,
+            total_hydrogen_density,
+            electric_field_strength,
+        );
         let magnetic_field_scale = Self::compute_magnetic_field_scale(
             hybrid_coulomb_log,
             log_magnetic_field_col_depth_deriv,
         );
-        let electric_field_scale = Self::compute_electric_field_scale(
-            hybrid_coulomb_log,
-            total_hydrogen_density,
-            electric_field,
-        );
         Self {
             config,
-            magnetic_field_scale,
             electric_field_scale,
+            magnetic_field_scale,
         }
     }
 
@@ -395,10 +411,10 @@ impl AnalyticalTransporter {
             return None;
         }
 
-        let magnetic_field_factor =
-            self.magnetic_field_scale * initial_energy * initial_energy / initial_pitch_angle_cos;
         let electric_field_factor =
             self.electric_field_scale * initial_energy / initial_pitch_angle_cos;
+        let magnetic_field_factor =
+            self.magnetic_field_scale * initial_energy * initial_energy / initial_pitch_angle_cos;
 
         if (initial_pitch_angle_cos > self.config.max_pitch_angle_cos
             || initial_energy * initial_pitch_angle_cos * self.electric_field_scale
@@ -421,8 +437,8 @@ impl AnalyticalTransporter {
                 initial_pitch_angle_cos,
                 initial_number_density,
                 col_depth_increase,
-                magnetic_field_factor,
                 electric_field_factor,
+                magnetic_field_factor,
             )
         } else {
             self.try_advancing_quantities_unionized(
@@ -431,8 +447,8 @@ impl AnalyticalTransporter {
                 initial_pitch_angle_cos,
                 initial_number_density,
                 col_depth_increase,
-                magnetic_field_factor,
                 electric_field_factor,
+                magnetic_field_factor,
             )
         }
     }
@@ -444,8 +460,8 @@ impl AnalyticalTransporter {
         initial_pitch_angle_cos: feb,
         initial_number_density: feb,
         col_depth_increase: feb,
-        magnetic_field_factor: feb,
         electric_field_factor: feb,
+        magnetic_field_factor: feb,
     ) -> Option<TransportResult> {
         let offset = COLLISION_SCALE * hybrid_coulomb_log.for_energy() * col_depth_increase
             / (initial_pitch_angle_cos * initial_energy * initial_energy)
@@ -477,8 +493,8 @@ impl AnalyticalTransporter {
         };
 
         let mut convergency = SimpleConvergency {
-            eps: 2e-5,
-            max_iter: 30,
+            eps: Self::NEWTON_EPS,
+            max_iter: Self::NEWTON_MAX_ITER,
         };
         match roots::find_root_newton_raphson(0.0, &f, &dfdlnx, &mut convergency) {
             Ok(ln_x) => {
@@ -514,8 +530,8 @@ impl AnalyticalTransporter {
         initial_pitch_angle_cos: feb,
         initial_number_density: feb,
         col_depth_increase: feb,
-        magnetic_field_factor: feb,
         electric_field_factor: feb,
+        magnetic_field_factor: feb,
     ) -> Option<TransportResult> {
         let beta = hybrid_coulomb_log.for_pitch_angle_for_energy_ratio();
 
@@ -552,8 +568,8 @@ impl AnalyticalTransporter {
         };
 
         let mut convergency = SimpleConvergency {
-            eps: 2e-5,
-            max_iter: 30,
+            eps: Self::NEWTON_EPS,
+            max_iter: Self::NEWTON_MAX_ITER,
         };
         match roots::find_root_newton_raphson(0.0, &f, &dfdlnx, &mut convergency) {
             Ok(ln_x) => {
@@ -591,17 +607,17 @@ impl AnalyticalTransporter {
         &mut self,
         hybrid_coulomb_log: &HybridCoulombLogarithm,
         total_hydrogen_density: feb,
+        electric_field_strength: feb,
         log_magnetic_field_col_depth_deriv: feb,
-        electric_field: feb,
     ) {
-        self.magnetic_field_scale = Self::compute_magnetic_field_scale(
-            hybrid_coulomb_log,
-            log_magnetic_field_col_depth_deriv,
-        );
         self.electric_field_scale = Self::compute_electric_field_scale(
             hybrid_coulomb_log,
             total_hydrogen_density,
-            electric_field,
+            electric_field_strength,
+        );
+        self.magnetic_field_scale = Self::compute_magnetic_field_scale(
+            hybrid_coulomb_log,
+            log_magnetic_field_col_depth_deriv,
         );
     }
 
@@ -615,9 +631,9 @@ impl AnalyticalTransporter {
     fn compute_electric_field_scale(
         hybrid_coulomb_log: &HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        electric_field: feb,
+        electric_field_strength: feb,
     ) -> feb {
-        Q_ELECTRON * electric_field
+        Q_ELECTRON * electric_field_strength
             / (COLLISION_SCALE * hybrid_coulomb_log.for_energy() * total_hydrogen_density)
     }
 }

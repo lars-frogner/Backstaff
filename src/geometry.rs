@@ -619,12 +619,19 @@ impl<F: BFloat> Vec3<F> {
 
     /// Normalizes the vector to have unit length.
     pub fn normalize(&mut self) {
+        self.normalize_and_get_length();
+    }
+
+    /// Normalizes the vector to have unit length and returns the
+    /// length before normalization.
+    pub fn normalize_and_get_length(&mut self) -> F {
         let length = self.length();
         assert!(length != F::zero());
         let inv_length = length.recip();
         self[X] = self[X] * inv_length;
         self[Y] = self[Y] * inv_length;
         self[Z] = self[Z] * inv_length;
+        length
     }
 
     /// Reverses the direction of the vector.

@@ -30,7 +30,7 @@ use crate::{
     io::snapshot::{self, fdt, SnapshotParameters},
     plasma::ionization,
     tracing::ftr,
-    units::solar::{U_L, U_L3, U_R},
+    units::solar::{U_B, U_EL, U_L, U_L3, U_R},
 };
 use ndarray::prelude::*;
 use std::mem;
@@ -42,6 +42,8 @@ pub struct CharacteristicsPropagatorConfig {
     pub n_energies: usize,
     pub min_energy_relative_to_cutoff: feb,
     pub max_energy_relative_to_cutoff: feb,
+    pub include_return_current: bool,
+    pub include_magnetic_mirroring: bool,
     /// Distributions with an estimated depletion distance smaller than this value
     /// are discarded [Mm].
     pub min_depletion_distance: feb,
@@ -85,8 +87,8 @@ impl CharacteristicsPropagator {
         &mut self,
         current_hybrid_coulomb_log: HybridCoulombLogarithm,
         current_total_hydrogen_density: feb,
-        current_log_magnetic_field_col_depth_deriv: feb,
-        current_electric_field: feb,
+        current_electric_field_strength: feb,
+        current_magnetic_field_strength: feb,
         col_depth_increase: feb,
     ) -> (feb, DepletionStatus) {
         let mut first_valid_stepped_idx = 0;
@@ -194,8 +196,9 @@ impl CharacteristicsPropagator {
         self.transporter.update_conditions(
             current_hybrid_coulomb_log,
             current_total_hydrogen_density,
-            current_log_magnetic_field_col_depth_deriv,
-            current_electric_field,
+            current_electric_field_strength,
+            current_magnetic_field_strength,
+            col_depth_increase,
         );
 
         deposited_power_per_dist += self.transporter.compute_deposited_power_density(
@@ -385,12 +388,24 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         );
 
         if estimated_depletion_distance >= config.min_depletion_distance * U_L {
+            let electric_field_strength = if config.include_return_current {
+                distribution.ambient_electric_field_strength
+            } else {
+                0.0
+            };
+
+            let magnetic_field_strength = if config.include_magnetic_mirroring {
+                distribution.ambient_magnetic_field_strength
+            } else {
+                0.0
+            };
+
             let transporter = Transporter::new(
                 config.analytical_transporter_config.clone(),
                 hybrid_coulomb_log,
                 total_hydrogen_density,
-                0.0,
-                0.0,
+                electric_field_strength,
+                magnetic_field_strength,
             );
 
             let min_energy = config.min_energy_relative_to_cutoff
@@ -518,6 +533,38 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             &deposition_indices,
         ));
 
+        #[allow(clippy::useless_conversion)]
+        let electric_field_strength = if self.config.include_return_current {
+            let electric_field = snapshot.cached_vector_field("e");
+            feb::from(
+                interpolator
+                    .interp_vector_field_known_cell(
+                        electric_field,
+                        &Point3::from(&deposition_position),
+                        &deposition_indices,
+                    )
+                    .length(),
+            ) * (*U_EL)
+        } else {
+            0.0
+        };
+
+        #[allow(clippy::useless_conversion)]
+        let magnetic_field_strength = if self.config.include_magnetic_mirroring {
+            let magnetic_field = snapshot.cached_vector_field("b");
+            feb::from(
+                interpolator
+                    .interp_vector_field_known_cell(
+                        magnetic_field,
+                        &Point3::from(&deposition_position),
+                        &deposition_indices,
+                    )
+                    .length(),
+            ) * (*U_B)
+        } else {
+            0.0
+        };
+
         let total_hydrogen_density =
             AnalyticalPropagator::compute_total_hydrogen_density(mass_density);
 
@@ -535,8 +582,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let (deposited_power_per_dist, depletion_status) = self.advance_distributions(
             hybrid_coulomb_log,
             total_hydrogen_density,
-            0.0,
-            0.0,
+            electric_field_strength,
+            magnetic_field_strength,
             col_depth_increase,
         );
         let deposited_power = deposited_power_per_dist * step_length;
@@ -565,6 +612,8 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_N_ENERGIES: usize = 40;
     pub const DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF: feb = 0.05;
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
+    pub const DEFAULT_INCLUDE_RETURN_CURRENT: bool = false;
+    pub const DEFAULT_INCLUDE_MAGNETIC_MIRRORING: bool = false;
     pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-5;
     pub const DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE: feb = 1e5; // [erg/s/cm]
@@ -612,6 +661,8 @@ impl CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
+            include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
+            include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
             min_depletion_distance,
             min_residual_factor,
             min_deposited_power_per_distance,
@@ -660,6 +711,8 @@ impl Default for CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
+            include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
+            include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
             min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             min_deposited_power_per_distance: Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
