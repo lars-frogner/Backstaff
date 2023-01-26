@@ -24,7 +24,7 @@ pub struct BasicFieldLineData3 {
 }
 
 /// Whether to trace a field line a specified direction or in both directions.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FieldLineTracingSense {
     Both,
     One(SteppingSense),

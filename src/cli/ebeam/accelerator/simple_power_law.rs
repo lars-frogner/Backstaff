@@ -14,6 +14,7 @@ use crate::{
     ebeam::{distribution::power_law::acceleration::simple::SimplePowerLawAccelerationConfig, feb},
     exit_on_error,
     io::snapshot::SnapshotParameters,
+    tracing::field_line::basic::FieldLineTracingSense,
     units::solar::U_T,
     update_command_graph,
 };
@@ -161,6 +162,17 @@ pub fn create_simple_power_law_accelerator_subcommand(
                 .takes_value(true)
                 .default_value("100"),
         )
+        .arg(
+            Arg::new("tracing-sense")
+                .long("tracing-sense")
+                .require_equals(true)
+                .value_name("SENSE")
+                .help("Direction(s) to trace the trajectory of the distribution relative to the \n\
+                       magnetic field direction")
+                .takes_value(true)
+                .possible_values(&["both", "same", "opposite"])
+                .default_value("both"),
+        )
         .subcommand(create_analytical_propagator_subcommand(command_name))
         .subcommand(create_characteristics_propagator_subcommand(command_name));
 
@@ -253,6 +265,17 @@ pub fn construct_simple_power_law_accelerator_config_from_options(
     let max_root_finding_iterations =
         utils::get_value_from_required_parseable_argument(arguments, "root-finding-iterations");
 
+    let tracing_sense = utils::get_value_from_required_constrained_argument(
+        arguments,
+        "tracing-sense",
+        &["both", "same", "opposite"],
+        &[
+            FieldLineTracingSense::Both,
+            FieldLineTracingSense::same(),
+            FieldLineTracingSense::opposite(),
+        ],
+    );
+
     SimplePowerLawAccelerationConfig {
         acceleration_duration,
         particle_energy_fraction,
@@ -266,5 +289,6 @@ pub fn construct_simple_power_law_accelerator_config_from_options(
         initial_cutoff_energy_guess,
         acceptable_root_finding_error,
         max_root_finding_iterations,
+        tracing_sense,
     }
 }

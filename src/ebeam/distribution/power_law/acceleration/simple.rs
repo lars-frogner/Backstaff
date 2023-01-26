@@ -14,7 +14,10 @@ use crate::{
         snapshot::{self, fdt, SnapshotParameters},
         Verbosity,
     },
-    tracing::stepping::{DynStepper3, SteppingSense},
+    tracing::{
+        field_line::basic::FieldLineTracingSense,
+        stepping::{DynStepper3, SteppingSense},
+    },
     units::solar::{U_B, U_E, U_EL, U_L3, U_R, U_T},
 };
 use rand::{self, Rng};
@@ -52,6 +55,9 @@ pub struct SimplePowerLawAccelerationConfig {
     pub acceptable_root_finding_error: feb,
     /// Maximum number of iterations when estimating lower cut-off energy.
     pub max_root_finding_iterations: i32,
+    /// Direction(s) to trace the trajectory of the distribution relative to the magnetic
+    /// field direction.
+    pub tracing_sense: FieldLineTracingSense,
 }
 
 // Simple acceleration process producing power-law distributions of non-thermal electrons.
@@ -496,60 +502,72 @@ impl Accelerator for SimplePowerLawAccelerator {
                         None
                     } else {
                         let mut propagators = Vec::with_capacity(2);
-                        if let (Some(backward_power_density), _) = partitioned_power_densities {
-                            let backward_power = PowerLawDistribution::compute_total_power(
-                                backward_power_density,
-                                acceleration_volume,
-                            );
-                            let distribution = PowerLawDistribution {
-                                delta: self.config.power_law_delta,
-                                initial_pitch_angle_cosine,
-                                total_power: backward_power,
-                                total_power_density: backward_power_density,
-                                lower_cutoff_energy,
-                                propagation_sense: SteppingSense::Opposite,
-                                electric_field_angle_cosine,
-                                acceleration_position: acceleration_position.clone(),
-                                acceleration_indices: indices.clone(),
-                                acceleration_volume,
-                                ambient_mass_density,
-                                ambient_electron_density,
-                                ambient_temperature,
-                                ambient_electric_field_strength: electric_field_strength * (*U_EL),
-                                ambient_magnetic_field_strength: magnetic_field_strength * (*U_B),
-                            };
-                            if let Some(propagator) =
-                                P::new(propagator_config.clone(), distribution)
-                            {
-                                propagators.push(propagator);
+                        if self.config.tracing_sense == FieldLineTracingSense::opposite()
+                            || self.config.tracing_sense == FieldLineTracingSense::Both
+                        {
+                            if let (Some(backward_power_density), _) = partitioned_power_densities {
+                                let backward_power = PowerLawDistribution::compute_total_power(
+                                    backward_power_density,
+                                    acceleration_volume,
+                                );
+                                let distribution = PowerLawDistribution {
+                                    delta: self.config.power_law_delta,
+                                    initial_pitch_angle_cosine,
+                                    total_power: backward_power,
+                                    total_power_density: backward_power_density,
+                                    lower_cutoff_energy,
+                                    propagation_sense: SteppingSense::Opposite,
+                                    electric_field_angle_cosine,
+                                    acceleration_position: acceleration_position.clone(),
+                                    acceleration_indices: indices.clone(),
+                                    acceleration_volume,
+                                    ambient_mass_density,
+                                    ambient_electron_density,
+                                    ambient_temperature,
+                                    ambient_electric_field_strength: electric_field_strength
+                                        * (*U_EL),
+                                    ambient_magnetic_field_strength: magnetic_field_strength
+                                        * (*U_B),
+                                };
+                                if let Some(propagator) =
+                                    P::new(propagator_config.clone(), distribution)
+                                {
+                                    propagators.push(propagator);
+                                }
                             }
                         }
-                        if let (_, Some(forward_power_density)) = partitioned_power_densities {
-                            let forward_power = PowerLawDistribution::compute_total_power(
-                                forward_power_density,
-                                acceleration_volume,
-                            );
-                            let distribution = PowerLawDistribution {
-                                delta: self.config.power_law_delta,
-                                initial_pitch_angle_cosine,
-                                total_power: forward_power,
-                                total_power_density: forward_power_density,
-                                lower_cutoff_energy,
-                                propagation_sense: SteppingSense::Same,
-                                electric_field_angle_cosine,
-                                acceleration_position,
-                                acceleration_indices: indices,
-                                acceleration_volume,
-                                ambient_mass_density,
-                                ambient_electron_density,
-                                ambient_temperature,
-                                ambient_electric_field_strength: electric_field_strength * (*U_EL),
-                                ambient_magnetic_field_strength: magnetic_field_strength * (*U_B),
-                            };
-                            if let Some(propagator) =
-                                P::new(propagator_config.clone(), distribution)
-                            {
-                                propagators.push(propagator);
+                        if self.config.tracing_sense == FieldLineTracingSense::same()
+                            || self.config.tracing_sense == FieldLineTracingSense::Both
+                        {
+                            if let (_, Some(forward_power_density)) = partitioned_power_densities {
+                                let forward_power = PowerLawDistribution::compute_total_power(
+                                    forward_power_density,
+                                    acceleration_volume,
+                                );
+                                let distribution = PowerLawDistribution {
+                                    delta: self.config.power_law_delta,
+                                    initial_pitch_angle_cosine,
+                                    total_power: forward_power,
+                                    total_power_density: forward_power_density,
+                                    lower_cutoff_energy,
+                                    propagation_sense: SteppingSense::Same,
+                                    electric_field_angle_cosine,
+                                    acceleration_position,
+                                    acceleration_indices: indices,
+                                    acceleration_volume,
+                                    ambient_mass_density,
+                                    ambient_electron_density,
+                                    ambient_temperature,
+                                    ambient_electric_field_strength: electric_field_strength
+                                        * (*U_EL),
+                                    ambient_magnetic_field_strength: magnetic_field_strength
+                                        * (*U_B),
+                                };
+                                if let Some(propagator) =
+                                    P::new(propagator_config.clone(), distribution)
+                                {
+                                    propagators.push(propagator);
+                                }
                             }
                         }
                         if propagators.is_empty() {
@@ -582,6 +600,7 @@ impl SimplePowerLawAccelerationConfig {
     pub const DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS: feb = 2.0; // [keV]
     pub const DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR: feb = 1e-3;
     pub const DEFAULT_MAX_ROOT_FINDING_ITERATIONS: i32 = 100;
+    pub const DEFAULT_TRACING_SENSE: FieldLineTracingSense = FieldLineTracingSense::Both;
 
     /// Creates a set of simple power law accelerator configuration parameters with
     /// values read from the specified parameter file when available, otherwise
@@ -696,6 +715,7 @@ impl Default for SimplePowerLawAccelerationConfig {
             initial_cutoff_energy_guess: Self::DEFAULT_INITIAL_CUTOFF_ENERGY_GUESS,
             acceptable_root_finding_error: Self::DEFAULT_ACCEPTABLE_ROOT_FINDING_ERROR,
             max_root_finding_iterations: Self::DEFAULT_MAX_ROOT_FINDING_ITERATIONS,
+            tracing_sense: Self::DEFAULT_TRACING_SENSE,
         }
     }
 }
