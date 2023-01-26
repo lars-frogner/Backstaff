@@ -12,11 +12,14 @@ const COLLISION_SCALE: feb = 2.0 * PI * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON * Q
 #[derive(Clone, Debug)]
 pub struct Transporter {
     analytical_transporter: AnalyticalTransporter,
+    initial_pitch_angle_cos: feb,
     hybrid_coulomb_log: HybridCoulombLogarithm,
     total_hydrogen_density: feb,
     electric_field_strength: feb,
     magnetic_field_strength: feb,
     log_magnetic_field_col_depth_deriv: feb,
+    energy_loss_to_electric_field: feb,
+    high_energy_pitch_angle_cos: feb,
 }
 
 #[derive(Clone, Debug)]
@@ -46,6 +49,7 @@ impl Transporter {
 
     pub fn new(
         config: AnalyticalTransporterConfig,
+        initial_pitch_angle_cos: feb,
         hybrid_coulomb_log: HybridCoulombLogarithm,
         total_hydrogen_density: feb,
         electric_field_strength: feb,
@@ -61,12 +65,23 @@ impl Transporter {
         );
         Self {
             analytical_transporter: analytical_advancer,
+            initial_pitch_angle_cos,
             hybrid_coulomb_log,
             total_hydrogen_density,
             electric_field_strength,
             magnetic_field_strength,
             log_magnetic_field_col_depth_deriv,
+            energy_loss_to_electric_field: 0.0,
+            high_energy_pitch_angle_cos: initial_pitch_angle_cos,
         }
+    }
+
+    pub fn energy_without_loss_to_electric_field(&self, energy: feb) -> feb {
+        energy + self.energy_loss_to_electric_field
+    }
+
+    pub fn high_energy_pitch_angle_cos(&self) -> feb {
+        self.high_energy_pitch_angle_cos
     }
 
     pub fn update_conditions(
@@ -80,6 +95,18 @@ impl Transporter {
         let log_magnetic_field_col_depth_deriv = Self::compute_log_magnetic_field_col_depth_deriv(
             self.magnetic_field_strength,
             magnetic_field_strength,
+            col_depth_increase,
+        );
+
+        Self::update_energy_loss_to_electric_field(
+            &mut self.energy_loss_to_electric_field,
+            self.electric_field_strength,
+            self.total_hydrogen_density,
+            col_depth_increase,
+        );
+        Self::update_high_energy_pitch_angle_cos(
+            &mut self.high_energy_pitch_angle_cos,
+            self.log_magnetic_field_col_depth_deriv,
             col_depth_increase,
         );
 
@@ -103,7 +130,7 @@ impl Transporter {
         initial_number_density: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
-        if initial_pitch_angle_cos <= 0.0 || initial_number_density <= 0.0 {
+        if initial_pitch_angle_cos <= 0.0 {
             TransportResult::Thermalized
         } else {
             self.analytical_transporter
@@ -207,6 +234,28 @@ impl Transporter {
         } else {
             0.0
         }
+    }
+
+    fn update_energy_loss_to_electric_field(
+        energy_loss_to_electric_field: &mut feb,
+        electric_field_strength: feb,
+        total_hydrogen_density: feb,
+        col_depth_increase: feb,
+    ) {
+        *energy_loss_to_electric_field +=
+            (Q_ELECTRON * electric_field_strength / total_hydrogen_density) * col_depth_increase;
+    }
+
+    fn update_high_energy_pitch_angle_cos(
+        high_energy_pitch_angle_cos: &mut feb,
+        log_magnetic_field_col_depth_deriv: feb,
+        col_depth_increase: feb,
+    ) {
+        *high_energy_pitch_angle_cos = feb::sqrt(feb::max(
+            0.0,
+            1.0 - (1.0 - (*high_energy_pitch_angle_cos) * (*high_energy_pitch_angle_cos))
+                * feb::exp(log_magnetic_field_col_depth_deriv * col_depth_increase),
+        ));
     }
 
     fn advance_quantities_with_second_order_heun(

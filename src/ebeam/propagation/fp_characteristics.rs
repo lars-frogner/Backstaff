@@ -318,16 +318,18 @@ impl CharacteristicsPropagator {
 
                     *energy = feb::powf(10.0, *log10_energy);
 
-                    *initial_energy = *energy;
+                    *initial_energy = self
+                        .transporter
+                        .energy_without_loss_to_electric_field(*energy);
 
-                    *pitch_angle_cosine = self.distribution.initial_pitch_angle_cosine;
+                    *pitch_angle_cosine = self.transporter.high_energy_pitch_angle_cos();
 
                     *electron_number_per_dist =
                         PowerLawDistribution::evaluate_electron_number_per_dist(
                             self.distribution.total_power,
                             self.distribution.lower_cutoff_energy * KEV_TO_ERG,
                             self.distribution.delta,
-                            *energy,
+                            *initial_energy,
                         );
                 },
             );
@@ -402,6 +404,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
             let transporter = Transporter::new(
                 config.analytical_transporter_config.clone(),
+                distribution.initial_pitch_angle_cosine,
                 hybrid_coulomb_log,
                 total_hydrogen_density,
                 electric_field_strength,
