@@ -281,7 +281,7 @@ impl Transporter {
         let number_density_1 =
             initial_number_density + number_density_col_depth_deriv_1 * col_depth_increase;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 || number_density_1 <= 0.0 {
+        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
             return TransportResult::Thermalized;
         }
 
@@ -306,10 +306,10 @@ impl Transporter {
                 * (number_density_col_depth_deriv_1 + number_density_col_depth_deriv_2)
                 * col_depth_increase;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density <= 0.0 {
+        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
             TransportResult::Thermalized
         } else {
-            TransportResult::NewValues((energy, pitch_angle_cos, number_density))
+            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
         }
     }
 
@@ -336,7 +336,7 @@ impl Transporter {
         let number_density_1 =
             initial_number_density + number_density_col_depth_deriv_1 * col_depth_increase / 3.0;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 || number_density_1 <= 0.0 {
+        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
             return TransportResult::Thermalized;
         }
 
@@ -356,7 +356,7 @@ impl Transporter {
         let number_density_2 =
             number_density_1 + number_density_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
 
-        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 || number_density_2 <= 0.0 {
+        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
             return TransportResult::Thermalized;
         }
 
@@ -380,10 +380,10 @@ impl Transporter {
             + (0.25 * number_density_col_depth_deriv_1 + 0.75 * number_density_col_depth_deriv_3)
                 * col_depth_increase;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density_1 <= 0.0 {
+        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
             TransportResult::Thermalized
         } else {
-            TransportResult::NewValues((energy, pitch_angle_cos, number_density))
+            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
         }
     }
 
@@ -559,7 +559,7 @@ impl AnalyticalTransporter {
                 Some(TransportResult::NewValues((
                     energy,
                     pitch_angle_cos,
-                    number_density,
+                    feb::max(0.0, number_density),
                 )))
             }
             Err(error) => {
@@ -639,7 +639,7 @@ impl AnalyticalTransporter {
                 Some(TransportResult::NewValues((
                     energy,
                     pitch_angle_cos,
-                    number_density,
+                    feb::max(0.0, number_density),
                 )))
             }
             Err(error) => {
