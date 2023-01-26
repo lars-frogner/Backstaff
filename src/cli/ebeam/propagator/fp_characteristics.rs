@@ -56,6 +56,24 @@ pub fn create_characteristics_propagator_subcommand(
                 .default_value("1e-1,1e2"),
         )
         .arg(
+            Arg::new("min-steps-to-thermalization")
+                .long("min-steps-to-thermalization")
+                .require_equals(true)
+                .value_name("NUMBER")
+                .help("Minimum number of steps to take before any electrons thermalize")
+                .takes_value(true)
+                .default_value("2"),
+        )
+        .arg(
+            Arg::new("max-steps-to-thermalization")
+                .long("max-steps-to-thermalization")
+                .require_equals(true)
+                .value_name("NUMBER")
+                .help("Maximum number of substeps to take before any electrons thermalize")
+                .takes_value(true)
+                .default_value("10"),
+        )
+        .arg(
             Arg::new("disable-return-current")
                 .long("disable-return-current")
                 .help(
@@ -157,6 +175,14 @@ pub fn construct_characteristics_propagator_config_from_options(
         CharacteristicsPropagatorConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
+    let min_steps_to_initial_thermalization = utils::get_value_from_required_parseable_argument::<
+        usize,
+    >(arguments, "min-steps-to-thermalization");
+
+    let max_steps_to_initial_thermalization = utils::get_value_from_required_parseable_argument::<
+        usize,
+    >(arguments, "max-steps-to-thermalization");
+
     let include_return_current = !arguments.is_present("disable-return-current");
     let include_magnetic_mirroring = !arguments.is_present("disable-magnetic-mirroring");
     let enable_analytical_transporter = arguments.is_present("enable-analytical-solver");
@@ -198,6 +224,8 @@ pub fn construct_characteristics_propagator_config_from_options(
         n_energies,
         min_energy_relative_to_cutoff,
         max_energy_relative_to_cutoff,
+        min_steps_to_initial_thermalization,
+        max_steps_to_initial_thermalization,
         include_return_current,
         include_magnetic_mirroring,
         min_depletion_distance,

@@ -84,6 +84,17 @@ impl Transporter {
         self.high_energy_pitch_angle_cos
     }
 
+    pub fn n_steps_to_thermalization(
+        &self,
+        initial_energy: feb,
+        initial_pitch_angle_cos: feb,
+        col_depth_increase: feb,
+    ) -> feb {
+        initial_energy
+            / (-self.compute_energy_col_depth_deriv(initial_energy, initial_pitch_angle_cos)
+                * col_depth_increase)
+    }
+
     pub fn update_conditions(
         &mut self,
         hybrid_coulomb_log: HybridCoulombLogarithm,

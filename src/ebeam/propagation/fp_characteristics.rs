@@ -42,6 +42,8 @@ pub struct CharacteristicsPropagatorConfig {
     pub n_energies: usize,
     pub min_energy_relative_to_cutoff: feb,
     pub max_energy_relative_to_cutoff: feb,
+    pub min_steps_to_initial_thermalization: usize,
+    pub max_steps_to_initial_thermalization: usize,
     pub include_return_current: bool,
     pub include_magnetic_mirroring: bool,
     /// Distributions with an estimated depletion distance smaller than this value
@@ -83,6 +85,27 @@ pub struct CharacteristicsPropagator {
 }
 
 impl CharacteristicsPropagator {
+    fn n_substeps(&self, col_depth_increase: feb) -> usize {
+        let lower_cutoff_energy = self.distribution.lower_cutoff_energy * KEV_TO_ERG;
+
+        if self.energies[0] < lower_cutoff_energy {
+            let n_steps_to_thermalization = self.transporter.n_steps_to_thermalization(
+                lower_cutoff_energy,
+                self.distribution.initial_pitch_angle_cosine,
+                col_depth_increase,
+            );
+            usize::min(
+                self.config.max_steps_to_initial_thermalization,
+                feb::ceil(
+                    self.config.min_steps_to_initial_thermalization as f64
+                        / n_steps_to_thermalization,
+                ) as usize,
+            )
+        } else {
+            1
+        }
+    }
+
     fn advance_distributions(
         &mut self,
         current_hybrid_coulomb_log: HybridCoulombLogarithm,
@@ -582,13 +605,24 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let step_length = displacement.length() * U_L; // [cm]
         let col_depth_increase = step_length * total_hydrogen_density;
 
-        let (deposited_power_per_dist, depletion_status) = self.advance_distributions(
-            hybrid_coulomb_log,
-            total_hydrogen_density,
-            electric_field_strength,
-            magnetic_field_strength,
-            col_depth_increase,
-        );
+        let mut deposited_power_per_dist = 0.0;
+        let mut depletion_status = DepletionStatus::Undepleted;
+
+        let n_substeps = self.n_substeps(col_depth_increase);
+        let substep_col_depth_increase = col_depth_increase / (n_substeps as feb);
+        for _ in 0..n_substeps {
+            (deposited_power_per_dist, depletion_status) = self.advance_distributions(
+                hybrid_coulomb_log.clone(),
+                total_hydrogen_density,
+                electric_field_strength,
+                magnetic_field_strength,
+                substep_col_depth_increase,
+            );
+            if depletion_status == DepletionStatus::Depleted {
+                break;
+            }
+        }
+
         let deposited_power = deposited_power_per_dist * step_length;
         let volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
         let deposited_power_density = deposited_power / volume;
@@ -615,6 +649,8 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_N_ENERGIES: usize = 40;
     pub const DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF: feb = 0.05;
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
+    pub const DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION: usize = 2;
+    pub const DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION: usize = 10;
     pub const DEFAULT_INCLUDE_RETURN_CURRENT: bool = false;
     pub const DEFAULT_INCLUDE_MAGNETIC_MIRRORING: bool = false;
     pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
@@ -664,6 +700,8 @@ impl CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
+            min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
+            max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
             min_depletion_distance,
@@ -687,6 +725,14 @@ impl CharacteristicsPropagatorConfig {
         assert!(
             self.max_energy_relative_to_cutoff > self.min_energy_relative_to_cutoff,
             "Maximum energy must be higher than minimum energy"
+        );
+        assert!(
+            self.min_steps_to_initial_thermalization > 0,
+            "Minimum number of steps to initial thermalization must be larger than zero"
+        );
+        assert!(
+            self.max_steps_to_initial_thermalization >= self.min_steps_to_initial_thermalization,
+            "Maximum number of substeps to initial thermalization cannot be smaller than minimum number"
         );
         assert!(
             self.min_depletion_distance >= 0.0,
@@ -714,6 +760,8 @@ impl Default for CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
+            min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
+            max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
             min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
