@@ -74,6 +74,13 @@ pub fn create_characteristics_propagator_subcommand(
                 .default_value("10"),
         )
         .arg(
+            Arg::new("disable-ambient-electric-field")
+                .long("disable-ambient-electric-field")
+                .help(
+                    "Do not account for the ambient electric field when propagating a distribution",
+                ),
+        )
+        .arg(
             Arg::new("disable-return-current")
                 .long("disable-return-current")
                 .help(
@@ -183,6 +190,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         usize,
     >(arguments, "max-steps-to-thermalization");
 
+    let include_ambient_electric_field = !arguments.is_present("disable-ambient-electric-field");
     let include_return_current = !arguments.is_present("disable-return-current");
     let include_magnetic_mirroring = !arguments.is_present("disable-magnetic-mirroring");
     let enable_analytical_transporter = arguments.is_present("enable-analytical-solver");
@@ -226,6 +234,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         max_energy_relative_to_cutoff,
         min_steps_to_initial_thermalization,
         max_steps_to_initial_thermalization,
+        include_ambient_electric_field,
         include_return_current,
         include_magnetic_mirroring,
         min_depletion_distance,

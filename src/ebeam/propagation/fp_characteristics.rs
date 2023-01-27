@@ -29,7 +29,7 @@ use crate::{
     interpolation::Interpolator3,
     io::snapshot::{self, fdt, SnapshotParameters},
     plasma::ionization,
-    tracing::ftr,
+    tracing::{ftr, stepping::SteppingSense},
     units::solar::{U_B, U_EL, U_L, U_L3, U_R},
 };
 use ndarray::prelude::*;
@@ -44,6 +44,7 @@ pub struct CharacteristicsPropagatorConfig {
     pub max_energy_relative_to_cutoff: feb,
     pub min_steps_to_initial_thermalization: usize,
     pub max_steps_to_initial_thermalization: usize,
+    pub include_ambient_electric_field: bool,
     pub include_return_current: bool,
     pub include_magnetic_mirroring: bool,
     /// Distributions with an estimated depletion distance smaller than this value
@@ -110,8 +111,10 @@ impl CharacteristicsPropagator {
         &mut self,
         current_hybrid_coulomb_log: HybridCoulombLogarithm,
         current_total_hydrogen_density: feb,
-        current_electric_field_strength: feb,
-        current_magnetic_field_strength: feb,
+        current_temperature: feb,
+        current_ambient_trajectory_aligned_electric_field: feb,
+        current_ambient_magnetic_field_strength: feb,
+        beam_cross_sectional_area: feb,
         col_depth_increase: feb,
     ) -> (feb, DepletionStatus) {
         let mut first_valid_stepped_idx = 0;
@@ -219,8 +222,14 @@ impl CharacteristicsPropagator {
         self.transporter.update_conditions(
             current_hybrid_coulomb_log,
             current_total_hydrogen_density,
-            current_electric_field_strength,
-            current_magnetic_field_strength,
+            current_temperature,
+            current_ambient_trajectory_aligned_electric_field,
+            current_ambient_magnetic_field_strength,
+            &self.energies,
+            &self.initial_energies,
+            &self.pitch_angle_cosines,
+            &self.electron_numbers_per_dist,
+            beam_cross_sectional_area,
             col_depth_increase,
         );
 
@@ -413,8 +422,9 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         );
 
         if estimated_depletion_distance >= config.min_depletion_distance * U_L {
-            let electric_field_strength = if config.include_return_current {
-                distribution.ambient_electric_field_strength
+            let ambient_trajectory_aligned_electric_field = if config.include_ambient_electric_field
+            {
+                distribution.ambient_trajectory_aligned_electric_field
             } else {
                 0.0
             };
@@ -427,10 +437,14 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
             let transporter = Transporter::new(
                 config.analytical_transporter_config.clone(),
+                config.include_ambient_electric_field,
+                config.include_return_current,
+                config.include_magnetic_mirroring,
                 distribution.initial_pitch_angle_cosine,
                 hybrid_coulomb_log,
                 total_hydrogen_density,
-                electric_field_strength,
+                distribution.ambient_temperature,
+                ambient_trajectory_aligned_electric_field,
                 magnetic_field_strength,
             );
 
@@ -559,37 +573,41 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             &deposition_indices,
         ));
 
-        #[allow(clippy::useless_conversion)]
-        let electric_field_strength = if self.config.include_return_current {
-            let electric_field = snapshot.cached_vector_field("e");
-            feb::from(
-                interpolator
-                    .interp_vector_field_known_cell(
-                        electric_field,
-                        &Point3::from(&deposition_position),
-                        &deposition_indices,
-                    )
-                    .length(),
-            ) * (*U_EL)
-        } else {
-            0.0
-        };
+        let mut trajectory_aligned_electric_field = 0.0;
+        let mut magnetic_field_strength = 0.0;
 
         #[allow(clippy::useless_conversion)]
-        let magnetic_field_strength = if self.config.include_magnetic_mirroring {
+        if self.config.include_magnetic_mirroring || self.config.include_ambient_electric_field {
             let magnetic_field = snapshot.cached_vector_field("b");
-            feb::from(
-                interpolator
-                    .interp_vector_field_known_cell(
-                        magnetic_field,
-                        &Point3::from(&deposition_position),
-                        &deposition_indices,
-                    )
-                    .length(),
-            ) * (*U_B)
-        } else {
-            0.0
-        };
+            let mut magnetic_field_direction = interpolator.interp_vector_field_known_cell(
+                magnetic_field,
+                &Point3::from(&deposition_position),
+                &deposition_indices,
+            );
+
+            if self.config.include_magnetic_mirroring {
+                magnetic_field_strength =
+                    feb::from(magnetic_field_direction.normalize_and_get_length()) * (*U_B);
+            } else {
+                magnetic_field_direction.normalize();
+            }
+
+            if self.config.include_ambient_electric_field {
+                let electric_field = snapshot.cached_vector_field("e");
+                let electric_field_vector = interpolator.interp_vector_field_known_cell(
+                    electric_field,
+                    &Point3::from(&deposition_position),
+                    &deposition_indices,
+                );
+
+                trajectory_aligned_electric_field =
+                    feb::from(electric_field_vector.dot(&magnetic_field_direction)) * (*U_EL);
+
+                if self.distribution.propagation_sense == SteppingSense::Opposite {
+                    trajectory_aligned_electric_field = -trajectory_aligned_electric_field;
+                }
+            }
+        }
 
         let total_hydrogen_density =
             AnalyticalPropagator::compute_total_hydrogen_density(mass_density);
@@ -605,6 +623,9 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let step_length = displacement.length() * U_L; // [cm]
         let col_depth_increase = step_length * total_hydrogen_density;
 
+        let grid_cell_volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
+        let beam_cross_sectional_area = grid_cell_volume / step_length;
+
         let mut deposited_power_per_dist = 0.0;
         let mut depletion_status = DepletionStatus::Undepleted;
 
@@ -614,8 +635,10 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             (deposited_power_per_dist, depletion_status) = self.advance_distributions(
                 hybrid_coulomb_log.clone(),
                 total_hydrogen_density,
-                electric_field_strength,
+                temperature,
+                trajectory_aligned_electric_field,
                 magnetic_field_strength,
+                beam_cross_sectional_area,
                 substep_col_depth_increase,
             );
             if depletion_status == DepletionStatus::Depleted {
@@ -624,8 +647,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         }
 
         let deposited_power = deposited_power_per_dist * step_length;
-        let volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
-        let deposited_power_density = deposited_power / volume;
+        let deposited_power_density = deposited_power / grid_cell_volume;
 
         let depletion_status = if (self.config.continue_depleted_beams
             || deposited_power / step_length >= self.config.min_deposited_power_per_distance)
@@ -651,6 +673,7 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
     pub const DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION: usize = 2;
     pub const DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION: usize = 10;
+    pub const DEFAULT_AMBIENT_ELECTRIC_FIELD: bool = false;
     pub const DEFAULT_INCLUDE_RETURN_CURRENT: bool = false;
     pub const DEFAULT_INCLUDE_MAGNETIC_MIRRORING: bool = false;
     pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
@@ -702,6 +725,7 @@ impl CharacteristicsPropagatorConfig {
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
             min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
             max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
             min_depletion_distance,
@@ -762,6 +786,7 @@ impl Default for CharacteristicsPropagatorConfig {
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
             min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
             max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
             min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,

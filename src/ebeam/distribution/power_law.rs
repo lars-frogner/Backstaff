@@ -46,9 +46,10 @@ pub struct PowerLawDistribution {
     pub ambient_mass_density: feb,
     /// Temperature where the distribution originates [K]
     pub ambient_temperature: feb,
-    /// Strength of the electric field where the distribution originates [gauss].
-    pub ambient_electric_field_strength: feb,
-    /// Strength of the magnetic field where the distribution originates [statV/cm].
+    /// Component of the electric field parallel to the direction of the trajectory
+    /// where the distribution originates [statV/cm].
+    pub ambient_trajectory_aligned_electric_field: feb,
+    /// Strength of the magnetic field where the distribution originates [G].
     pub ambient_magnetic_field_strength: feb,
 }
 

@@ -1,6 +1,6 @@
 //!
 
-use super::atmosphere::HybridCoulombLogarithm;
+use super::atmosphere::{compute_parallel_resistivity, HybridCoulombLogarithm};
 use crate::{
     constants::{M_ELECTRON, PI, Q_ELECTRON},
     ebeam::feb,
@@ -11,10 +11,16 @@ const COLLISION_SCALE: feb = 2.0 * PI * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON * Q
 
 #[derive(Clone, Debug)]
 pub struct Transporter {
+    include_ambient_electric_field: bool,
+    include_induced_electric_field: bool,
+    include_magnetic_field: bool,
     analytical_transporter: AnalyticalTransporter,
     hybrid_coulomb_log: HybridCoulombLogarithm,
     total_hydrogen_density: feb,
-    electric_field_strength: feb,
+    temperature: feb,
+    ambient_trajectory_aligned_electric_field: feb,
+    induced_trajectory_aligned_electric_field: feb,
+    total_trajectory_aligned_electric_field: feb,
     magnetic_field_strength: feb,
     log_magnetic_field_col_depth_deriv: feb,
     energy_loss_to_electric_field: feb,
@@ -48,29 +54,57 @@ impl Transporter {
 
     pub fn new(
         config: AnalyticalTransporterConfig,
+        include_ambient_electric_field: bool,
+        include_induced_electric_field: bool,
+        include_magnetic_field: bool,
         initial_pitch_angle_cos: feb,
         hybrid_coulomb_log: HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        electric_field_strength: feb,
+        temperature: feb,
+        ambient_trajectory_aligned_electric_field: feb,
         magnetic_field_strength: feb,
     ) -> Self {
+        let magnetic_field_strength = if include_magnetic_field {
+            magnetic_field_strength
+        } else {
+            0.0
+        };
         let log_magnetic_field_col_depth_deriv = 0.0;
-        let analytical_advancer = AnalyticalTransporter::new(
+
+        let ambient_trajectory_aligned_electric_field = if include_ambient_electric_field {
+            ambient_trajectory_aligned_electric_field
+        } else {
+            0.0
+        };
+        let induced_trajectory_aligned_electric_field = 0.0;
+        let total_trajectory_aligned_electric_field =
+            ambient_trajectory_aligned_electric_field + induced_trajectory_aligned_electric_field;
+
+        let energy_loss_to_electric_field = 0.0;
+        let high_energy_pitch_angle_cos = initial_pitch_angle_cos;
+
+        let analytical_transporter = AnalyticalTransporter::new(
             config,
             &hybrid_coulomb_log,
             total_hydrogen_density,
-            electric_field_strength,
+            ambient_trajectory_aligned_electric_field,
             log_magnetic_field_col_depth_deriv,
         );
         Self {
-            analytical_transporter: analytical_advancer,
+            include_ambient_electric_field,
+            include_induced_electric_field,
+            include_magnetic_field,
+            analytical_transporter,
             hybrid_coulomb_log,
             total_hydrogen_density,
-            electric_field_strength,
+            temperature,
+            ambient_trajectory_aligned_electric_field,
+            induced_trajectory_aligned_electric_field,
+            total_trajectory_aligned_electric_field,
             magnetic_field_strength,
             log_magnetic_field_col_depth_deriv,
-            energy_loss_to_electric_field: 0.0,
-            high_energy_pitch_angle_cos: initial_pitch_angle_cos,
+            energy_loss_to_electric_field,
+            high_energy_pitch_angle_cos,
         }
     }
 
@@ -97,39 +131,93 @@ impl Transporter {
         &mut self,
         hybrid_coulomb_log: HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        electric_field_strength: feb,
+        temperature: feb,
+        ambient_trajectory_aligned_electric_field: feb,
         magnetic_field_strength: feb,
+        energies: &[feb],
+        initial_energies: &[feb],
+        pitch_angle_cosines: &[feb],
+        electron_numbers_per_dist: &[feb],
+        beam_cross_sectional_area: feb,
         col_depth_increase: feb,
     ) {
-        let log_magnetic_field_col_depth_deriv = Self::compute_log_magnetic_field_col_depth_deriv(
-            self.magnetic_field_strength,
-            magnetic_field_strength,
-            col_depth_increase,
-        );
-
-        Self::update_energy_loss_to_electric_field(
-            &mut self.energy_loss_to_electric_field,
-            self.electric_field_strength,
-            self.total_hydrogen_density,
-            col_depth_increase,
-        );
-        Self::update_high_energy_pitch_angle_cos(
-            &mut self.high_energy_pitch_angle_cos,
-            self.log_magnetic_field_col_depth_deriv,
-            col_depth_increase,
-        );
-
-        self.analytical_transporter.update_conditions(
-            &hybrid_coulomb_log,
-            total_hydrogen_density,
-            electric_field_strength,
-            log_magnetic_field_col_depth_deriv,
-        );
         self.hybrid_coulomb_log = hybrid_coulomb_log;
         self.total_hydrogen_density = total_hydrogen_density;
-        self.electric_field_strength = electric_field_strength;
-        self.magnetic_field_strength = magnetic_field_strength;
-        self.log_magnetic_field_col_depth_deriv = log_magnetic_field_col_depth_deriv;
+        self.temperature = temperature;
+
+        if self.include_magnetic_field {
+            self.log_magnetic_field_col_depth_deriv =
+                Self::compute_log_magnetic_field_col_depth_deriv(
+                    self.magnetic_field_strength,
+                    magnetic_field_strength,
+                    col_depth_increase,
+                );
+
+            self.magnetic_field_strength = magnetic_field_strength;
+
+            Self::update_high_energy_pitch_angle_cos(
+                &mut self.high_energy_pitch_angle_cos,
+                self.log_magnetic_field_col_depth_deriv,
+                col_depth_increase,
+            );
+        } else {
+            self.magnetic_field_strength = 0.0;
+            self.log_magnetic_field_col_depth_deriv = 0.0;
+        }
+
+        if self.include_ambient_electric_field {
+            self.ambient_trajectory_aligned_electric_field =
+                ambient_trajectory_aligned_electric_field;
+
+            // Use old value for induced field when calculating total electric field for now
+            self.total_trajectory_aligned_electric_field = self
+                .ambient_trajectory_aligned_electric_field
+                + self.induced_trajectory_aligned_electric_field;
+        } else {
+            self.ambient_trajectory_aligned_electric_field = 0.0;
+        }
+
+        if self.include_induced_electric_field {
+            // Because the induced field depends on the flux, which depends
+            // on the energy derivative, which depends on the electric field,
+            // determining the induced field is strictly an implicit problem.
+            // We handle this by keeping the old value for the electric field
+            // when computing the flux, assuming that the delay of one step does
+            // not make a significant difference
+            self.induced_trajectory_aligned_electric_field = self
+                .compute_induced_trajectory_aligned_electric_field(
+                    temperature,
+                    energies,
+                    initial_energies,
+                    pitch_angle_cosines,
+                    electron_numbers_per_dist,
+                    beam_cross_sectional_area,
+                );
+        } else {
+            self.induced_trajectory_aligned_electric_field = 0.0;
+        }
+
+        if self.include_ambient_electric_field || self.include_induced_electric_field {
+            self.total_trajectory_aligned_electric_field = self
+                .ambient_trajectory_aligned_electric_field
+                + self.induced_trajectory_aligned_electric_field;
+
+            Self::update_energy_loss_to_electric_field(
+                &mut self.energy_loss_to_electric_field,
+                self.total_trajectory_aligned_electric_field,
+                self.total_hydrogen_density,
+                col_depth_increase,
+            );
+        } else {
+            self.total_trajectory_aligned_electric_field = 0.0;
+        }
+
+        self.analytical_transporter.update_conditions(
+            &self.hybrid_coulomb_log,
+            self.total_hydrogen_density,
+            self.total_trajectory_aligned_electric_field,
+            self.log_magnetic_field_col_depth_deriv,
+        );
     }
 
     pub fn advance_quantities(
@@ -211,23 +299,88 @@ impl Transporter {
             &deposited_power_initial_energy_derivs[first_nonzero_idx..];
 
         // Integrate deposited power over initial energies using the trapezoidal method
-        let deposited_power = 0.5
-            * valid_initial_energies
-                .iter()
-                .zip(valid_initial_energies.iter().skip(1))
-                .zip(
-                    valid_deposited_power_initial_energy_derivs
-                        .iter()
-                        .zip(valid_deposited_power_initial_energy_derivs.iter().skip(1)),
-                )
-                .fold(
-                    0.0,
-                    |acc, ((&initial_energy, &initial_energy_up), (&deriv, &deriv_up))| {
-                        acc + (deriv + deriv_up) * (initial_energy_up - initial_energy)
-                    },
-                );
+        integrate_trapezoidal(
+            valid_initial_energies,
+            valid_deposited_power_initial_energy_derivs,
+        )
+    }
 
-        deposited_power
+    fn compute_total_flux_density(
+        &self,
+        energies: &[feb],
+        initial_energies: &[feb],
+        pitch_angle_cosines: &[feb],
+        number_densities: &[feb],
+    ) -> feb {
+        assert_eq!(initial_energies.len(), energies.len());
+        assert_eq!(pitch_angle_cosines.len(), energies.len());
+        assert_eq!(number_densities.len(), energies.len());
+
+        let mut first_nonzero_idx = None;
+
+        let flux_initial_energy_derivs: Vec<_> = energies
+            .iter()
+            .zip(initial_energies.iter())
+            .zip(pitch_angle_cosines.iter())
+            .zip(number_densities.iter())
+            .enumerate()
+            .map(
+                |(idx, (((&energy, &initial_energy), &pitch_angle_cos), &number_density))| {
+                    if initial_energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density <= 0.0 {
+                        0.0
+                    } else {
+                        if first_nonzero_idx.is_none() {
+                            first_nonzero_idx = Some(idx);
+                        }
+                        let energy_col_depth_deriv =
+                            self.compute_energy_col_depth_deriv(energy, pitch_angle_cos);
+                        let initial_energy_col_depth_deriv =
+                            self.compute_energy_col_depth_deriv(initial_energy, pitch_angle_cos);
+
+                        (energy_col_depth_deriv / initial_energy_col_depth_deriv)
+                            * number_density
+                            * feb::sqrt(2.0 * energy / M_ELECTRON)
+                    }
+                },
+            )
+            .collect();
+
+        let first_nonzero_idx = first_nonzero_idx.unwrap_or(0);
+
+        let valid_initial_energies = &initial_energies[first_nonzero_idx..];
+        let valid_flux_initial_energy_derivs = &flux_initial_energy_derivs[first_nonzero_idx..];
+
+        integrate_trapezoidal(valid_initial_energies, valid_flux_initial_energy_derivs)
+    }
+
+    fn compute_induced_trajectory_aligned_electric_field(
+        &self,
+        temperature: feb,
+        energies: &[feb],
+        initial_energies: &[feb],
+        pitch_angle_cosines: &[feb],
+        electron_numbers_per_dist: &[feb],
+        beam_cross_sectional_area: feb,
+    ) -> feb {
+        // Since we use electron count per distance and not
+        // electron density, what we compute here is really
+        // the flux density multiplied with area
+        let total_flux_over_cross_section = self.compute_total_flux_density(
+            energies,
+            initial_energies,
+            pitch_angle_cosines,
+            electron_numbers_per_dist,
+        );
+
+        let total_flux_density = total_flux_over_cross_section / beam_cross_sectional_area;
+
+        Q_ELECTRON
+            * compute_parallel_resistivity(
+                self.hybrid_coulomb_log.coulomb_log(),
+                temperature,
+                self.hybrid_coulomb_log.ionization_fraction(),
+            )
+            * total_flux_density
     }
 
     fn compute_log_magnetic_field_col_depth_deriv(
@@ -247,12 +400,13 @@ impl Transporter {
 
     fn update_energy_loss_to_electric_field(
         energy_loss_to_electric_field: &mut feb,
-        electric_field_strength: feb,
+        total_trajectory_aligned_electric_field: feb,
         total_hydrogen_density: feb,
         col_depth_increase: feb,
     ) {
-        *energy_loss_to_electric_field +=
-            (Q_ELECTRON * electric_field_strength / total_hydrogen_density) * col_depth_increase;
+        *energy_loss_to_electric_field += (Q_ELECTRON * total_trajectory_aligned_electric_field
+            / total_hydrogen_density)
+            * col_depth_increase;
     }
 
     fn update_high_energy_pitch_angle_cos(
@@ -399,13 +553,14 @@ impl Transporter {
 
     fn compute_energy_col_depth_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
         -COLLISION_SCALE * self.hybrid_coulomb_log.for_energy() / (pitch_angle_cos * energy)
-            - Q_ELECTRON * self.electric_field_strength / self.total_hydrogen_density
+            - Q_ELECTRON * self.total_trajectory_aligned_electric_field
+                / self.total_hydrogen_density
     }
 
     fn compute_pitch_angle_cos_col_depth_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
         -COLLISION_SCALE * self.hybrid_coulomb_log.for_pitch_angle() / (2.0 * energy * energy)
             - (self.log_magnetic_field_col_depth_deriv
-                + Q_ELECTRON * self.electric_field_strength
+                + Q_ELECTRON * self.total_trajectory_aligned_electric_field
                     / (self.total_hydrogen_density * energy))
                 * (1.0 - pitch_angle_cos * pitch_angle_cos)
                 / (2.0 * pitch_angle_cos)
@@ -439,13 +594,13 @@ impl AnalyticalTransporter {
         config: AnalyticalTransporterConfig,
         hybrid_coulomb_log: &HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        electric_field_strength: feb,
+        trajectory_aligned_electric_field: feb,
         log_magnetic_field_col_depth_deriv: feb,
     ) -> Self {
         let electric_field_scale = Self::compute_electric_field_scale(
             hybrid_coulomb_log,
             total_hydrogen_density,
-            electric_field_strength,
+            trajectory_aligned_electric_field,
         );
         let magnetic_field_scale = Self::compute_magnetic_field_scale(
             hybrid_coulomb_log,
@@ -666,13 +821,13 @@ impl AnalyticalTransporter {
         &mut self,
         hybrid_coulomb_log: &HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        electric_field_strength: feb,
+        trajectory_aligned_electric_field: feb,
         log_magnetic_field_col_depth_deriv: feb,
     ) {
         self.electric_field_scale = Self::compute_electric_field_scale(
             hybrid_coulomb_log,
             total_hydrogen_density,
-            electric_field_strength,
+            trajectory_aligned_electric_field,
         );
         self.magnetic_field_scale = Self::compute_magnetic_field_scale(
             hybrid_coulomb_log,
@@ -690,9 +845,9 @@ impl AnalyticalTransporter {
     fn compute_electric_field_scale(
         hybrid_coulomb_log: &HybridCoulombLogarithm,
         total_hydrogen_density: feb,
-        electric_field_strength: feb,
+        trajectory_aligned_electric_field: feb,
     ) -> feb {
-        Q_ELECTRON * electric_field_strength
+        Q_ELECTRON * trajectory_aligned_electric_field
             / (COLLISION_SCALE * hybrid_coulomb_log.for_energy() * total_hydrogen_density)
     }
 }
@@ -707,4 +862,14 @@ impl Default for AnalyticalTransporterConfig {
             max_electric_field_factor: 1e-2,
         }
     }
+}
+
+fn integrate_trapezoidal(x: &[feb], f: &[feb]) -> feb {
+    0.5 * x
+        .iter()
+        .zip(x.iter().skip(1))
+        .zip(f.iter().zip(f.iter().skip(1)))
+        .fold(0.0, |acc, ((&x, &x_up), (&f, &f_up))| {
+            acc + (f + f_up) * (x_up - x)
+        })
 }

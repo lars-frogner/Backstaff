@@ -524,8 +524,10 @@ impl Accelerator for SimplePowerLawAccelerator {
                                     ambient_mass_density,
                                     ambient_electron_density,
                                     ambient_temperature,
-                                    ambient_electric_field_strength: electric_field_strength
-                                        * (*U_EL),
+                                    ambient_trajectory_aligned_electric_field:
+                                        -electric_field_angle_cosine
+                                            * electric_field_strength
+                                            * (*U_EL),
                                     ambient_magnetic_field_strength: magnetic_field_strength
                                         * (*U_B),
                                 };
@@ -558,8 +560,10 @@ impl Accelerator for SimplePowerLawAccelerator {
                                     ambient_mass_density,
                                     ambient_electron_density,
                                     ambient_temperature,
-                                    ambient_electric_field_strength: electric_field_strength
-                                        * (*U_EL),
+                                    ambient_trajectory_aligned_electric_field:
+                                        electric_field_angle_cosine
+                                            * electric_field_strength
+                                            * (*U_EL),
                                     ambient_magnetic_field_strength: magnetic_field_strength
                                         * (*U_B),
                                 };

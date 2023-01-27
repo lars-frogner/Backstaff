@@ -1,6 +1,9 @@
 //!
 
-use crate::{constants::KEV_TO_ERG, ebeam::feb};
+use crate::{
+    constants::{KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON},
+    ebeam::feb,
+};
 
 #[derive(Clone, Debug)]
 pub struct CoulombLogarithm {
@@ -11,6 +14,8 @@ pub struct CoulombLogarithm {
 
 #[derive(Clone, Debug)]
 pub struct HybridCoulombLogarithm {
+    coulomb_log: CoulombLogarithm,
+    ionization_fraction: feb,
     for_energy: feb,
     for_pitch_angle: feb,
     for_number_density: feb,
@@ -93,12 +98,22 @@ impl HybridCoulombLogarithm {
         let for_number_density_for_energy_ratio = for_number_density / for_energy;
 
         Self {
+            coulomb_log,
+            ionization_fraction,
             for_energy,
             for_pitch_angle,
             for_number_density,
             for_pitch_angle_for_energy_ratio,
             for_number_density_for_energy_ratio,
         }
+    }
+
+    pub fn coulomb_log(&self) -> &CoulombLogarithm {
+        &self.coulomb_log
+    }
+
+    pub fn ionization_fraction(&self) -> feb {
+        self.ionization_fraction
     }
 
     pub fn for_energy(&self) -> feb {
@@ -146,4 +161,22 @@ impl HybridCoulombLogarithm {
                 * (coulomb_log.with_neutral_hydrogen_for_pitch_angle()
                     - coulomb_log.with_neutral_hydrogen_for_energy())
     }
+}
+
+/// Uses the Spitzer resistivity formula to calculate resistivity
+/// parallel to the magnetic field in cgs units.
+pub fn compute_parallel_resistivity(
+    coulomb_log: &CoulombLogarithm,
+    temperature: feb,
+    ionization_fraction: feb,
+) -> feb {
+    const PARALLEL_RESISTIVITY_FACTOR: feb = 0.51282;
+    PARALLEL_RESISTIVITY_FACTOR
+        * (4.0 / 3.0)
+        * feb::sqrt(2.0 * PI)
+        * Q_ELECTRON
+        * Q_ELECTRON
+        * feb::sqrt(M_ELECTRON)
+        * coulomb_log.with_electrons_protons()
+        / feb::sqrt(KBOLTZMANN * temperature).powi(3)
 }
