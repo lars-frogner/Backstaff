@@ -119,7 +119,7 @@ pub fn run_horizontally_extended_subcommand(
             extended_lower_edges[Y].clone(),
             original_lower_edges[Z].clone(),
         ),
-        periodicity.clone(),
+        periodicity,
         Some(Coords3::new(
             extended_up_derivatives[X].clone(),
             extended_up_derivatives[Y].clone(),

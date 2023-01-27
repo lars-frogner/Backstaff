@@ -48,7 +48,7 @@ pub fn create_slice_seeder_subcommand(_parent_command_name: &'static str) -> Com
                 .help("Which axis to slice across")
                 .required(true)
                 .takes_value(true)
-                .possible_values(&["x", "y", "z"]),
+                .possible_values(["x", "y", "z"]),
         )
         .arg(
             Arg::new("coord")

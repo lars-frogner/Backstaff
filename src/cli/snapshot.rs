@@ -98,7 +98,7 @@ pub fn create_snapshot_subcommand(_parent_command_name: &'static str) -> Command
                 .value_name("ENDIANNESS")
                 .help("Endianness to assume for snapshots in native binary format\n")
                 .takes_value(true)
-                .possible_values(&["little", "big", "native"])
+                .possible_values(["little", "big", "native"])
                 .default_value("little"),
         )
         .arg(

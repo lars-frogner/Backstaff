@@ -166,22 +166,19 @@ pub trait SnapshotMetadata {
                 ParameterValue::new_quoted_string(&included_auxiliary_variable_names.join(" ")),
             );
 
-            new_parameters.set_value(
-                "do_mhd",
-                ParameterValue::new_int(if is_mhd { 1 } else { 0 }),
-            );
+            new_parameters.set_value("do_mhd", ParameterValue::new_int(i64::from(is_mhd)));
 
             new_parameters.set_value(
                 "periodic_x",
-                ParameterValue::new_int(if grid.is_periodic(X) { 1 } else { 0 }),
+                ParameterValue::new_int(i64::from(grid.is_periodic(X))),
             );
             new_parameters.set_value(
                 "periodic_y",
-                ParameterValue::new_int(if grid.is_periodic(Y) { 1 } else { 0 }),
+                ParameterValue::new_int(i64::from(grid.is_periodic(Y))),
             );
             new_parameters.set_value(
                 "periodic_z",
-                ParameterValue::new_int(if grid.is_periodic(Z) { 1 } else { 0 }),
+                ParameterValue::new_int(i64::from(grid.is_periodic(Z))),
             );
 
             new_parameters.set_value("mx", ParameterValue::new_int(shape[X] as i64));

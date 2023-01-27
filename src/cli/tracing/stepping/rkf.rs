@@ -129,7 +129,7 @@ pub fn create_rkf_stepper_subcommand(_parent_command_name: &'static str) -> Comm
                 .value_name("NAME")
                 .help("Which Runge-Kutta-Fehlberg stepping scheme to use\n")
                 .takes_value(true)
-                .possible_values(&["rkf23", "rkf45"])
+                .possible_values(["rkf23", "rkf45"])
                 .default_value("rkf45"),
         )
 }

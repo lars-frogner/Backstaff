@@ -19,7 +19,7 @@ use approx::{AbsDiffEq, RelativeEq};
 use crate::num::ComparableSlice;
 
 /// Denotes the x-, y- or z-dimension.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dim3 {
     X = 0,
     Y = 1,
@@ -81,7 +81,7 @@ impl fmt::Display for Dim3 {
 use Dim3::{X, Y, Z};
 
 /// Denotes the x- or y-dimension.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dim2 {
     X = 0,
     Y = 1,

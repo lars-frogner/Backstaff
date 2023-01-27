@@ -7,7 +7,7 @@ use atomic_counter::{AtomicCounter, RelaxedCounter};
 use indicatif::{ProgressBar, ProgressStyle};
 
 /// Little- or big-endian byte order.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Endianness {
     Native,
     Little,
@@ -100,7 +100,7 @@ impl ParallelProgressBar {
 }
 
 /// How to handle existing files.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OverwriteMode {
     Ask,
     Always,

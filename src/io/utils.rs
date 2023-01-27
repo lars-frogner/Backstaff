@@ -198,7 +198,7 @@ impl AtomicOutputFileMap {
             })?;
 
         if target_output_file_path.exists() {
-            fs::remove_file(&target_output_file_path)?;
+            fs::remove_file(target_output_file_path)?;
         }
         io_result!(temp_output_file_path.persist(target_output_file_path))
     }

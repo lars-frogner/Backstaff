@@ -43,7 +43,7 @@ pub fn create_basic_field_line_tracer_subcommand(
                 .value_name("SENSE")
                 .help("Direction(s) to trace the field line relative to the field direction\n")
                 .takes_value(true)
-                .possible_values(&["both", "same", "opposite"])
+                .possible_values(["both", "same", "opposite"])
                 .default_value("both"),
         )
         .arg(
@@ -53,7 +53,7 @@ pub fn create_basic_field_line_tracer_subcommand(
                 .value_name("SPACING")
                 .help("Form of spacing between field line points\n")
                 .takes_value(true)
-                .possible_values(&["regular", "natural"])
+                .possible_values(["regular", "natural"])
                 .default_value("regular"),
         )
         .arg(

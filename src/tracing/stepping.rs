@@ -25,7 +25,7 @@ pub enum StepperResult<T> {
 }
 
 /// Reason for terminating stepping.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoppingCause {
     Null,
     Sink,
@@ -36,7 +36,7 @@ pub enum StoppingCause {
 
 /// Lets the stepper callback communicate whether tracing should
 /// continue or terminate.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StepperInstruction {
     Continue,
     Terminate,

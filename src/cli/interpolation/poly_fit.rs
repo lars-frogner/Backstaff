@@ -26,7 +26,7 @@ pub fn create_poly_fit_interpolator_subcommand(
                 .value_name("NUMBER")
                 .help("Order of the polynomials to fit when interpolating field values\n")
                 .takes_value(true)
-                .possible_values(&["1", "2", "3", "4", "5"])
+                .possible_values(["1", "2", "3", "4", "5"])
                 .default_value("3"),
         )
         .arg(

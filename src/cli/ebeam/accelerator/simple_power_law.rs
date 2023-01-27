@@ -170,7 +170,7 @@ pub fn create_simple_power_law_accelerator_subcommand(
                 .help("Direction(s) to trace the trajectory of the distribution relative to the \n\
                        magnetic field direction")
                 .takes_value(true)
-                .possible_values(&["both", "same", "opposite"])
+                .possible_values(["both", "same", "opposite"])
                 .default_value("both"),
         )
         .subcommand(create_analytical_propagator_subcommand(command_name))

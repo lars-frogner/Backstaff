@@ -12,7 +12,6 @@ const COLLISION_SCALE: feb = 2.0 * PI * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON * Q
 #[derive(Clone, Debug)]
 pub struct Transporter {
     analytical_transporter: AnalyticalTransporter,
-    initial_pitch_angle_cos: feb,
     hybrid_coulomb_log: HybridCoulombLogarithm,
     total_hydrogen_density: feb,
     electric_field_strength: feb,
@@ -65,7 +64,6 @@ impl Transporter {
         );
         Self {
             analytical_transporter: analytical_advancer,
-            initial_pitch_angle_cos,
             hybrid_coulomb_log,
             total_hydrogen_density,
             electric_field_strength,
@@ -324,6 +322,7 @@ impl Transporter {
         }
     }
 
+    #[allow(dead_code)]
     fn advance_quantities_with_third_order_heun(
         &self,
         initial_energy: feb,

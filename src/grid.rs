@@ -22,14 +22,14 @@ use std::{borrow::Cow, io, iter, sync::Arc};
 pub type fgr = f64;
 
 /// Coordinates located at center or lower edge of grid cell.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoordLocation {
     Center = 0,
     LowerEdge = 1,
 }
 
 /// Regular grid or only uniform in the horizontal direction.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GridType {
     Regular,
     HorRegular,
@@ -1733,7 +1733,7 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1<f
 
         if overshot {
             if correction_step > 0.0 {
-                correction_step = -0.5 * correction_step;
+                correction_step *= -0.5;
             }
             correction_scale += correction_step;
         } else {
@@ -1743,7 +1743,7 @@ pub fn create_new_grid_coords_from_control_extents<F: BFloat, I: Interpolator1<f
             // If not, adjust the correction scale and retry.
             if f64::abs(upper_boundary - 1.0) > TOLERANCE {
                 if correction_step < 0.0 {
-                    correction_step = -0.5 * correction_step;
+                    correction_step *= -0.5;
                 }
                 correction_scale += correction_step;
             } else {

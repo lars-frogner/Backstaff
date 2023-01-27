@@ -981,7 +981,7 @@ impl ResampledCoordLocation {
 }
 
 /// Method for resampling a field.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResamplingMethod {
     SampleAveraging,
     CellAveraging,

@@ -134,7 +134,7 @@ where
 
 /// Parses the mesh file at the given path and returns relevant data.
 fn parse_mesh_file(mesh_path: &Path, verbosity: &Verbosity) -> io::Result<NativeGridData> {
-    let file = utils::open_file_and_map_err(&mesh_path)?;
+    let file = utils::open_file_and_map_err(mesh_path)?;
     if verbosity.print_messages() {
         println!(
             "Reading grid from {}",

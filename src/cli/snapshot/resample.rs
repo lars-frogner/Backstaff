@@ -71,7 +71,7 @@ pub fn create_resample_subcommand(_parent_command_name: &'static str) -> Command
                 .value_name("LOCATION")
                 .help("Location within the grid cell where resampled values should be specified\n")
                 .takes_value(true)
-                .possible_values(&["original", "center"])
+                .possible_values(["original", "center"])
                 .default_value("original"),
         )
         .arg(

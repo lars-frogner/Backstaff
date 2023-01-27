@@ -88,7 +88,7 @@ pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'s
                 .help("Which axis to slice across")
                 .required(true)
                 .takes_value(true)
-                .possible_values(&["x", "y", "z"]),
+                .possible_values(["x", "y", "z"]),
         )
         .arg(
             Arg::new("coord")
@@ -109,7 +109,7 @@ pub fn create_slice_subcommand(_parent_command_name: &'static str) -> Command<'s
                 .value_name("LOCATION")
                 .help("Location in the grid cell where slice values should be sampled\n")
                 .takes_value(true)
-                .possible_values(&["center", "lower", "original"])
+                .possible_values(["center", "lower", "original"])
                 .default_value("center"),
         )
         .arg(
