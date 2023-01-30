@@ -8,6 +8,7 @@ pub type fcn = f64;
 
 #[allow(clippy::approx_constant)]
 pub const PI: fcn = 3.14159;
+pub const SQRT_PI: fcn = 1.77245;
 pub const INFINITY: fcn = fcn::INFINITY;
 
 // Physical constants
