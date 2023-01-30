@@ -81,7 +81,6 @@ dependencies = [
  "rayon",
  "regex",
  "roman",
- "roots",
  "serde",
  "serde-pickle",
  "serde_json",
@@ -958,12 +957,6 @@ name = "roman"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2c543f0c827ae24df93159810fd4bce2d0abe3785bb4c4d68fae3c467d58d9b"
-
-[[package]]
-name = "roots"
-version = "0.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "082f11ffa03bbef6c2c6ea6bea1acafaade2fd9050ae0234ab44a2153742b058"
 
 [[package]]
 name = "ryu"
