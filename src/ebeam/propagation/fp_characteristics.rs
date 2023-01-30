@@ -9,8 +9,6 @@
 mod atmosphere;
 mod transport;
 
-pub use transport::AnalyticalTransporterConfig;
-
 use self::{
     atmosphere::{CoulombLogarithm, HybridCoulombLogarithm},
     transport::{TransportResult, Transporter},
@@ -38,15 +36,17 @@ use std::mem;
 /// Configuration parameters for the characteristics propagator.
 #[derive(Clone, Debug)]
 pub struct CharacteristicsPropagatorConfig {
-    pub analytical_transporter_config: AnalyticalTransporterConfig,
     pub n_energies: usize,
     pub min_energy_relative_to_cutoff: feb,
     pub max_energy_relative_to_cutoff: feb,
     pub min_steps_to_initial_thermalization: usize,
     pub max_steps_to_initial_thermalization: usize,
+    pub keep_initial_ionization_fraction: bool,
+    pub assume_ambient_electrons_all_from_hydrogen: bool,
     pub include_ambient_electric_field: bool,
     pub include_return_current: bool,
     pub include_magnetic_mirroring: bool,
+    pub enable_warm_target: bool,
     /// Distributions with an estimated depletion distance smaller than this value
     /// are discarded [Mm].
     pub min_depletion_distance: feb,
@@ -382,20 +382,32 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             AnalyticalPropagator::MIN_COULOMB_LOG_MEAN_ENERGY,
         ) * KEV_TO_ERG;
 
-        let ionization_fraction = ionization::compute_equilibrium_hydrogen_ionization_fraction(
-            distribution.ambient_temperature,
-            distribution.ambient_electron_density,
-        );
+        let hydrogen_ionization_fraction =
+            ionization::compute_equilibrium_hydrogen_ionization_fraction(
+                distribution.ambient_temperature,
+                distribution.ambient_electron_density,
+            );
 
         let total_hydrogen_density =
             AnalyticalPropagator::compute_total_hydrogen_density(distribution.ambient_mass_density);
+
+        let electron_to_hydrogen_ratio = if config.assume_ambient_electrons_all_from_hydrogen {
+            hydrogen_ionization_fraction
+        } else {
+            distribution.ambient_electron_density / total_hydrogen_density
+        };
 
         let coulomb_log = CoulombLogarithm::new(
             distribution.ambient_electron_density,
             coulomb_logarithm_energy,
         );
-        let hybrid_coulomb_log =
-            HybridCoulombLogarithm::new(coulomb_log.clone(), ionization_fraction);
+        let hybrid_coulomb_log = HybridCoulombLogarithm::new(
+            config.enable_warm_target,
+            coulomb_log.clone(),
+            distribution.ambient_temperature,
+            electron_to_hydrogen_ratio,
+            hydrogen_ionization_fraction,
+        );
 
         let heating_scale = AnalyticalPropagator::compute_heating_scale(
             distribution.total_power,
@@ -415,7 +427,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             config.min_residual_factor,
             config.min_deposited_power_per_distance,
             total_hydrogen_density,
-            hybrid_coulomb_log.for_energy(),
+            hybrid_coulomb_log.for_energy_cold_target(),
             coulomb_log.with_electrons_protons(),
             stopping_ionized_column_depth,
             heating_scale,
@@ -436,7 +448,6 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             };
 
             let transporter = Transporter::new(
-                config.analytical_transporter_config.clone(),
                 config.include_ambient_electric_field,
                 config.include_return_current,
                 config.include_magnetic_mirroring,
@@ -609,16 +620,33 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             }
         }
 
+        let hydrogen_ionization_fraction = if self.config.keep_initial_ionization_fraction {
+            self.transporter
+                .hybrid_coulomb_log()
+                .hydrogen_ionization_fraction()
+        } else {
+            ionization::compute_equilibrium_hydrogen_ionization_fraction(
+                temperature,
+                electron_density,
+            )
+        };
+
         let total_hydrogen_density =
             AnalyticalPropagator::compute_total_hydrogen_density(mass_density);
 
-        let ionization_fraction = ionization::compute_equilibrium_hydrogen_ionization_fraction(
-            temperature,
-            electron_density,
-        );
+        let electron_to_hydrogen_ratio = if self.config.assume_ambient_electrons_all_from_hydrogen {
+            hydrogen_ionization_fraction
+        } else {
+            electron_density / total_hydrogen_density
+        };
 
-        let hybrid_coulomb_log =
-            HybridCoulombLogarithm::new(self.coulomb_log.clone(), ionization_fraction);
+        let hybrid_coulomb_log = HybridCoulombLogarithm::new(
+            self.config.enable_warm_target,
+            self.coulomb_log.clone(),
+            temperature,
+            electron_to_hydrogen_ratio,
+            hydrogen_ionization_fraction,
+        );
 
         let step_length = displacement.length() * U_L; // [cm]
         let col_depth_increase = step_length * total_hydrogen_density;
@@ -673,9 +701,12 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
     pub const DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION: usize = 2;
     pub const DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION: usize = 10;
+    pub const DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION: bool = false;
+    pub const DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN: bool = false;
     pub const DEFAULT_AMBIENT_ELECTRIC_FIELD: bool = false;
     pub const DEFAULT_INCLUDE_RETURN_CURRENT: bool = false;
     pub const DEFAULT_INCLUDE_MAGNETIC_MIRRORING: bool = false;
+    pub const DEFAULT_ENABLE_WARM_TARGET: bool = false;
     pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-5;
     pub const DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE: feb = 1e5; // [erg/s/cm]
@@ -719,15 +750,18 @@ impl CharacteristicsPropagatorConfig {
                 Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             );
         CharacteristicsPropagatorConfig {
-            analytical_transporter_config: AnalyticalTransporterConfig::default(),
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
             min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
             max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
+            assume_ambient_electrons_all_from_hydrogen:
+                Self::DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN,
             include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
+            enable_warm_target: Self::DEFAULT_ENABLE_WARM_TARGET,
             min_depletion_distance,
             min_residual_factor,
             min_deposited_power_per_distance,
@@ -780,15 +814,18 @@ impl CharacteristicsPropagatorConfig {
 impl Default for CharacteristicsPropagatorConfig {
     fn default() -> Self {
         CharacteristicsPropagatorConfig {
-            analytical_transporter_config: AnalyticalTransporterConfig::default(),
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
             min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
             max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
+            assume_ambient_electrons_all_from_hydrogen:
+                Self::DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN,
             include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
+            enable_warm_target: Self::DEFAULT_ENABLE_WARM_TARGET,
             min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
             min_deposited_power_per_distance: Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,

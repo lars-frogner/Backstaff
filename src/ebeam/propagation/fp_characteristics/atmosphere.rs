@@ -4,6 +4,7 @@ use crate::{
     constants::{KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON},
     ebeam::feb,
 };
+use special::Error;
 
 #[derive(Clone, Debug)]
 pub struct CoulombLogarithm {
@@ -14,13 +15,32 @@ pub struct CoulombLogarithm {
 
 #[derive(Clone, Debug)]
 pub struct HybridCoulombLogarithm {
+    warm_target: Option<WarmTarget>,
     coulomb_log: CoulombLogarithm,
-    ionization_fraction: feb,
+    electron_to_hydrogen_ratio: feb,
+    hydrogen_ionization_fraction: feb,
+    for_energy_cold_target: feb,
+    for_pitch_angle_cold_target: feb,
+    for_number_density_cold_target: feb,
+}
+
+#[derive(Clone, Debug)]
+pub struct EvaluatedHydrogenCoulombLogarithms {
+    pub for_energy: feb,
+    pub for_pitch_angle: feb,
+    pub for_number_density: feb,
+}
+
+#[derive(Clone, Debug)]
+struct WarmTarget {
+    energy_to_squared_dimensionless_speed_factor: feb,
+}
+
+#[derive(Clone, Debug)]
+struct WarmTargetHybridCoulombLogFactors {
     for_energy: feb,
     for_pitch_angle: feb,
     for_number_density: feb,
-    for_pitch_angle_for_energy_ratio: feb,
-    for_number_density_for_energy_ratio: feb,
 }
 
 impl CoulombLogarithm {
@@ -87,24 +107,44 @@ impl CoulombLogarithm {
 }
 
 impl HybridCoulombLogarithm {
-    pub fn new(coulomb_log: CoulombLogarithm, ionization_fraction: feb) -> Self {
-        let for_energy =
-            Self::compute_hybrid_coulomb_log_for_energy(&coulomb_log, ionization_fraction);
-        let for_pitch_angle =
-            Self::compute_hybrid_coulomb_log_for_pitch_angle(&coulomb_log, ionization_fraction);
-        let for_number_density =
-            Self::compute_hybrid_coulomb_log_for_number_density(&coulomb_log, ionization_fraction);
-        let for_pitch_angle_for_energy_ratio = for_pitch_angle / for_energy;
-        let for_number_density_for_energy_ratio = for_number_density / for_energy;
+    pub fn new(
+        enable_warm_target: bool,
+        coulomb_log: CoulombLogarithm,
+        temperature: feb,
+        electron_to_hydrogen_ratio: feb,
+        hydrogen_ionization_fraction: feb,
+    ) -> Self {
+        let warm_target = if enable_warm_target {
+            Some(WarmTarget::new(temperature, enable_warm_target))
+        } else {
+            None
+        };
+
+        let for_energy_cold_target = Self::compute_cold_target_hybrid_coulomb_log_for_energy(
+            &coulomb_log,
+            electron_to_hydrogen_ratio,
+            hydrogen_ionization_fraction,
+        );
+        let for_pitch_angle_cold_target =
+            Self::compute_cold_target_hybrid_coulomb_log_for_pitch_angle(
+                &coulomb_log,
+                electron_to_hydrogen_ratio,
+                hydrogen_ionization_fraction,
+            );
+        let for_number_density_cold_target =
+            Self::compute_cold_target_hybrid_coulomb_log_for_number_density(
+                &coulomb_log,
+                hydrogen_ionization_fraction,
+            );
 
         Self {
+            warm_target,
             coulomb_log,
-            ionization_fraction,
-            for_energy,
-            for_pitch_angle,
-            for_number_density,
-            for_pitch_angle_for_energy_ratio,
-            for_number_density_for_energy_ratio,
+            electron_to_hydrogen_ratio,
+            hydrogen_ionization_fraction,
+            for_energy_cold_target,
+            for_pitch_angle_cold_target,
+            for_number_density_cold_target,
         }
     }
 
@@ -112,54 +152,190 @@ impl HybridCoulombLogarithm {
         &self.coulomb_log
     }
 
-    pub fn ionization_fraction(&self) -> feb {
-        self.ionization_fraction
+    pub fn hydrogen_ionization_fraction(&self) -> feb {
+        self.hydrogen_ionization_fraction
     }
 
-    pub fn for_energy(&self) -> feb {
-        self.for_energy
+    pub fn for_energy_cold_target(&self) -> feb {
+        self.for_energy_cold_target
     }
 
-    pub fn for_pitch_angle(&self) -> feb {
-        self.for_pitch_angle
+    pub fn for_pitch_angle_cold_target(&self) -> feb {
+        self.for_pitch_angle_cold_target
     }
 
-    pub fn for_number_density(&self) -> feb {
-        self.for_number_density
+    pub fn for_number_density_cold_target(&self) -> feb {
+        self.for_number_density_cold_target
     }
 
-    pub fn for_pitch_angle_for_energy_ratio(&self) -> feb {
-        self.for_pitch_angle_for_energy_ratio
+    pub fn for_energy(&self, energy: feb) -> feb {
+        if let Some(warm_target) = &self.warm_target {
+            let warm_target_factor_for_energy =
+                warm_target.compute_hybrid_coulom_log_factor_for_energy(energy);
+            Self::compute_hybrid_coulomb_log_for_energy(
+                warm_target_factor_for_energy,
+                &self.coulomb_log,
+                self.electron_to_hydrogen_ratio,
+                self.hydrogen_ionization_fraction,
+            )
+        } else {
+            self.for_energy_cold_target
+        }
     }
 
-    pub fn for_number_density_for_energy_ratio(&self) -> feb {
-        self.for_number_density_for_energy_ratio
+    pub fn evaluate(&self, energy: feb) -> EvaluatedHydrogenCoulombLogarithms {
+        if let Some(warm_target) = &self.warm_target {
+            let WarmTargetHybridCoulombLogFactors {
+                for_energy: warm_target_factor_for_energy,
+                for_pitch_angle: warm_target_factor_for_pitch_angle,
+                for_number_density: warm_target_factor_for_number_density,
+            } = warm_target.compute_hybrid_coulomb_log_factors(energy);
+
+            EvaluatedHydrogenCoulombLogarithms {
+                for_energy: Self::compute_hybrid_coulomb_log_for_energy(
+                    warm_target_factor_for_energy,
+                    &self.coulomb_log,
+                    self.electron_to_hydrogen_ratio,
+                    self.hydrogen_ionization_fraction,
+                ),
+                for_pitch_angle: Self::compute_hybrid_coulomb_log_for_pitch_angle(
+                    warm_target_factor_for_pitch_angle,
+                    &self.coulomb_log,
+                    self.electron_to_hydrogen_ratio,
+                    self.hydrogen_ionization_fraction,
+                ),
+                for_number_density: Self::compute_hybrid_coulomb_log_for_number_density(
+                    warm_target_factor_for_number_density,
+                    &self.coulomb_log,
+                    self.electron_to_hydrogen_ratio,
+                    self.hydrogen_ionization_fraction,
+                ),
+            }
+        } else {
+            EvaluatedHydrogenCoulombLogarithms {
+                for_energy: self.for_energy_cold_target,
+                for_pitch_angle: self.for_pitch_angle_cold_target,
+                for_number_density: self.for_number_density_cold_target,
+            }
+        }
+    }
+
+    fn compute_cold_target_hybrid_coulomb_log_for_energy(
+        coulomb_log: &CoulombLogarithm,
+        electron_to_hydrogen_ratio: feb,
+        hydrogen_ionization_fraction: feb,
+    ) -> feb {
+        electron_to_hydrogen_ratio * coulomb_log.with_electrons_protons()
+            + (1.0 - hydrogen_ionization_fraction) * coulomb_log.with_neutral_hydrogen_for_energy()
     }
 
     fn compute_hybrid_coulomb_log_for_energy(
+        warm_target_factor: feb,
         coulomb_log: &CoulombLogarithm,
-        ionization_fraction: feb,
+        electron_to_hydrogen_ratio: feb,
+        hydrogen_ionization_fraction: feb,
     ) -> feb {
-        ionization_fraction * coulomb_log.with_electrons_protons()
-            + (1.0 - ionization_fraction) * coulomb_log.with_neutral_hydrogen_for_energy()
+        warm_target_factor * electron_to_hydrogen_ratio * coulomb_log.with_electrons_protons()
+            + (1.0 - hydrogen_ionization_fraction) * coulomb_log.with_neutral_hydrogen_for_energy()
+    }
+
+    fn compute_cold_target_hybrid_coulomb_log_for_pitch_angle(
+        coulomb_log: &CoulombLogarithm,
+        electron_to_hydrogen_ratio: feb,
+        hydrogen_ionization_fraction: feb,
+    ) -> feb {
+        (electron_to_hydrogen_ratio + hydrogen_ionization_fraction)
+            * coulomb_log.with_electrons_protons()
+            + (1.0 - hydrogen_ionization_fraction)
+                * coulomb_log.with_neutral_hydrogen_for_pitch_angle()
     }
 
     fn compute_hybrid_coulomb_log_for_pitch_angle(
+        warm_target_factor: feb,
         coulomb_log: &CoulombLogarithm,
-        ionization_fraction: feb,
+        electron_to_hydrogen_ratio: feb,
+        hydrogen_ionization_fraction: feb,
     ) -> feb {
-        2.0 * ionization_fraction * coulomb_log.with_electrons_protons()
-            + (1.0 - ionization_fraction) * coulomb_log.with_neutral_hydrogen_for_pitch_angle()
+        (warm_target_factor * electron_to_hydrogen_ratio + hydrogen_ionization_fraction)
+            * coulomb_log.with_electrons_protons()
+            + (1.0 - hydrogen_ionization_fraction)
+                * coulomb_log.with_neutral_hydrogen_for_pitch_angle()
+    }
+
+    fn compute_cold_target_hybrid_coulomb_log_for_number_density(
+        coulomb_log: &CoulombLogarithm,
+        hydrogen_ionization_fraction: feb,
+    ) -> feb {
+        -hydrogen_ionization_fraction * coulomb_log.with_electrons_protons()
+            + (1.0 - hydrogen_ionization_fraction)
+                * (coulomb_log.with_neutral_hydrogen_for_energy()
+                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
     }
 
     fn compute_hybrid_coulomb_log_for_number_density(
+        warm_target_factor: feb,
         coulomb_log: &CoulombLogarithm,
-        ionization_fraction: feb,
+        electron_to_hydrogen_ratio: feb,
+        hydrogen_ionization_fraction: feb,
     ) -> feb {
-        ionization_fraction * coulomb_log.with_electrons_protons()
-            + (1.0 - ionization_fraction)
-                * (coulomb_log.with_neutral_hydrogen_for_pitch_angle()
-                    - coulomb_log.with_neutral_hydrogen_for_energy())
+        (warm_target_factor * electron_to_hydrogen_ratio - hydrogen_ionization_fraction)
+            * coulomb_log.with_electrons_protons()
+            + (1.0 - hydrogen_ionization_fraction)
+                * (coulomb_log.with_neutral_hydrogen_for_energy()
+                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
+    }
+}
+
+impl WarmTarget {
+    fn new(temperature: feb, enabled: bool) -> Self {
+        Self {
+            energy_to_squared_dimensionless_speed_factor:
+                Self::compute_energy_to_squared_dimensionless_speed_factor(temperature),
+        }
+    }
+
+    fn compute_hybrid_coulomb_log_factors(&self, energy: feb) -> WarmTargetHybridCoulombLogFactors {
+        let u = self.compute_dimensionless_speed(energy);
+        let erf = Self::compute_error_function(u);
+        let u_times_erf_deriv = u * Self::compute_error_function_deriv(u);
+        let G = Self::compute_chandrasekhar_function(u);
+
+        WarmTargetHybridCoulombLogFactors {
+            for_energy: erf + 2.0 * (u_times_erf_deriv + G),
+            for_pitch_angle: erf - G,
+            for_number_density: (4.0 * u * u - 3.0) * u_times_erf_deriv + 7.0 * G,
+        }
+    }
+
+    fn compute_hybrid_coulom_log_factor_for_energy(&self, energy: feb) -> feb {
+        let u = self.compute_dimensionless_speed(energy);
+        let erf = Self::compute_error_function(u);
+        let u_times_erf_deriv = u * Self::compute_error_function_deriv(u);
+        let G = Self::compute_chandrasekhar_function(u);
+
+        erf + 2.0 * (u_times_erf_deriv + G)
+    }
+
+    fn compute_dimensionless_speed(&self, energy: feb) -> feb {
+        feb::sqrt(energy * self.energy_to_squared_dimensionless_speed_factor)
+    }
+
+    fn compute_error_function(dimensionless_speed: feb) -> feb {
+        feb::error(dimensionless_speed)
+    }
+
+    fn compute_error_function_deriv(dimensionless_speed: feb) -> feb {
+        (2.0 / feb::sqrt(PI)) * feb::exp(-dimensionless_speed * dimensionless_speed)
+    }
+
+    fn compute_chandrasekhar_function(dimensionless_speed: feb) -> feb {
+        (Self::compute_error_function(dimensionless_speed)
+            - dimensionless_speed * Self::compute_error_function_deriv(dimensionless_speed))
+            / (2.0 * dimensionless_speed * dimensionless_speed)
+    }
+
+    fn compute_energy_to_squared_dimensionless_speed_factor(temperature: feb) -> feb {
+        1.0 / (KBOLTZMANN * temperature)
     }
 }
 
@@ -168,7 +344,7 @@ impl HybridCoulombLogarithm {
 pub fn compute_parallel_resistivity(
     coulomb_log: &CoulombLogarithm,
     temperature: feb,
-    ionization_fraction: feb,
+    hydrogen_ionization_fraction: feb,
 ) -> feb {
     const PARALLEL_RESISTIVITY_FACTOR: feb = 0.51282;
     PARALLEL_RESISTIVITY_FACTOR

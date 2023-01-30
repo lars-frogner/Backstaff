@@ -7,12 +7,7 @@ use crate::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
         tracing::stepping::rkf::create_rkf_stepper_subcommand, utils,
     },
-    ebeam::{
-        feb,
-        propagation::fp_characteristics::{
-            AnalyticalTransporterConfig, CharacteristicsPropagatorConfig,
-        },
-    },
+    ebeam::{feb, propagation::fp_characteristics::CharacteristicsPropagatorConfig},
     io::snapshot::SnapshotParameters,
     update_command_graph,
 };
@@ -41,7 +36,7 @@ pub fn create_characteristics_propagator_subcommand(
                 .value_name("NUMBER")
                 .help("Number of energies to use for representing the distribution")
                 .takes_value(true)
-                .default_value("200"),
+                .default_value("40"),
         )
         .arg(
             Arg::new("energy-range")
@@ -53,7 +48,7 @@ pub fn create_characteristics_propagator_subcommand(
                 .help("Limits for the energy range, relative to the lower cutoff energy")
                 .takes_value(true)
                 .number_of_values(2)
-                .default_value("1e-1,1e2"),
+                .default_value("0.05,120.0"),
         )
         .arg(
             Arg::new("min-steps-to-thermalization")
@@ -72,6 +67,22 @@ pub fn create_characteristics_propagator_subcommand(
                 .help("Maximum number of substeps to take before any electrons thermalize")
                 .takes_value(true)
                 .default_value("10"),
+        )
+        .arg(
+            Arg::new("keep-initial-ionization-fraction")
+                .long("keep-initial-ionization-fraction")
+                .help(
+                    "Do not update the hydrogen ionization fraction from the inital value\n\
+                     while propagating.",
+                ),
+        )
+        .arg(
+            Arg::new("assume-ambient-electrons-all-from-hydrogen")
+                .long("assume-ambient-electrons-all-from-hydrogen")
+                .help(
+                    "Assume that the electron-to-hydrogen ratio is the same as the hydrogen\n\
+                     ionization factor",
+                ),
         )
         .arg(
             Arg::new("disable-ambient-electric-field")
@@ -95,10 +106,10 @@ pub fn create_characteristics_propagator_subcommand(
                 ),
         )
         .arg(
-            Arg::new("enable-analytical-solver")
-                .long("enable-analytical-solver")
+            Arg::new("enable-warm-target")
+                .long("enable-warm-target")
                 .help(
-                    "Use analytical solutions for electron propagation when applicable",
+                    "Do not assume that the ambient plasma can be treated as a cold target",
                 ),
         )
         .arg(
@@ -190,10 +201,13 @@ pub fn construct_characteristics_propagator_config_from_options(
         usize,
     >(arguments, "max-steps-to-thermalization");
 
+    let keep_initial_ionization_fraction = arguments.is_present("keep-initial-ionization-fraction");
+    let assume_ambient_electrons_all_from_hydrogen =
+        arguments.is_present("assume-ambient-electrons-all-from-hydrogen");
     let include_ambient_electric_field = !arguments.is_present("disable-ambient-electric-field");
     let include_return_current = !arguments.is_present("disable-return-current");
     let include_magnetic_mirroring = !arguments.is_present("disable-magnetic-mirroring");
-    let enable_analytical_transporter = arguments.is_present("enable-analytical-solver");
+    let enable_warm_target = arguments.is_present("enable-warm-target");
 
     let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
         parameters,
@@ -225,18 +239,17 @@ pub fn construct_characteristics_propagator_config_from_options(
     let continue_depleted_beams = arguments.is_present("continue-depleted-beams");
 
     let config = CharacteristicsPropagatorConfig {
-        analytical_transporter_config: AnalyticalTransporterConfig {
-            enabled: enable_analytical_transporter,
-            ..AnalyticalTransporterConfig::default()
-        },
         n_energies,
         min_energy_relative_to_cutoff,
         max_energy_relative_to_cutoff,
         min_steps_to_initial_thermalization,
         max_steps_to_initial_thermalization,
+        keep_initial_ionization_fraction,
+        assume_ambient_electrons_all_from_hydrogen,
         include_ambient_electric_field,
         include_return_current,
         include_magnetic_mirroring,
+        enable_warm_target,
         min_depletion_distance,
         min_residual_factor,
         min_deposited_power_per_distance,
