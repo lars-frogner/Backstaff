@@ -1,9 +1,12 @@
 //!
 
+#![allow(non_snake_case)]
+
 use crate::{
-    constants::{KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON},
+    constants::{KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON, SQRT_PI},
     ebeam::feb,
 };
+use lazy_static::lazy_static;
 use special::Error;
 
 #[derive(Clone, Debug)]
@@ -41,6 +44,16 @@ struct WarmTargetHybridCoulombLogFactors {
     for_energy: feb,
     for_pitch_angle: feb,
     for_number_density: feb,
+}
+
+struct WarmTargetLookupTable<const N: usize> {
+    erf: [feb; N],
+    u_erf_deriv: [feb; N],
+    G: [feb; N],
+}
+
+lazy_static! {
+    static ref WARM_TARGET_LOOKUP_TABLE: WarmTargetLookupTable<1000> = WarmTargetLookupTable::new();
 }
 
 impl CoulombLogarithm {
@@ -115,7 +128,7 @@ impl HybridCoulombLogarithm {
         hydrogen_ionization_fraction: feb,
     ) -> Self {
         let warm_target = if enable_warm_target {
-            Some(WarmTarget::new(temperature, enable_warm_target))
+            Some(WarmTarget::new(temperature))
         } else {
             None
         };
@@ -158,14 +171,6 @@ impl HybridCoulombLogarithm {
 
     pub fn for_energy_cold_target(&self) -> feb {
         self.for_energy_cold_target
-    }
-
-    pub fn for_pitch_angle_cold_target(&self) -> feb {
-        self.for_pitch_angle_cold_target
-    }
-
-    pub fn for_number_density_cold_target(&self) -> feb {
-        self.for_number_density_cold_target
     }
 
     pub fn for_energy(&self, energy: feb) -> feb {
@@ -287,7 +292,7 @@ impl HybridCoulombLogarithm {
 }
 
 impl WarmTarget {
-    fn new(temperature: feb, enabled: bool) -> Self {
+    fn new(temperature: feb) -> Self {
         Self {
             energy_to_squared_dimensionless_speed_factor:
                 Self::compute_energy_to_squared_dimensionless_speed_factor(temperature),
@@ -296,46 +301,87 @@ impl WarmTarget {
 
     fn compute_hybrid_coulomb_log_factors(&self, energy: feb) -> WarmTargetHybridCoulombLogFactors {
         let u = self.compute_dimensionless_speed(energy);
-        let erf = Self::compute_error_function(u);
-        let u_times_erf_deriv = u * Self::compute_error_function_deriv(u);
-        let G = Self::compute_chandrasekhar_function(u);
+        let (erf, u_erf_deriv, G) = WARM_TARGET_LOOKUP_TABLE.lookup(u);
 
         WarmTargetHybridCoulombLogFactors {
-            for_energy: erf + 2.0 * (u_times_erf_deriv + G),
+            for_energy: erf + 2.0 * (u_erf_deriv + G),
             for_pitch_angle: erf - G,
-            for_number_density: (4.0 * u * u - 3.0) * u_times_erf_deriv + 7.0 * G,
+            for_number_density: (4.0 * u * u - 3.0) * u_erf_deriv + 7.0 * G,
         }
     }
 
     fn compute_hybrid_coulom_log_factor_for_energy(&self, energy: feb) -> feb {
         let u = self.compute_dimensionless_speed(energy);
-        let erf = Self::compute_error_function(u);
-        let u_times_erf_deriv = u * Self::compute_error_function_deriv(u);
-        let G = Self::compute_chandrasekhar_function(u);
+        let (erf, u_erf_deriv, G) = WARM_TARGET_LOOKUP_TABLE.lookup(u);
 
-        erf + 2.0 * (u_times_erf_deriv + G)
+        erf + 2.0 * (u_erf_deriv + G)
     }
 
     fn compute_dimensionless_speed(&self, energy: feb) -> feb {
         feb::sqrt(energy * self.energy_to_squared_dimensionless_speed_factor)
     }
 
-    fn compute_error_function(dimensionless_speed: feb) -> feb {
-        feb::error(dimensionless_speed)
-    }
-
-    fn compute_error_function_deriv(dimensionless_speed: feb) -> feb {
-        (2.0 / feb::sqrt(PI)) * feb::exp(-dimensionless_speed * dimensionless_speed)
-    }
-
-    fn compute_chandrasekhar_function(dimensionless_speed: feb) -> feb {
-        (Self::compute_error_function(dimensionless_speed)
-            - dimensionless_speed * Self::compute_error_function_deriv(dimensionless_speed))
-            / (2.0 * dimensionless_speed * dimensionless_speed)
-    }
-
     fn compute_energy_to_squared_dimensionless_speed_factor(temperature: feb) -> feb {
         1.0 / (KBOLTZMANN * temperature)
+    }
+}
+
+impl<const N: usize> WarmTargetLookupTable<N> {
+    const MAX_U: feb = 20.0;
+    const U_TO_IDX: feb = (N as feb) / Self::MAX_U;
+    const IDX_TO_U: feb = 1.0 / Self::U_TO_IDX;
+    const U_ERF_DERIV_SCALE: feb = 2.0 / SQRT_PI;
+
+    fn new() -> Self {
+        let mut erf = [0.0; N];
+        let mut u_erf_deriv = [0.0; N];
+        let mut G = [0.0; N];
+
+        erf.iter_mut()
+            .zip(u_erf_deriv.iter_mut())
+            .zip(G.iter_mut())
+            .enumerate()
+            .for_each(|(idx, ((erf_ref, u_erf_deriv_ref), G_ref))| {
+                let u = Self::idx_to_u(idx);
+                *erf_ref = Self::compute_erf(u);
+                *u_erf_deriv_ref = Self::compute_u_erf_deriv(u);
+                *G_ref = Self::compute_G(u, *erf_ref, *u_erf_deriv_ref);
+            });
+
+        Self {
+            erf,
+            u_erf_deriv,
+            G,
+        }
+    }
+
+    fn lookup(&self, u: feb) -> (feb, feb, feb) {
+        let idx = Self::u_to_idx(u);
+        if idx < N {
+            (self.erf[idx], self.u_erf_deriv[idx], self.G[idx])
+        } else {
+            (1.0, 0.0, 0.0)
+        }
+    }
+
+    fn u_to_idx(u: feb) -> usize {
+        (Self::U_TO_IDX * feb::max(0.0, u)) as usize
+    }
+
+    fn idx_to_u(idx: usize) -> feb {
+        Self::IDX_TO_U * (idx as feb)
+    }
+
+    fn compute_erf(u: feb) -> feb {
+        feb::error(u)
+    }
+
+    fn compute_u_erf_deriv(u: feb) -> feb {
+        Self::U_ERF_DERIV_SCALE * u * feb::exp(-u * u)
+    }
+
+    fn compute_G(u: feb, erf: feb, u_erf_deriv: feb) -> feb {
+        (erf - u_erf_deriv) / (2.0 * u * u)
     }
 }
 
