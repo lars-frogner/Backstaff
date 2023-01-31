@@ -439,7 +439,7 @@ impl AnalyticalPropagatorConfig {
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-5;
     pub const DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE: feb = 1e5; // [erg/s/cm]
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
-    pub const DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD: feb = 0.1; // [Mm]
+    pub const DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD: feb = 0.0; // [Mm]
     pub const DEFAULT_CONTINUE_DEPLETED_BEAMS: bool = false;
 
     /// Creates a set of analytical propagator configuration parameters with
