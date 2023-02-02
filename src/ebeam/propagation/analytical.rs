@@ -424,7 +424,7 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
                 self.hydrogen_column_depth = new_hydrogen_column_depth;
                 self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
 
-                deposited_power += substep_deposited_power;
+                deposited_power = substep_deposited_power;
                 residual_factor = substep_residual_factor;
             }
 
