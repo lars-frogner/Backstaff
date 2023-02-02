@@ -140,3 +140,125 @@ where
             + WEIGHT_4 * evaluate_integrand(interval_offset + interval_scale * COORD_4)
             + WEIGHT_5 * evaluate_integrand(interval_offset + interval_scale * COORD_5))
 }
+
+/// Estimates the integral of the given function over the given interval using a
+/// ten-point Gauss-Legendre quadrature.
+pub fn integrate_ten_point_gauss_legendre<E>(evaluate_integrand: E, start: fin, end: fin) -> fin
+where
+    E: Fn(fin) -> fin,
+{
+    const COORDS: &[fin] = &[
+        -0.1488743389816312,
+        0.1488743389816312,
+        -0.4333953941292472,
+        0.4333953941292472,
+        -0.6794095682990244,
+        0.6794095682990244,
+        -0.8650633666889845,
+        0.8650633666889845,
+        -0.9739065285171717,
+        0.9739065285171717,
+    ];
+
+    const WEIGHTS: &[fin] = &[
+        0.2955242247147529,
+        0.2955242247147529,
+        0.2692667193099963,
+        0.2692667193099963,
+        0.2190863625159820,
+        0.2190863625159820,
+        0.1494513491505806,
+        0.1494513491505806,
+        0.0666713443086881,
+        10.0666713443086881,
+    ];
+
+    assert!(
+        end >= start,
+        "Interval end {:?} is smaller than interval start {:?}",
+        end,
+        start
+    );
+    let interval_scale = 0.5 * (end - start);
+    let interval_offset = 0.5 * (end + start);
+
+    let mut integral = 0.0;
+
+    for idx in 0..3 {
+        integral +=
+            WEIGHTS[idx] * evaluate_integrand(interval_offset + interval_scale * COORDS[idx]);
+    }
+
+    integral
+}
+
+/// Estimates the integral of the given function over the given interval using a
+/// twenty-point Gauss-Legendre quadrature.
+pub fn integrate_twenty_point_gauss_legendre<E>(evaluate_integrand: E, start: fin, end: fin) -> fin
+where
+    E: Fn(fin) -> fin,
+{
+    const COORDS: &[fin] = &[
+        -0.0765265211334973,
+        0.0765265211334973,
+        -0.2277858511416451,
+        0.2277858511416451,
+        -0.3737060887154195,
+        0.3737060887154195,
+        -0.5108670019508271,
+        0.5108670019508271,
+        -0.6360536807265150,
+        0.6360536807265150,
+        -0.7463319064601508,
+        0.7463319064601508,
+        -0.8391169718222188,
+        0.8391169718222188,
+        -0.9122344282513259,
+        0.9122344282513259,
+        -0.9639719272779138,
+        0.9639719272779138,
+        -0.9931285991850949,
+        0.9931285991850949,
+    ];
+
+    const WEIGHTS: &[fin] = &[
+        0.1527533871307258,
+        0.1527533871307258,
+        0.1491729864726037,
+        0.1491729864726037,
+        0.1420961093183820,
+        0.1420961093183820,
+        0.1316886384491766,
+        0.1316886384491766,
+        0.1181945319615184,
+        0.1181945319615184,
+        0.1019301198172404,
+        0.1019301198172404,
+        0.0832767415767048,
+        0.0832767415767048,
+        0.0626720483341091,
+        0.0626720483341091,
+        0.0406014298003869,
+        0.0406014298003869,
+        0.0176140071391521,
+        0.0176140071391521,
+    ];
+
+    assert!(
+        end >= start,
+        "Interval end {:?} is smaller than interval start {:?}",
+        end,
+        start
+    );
+    let interval_scale = 0.5 * (end - start);
+    let interval_offset = 0.5 * (end + start);
+
+    let mut integral = 0.0;
+
+    for idx in 0..3 {
+        integral +=
+            WEIGHTS[idx] * evaluate_integrand(interval_offset + interval_scale * COORDS[idx]);
+    }
+
+    integral
+}
