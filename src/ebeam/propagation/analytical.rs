@@ -44,6 +44,9 @@ pub struct AnalyticalPropagatorConfig {
     pub outside_deposition_threshold: feb,
     /// Whether to keep propagating beams even after they are considered depleted.
     pub continue_depleted_beams: bool,
+    pub keep_initial_ionization_fraction: bool,
+    pub n_initial_steps_with_substeps: usize,
+    pub n_substeps: usize,
 }
 
 /// A propagator for a power-law electron distribution using an
@@ -66,6 +69,8 @@ pub struct AnalyticalPropagator {
     equivalent_ionized_column_depth: feb,
     /// How far outside the acceleration region the distribution has propagated [Mm].
     outside_distance: feb,
+    initial_ionization_fraction: feb,
+    step_count: usize,
 }
 
 impl AnalyticalPropagator {
@@ -298,6 +303,8 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
                 hydrogen_column_depth,
                 equivalent_ionized_column_depth,
                 outside_distance,
+                initial_ionization_fraction: ionization_fraction,
+                step_count: 0,
             })
         } else {
             None
@@ -309,17 +316,7 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
     }
 
     fn into_distribution(self) -> PowerLawDistribution {
-        let Self {
-            config: _,
-            distribution,
-            electron_coulomb_logarithm: _,
-            neutral_hydrogen_coulomb_logarithm: _,
-            heating_scale: _,
-            stopping_ionized_column_depth: _,
-            hydrogen_column_depth: _,
-            equivalent_ionized_column_depth: _,
-            outside_distance: _,
-        } = self;
+        let Self { distribution, .. } = self;
         distribution
     }
 
@@ -386,10 +383,14 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
 
             let total_hydrogen_density = Self::compute_total_hydrogen_density(mass_density);
 
-            let ionization_fraction = ionization::compute_equilibrium_hydrogen_ionization_fraction(
-                temperature,
-                electron_density,
-            );
+            let ionization_fraction = if self.config.keep_initial_ionization_fraction {
+                self.initial_ionization_fraction
+            } else {
+                ionization::compute_equilibrium_hydrogen_ionization_fraction(
+                    temperature,
+                    electron_density,
+                )
+            };
             let effective_coulomb_logarithm = Self::compute_effective_coulomb_logarithm(
                 ionization_fraction,
                 self.electron_coulomb_logarithm,
@@ -398,22 +399,39 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
 
             let step_length = displacement.length() * U_L; // [cm]
 
-            let (
-                deposited_power,
-                new_hydrogen_column_depth,
-                new_equivalent_ionized_column_depth,
-                residual_factor,
-            ) = self.compute_uniform_plasma_heating_integral(
-                total_hydrogen_density,
-                effective_coulomb_logarithm,
-                step_length,
-            );
+            let mut deposited_power = 0.0;
+            let mut residual_factor = 0.0;
 
-            self.hydrogen_column_depth = new_hydrogen_column_depth;
-            self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
+            let n_substeps = if self.step_count < self.config.n_initial_steps_with_substeps {
+                self.config.n_substeps
+            } else {
+                1
+            };
+            let substep_step_length = step_length / (n_substeps as feb);
+
+            for _ in 0..n_substeps {
+                let (
+                    substep_deposited_power,
+                    new_hydrogen_column_depth,
+                    new_equivalent_ionized_column_depth,
+                    substep_residual_factor,
+                ) = self.compute_uniform_plasma_heating_integral(
+                    total_hydrogen_density,
+                    effective_coulomb_logarithm,
+                    substep_step_length,
+                );
+
+                self.hydrogen_column_depth = new_hydrogen_column_depth;
+                self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
+
+                deposited_power += substep_deposited_power;
+                residual_factor = substep_residual_factor;
+            }
 
             let volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
             let deposited_power_density = deposited_power / volume;
+
+            self.step_count += 1;
 
             let depletion_status = if self.config.continue_depleted_beams
                 || residual_factor >= self.config.min_residual_factor
@@ -441,6 +459,9 @@ impl AnalyticalPropagatorConfig {
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
     pub const DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD: feb = 0.0; // [Mm]
     pub const DEFAULT_CONTINUE_DEPLETED_BEAMS: bool = false;
+    pub const DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION: bool = false;
+    pub const DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS: usize = 0;
+    pub const DEFAULT_N_SUBSTEPS: usize = 1;
 
     /// Creates a set of analytical propagator configuration parameters with
     /// values read from the specified parameter file when available, otherwise
@@ -493,6 +514,9 @@ impl AnalyticalPropagatorConfig {
             max_propagation_distance,
             outside_deposition_threshold,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
+            keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
+            n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
+            n_substeps: Self::DEFAULT_N_SUBSTEPS,
         }
     }
 
@@ -518,6 +542,10 @@ impl AnalyticalPropagatorConfig {
             self.outside_deposition_threshold >= 0.0,
             "Outside deposition threshold must be larger than or equal to zero."
         );
+        assert!(
+            self.n_substeps > 0,
+            "Number of substeps must be larger than zero."
+        );
     }
 }
 
@@ -530,6 +558,9 @@ impl Default for AnalyticalPropagatorConfig {
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             outside_deposition_threshold: Self::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
+            keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
+            n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
+            n_substeps: Self::DEFAULT_N_SUBSTEPS,
         }
     }
 }

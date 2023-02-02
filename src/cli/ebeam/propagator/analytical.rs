@@ -89,6 +89,32 @@ pub fn create_analytical_propagator_subcommand(
             Arg::new("continue-depleted-beams")
                 .long("continue-depleted-beams")
                 .help("Keep propagating beams even after they are considered depleted"),
+        )
+        .arg(
+            Arg::new("n-initial-steps-with-substeps")
+                .long("n-initial-steps-with-substeps")
+                .require_equals(true)
+                .value_name("NUMBER")
+                .help("How many of the initial steps that should use substepping")
+                .takes_value(true)
+                .default_value("0"),
+        )
+        .arg(
+            Arg::new("n-substeps")
+                .long("n-substeps")
+                .require_equals(true)
+                .value_name("NUMBER")
+                .help("Number of substeps to take for steps that use substepping")
+                .takes_value(true)
+                .default_value("1"),
+        )
+        .arg(
+            Arg::new("keep-initial-ionization-fraction")
+                .long("keep-initial-ionization-fraction")
+                .help(
+                    "Do not update the hydrogen ionization fraction from the inital value\n\
+                     while propagating.",
+                ),
         );
 
     add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
@@ -143,6 +169,16 @@ pub fn construct_analytical_propagator_config_from_options(
     );
     let continue_depleted_beams = arguments.is_present("continue-depleted-beams");
 
+    let n_initial_steps_with_substeps = utils::get_value_from_required_parseable_argument::<usize>(
+        arguments,
+        "n-initial-steps-with-substeps",
+    );
+
+    let n_substeps =
+        utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-substeps");
+
+    let keep_initial_ionization_fraction = arguments.is_present("keep-initial-ionization-fraction");
+
     let config = AnalyticalPropagatorConfig {
         min_depletion_distance,
         min_residual_factor,
@@ -150,6 +186,9 @@ pub fn construct_analytical_propagator_config_from_options(
         max_propagation_distance,
         outside_deposition_threshold,
         continue_depleted_beams,
+        keep_initial_ionization_fraction,
+        n_initial_steps_with_substeps,
+        n_substeps,
     };
     config.validate();
     config
