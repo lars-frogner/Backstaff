@@ -41,6 +41,8 @@ pub struct CharacteristicsPropagatorConfig {
     pub max_energy_relative_to_cutoff: feb,
     pub min_steps_to_initial_thermalization: usize,
     pub max_steps_to_initial_thermalization: usize,
+    pub n_initial_steps_with_substeps: usize,
+    pub n_substeps: usize,
     pub keep_initial_ionization_fraction: bool,
     pub assume_ambient_electrons_all_from_hydrogen: bool,
     pub include_ambient_electric_field: bool,
@@ -83,6 +85,7 @@ pub struct CharacteristicsPropagator {
     stepped_pitch_angle_cosines: Vec<feb>,
     stepped_electron_numbers_per_dist: Vec<feb>,
     resampled_initial_energies: Vec<feb>,
+    step_count: usize,
 }
 
 impl CharacteristicsPropagator {
@@ -525,6 +528,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 stepped_pitch_angle_cosines,
                 stepped_electron_numbers_per_dist,
                 resampled_initial_energies,
+                step_count: 0,
             })
         } else {
             None
@@ -657,7 +661,15 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let mut deposited_power_per_dist = 0.0;
         let mut depletion_status = DepletionStatus::Undepleted;
 
-        let n_substeps = self.n_substeps(col_depth_increase);
+        let n_substeps = usize::max(
+            self.n_substeps(col_depth_increase),
+            if self.step_count < self.config.n_initial_steps_with_substeps {
+                self.config.n_substeps
+            } else {
+                1
+            },
+        );
+
         let substep_col_depth_increase = col_depth_increase / (n_substeps as feb);
         for _ in 0..n_substeps {
             (deposited_power_per_dist, depletion_status) = self.advance_distributions(
@@ -676,6 +688,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
         let deposited_power = deposited_power_per_dist * step_length;
         let deposited_power_density = deposited_power / grid_cell_volume;
+
+        self.step_count += 1;
 
         let depletion_status = if (self.config.continue_depleted_beams
             || deposited_power / step_length >= self.config.min_deposited_power_per_distance)
@@ -701,6 +715,8 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
     pub const DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION: usize = 2;
     pub const DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION: usize = 10;
+    pub const DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS: usize = 0;
+    pub const DEFAULT_N_SUBSTEPS: usize = 1;
     pub const DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION: bool = false;
     pub const DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN: bool = false;
     pub const DEFAULT_AMBIENT_ELECTRIC_FIELD: bool = false;
@@ -755,6 +771,8 @@ impl CharacteristicsPropagatorConfig {
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
             min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
             max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
+            n_substeps: Self::DEFAULT_N_SUBSTEPS,
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
             assume_ambient_electrons_all_from_hydrogen:
                 Self::DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN,
@@ -793,6 +811,10 @@ impl CharacteristicsPropagatorConfig {
             "Maximum number of substeps to initial thermalization cannot be smaller than minimum number"
         );
         assert!(
+            self.n_substeps > 0,
+            "Number of substeps must be larger than zero."
+        );
+        assert!(
             self.min_depletion_distance >= 0.0,
             "Minimum stopping distance must be larger than or equal to zero."
         );
@@ -819,6 +841,8 @@ impl Default for CharacteristicsPropagatorConfig {
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
             min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
             max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
+            n_substeps: Self::DEFAULT_N_SUBSTEPS,
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
             assume_ambient_electrons_all_from_hydrogen:
                 Self::DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN,

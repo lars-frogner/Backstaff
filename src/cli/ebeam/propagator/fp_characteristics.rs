@@ -69,6 +69,24 @@ pub fn create_characteristics_propagator_subcommand(
                 .default_value("10"),
         )
         .arg(
+            Arg::new("n-initial-steps-with-substeps")
+                .long("n-initial-steps-with-substeps")
+                .require_equals(true)
+                .value_name("NUMBER")
+                .help("How many of the initial steps that should use substepping")
+                .takes_value(true)
+                .default_value("0"),
+        )
+        .arg(
+            Arg::new("n-substeps")
+                .long("n-substeps")
+                .require_equals(true)
+                .value_name("NUMBER")
+                .help("Number of substeps to take for steps that use substepping")
+                .takes_value(true)
+                .default_value("1"),
+        )
+        .arg(
             Arg::new("keep-initial-ionization-fraction")
                 .long("keep-initial-ionization-fraction")
                 .help(
@@ -201,6 +219,14 @@ pub fn construct_characteristics_propagator_config_from_options(
         usize,
     >(arguments, "max-steps-to-thermalization");
 
+    let n_initial_steps_with_substeps = utils::get_value_from_required_parseable_argument::<usize>(
+        arguments,
+        "n-initial-steps-with-substeps",
+    );
+
+    let n_substeps =
+        utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-substeps");
+
     let keep_initial_ionization_fraction = arguments.is_present("keep-initial-ionization-fraction");
     let assume_ambient_electrons_all_from_hydrogen =
         arguments.is_present("assume-ambient-electrons-all-from-hydrogen");
@@ -244,6 +270,8 @@ pub fn construct_characteristics_propagator_config_from_options(
         max_energy_relative_to_cutoff,
         min_steps_to_initial_thermalization,
         max_steps_to_initial_thermalization,
+        n_initial_steps_with_substeps,
+        n_substeps,
         keep_initial_ionization_fraction,
         assume_ambient_electrons_all_from_hydrogen,
         include_ambient_electric_field,
