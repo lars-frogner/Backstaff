@@ -200,7 +200,7 @@ impl AnalyticalPropagator {
                     * feb::powf(start_ionized_column_depth_ratio + increase, -power)
             };
             deposited_power += constant_factor
-                * math::integrate_three_point_gauss_legendre(
+                * math::integrate_five_point_gauss_legendre(
                     evaluate_integrand,
                     0.0,
                     end_column_depth_ratio - start_column_depth_ratio,
@@ -424,7 +424,7 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
                 self.hydrogen_column_depth = new_hydrogen_column_depth;
                 self.equivalent_ionized_column_depth = new_equivalent_ionized_column_depth;
 
-                deposited_power = substep_deposited_power;
+                deposited_power += substep_deposited_power;
                 residual_factor = substep_residual_factor;
             }
 

@@ -658,7 +658,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let grid_cell_volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
         let beam_cross_sectional_area = grid_cell_volume / step_length;
 
-        let mut deposited_power_per_dist = 0.0;
+        let mut mean_deposited_power_per_dist = 0.0;
+        let mut deposited_power_per_dist;
         let mut depletion_status = DepletionStatus::Undepleted;
 
         let n_substeps = usize::max(
@@ -681,18 +682,20 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 beam_cross_sectional_area,
                 substep_col_depth_increase,
             );
+            mean_deposited_power_per_dist += deposited_power_per_dist;
             if depletion_status == DepletionStatus::Depleted {
                 break;
             }
         }
+        mean_deposited_power_per_dist /= n_substeps as feb;
 
-        let deposited_power = deposited_power_per_dist * step_length;
+        let deposited_power = mean_deposited_power_per_dist * step_length;
         let deposited_power_density = deposited_power / grid_cell_volume;
 
         self.step_count += 1;
 
         let depletion_status = if (self.config.continue_depleted_beams
-            || deposited_power / step_length >= self.config.min_deposited_power_per_distance)
+            || mean_deposited_power_per_dist >= self.config.min_deposited_power_per_distance)
             && depletion_status == DepletionStatus::Undepleted
         {
             DepletionStatus::Undepleted
