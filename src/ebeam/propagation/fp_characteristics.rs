@@ -39,8 +39,8 @@ pub struct CharacteristicsPropagatorConfig {
     pub n_energies: usize,
     pub min_energy_relative_to_cutoff: feb,
     pub max_energy_relative_to_cutoff: feb,
-    pub min_steps_to_initial_thermalization: usize,
-    pub max_steps_to_initial_thermalization: usize,
+    pub max_col_depth_increase: feb,
+    pub max_substeps: usize,
     pub n_initial_steps_with_substeps: usize,
     pub n_substeps: usize,
     pub keep_initial_ionization_fraction: bool,
@@ -86,28 +86,25 @@ pub struct CharacteristicsPropagator {
     stepped_electron_numbers_per_dist: Vec<feb>,
     resampled_initial_energies: Vec<feb>,
     step_count: usize,
+    prev_n_substeps: usize,
 }
 
 impl CharacteristicsPropagator {
-    fn n_substeps(&self, col_depth_increase: feb) -> usize {
-        let lower_cutoff_energy = self.distribution.lower_cutoff_energy * KEV_TO_ERG;
-
-        if self.energies[0] < lower_cutoff_energy {
-            let n_steps_to_thermalization = self.transporter.n_steps_to_thermalization(
-                lower_cutoff_energy,
-                self.distribution.initial_pitch_angle_cosine,
-                col_depth_increase,
-            );
-            usize::min(
-                self.config.max_steps_to_initial_thermalization,
-                feb::ceil(
-                    self.config.min_steps_to_initial_thermalization as f64
-                        / n_steps_to_thermalization,
-                ) as usize,
-            )
+    fn determine_n_substeps(&mut self, col_depth_increase: feb) -> usize {
+        let n_substeps = if self.step_count < self.config.n_initial_steps_with_substeps {
+            feb::ceil(col_depth_increase / self.config.max_col_depth_increase) as usize
         } else {
             1
-        }
+        };
+
+        // Never reduce number of substeps by more than half in one step
+        let n_substeps = usize::max(self.prev_n_substeps / 2, n_substeps);
+
+        let n_substeps = usize::min(self.config.max_substeps, n_substeps);
+
+        self.prev_n_substeps = n_substeps;
+
+        n_substeps
     }
 
     fn advance_distributions(
@@ -529,6 +526,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 stepped_electron_numbers_per_dist,
                 resampled_initial_energies,
                 step_count: 0,
+                prev_n_substeps: 0,
             })
         } else {
             None
@@ -662,14 +660,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let mut deposited_power_per_dist;
         let mut depletion_status = DepletionStatus::Undepleted;
 
-        let n_substeps = usize::max(
-            self.n_substeps(col_depth_increase),
-            if self.step_count < self.config.n_initial_steps_with_substeps {
-                self.config.n_substeps
-            } else {
-                1
-            },
-        );
+        let n_substeps = self.determine_n_substeps(col_depth_increase);
 
         let substep_col_depth_increase = col_depth_increase / (n_substeps as feb);
         for _ in 0..n_substeps {
@@ -716,8 +707,8 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_N_ENERGIES: usize = 40;
     pub const DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF: feb = 0.05;
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
-    pub const DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION: usize = 2;
-    pub const DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION: usize = 10;
+    pub const DEFAULT_MAX_COL_DEPTH_INCREASE: feb = 2e14;
+    pub const DEFAULT_MAX_SUBSTEPS: usize = 10000;
     pub const DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS: usize = 0;
     pub const DEFAULT_N_SUBSTEPS: usize = 1;
     pub const DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION: bool = false;
@@ -772,8 +763,8 @@ impl CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
-            min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
-            max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            max_col_depth_increase: Self::DEFAULT_MAX_COL_DEPTH_INCREASE,
+            max_substeps: Self::DEFAULT_MAX_SUBSTEPS,
             n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
             n_substeps: Self::DEFAULT_N_SUBSTEPS,
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
@@ -806,12 +797,12 @@ impl CharacteristicsPropagatorConfig {
             "Maximum energy must be higher than minimum energy"
         );
         assert!(
-            self.min_steps_to_initial_thermalization > 0,
-            "Minimum number of steps to initial thermalization must be larger than zero"
+            self.max_col_depth_increase > 0.0,
+            "Maximum column depth increase must be larger than zero"
         );
         assert!(
-            self.max_steps_to_initial_thermalization >= self.min_steps_to_initial_thermalization,
-            "Maximum number of substeps to initial thermalization cannot be smaller than minimum number"
+            self.max_substeps > 0,
+            "Maximum number of substeps must be larger than zero"
         );
         assert!(
             self.n_substeps > 0,
@@ -842,8 +833,8 @@ impl Default for CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
-            min_steps_to_initial_thermalization: Self::DEFAULT_MIN_STEPS_TO_INITIAL_THERMALIZATION,
-            max_steps_to_initial_thermalization: Self::DEFAULT_MAX_STEPS_TO_INITIAL_THERMALIZATION,
+            max_col_depth_increase: Self::DEFAULT_MAX_COL_DEPTH_INCREASE,
+            max_substeps: Self::DEFAULT_MAX_SUBSTEPS,
             n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
             n_substeps: Self::DEFAULT_N_SUBSTEPS,
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,

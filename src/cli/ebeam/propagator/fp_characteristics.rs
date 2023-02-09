@@ -51,22 +51,22 @@ pub fn create_characteristics_propagator_subcommand(
                 .default_value("0.05,120.0"),
         )
         .arg(
-            Arg::new("min-steps-to-thermalization")
-                .long("min-steps-to-thermalization")
+            Arg::new("max-column-depth-increase")
+                .long("max-column-depth-increase")
                 .require_equals(true)
-                .value_name("NUMBER")
-                .help("Minimum number of steps to take before any electrons thermalize")
+                .value_name("VALUE")
+                .help("Maximum allowed column depth increase for a single substep")
                 .takes_value(true)
-                .default_value("2"),
+                .default_value("2e14"),
         )
         .arg(
-            Arg::new("max-steps-to-thermalization")
-                .long("max-steps-to-thermalization")
+            Arg::new("max-substeps")
+                .long("max-substeps")
                 .require_equals(true)
                 .value_name("NUMBER")
-                .help("Maximum number of substeps to take before any electrons thermalize")
+                .help("Maximum number of substeps to take for each step")
                 .takes_value(true)
-                .default_value("10"),
+                .default_value("10000"),
         )
         .arg(
             Arg::new("n-initial-steps-with-substeps")
@@ -76,15 +76,6 @@ pub fn create_characteristics_propagator_subcommand(
                 .help("How many of the initial steps that should use substepping")
                 .takes_value(true)
                 .default_value("0"),
-        )
-        .arg(
-            Arg::new("n-substeps")
-                .long("n-substeps")
-                .require_equals(true)
-                .value_name("NUMBER")
-                .help("Number of substeps to take for steps that use substepping")
-                .takes_value(true)
-                .default_value("1"),
         )
         .arg(
             Arg::new("keep-initial-ionization-fraction")
@@ -211,21 +202,18 @@ pub fn construct_characteristics_propagator_config_from_options(
         CharacteristicsPropagatorConfig::DEFAULT_MIN_DEPLETION_DISTANCE,
     );
 
-    let min_steps_to_initial_thermalization = utils::get_value_from_required_parseable_argument::<
-        usize,
-    >(arguments, "min-steps-to-thermalization");
+    let max_col_depth_increase = utils::get_value_from_required_parseable_argument::<feb>(
+        arguments,
+        "max-column-depth-increase",
+    );
 
-    let max_steps_to_initial_thermalization = utils::get_value_from_required_parseable_argument::<
-        usize,
-    >(arguments, "max-steps-to-thermalization");
+    let max_substeps =
+        utils::get_value_from_required_parseable_argument::<usize>(arguments, "max-substeps");
 
     let n_initial_steps_with_substeps = utils::get_value_from_required_parseable_argument::<usize>(
         arguments,
         "n-initial-steps-with-substeps",
     );
-
-    let n_substeps =
-        utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-substeps");
 
     let keep_initial_ionization_fraction = arguments.is_present("keep-initial-ionization-fraction");
     let assume_ambient_electrons_all_from_hydrogen =
@@ -268,10 +256,10 @@ pub fn construct_characteristics_propagator_config_from_options(
         n_energies,
         min_energy_relative_to_cutoff,
         max_energy_relative_to_cutoff,
-        min_steps_to_initial_thermalization,
-        max_steps_to_initial_thermalization,
+        max_col_depth_increase,
+        max_substeps,
         n_initial_steps_with_substeps,
-        n_substeps,
+        n_substeps: 1,
         keep_initial_ionization_fraction,
         assume_ambient_electrons_all_from_hydrogen,
         include_ambient_electric_field,

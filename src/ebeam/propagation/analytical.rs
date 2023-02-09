@@ -45,6 +45,8 @@ pub struct AnalyticalPropagatorConfig {
     /// Whether to keep propagating beams even after they are considered depleted.
     pub continue_depleted_beams: bool,
     pub keep_initial_ionization_fraction: bool,
+    pub max_col_depth_increase: feb,
+    pub max_substeps: usize,
     pub n_initial_steps_with_substeps: usize,
     pub n_substeps: usize,
 }
@@ -71,6 +73,7 @@ pub struct AnalyticalPropagator {
     outside_distance: feb,
     initial_ionization_fraction: feb,
     step_count: usize,
+    prev_n_substeps: usize,
 }
 
 impl AnalyticalPropagator {
@@ -157,6 +160,23 @@ impl AnalyticalPropagator {
     ) -> feb {
         feb::abs(pitch_angle_cosine) * feb::powi(electron_energy, 2)
             / (3.0 * Self::COLLISION_SCALE * coulomb_logarithm)
+    }
+
+    fn determine_n_substeps(&mut self, col_depth_increase: feb) -> usize {
+        let n_substeps = if self.step_count < self.config.n_initial_steps_with_substeps {
+            feb::ceil(col_depth_increase / self.config.max_col_depth_increase) as usize
+        } else {
+            1
+        };
+
+        // Never reduce number of substeps by more than half in one step
+        let n_substeps = usize::max(self.prev_n_substeps / 2, n_substeps);
+
+        let n_substeps = usize::min(self.config.max_substeps, n_substeps);
+
+        self.prev_n_substeps = n_substeps;
+
+        n_substeps
     }
 
     fn compute_uniform_plasma_heating_integral(
@@ -305,6 +325,7 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
                 outside_distance,
                 initial_ionization_fraction: ionization_fraction,
                 step_count: 0,
+                prev_n_substeps: 0,
             })
         } else {
             None
@@ -402,11 +423,9 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
             let mut deposited_power = 0.0;
             let mut residual_factor = 0.0;
 
-            let n_substeps = if self.step_count < self.config.n_initial_steps_with_substeps {
-                self.config.n_substeps
-            } else {
-                1
-            };
+            let col_depth_increase = total_hydrogen_density * step_length;
+            let n_substeps = self.determine_n_substeps(col_depth_increase);
+
             let substep_step_length = step_length / (n_substeps as feb);
 
             for _ in 0..n_substeps {
@@ -460,6 +479,8 @@ impl AnalyticalPropagatorConfig {
     pub const DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD: feb = 0.0; // [Mm]
     pub const DEFAULT_CONTINUE_DEPLETED_BEAMS: bool = false;
     pub const DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION: bool = false;
+    pub const DEFAULT_MAX_COL_DEPTH_INCREASE: feb = 2e14;
+    pub const DEFAULT_MAX_SUBSTEPS: usize = 10000;
     pub const DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS: usize = 0;
     pub const DEFAULT_N_SUBSTEPS: usize = 1;
 
@@ -515,6 +536,8 @@ impl AnalyticalPropagatorConfig {
             outside_deposition_threshold,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
+            max_col_depth_increase: Self::DEFAULT_MAX_COL_DEPTH_INCREASE,
+            max_substeps: Self::DEFAULT_MAX_SUBSTEPS,
             n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
             n_substeps: Self::DEFAULT_N_SUBSTEPS,
         }
@@ -543,6 +566,14 @@ impl AnalyticalPropagatorConfig {
             "Outside deposition threshold must be larger than or equal to zero."
         );
         assert!(
+            self.max_col_depth_increase > 0.0,
+            "Maximum column depth increase must be larger than zero"
+        );
+        assert!(
+            self.max_substeps > 0,
+            "Maximum number of substeps must be larger than zero"
+        );
+        assert!(
             self.n_substeps > 0,
             "Number of substeps must be larger than zero."
         );
@@ -559,6 +590,8 @@ impl Default for AnalyticalPropagatorConfig {
             outside_deposition_threshold: Self::DEFAULT_OUTSIDE_DEPOSITION_THRESHOLD,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
+            max_col_depth_increase: Self::DEFAULT_MAX_COL_DEPTH_INCREASE,
+            max_substeps: Self::DEFAULT_MAX_SUBSTEPS,
             n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
             n_substeps: Self::DEFAULT_N_SUBSTEPS,
         }

@@ -91,6 +91,24 @@ pub fn create_analytical_propagator_subcommand(
                 .help("Keep propagating beams even after they are considered depleted"),
         )
         .arg(
+            Arg::new("max-column-depth-increase")
+                .long("max-column-depth-increase")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help("Maximum allowed column depth increase for a single substep")
+                .takes_value(true)
+                .default_value("2e14"),
+        )
+        .arg(
+            Arg::new("max-substeps")
+                .long("max-substeps")
+                .require_equals(true)
+                .value_name("NUMBER")
+                .help("Maximum number of substeps to take for each step")
+                .takes_value(true)
+                .default_value("10000"),
+        )
+        .arg(
             Arg::new("n-initial-steps-with-substeps")
                 .long("n-initial-steps-with-substeps")
                 .require_equals(true)
@@ -98,15 +116,6 @@ pub fn create_analytical_propagator_subcommand(
                 .help("How many of the initial steps that should use substepping")
                 .takes_value(true)
                 .default_value("0"),
-        )
-        .arg(
-            Arg::new("n-substeps")
-                .long("n-substeps")
-                .require_equals(true)
-                .value_name("NUMBER")
-                .help("Number of substeps to take for steps that use substepping")
-                .takes_value(true)
-                .default_value("1"),
         )
         .arg(
             Arg::new("keep-initial-ionization-fraction")
@@ -169,13 +178,18 @@ pub fn construct_analytical_propagator_config_from_options(
     );
     let continue_depleted_beams = arguments.is_present("continue-depleted-beams");
 
+    let max_col_depth_increase = utils::get_value_from_required_parseable_argument::<feb>(
+        arguments,
+        "max-column-depth-increase",
+    );
+
+    let max_substeps =
+        utils::get_value_from_required_parseable_argument::<usize>(arguments, "max-substeps");
+
     let n_initial_steps_with_substeps = utils::get_value_from_required_parseable_argument::<usize>(
         arguments,
         "n-initial-steps-with-substeps",
     );
-
-    let n_substeps =
-        utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-substeps");
 
     let keep_initial_ionization_fraction = arguments.is_present("keep-initial-ionization-fraction");
 
@@ -187,8 +201,10 @@ pub fn construct_analytical_propagator_config_from_options(
         outside_deposition_threshold,
         continue_depleted_beams,
         keep_initial_ionization_fraction,
+        max_col_depth_increase,
+        max_substeps,
         n_initial_steps_with_substeps,
-        n_substeps,
+        n_substeps: 1,
     };
     config.validate();
     config
