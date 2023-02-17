@@ -49,20 +49,11 @@ pub struct CharacteristicsPropagatorConfig {
     pub include_return_current: bool,
     pub include_magnetic_mirroring: bool,
     pub enable_warm_target: bool,
-    /// Distributions with an estimated depletion distance smaller than this value
-    /// are discarded [Mm].
     pub min_depletion_distance: feb,
-    /// Distributions are considered depleted when the residual energy factor has
-    /// decreased below this limit, given that the deposited power per distance is
-    /// smaller than its lower limit.
+    pub min_remaining_flux_fraction: feb,
     pub min_residual_factor: feb,
-    /// Distributions are considered depleted when the deposited power per distance
-    /// [erg/s/cm] has decreased below this limit, given that the residual energy factor
-    /// is smaller than its lower limit.
     pub min_deposited_power_per_distance: feb,
-    /// Maximum distance the distribution can propagate before propagation should be terminated [Mm].
     pub max_propagation_distance: ftr,
-    /// Whether to keep propagating beams even after they are considered depleted.
     pub continue_depleted_beams: bool,
 }
 
@@ -87,6 +78,7 @@ pub struct CharacteristicsPropagator {
     resampled_initial_energies: Vec<feb>,
     step_count: usize,
     prev_n_substeps: usize,
+    initial_total_electron_flux_over_cross_section: feb,
 }
 
 impl CharacteristicsPropagator {
@@ -170,7 +162,7 @@ impl CharacteristicsPropagator {
 
         if first_valid_stepped_idx > 0 {
             // Add deposited power of all thermalized electrons
-            deposited_power_per_dist += self.transporter.compute_deposited_power_density(
+            deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
                 &self.energies[all_thermalized_stepped()],
                 &self.initial_energies[all_thermalized_stepped()],
                 &self.pitch_angle_cosines[all_thermalized_stepped()],
@@ -233,7 +225,7 @@ impl CharacteristicsPropagator {
             col_depth_increase,
         );
 
-        deposited_power_per_dist += self.transporter.compute_deposited_power_density(
+        deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
             &self.energies,
             &self.initial_energies,
             &self.pitch_angle_cosines,
@@ -447,10 +439,20 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 0.0
             };
 
+            let lower_cutoff_energy = distribution.lower_cutoff_energy * KEV_TO_ERG;
+
+            let total_electron_flux_over_cross_section =
+                PowerLawDistribution::compute_total_electron_flux_over_cross_section(
+                    distribution.total_power,
+                    lower_cutoff_energy,
+                    distribution.delta,
+                );
+
             let transporter = Transporter::new(
                 config.include_ambient_electric_field,
                 config.include_return_current,
                 config.include_magnetic_mirroring,
+                total_electron_flux_over_cross_section,
                 distribution.initial_pitch_angle_cosine,
                 hybrid_coulomb_log,
                 total_hydrogen_density,
@@ -481,8 +483,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 .map(|&log10_energy| feb::powf(10.0, log10_energy))
                 .collect();
 
-            let lower_cutoff_energy = distribution.lower_cutoff_energy * KEV_TO_ERG;
-            let electron_numbers_per_dist = energies
+            let electron_numbers_per_dist: Vec<_> = energies
                 .iter()
                 .map(|&energy| {
                     if energy >= lower_cutoff_energy {
@@ -525,6 +526,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 stepped_pitch_angle_cosines,
                 stepped_electron_numbers_per_dist,
                 resampled_initial_energies,
+                initial_total_electron_flux_over_cross_section:
+                    total_electron_flux_over_cross_section,
                 step_count: 0,
                 prev_n_substeps: 0,
             })
@@ -683,9 +686,13 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let deposited_power = mean_deposited_power_per_dist * step_length;
         let deposited_power_density = deposited_power / grid_cell_volume;
 
+        let remaining_flux_fraction = self.transporter.total_electron_flux_over_cross_section()
+            / self.initial_total_electron_flux_over_cross_section;
+
         self.step_count += 1;
 
         let depletion_status = if (self.config.continue_depleted_beams
+            || remaining_flux_fraction >= self.config.min_remaining_flux_fraction
             || mean_deposited_power_per_dist >= self.config.min_deposited_power_per_distance)
             && depletion_status == DepletionStatus::Undepleted
         {
@@ -718,6 +725,7 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_INCLUDE_MAGNETIC_MIRRORING: bool = false;
     pub const DEFAULT_ENABLE_WARM_TARGET: bool = false;
     pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
+    pub const DEFAULT_MIN_REMAINING_FLUX_FRACTION: feb = 1e-5;
     pub const DEFAULT_MIN_RESIDUAL_FACTOR: feb = 1e-5;
     pub const DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE: feb = 1e5; // [erg/s/cm]
     pub const DEFAULT_MAX_PROPAGATION_DISTANCE: ftr = 100.0; // [Mm]
@@ -776,6 +784,7 @@ impl CharacteristicsPropagatorConfig {
             enable_warm_target: Self::DEFAULT_ENABLE_WARM_TARGET,
             min_depletion_distance,
             min_residual_factor,
+            min_remaining_flux_fraction: Self::DEFAULT_MIN_REMAINING_FLUX_FRACTION,
             min_deposited_power_per_distance,
             max_propagation_distance,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
@@ -813,6 +822,10 @@ impl CharacteristicsPropagatorConfig {
             "Minimum stopping distance must be larger than or equal to zero."
         );
         assert!(
+            self.min_remaining_flux_fraction >= 0.0,
+            "Minimum remaining flux factor must be larger than or equal to zero."
+        );
+        assert!(
             self.min_residual_factor >= 0.0,
             "Minimum residual factor must be larger than or equal to zero."
         );
@@ -846,6 +859,7 @@ impl Default for CharacteristicsPropagatorConfig {
             enable_warm_target: Self::DEFAULT_ENABLE_WARM_TARGET,
             min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,
+            min_remaining_flux_fraction: Self::DEFAULT_MIN_REMAINING_FLUX_FRACTION,
             min_deposited_power_per_distance: Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,

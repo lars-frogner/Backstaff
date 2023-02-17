@@ -133,14 +133,26 @@ pub fn create_characteristics_propagator_subcommand(
                 .takes_value(true),
         )
         .arg(
+            Arg::new("min-remaining-flux-fraction")
+                .long("min-remaining-flux-fraction")
+                .require_equals(true)
+                .value_name("VALUE")
+                .help(
+                    "Distributions are considered depleted when their total flux has\n\
+                     decreased by this fraction relative to their initial flux, given that\n\
+                     the deposited power per distance is smaller than its lower limit",
+                )
+                .takes_value(true)
+                .default_value("1e-5"),
+        )
+        .arg(
             Arg::new("min-residual-factor")
                 .long("min-residual-factor")
                 .require_equals(true)
                 .value_name("VALUE")
                 .help(
-                    "Distributions are considered depleted when the residual energy factor has\n\
-                     decreased below this limit, given that the deposited power per distance is\n\
-                     smaller than its lower limit [default: from param file]",
+                    "See `analytical_propagator`. Here, the factor is only used when\n\
+                     estimating depletion distance [default: from param file]",
                 )
                 .takes_value(true),
         )
@@ -223,6 +235,11 @@ pub fn construct_characteristics_propagator_config_from_options(
     let include_magnetic_mirroring = !arguments.is_present("disable-magnetic-mirroring");
     let enable_warm_target = arguments.is_present("enable-warm-target");
 
+    let min_remaining_flux_fraction = utils::get_value_from_required_parseable_argument::<feb>(
+        arguments,
+        "min-remaining-flux-fraction",
+    );
+
     let min_residual_factor = utils::get_value_from_param_file_argument_with_default(
         parameters,
         arguments,
@@ -267,6 +284,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         include_magnetic_mirroring,
         enable_warm_target,
         min_depletion_distance,
+        min_remaining_flux_fraction,
         min_residual_factor,
         min_deposited_power_per_distance,
         max_propagation_distance,

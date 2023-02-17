@@ -102,6 +102,14 @@ impl PowerLawDistribution {
                 * feb::sqrt(2.0 * lower_cutoff_energy / M_ELECTRON)))
             * (lower_cutoff_energy / energy).powf(delta + 0.5)
     }
+
+    pub fn compute_total_electron_flux_over_cross_section(
+        total_power: feb,
+        lower_cutoff_energy: feb,
+        delta: feb,
+    ) -> feb {
+        total_power * (delta - 2.0) / (lower_cutoff_energy * (delta - 1.0))
+    }
 }
 
 impl BeamPropertiesCollection for PowerLawDistributionPropertiesCollection {

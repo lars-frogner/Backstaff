@@ -18,6 +18,7 @@ pub struct Transporter {
     hybrid_coulomb_log: HybridCoulombLogarithm,
     total_hydrogen_density: feb,
     temperature: feb,
+    total_electron_flux_over_cross_section: feb,
     ambient_trajectory_aligned_electric_field: feb,
     induced_trajectory_aligned_electric_field: feb,
     total_trajectory_aligned_electric_field: feb,
@@ -47,6 +48,7 @@ impl Transporter {
         include_ambient_electric_field: bool,
         include_induced_electric_field: bool,
         include_magnetic_field: bool,
+        total_electron_flux_over_cross_section: feb,
         initial_pitch_angle_cos: feb,
         hybrid_coulomb_log: HybridCoulombLogarithm,
         total_hydrogen_density: feb,
@@ -80,6 +82,7 @@ impl Transporter {
             hybrid_coulomb_log,
             total_hydrogen_density,
             temperature,
+            total_electron_flux_over_cross_section,
             ambient_trajectory_aligned_electric_field,
             induced_trajectory_aligned_electric_field,
             total_trajectory_aligned_electric_field,
@@ -88,6 +91,10 @@ impl Transporter {
             energy_loss_to_electric_field,
             high_energy_pitch_angle_cos,
         }
+    }
+
+    pub fn total_electron_flux_over_cross_section(&self) -> feb {
+        self.total_electron_flux_over_cross_section
     }
 
     pub fn hybrid_coulomb_log(&self) -> &HybridCoulombLogarithm {
@@ -100,17 +107,6 @@ impl Transporter {
 
     pub fn high_energy_pitch_angle_cos(&self) -> feb {
         self.high_energy_pitch_angle_cos
-    }
-
-    pub fn n_steps_to_thermalization(
-        &self,
-        initial_energy: feb,
-        initial_pitch_angle_cos: feb,
-        col_depth_increase: feb,
-    ) -> feb {
-        initial_energy
-            / (-self.compute_energy_col_depth_deriv(initial_energy, initial_pitch_angle_cos)
-                * col_depth_increase)
     }
 
     pub fn update_conditions(
@@ -163,7 +159,18 @@ impl Transporter {
             self.ambient_trajectory_aligned_electric_field = 0.0;
         }
 
+        self.total_electron_flux_over_cross_section = self
+            .compute_total_electron_flux_over_cross_section(
+                energies,
+                initial_energies,
+                pitch_angle_cosines,
+                electron_numbers_per_dist,
+            );
+
         if self.include_induced_electric_field {
+            let total_electron_flux_density =
+                self.total_electron_flux_over_cross_section / beam_cross_sectional_area;
+
             // Because the induced field depends on the flux, which depends
             // on the energy derivative, which depends on the electric field,
             // determining the induced field is strictly an implicit problem.
@@ -173,11 +180,7 @@ impl Transporter {
             self.induced_trajectory_aligned_electric_field = self
                 .compute_induced_trajectory_aligned_electric_field(
                     temperature,
-                    energies,
-                    initial_energies,
-                    pitch_angle_cosines,
-                    electron_numbers_per_dist,
-                    beam_cross_sectional_area,
+                    total_electron_flux_density,
                 );
         } else {
             self.induced_trajectory_aligned_electric_field = 0.0;
@@ -218,16 +221,16 @@ impl Transporter {
         }
     }
 
-    pub fn compute_deposited_power_density(
+    pub fn compute_deposited_power_per_dist(
         &self,
         energies: &[feb],
         initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
-        number_densities: &[feb],
+        electron_numbers_per_dist: &[feb],
     ) -> feb {
         assert_eq!(initial_energies.len(), energies.len());
         assert_eq!(pitch_angle_cosines.len(), energies.len());
-        assert_eq!(number_densities.len(), energies.len());
+        assert_eq!(electron_numbers_per_dist.len(), energies.len());
 
         let mut first_nonzero_idx = None;
 
@@ -235,11 +238,17 @@ impl Transporter {
             .iter()
             .zip(initial_energies.iter())
             .zip(pitch_angle_cosines.iter())
-            .zip(number_densities.iter())
+            .zip(electron_numbers_per_dist.iter())
             .enumerate()
             .map(
-                |(idx, (((&energy, &initial_energy), &pitch_angle_cos), &number_density))| {
-                    if initial_energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density <= 0.0 {
+                |(
+                    idx,
+                    (((&energy, &initial_energy), &pitch_angle_cos), &electron_number_per_dist),
+                )| {
+                    if initial_energy <= 0.0
+                        || pitch_angle_cos <= 0.0
+                        || electron_number_per_dist <= 0.0
+                    {
                         0.0
                     } else {
                         if first_nonzero_idx.is_none() {
@@ -251,7 +260,7 @@ impl Transporter {
                             self.compute_energy_col_depth_deriv(initial_energy, pitch_angle_cos);
 
                         (energy_col_depth_deriv / initial_energy_col_depth_deriv)
-                            * number_density
+                            * electron_number_per_dist
                             * (-energy_col_depth_deriv
                                 * self.total_hydrogen_density
                                 * pitch_angle_cos
@@ -267,23 +276,24 @@ impl Transporter {
         let valid_deposited_power_initial_energy_derivs =
             &deposited_power_initial_energy_derivs[first_nonzero_idx..];
 
-        // Integrate deposited power over initial energies using the trapezoidal method
+        // Integrate deposited power per distance over initial energies using
+        // the trapezoidal method
         integrate_trapezoidal(
             valid_initial_energies,
             valid_deposited_power_initial_energy_derivs,
         )
     }
 
-    fn compute_total_flux_density(
+    fn compute_total_electron_flux_over_cross_section(
         &self,
         energies: &[feb],
         initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
-        number_densities: &[feb],
+        electron_numbers_per_dist: &[feb],
     ) -> feb {
         assert_eq!(initial_energies.len(), energies.len());
         assert_eq!(pitch_angle_cosines.len(), energies.len());
-        assert_eq!(number_densities.len(), energies.len());
+        assert_eq!(electron_numbers_per_dist.len(), energies.len());
 
         let mut first_nonzero_idx = None;
 
@@ -291,11 +301,17 @@ impl Transporter {
             .iter()
             .zip(initial_energies.iter())
             .zip(pitch_angle_cosines.iter())
-            .zip(number_densities.iter())
+            .zip(electron_numbers_per_dist.iter())
             .enumerate()
             .map(
-                |(idx, (((&energy, &initial_energy), &pitch_angle_cos), &number_density))| {
-                    if initial_energy <= 0.0 || pitch_angle_cos <= 0.0 || number_density <= 0.0 {
+                |(
+                    idx,
+                    (((&energy, &initial_energy), &pitch_angle_cos), &electron_number_per_dist),
+                )| {
+                    if initial_energy <= 0.0
+                        || pitch_angle_cos <= 0.0
+                        || electron_number_per_dist <= 0.0
+                    {
                         0.0
                     } else {
                         if first_nonzero_idx.is_none() {
@@ -307,7 +323,7 @@ impl Transporter {
                             self.compute_energy_col_depth_deriv(initial_energy, pitch_angle_cos);
 
                         (energy_col_depth_deriv / initial_energy_col_depth_deriv)
-                            * number_density
+                            * electron_number_per_dist
                             * feb::sqrt(2.0 * energy / M_ELECTRON)
                     }
                 },
@@ -325,31 +341,15 @@ impl Transporter {
     fn compute_induced_trajectory_aligned_electric_field(
         &self,
         temperature: feb,
-        energies: &[feb],
-        initial_energies: &[feb],
-        pitch_angle_cosines: &[feb],
-        electron_numbers_per_dist: &[feb],
-        beam_cross_sectional_area: feb,
+        total_electron_flux_density: feb,
     ) -> feb {
-        // Since we use electron count per distance and not
-        // electron density, what we compute here is really
-        // the flux density multiplied with area
-        let total_flux_over_cross_section = self.compute_total_flux_density(
-            energies,
-            initial_energies,
-            pitch_angle_cosines,
-            electron_numbers_per_dist,
-        );
-
-        let total_flux_density = total_flux_over_cross_section / beam_cross_sectional_area;
-
         Q_ELECTRON
             * compute_parallel_resistivity(
                 self.hybrid_coulomb_log.coulomb_log(),
                 temperature,
                 self.hybrid_coulomb_log.hydrogen_ionization_fraction(),
             )
-            * total_flux_density
+            * total_electron_flux_density
     }
 
     fn compute_log_magnetic_field_col_depth_deriv(
