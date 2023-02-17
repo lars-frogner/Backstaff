@@ -120,6 +120,7 @@ struct UnpropagatedElectronBeam<D: Distribution> {
 }
 
 struct PropagatedElectronBeam<D: Distribution> {
+    beam_id: i64,
     trajectory: BeamTrajectory,
     distribution_properties: <D::PropertiesCollectionType as BeamPropertiesCollection>::Item,
     total_propagation_distance: feb,
@@ -213,16 +214,19 @@ where
     {
         let nested_tuples_iter = par_iter.into_par_iter().map(|beam| {
             (
-                beam.trajectory.0,
+                beam.beam_id,
                 (
-                    beam.trajectory.1,
+                    beam.trajectory.0,
                     (
-                        beam.trajectory.2,
+                        beam.trajectory.1,
                         (
-                            beam.distribution_properties,
+                            beam.trajectory.2,
                             (
-                                beam.total_propagation_distance,
-                                (beam.deposited_powers, beam.deposited_power_densities),
+                                beam.distribution_properties,
+                                (
+                                    beam.total_propagation_distance,
+                                    (beam.deposited_powers, beam.deposited_power_densities),
+                                ),
                             ),
                         ),
                     ),
@@ -234,10 +238,12 @@ where
         // The unzipping has to be performed in multiple stages to avoid excessive
         // compilation times.
 
+        let (beam_ids, nested_tuples): (Vec<_>, Vec<_>) = nested_tuples_iter.unzip();
+
         let (trajectories_x, (trajectories_y, (trajectories_z, nested_tuples))): (
             Vec<_>,
             (Vec<_>, (Vec<_>, Vec<_>)),
-        ) = nested_tuples_iter.unzip();
+        ) = nested_tuples.into_par_iter().unzip();
 
         let (distribution_properties, nested_tuples): (D::PropertiesCollectionType, Vec<_>) =
             nested_tuples.into_par_iter().unzip();
@@ -257,6 +263,10 @@ where
         distribution_properties
             .distribute_into_maps(&mut fixed_scalar_values, &mut fixed_vector_values);
 
+        fixed_scalar_values.insert(
+            "id".to_string(),
+            beam_ids.par_iter().map(|&id| id as feb).collect(),
+        );
         fixed_scalar_values.insert(
             "x0".to_string(),
             trajectories_x
@@ -779,6 +789,8 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
     where
         P: Propagator<D>,
     {
+        let beam_id = propagator.id();
+
         let magnetic_field = snapshot.cached_vector_field("b");
         let start_position = Point3::from(propagator.distribution().acceleration_position());
 
@@ -799,6 +811,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             propagator.distribution().propagation_sense(),
             &mut |displacement, _, position, distance| {
                 if distance > propagator.max_propagation_distance() {
+                    propagator.end_propagation();
                     StepperInstruction::Terminate
                 } else if distance > 0.0 {
                     let PropagationResult {
@@ -823,7 +836,10 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
 
                     match depletion_status {
                         DepletionStatus::Undepleted => StepperInstruction::Continue,
-                        DepletionStatus::Depleted => StepperInstruction::Terminate,
+                        DepletionStatus::Depleted => {
+                            propagator.end_propagation();
+                            StepperInstruction::Terminate
+                        }
                     }
                 } else {
                     StepperInstruction::Continue
@@ -835,6 +851,7 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
 
         match tracer_result {
             TracerResult::Ok(_) => Some(PropagatedElectronBeam {
+                beam_id,
                 trajectory,
                 distribution_properties,
                 total_propagation_distance,

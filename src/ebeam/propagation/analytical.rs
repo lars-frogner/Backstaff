@@ -55,6 +55,7 @@ pub struct AnalyticalPropagatorConfig {
 /// analytical method.
 #[derive(Clone, Debug)]
 pub struct AnalyticalPropagator {
+    id: i64,
     config: AnalyticalPropagatorConfig,
     distribution: PowerLawDistribution,
     /// Coulomb logarithm for interaction with free electrons.
@@ -254,7 +255,7 @@ impl AnalyticalPropagator {
 impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
     type Config = AnalyticalPropagatorConfig;
 
-    fn new(config: Self::Config, distribution: PowerLawDistribution) -> Option<Self> {
+    fn new(config: Self::Config, distribution: PowerLawDistribution, id: i64) -> Option<Self> {
         let mean_energy = PowerLawDistribution::compute_mean_energy(
             distribution.delta,
             distribution.lower_cutoff_energy,
@@ -314,6 +315,7 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
             let outside_distance = 0.0;
 
             Some(Self {
+                id,
                 config,
                 distribution,
                 electron_coulomb_logarithm,
@@ -330,6 +332,10 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
         } else {
             None
         }
+    }
+
+    fn id(&self) -> i64 {
+        self.id
     }
 
     fn distribution(&self) -> &PowerLawDistribution {
@@ -469,6 +475,8 @@ impl Propagator<PowerLawDistribution> for AnalyticalPropagator {
             }
         }
     }
+
+    fn end_propagation(&self) {}
 }
 
 impl AnalyticalPropagatorConfig {

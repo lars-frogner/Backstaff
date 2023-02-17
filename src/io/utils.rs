@@ -153,7 +153,7 @@ impl AtomicOutputFileMap {
 
     /// Registers the given target output file path and returns an associated
     /// atomic output file.
-    fn register_output_path(
+    pub fn register_output_path(
         &mut self,
         target_output_file_path: PathBuf,
     ) -> io::Result<AtomicOutputFile> {
@@ -181,7 +181,7 @@ impl AtomicOutputFileMap {
 
     /// Moves the temporary file associated with the given atomic output file
     /// to its target output path.
-    fn move_to_target(&mut self, atomic_output_file: AtomicOutputFile) -> io::Result<()> {
+    pub fn move_to_target(&mut self, atomic_output_file: AtomicOutputFile) -> io::Result<()> {
         let target_output_file_path = atomic_output_file.target_path();
 
         let temp_output_file_path = self

@@ -448,17 +448,21 @@ impl Accelerator for SimplePowerLawAccelerator {
         snapshot.cache_scalar_field("nel")?;
         snapshot.cache_scalar_field("r")?;
         snapshot.cache_scalar_field("tg")?;
-        let propagators = properties
+        let propagators: Vec<_> = properties
             .into_par_iter()
+            .enumerate()
             .filter_map(
                 |(
-                    indices,
-                    total_power_density,
-                    acceleration_position,
-                    partitioned_power_densities,
-                    electric_field_angle_cosine,
-                    electric_field_strength,
-                    magnetic_field_strength,
+                    idx,
+                    (
+                        indices,
+                        total_power_density,
+                        acceleration_position,
+                        partitioned_power_densities,
+                        electric_field_angle_cosine,
+                        electric_field_strength,
+                        magnetic_field_strength,
+                    ),
                 )| {
                     let ambient_electron_density =
                         Self::determine_electron_density(snapshot, &indices);
@@ -501,7 +505,11 @@ impl Accelerator for SimplePowerLawAccelerator {
                     {
                         None
                     } else {
+                        let forward_id = i64::try_from(idx + 1).unwrap();
+                        let backward_id = -forward_id;
+
                         let mut propagators = Vec::with_capacity(2);
+
                         if self.config.tracing_sense == FieldLineTracingSense::opposite()
                             || self.config.tracing_sense == FieldLineTracingSense::Both
                         {
@@ -532,7 +540,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                                         * (*U_B),
                                 };
                                 if let Some(propagator) =
-                                    P::new(propagator_config.clone(), distribution)
+                                    P::new(propagator_config.clone(), distribution, backward_id)
                                 {
                                     propagators.push(propagator);
                                 }
@@ -568,7 +576,7 @@ impl Accelerator for SimplePowerLawAccelerator {
                                         * (*U_B),
                                 };
                                 if let Some(propagator) =
-                                    P::new(propagator_config.clone(), distribution)
+                                    P::new(propagator_config.clone(), distribution, forward_id)
                                 {
                                     propagators.push(propagator);
                                 }

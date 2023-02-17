@@ -38,7 +38,9 @@ pub struct PropagationResult {
 pub trait Propagator<D: Distribution>: Sized + Sync + Send {
     type Config: Clone + Sync;
 
-    fn new(config: Self::Config, distribution: D) -> Option<Self>;
+    fn new(config: Self::Config, distribution: D, id: i64) -> Option<Self>;
+
+    fn id(&self) -> i64;
 
     fn distribution(&self) -> &D;
 
@@ -57,4 +59,6 @@ pub trait Propagator<D: Distribution>: Sized + Sync + Send {
         displacement: &Vec3<ftr>,
         new_position: &Point3<ftr>,
     ) -> PropagationResult;
+
+    fn end_propagation(&self);
 }

@@ -486,6 +486,7 @@ fn run_with_simple_accelerator_and_selected_propagator(
         let propagator_config = construct_characteristics_propagator_config_from_options(
             propagator_arguments,
             metadata.parameters(),
+            io_context,
         );
         if root_arguments.is_present("print-parameter-values") {
             println!("{:#?}", propagator_config);

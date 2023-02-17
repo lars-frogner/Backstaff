@@ -21,7 +21,7 @@ hdf5 = ["dep:hdf5-rs", "dep:regex"]
 seeding = ["dep:rand"]
 corks = ["seeding"]
 tracing = ["seeding"]
-ebeam = ["tracing", "dep:rand", "dep:special"]
+ebeam = ["tracing", "dep:rand", "dep:special", "dep:ndarray-npy"]
 synthesis = ["derivation", "python", "dep:roman"]
 for-testing = ["dep:approx"]
 all-non-testing = [
@@ -83,6 +83,7 @@ hdf5-rs = { package = "hdf5", version = "*", optional = true }
 
 # Dependencies for ebeam
 special = { version = "*", optional = true }
+ndarray-npy = { version = "*", optional = true }
 
 # Dependency for seeding and ebeam
 rand = { version = "*", optional = true }

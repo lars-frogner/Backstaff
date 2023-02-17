@@ -21,17 +21,26 @@ use crate::{
         feb,
         propagation::{DepletionStatus, PropagationResult, Propagator},
     },
+    exit_on_error,
     field::CachingScalarFieldProvider3,
     geometry::{Point3, Vec3},
     grid::{self, Grid3},
     interpolation::Interpolator3,
-    io::snapshot::{self, fdt, SnapshotParameters},
+    io::{
+        snapshot::{self, fdt, SnapshotParameters},
+        utils::{self as io_utils, AtomicOutputFileMap},
+    },
     plasma::ionization,
     tracing::{ftr, stepping::SteppingSense},
     units::solar::{U_B, U_EL, U_L, U_L3, U_R},
 };
 use ndarray::prelude::*;
-use std::mem;
+use ndarray_npy::NpzWriter;
+use std::{
+    io, mem,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 /// Configuration parameters for the characteristics propagator.
 #[derive(Clone, Debug)]
@@ -55,12 +64,14 @@ pub struct CharacteristicsPropagatorConfig {
     pub min_deposited_power_per_distance: feb,
     pub max_propagation_distance: ftr,
     pub continue_depleted_beams: bool,
+    pub detailed_output_config: Option<DetailedOutputConfig>,
 }
 
 /// A propagator of a power-law electron distribution the computes
 /// the characteristics of the non-diffusive Fokker-Planck equation.
 #[derive(Clone, Debug)]
 pub struct CharacteristicsPropagator {
+    id: i64,
     config: CharacteristicsPropagatorConfig,
     distribution: PowerLawDistribution,
     transporter: Transporter,
@@ -79,6 +90,23 @@ pub struct CharacteristicsPropagator {
     step_count: usize,
     prev_n_substeps: usize,
     initial_total_electron_flux_over_cross_section: feb,
+    distance: feb,
+    detailed_output: Option<DetailedOutput>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DetailedOutputConfig {
+    pub detailed_output_dir: PathBuf,
+    pub atomic_output_file_map: Arc<Mutex<AtomicOutputFileMap>>,
+}
+
+#[derive(Clone, Debug)]
+struct DetailedOutput {
+    distances: Vec<feb>,
+    total_electron_fluxes_over_cross_section: Vec<feb>,
+    energies: Array2<feb>,
+    pitch_angle_cosines: Array2<feb>,
+    electron_numbers_per_dist: Array2<feb>,
 }
 
 impl CharacteristicsPropagator {
@@ -363,7 +391,7 @@ impl CharacteristicsPropagator {
 impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
     type Config = CharacteristicsPropagatorConfig;
 
-    fn new(config: Self::Config, distribution: PowerLawDistribution) -> Option<Self> {
+    fn new(config: Self::Config, distribution: PowerLawDistribution, id: i64) -> Option<Self> {
         let mean_energy = PowerLawDistribution::compute_mean_energy(
             distribution.delta,
             distribution.lower_cutoff_energy,
@@ -510,7 +538,19 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             let stepped_electron_numbers_per_dist = vec![0.0; config.n_energies];
             let resampled_initial_energies = vec![0.0; config.n_energies];
 
+            let detailed_output = if config.detailed_output_config.is_some() {
+                Some(DetailedOutput::new(
+                    total_electron_flux_over_cross_section,
+                    energies.clone(),
+                    pitch_angle_cosines.clone(),
+                    electron_numbers_per_dist.clone(),
+                ))
+            } else {
+                None
+            };
+
             Some(Self {
+                id,
                 config,
                 distribution,
                 transporter,
@@ -528,12 +568,18 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 resampled_initial_energies,
                 initial_total_electron_flux_over_cross_section:
                     total_electron_flux_over_cross_section,
+                distance: 0.0,
                 step_count: 0,
                 prev_n_substeps: 0,
+                detailed_output,
             })
         } else {
             None
         }
+    }
+
+    fn id(&self) -> i64 {
+        self.id
     }
 
     fn distribution(&self) -> &PowerLawDistribution {
@@ -666,6 +712,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let n_substeps = self.determine_n_substeps(col_depth_increase);
 
         let substep_col_depth_increase = col_depth_increase / (n_substeps as feb);
+        let substep_length = step_length / (n_substeps as feb);
+
         for _ in 0..n_substeps {
             (deposited_power_per_dist, depletion_status) = self.advance_distributions(
                 hybrid_coulomb_log.clone(),
@@ -676,9 +724,20 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 beam_cross_sectional_area,
                 substep_col_depth_increase,
             );
+            self.distance += substep_length;
+
             mean_deposited_power_per_dist += deposited_power_per_dist;
+
             if depletion_status == DepletionStatus::Depleted {
                 break;
+            } else if let Some(detailed_output) = self.detailed_output.as_mut() {
+                detailed_output.push_data(
+                    self.distance,
+                    self.transporter.total_electron_flux_over_cross_section(),
+                    &self.energies,
+                    &self.pitch_angle_cosines,
+                    &self.electron_numbers_per_dist,
+                );
             }
         }
         mean_deposited_power_per_dist /= n_substeps as feb;
@@ -707,6 +766,133 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             deposition_position,
             depletion_status,
         }
+    }
+
+    fn end_propagation(&self) {
+        if let (Some(detailed_output_config), Some(detailed_output)) = (
+            self.config.detailed_output_config.as_ref(),
+            self.detailed_output.as_ref(),
+        ) {
+            let mut detailed_output_file_path = detailed_output_config.detailed_output_dir.clone();
+            detailed_output_file_path.push(format!("{}.npz", self.id));
+
+            exit_on_error!(
+                detailed_output.write_as_npz(
+                    detailed_output_file_path,
+                    &detailed_output_config.atomic_output_file_map,
+                ),
+                "Error: Could not write detailed output file for beam: {}"
+            );
+        }
+    }
+}
+
+impl DetailedOutput {
+    fn new(
+        total_electron_flux_over_cross_section: feb,
+        energies: Vec<feb>,
+        pitch_angle_cosines: Vec<feb>,
+        electron_numbers_per_dist: Vec<feb>,
+    ) -> Self {
+        let n_electrons = energies.len();
+        assert_eq!(pitch_angle_cosines.len(), n_electrons);
+        assert_eq!(electron_numbers_per_dist.len(), n_electrons);
+
+        let distances = vec![0.0];
+        let total_electron_fluxes_over_cross_section = vec![total_electron_flux_over_cross_section];
+
+        let energies = Array1::from_vec(energies)
+            .into_shape((1, n_electrons))
+            .unwrap();
+        let pitch_angle_cosines = Array1::from_vec(pitch_angle_cosines)
+            .into_shape((1, n_electrons))
+            .unwrap();
+        let electron_numbers_per_dist = Array1::from_vec(electron_numbers_per_dist)
+            .into_shape((1, n_electrons))
+            .unwrap();
+
+        Self {
+            distances,
+            total_electron_fluxes_over_cross_section,
+            energies,
+            pitch_angle_cosines,
+            electron_numbers_per_dist,
+        }
+    }
+
+    fn push_data(
+        &mut self,
+        distance: feb,
+        total_electron_flux_over_cross_section: feb,
+        energies: &[feb],
+        pitch_angle_cosines: &[feb],
+        electron_numbers_per_dist: &[feb],
+    ) {
+        self.distances.push(distance);
+        self.total_electron_fluxes_over_cross_section
+            .push(total_electron_flux_over_cross_section);
+        self.energies.push_row(ArrayView::from(energies)).unwrap();
+        self.pitch_angle_cosines
+            .push_row(ArrayView::from(pitch_angle_cosines))
+            .unwrap();
+        self.electron_numbers_per_dist
+            .push_row(ArrayView::from(electron_numbers_per_dist))
+            .unwrap();
+    }
+
+    fn write_as_npz(
+        &self,
+        file_path: PathBuf,
+        atomic_output_file_map: &Mutex<AtomicOutputFileMap>,
+    ) -> io::Result<()> {
+        let atomic_output_file = atomic_output_file_map
+            .lock()
+            .unwrap()
+            .register_output_path(file_path)?;
+
+        let file =
+            io_utils::create_file_and_required_directories(atomic_output_file.temporary_path())?;
+
+        let mut writer = NpzWriter::new_compressed(file);
+
+        let map_err = |err| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to write .npz file with detailed beam data: {}", err),
+            )
+        };
+
+        writer
+            .add_array("distances", &ArrayView::from(&self.distances))
+            .map_err(map_err)?;
+
+        writer
+            .add_array(
+                "total_electron_fluxes_over_cross_section",
+                &ArrayView::from(&self.total_electron_fluxes_over_cross_section),
+            )
+            .map_err(map_err)?;
+
+        writer
+            .add_array("energies", &self.energies)
+            .map_err(map_err)?;
+
+        writer
+            .add_array("pitch_angle_cosines", &self.pitch_angle_cosines)
+            .map_err(map_err)?;
+
+        writer
+            .add_array("electron_numbers_per_dist", &self.electron_numbers_per_dist)
+            .map_err(map_err)?;
+
+        if let Err(err) = writer.finish() {
+            return Err(map_err(err));
+        };
+
+        atomic_output_file_map
+            .lock()
+            .unwrap()
+            .move_to_target(atomic_output_file)
     }
 }
 
@@ -788,6 +974,7 @@ impl CharacteristicsPropagatorConfig {
             min_deposited_power_per_distance,
             max_propagation_distance,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
+            detailed_output_config: None,
         }
     }
 
@@ -863,6 +1050,7 @@ impl Default for CharacteristicsPropagatorConfig {
             min_deposited_power_per_distance: Self::DEFAULT_MIN_DEPOSITED_POWER_PER_DISTANCE,
             max_propagation_distance: Self::DEFAULT_MAX_PROPAGATION_DISTANCE,
             continue_depleted_beams: Self::DEFAULT_CONTINUE_DEPLETED_BEAMS,
+            detailed_output_config: None,
         }
     }
 }

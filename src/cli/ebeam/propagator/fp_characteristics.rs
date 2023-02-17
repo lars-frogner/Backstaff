@@ -7,11 +7,16 @@ use crate::{
         interpolation::poly_fit::create_poly_fit_interpolator_subcommand,
         tracing::stepping::rkf::create_rkf_stepper_subcommand, utils,
     },
-    ebeam::{feb, propagation::fp_characteristics::CharacteristicsPropagatorConfig},
-    io::snapshot::SnapshotParameters,
+    ebeam::{
+        feb,
+        propagation::fp_characteristics::{CharacteristicsPropagatorConfig, DetailedOutputConfig},
+    },
+    exit_on_error,
+    io::{snapshot::SnapshotParameters, utils::IOContext},
     update_command_graph,
 };
 use clap::{Arg, ArgMatches, Command};
+use std::{path::PathBuf, str::FromStr};
 
 /// Creates a subcommand for using the Fokker-Planck characteristics
 /// propagator.
@@ -183,6 +188,22 @@ pub fn create_characteristics_propagator_subcommand(
             Arg::new("continue-depleted-beams")
                 .long("continue-depleted-beams")
                 .help("Keep propagating beams even after they are considered depleted"),
+        )
+        .arg(
+            Arg::new("detailed-output-dir")
+                .long("detailed-output-dir")
+                .require_equals(true)
+                .value_name("DIRECTORY")
+                .help("Path to a directory in which to write the full distribution data\n\
+                       for every beam. The data will only be written if this argument is\n\
+                       provided")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::new("overwrite-detailed-output")
+                .long("overwrite")
+                .help("Automatically overwrite any existing files (unless listed as protected)")
+                .conflicts_with("no-overwrite"),
         );
 
     add_subcommand_combinations!(command, command_name, false; poly_fit_interpolator, rkf_stepper)
@@ -193,6 +214,7 @@ pub fn create_characteristics_propagator_subcommand(
 pub fn construct_characteristics_propagator_config_from_options(
     arguments: &ArgMatches,
     parameters: &dyn SnapshotParameters,
+    io_context: &mut IOContext,
 ) -> CharacteristicsPropagatorConfig {
     let n_energies =
         utils::get_value_from_required_parseable_argument::<usize>(arguments, "n-energies");
@@ -269,6 +291,34 @@ pub fn construct_characteristics_propagator_config_from_options(
 
     let continue_depleted_beams = arguments.is_present("continue-depleted-beams");
 
+    let detailed_output_config = if arguments.is_present("detailed-output-dir") {
+        let detailed_output_dir = exit_on_error!(
+            PathBuf::from_str(arguments.value_of("detailed-output-dir").unwrap()),
+            "Error: Could not interpret path of detailed output directory: {}"
+        );
+
+        let dir_has_content = detailed_output_dir
+            .read_dir()
+            .map(|mut rd| rd.next().is_some())
+            .unwrap_or(false);
+        if dir_has_content {
+            eprintln!(
+                "Warning: Detailed output directory {} not empty",
+                detailed_output_dir.to_string_lossy()
+            );
+            utils::verify_user_will_continue_or_abort();
+        }
+
+        let atomic_output_file_map = io_context.obtain_atomic_file_map_handle();
+
+        Some(DetailedOutputConfig {
+            detailed_output_dir,
+            atomic_output_file_map,
+        })
+    } else {
+        None
+    };
+
     let config = CharacteristicsPropagatorConfig {
         n_energies,
         min_energy_relative_to_cutoff,
@@ -289,6 +339,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         min_deposited_power_per_distance,
         max_propagation_distance,
         continue_depleted_beams,
+        detailed_output_config,
     };
     config.validate();
     config
