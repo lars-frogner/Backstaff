@@ -35,6 +35,12 @@ pub struct EvaluatedHydrogenCoulombLogarithms {
 }
 
 #[derive(Clone, Debug)]
+pub struct EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle {
+    pub for_energy: feb,
+    pub for_pitch_angle: feb,
+}
+
+#[derive(Clone, Debug)]
 struct WarmTarget {
     energy_to_squared_dimensionless_speed_factor: feb,
 }
@@ -44,6 +50,12 @@ struct WarmTargetHybridCoulombLogFactors {
     for_energy: feb,
     for_pitch_angle: feb,
     for_number_density: feb,
+}
+
+#[derive(Clone, Debug)]
+struct WarmTargetHybridCoulombLogFactorsForEnergyAndPitchAngle {
+    for_energy: feb,
+    for_pitch_angle: feb,
 }
 
 struct WarmTargetLookupTable<const N: usize> {
@@ -225,6 +237,38 @@ impl HybridCoulombLogarithm {
         }
     }
 
+    pub fn evaluate_for_energy_and_pitch_angle(
+        &self,
+        energy: feb,
+    ) -> EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle {
+        if let Some(warm_target) = &self.warm_target {
+            let WarmTargetHybridCoulombLogFactorsForEnergyAndPitchAngle {
+                for_energy: warm_target_factor_for_energy,
+                for_pitch_angle: warm_target_factor_for_pitch_angle,
+            } = warm_target.compute_hybrid_coulomb_log_factors_for_energy_and_pitch_angle(energy);
+
+            EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle {
+                for_energy: Self::compute_hybrid_coulomb_log_for_energy(
+                    warm_target_factor_for_energy,
+                    &self.coulomb_log,
+                    self.electron_to_hydrogen_ratio,
+                    self.hydrogen_ionization_fraction,
+                ),
+                for_pitch_angle: Self::compute_hybrid_coulomb_log_for_pitch_angle(
+                    warm_target_factor_for_pitch_angle,
+                    &self.coulomb_log,
+                    self.electron_to_hydrogen_ratio,
+                    self.hydrogen_ionization_fraction,
+                ),
+            }
+        } else {
+            EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle {
+                for_energy: self.for_energy_cold_target,
+                for_pitch_angle: self.for_pitch_angle_cold_target,
+            }
+        }
+    }
+
     fn compute_cold_target_hybrid_coulomb_log_for_energy(
         coulomb_log: &CoulombLogarithm,
         electron_to_hydrogen_ratio: feb,
@@ -307,6 +351,19 @@ impl WarmTarget {
             for_energy: erf + 2.0 * (u_erf_deriv + G),
             for_pitch_angle: erf - G,
             for_number_density: (4.0 * u * u - 3.0) * u_erf_deriv + 7.0 * G,
+        }
+    }
+
+    fn compute_hybrid_coulomb_log_factors_for_energy_and_pitch_angle(
+        &self,
+        energy: feb,
+    ) -> WarmTargetHybridCoulombLogFactorsForEnergyAndPitchAngle {
+        let u = self.compute_dimensionless_speed(energy);
+        let (erf, u_erf_deriv, G) = WARM_TARGET_LOOKUP_TABLE.lookup(u);
+
+        WarmTargetHybridCoulombLogFactorsForEnergyAndPitchAngle {
+            for_energy: erf + 2.0 * (u_erf_deriv + G),
+            for_pitch_angle: erf - G,
         }
     }
 

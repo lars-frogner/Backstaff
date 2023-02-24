@@ -11,7 +11,7 @@ mod transport;
 
 use self::{
     atmosphere::{CoulombLogarithm, HybridCoulombLogarithm},
-    transport::{TransportResult, Transporter},
+    transport::{TransportResult, TransportResultForEnergyAndPitchAngle, Transporter},
 };
 use super::analytical::AnalyticalPropagator;
 use crate::{
@@ -48,6 +48,7 @@ pub struct CharacteristicsPropagatorConfig {
     pub n_energies: usize,
     pub min_energy_relative_to_cutoff: feb,
     pub max_energy_relative_to_cutoff: feb,
+    pub pitch_angle_cos_perturbation_factor: feb,
     pub max_col_depth_increase: feb,
     pub max_substeps: usize,
     pub n_initial_steps_with_substeps: usize,
@@ -81,6 +82,9 @@ pub struct CharacteristicsPropagator {
     initial_energies: Vec<feb>,
     pitch_angle_cosines: Vec<feb>,
     electron_numbers_per_dist: Vec<feb>,
+    initial_pitch_angle_cos_perturbed: feb,
+    pitch_angle_cosines_perturbed: Vec<feb>,
+    jacobians: Vec<feb>,
     delta_log10_energy: feb,
     stepped_energies: Vec<feb>,
     log10_stepped_energies: Vec<feb>,
@@ -137,6 +141,184 @@ impl CharacteristicsPropagator {
         beam_cross_sectional_area: feb,
         col_depth_increase: feb,
     ) -> (feb, DepletionStatus) {
+        // Step perturbed distribution and use first valid stepped index for
+        // that as first valid stepped index for unperturbed distribution as
+        // well, since the index could become smaller for the unperturbed
+        // distribution
+        let first_valid_stepped_idx = self.step_perturbed(col_depth_increase);
+
+        let all_thermalized_stepped = || ..first_valid_stepped_idx;
+        let all_valid_stepped = || first_valid_stepped_idx..;
+
+        let valid_stepped_energies = &self.stepped_energies[all_valid_stepped()];
+        let valid_stepped_pitch_angle_cosines =
+            &self.stepped_pitch_angle_cosines[all_valid_stepped()];
+
+        let log10_valid_stepped_energies = &mut self.log10_stepped_energies[all_valid_stepped()];
+        valid_stepped_energies
+            .iter()
+            .zip(log10_valid_stepped_energies.iter_mut())
+            .for_each(|(&energy, log10_energy)| {
+                *log10_energy = feb::log10(energy);
+            });
+
+        let mut deposited_power_per_dist = 0.0;
+
+        if first_valid_stepped_idx > 0 {
+            // Add deposited power of all thermalized electrons
+            deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
+                &self.energies[all_thermalized_stepped()],
+                &self.initial_energies[all_thermalized_stepped()],
+                &self.pitch_angle_cosines[all_thermalized_stepped()],
+                &self.electron_numbers_per_dist[all_thermalized_stepped()],
+                &self.jacobians[all_thermalized_stepped()],
+            );
+
+            if first_valid_stepped_idx >= self.config.n_energies - 1 {
+                return (deposited_power_per_dist, DepletionStatus::Depleted);
+            }
+        }
+
+        let first_valid_idx = self
+            .energies
+            .iter()
+            .enumerate()
+            .find_map(|(idx, &energy)| {
+                if energy > valid_stepped_energies[0] {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
+        let n_energies = self.config.n_energies;
+        let all_valid = || first_valid_idx..;
+        let all_valid_downshifted = || ..(n_energies - first_valid_idx);
+
+        Self::interpolate_perturbed_to_grid(
+            &self.distribution,
+            &self.log10_energies[all_valid()],
+            log10_valid_stepped_energies,
+            valid_stepped_pitch_angle_cosines,
+            &mut self.pitch_angle_cosines_perturbed[all_valid_downshifted()],
+        );
+
+        // Now step unperturbed distribution, but keep using first valid stepped
+        // index for perturbed distribution
+        self.step(col_depth_increase);
+
+        let valid_stepped_energies = &self.stepped_energies[all_valid_stepped()];
+        let valid_stepped_pitch_angle_cosines =
+            &self.stepped_pitch_angle_cosines[all_valid_stepped()];
+        let valid_stepped_electron_numbers_per_dist =
+            &self.stepped_electron_numbers_per_dist[all_valid_stepped()];
+
+        let log10_valid_stepped_energies = &mut self.log10_stepped_energies[all_valid_stepped()];
+        valid_stepped_energies
+            .iter()
+            .zip(log10_valid_stepped_energies.iter_mut())
+            .for_each(|(&energy, log10_energy)| {
+                *log10_energy = feb::log10(energy);
+            });
+
+        Self::interpolate_to_grid(
+            &self.distribution,
+            &self.log10_energies[all_valid()],
+            log10_valid_stepped_energies,
+            valid_stepped_pitch_angle_cosines,
+            valid_stepped_electron_numbers_per_dist,
+            &self.initial_energies[all_valid_stepped()],
+            &mut self.pitch_angle_cosines[all_valid_downshifted()],
+            &mut self.electron_numbers_per_dist[all_valid_downshifted()],
+            &mut self.resampled_initial_energies[all_valid_downshifted()],
+        );
+        mem::swap(
+            &mut self.initial_energies,
+            &mut self.resampled_initial_energies,
+        );
+
+        if first_valid_idx > 0 {
+            self.shift_energies_down(first_valid_idx);
+            self.fill_in_initial_conditions_after_shift(first_valid_idx);
+        }
+
+        Self::compute_jacobians(
+            &self.energies,
+            &self.initial_energies,
+            &self.pitch_angle_cosines,
+            &self.pitch_angle_cosines_perturbed,
+            self.distribution.initial_pitch_angle_cosine,
+            self.initial_pitch_angle_cos_perturbed,
+            &mut self.jacobians,
+        );
+
+        self.transporter.update_conditions(
+            current_hybrid_coulomb_log,
+            current_total_hydrogen_density,
+            current_temperature,
+            current_ambient_trajectory_aligned_electric_field,
+            current_ambient_magnetic_field_strength,
+            &self.energies,
+            &self.initial_energies,
+            &self.pitch_angle_cosines,
+            &self.electron_numbers_per_dist,
+            &self.jacobians,
+            beam_cross_sectional_area,
+            col_depth_increase,
+        );
+
+        deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
+            &self.energies,
+            &self.initial_energies,
+            &self.pitch_angle_cosines,
+            &self.electron_numbers_per_dist,
+            &self.jacobians,
+        );
+
+        (deposited_power_per_dist, DepletionStatus::Undepleted)
+    }
+
+    fn compute_jacobians(
+        energies: &[feb],
+        initial_energies: &[feb],
+        pitch_angle_cosines: &[feb],
+        pitch_angle_cosines_perturbed: &[feb],
+        initial_pitch_angle_cos: feb,
+        initial_pitch_angle_cos_perturbed: feb,
+        jacobians: &mut [feb],
+    ) {
+        // Note: The non-diagonal contribution to the Jacobian determinant
+        // is zero because the perturbed distribution is sampled at the same
+        // energies as the non-perturbed distribution (so dE/dmu0 = 0).
+
+        let inverse_initial_pitch_angle_cos_diff =
+            1.0 / (initial_pitch_angle_cos - initial_pitch_angle_cos_perturbed);
+
+        jacobians[1] = ((energies[2] - energies[1]) / (initial_energies[2] - initial_energies[1]))
+            * (pitch_angle_cosines[1] - pitch_angle_cosines_perturbed[1])
+            * inverse_initial_pitch_angle_cos_diff;
+
+        #[allow(non_snake_case)]
+        jacobians
+            .iter_mut()
+            .skip(1)
+            .zip(
+                energies
+                    .iter()
+                    .zip(energies.iter().skip(1))
+                    .zip(initial_energies.iter().zip(initial_energies.iter().skip(1)))
+                    .zip(pitch_angle_cosines.iter().skip(1))
+                    .zip(pitch_angle_cosines_perturbed.iter().skip(1)),
+            )
+            .for_each(|(j, ((((&E_dn, &E), (&E0_dn, &E0)), &mu), &mu_pert))| {
+                *j = ((E - E_dn) / (E0 - E0_dn))
+                    * (mu - mu_pert)
+                    * inverse_initial_pitch_angle_cos_diff;
+            });
+    }
+
+    fn step(&mut self, col_depth_increase: feb) -> usize {
         let mut first_valid_stepped_idx = 0;
 
         for (idx, ((&energy, &pitch_angle_cos), &electron_number_per_dist)) in self
@@ -169,98 +351,39 @@ impl CharacteristicsPropagator {
             }
         }
 
-        let all_thermalized_stepped = || ..first_valid_stepped_idx;
-        let all_valid_stepped = || first_valid_stepped_idx..;
+        first_valid_stepped_idx
+    }
 
-        let valid_stepped_energies = &self.stepped_energies[all_valid_stepped()];
-        let valid_stepped_pitch_angle_cosines =
-            &self.stepped_pitch_angle_cosines[all_valid_stepped()];
-        let valid_stepped_electron_numbers_per_dist =
-            &self.stepped_electron_numbers_per_dist[all_valid_stepped()];
+    fn step_perturbed(&mut self, col_depth_increase: feb) -> usize {
+        let mut first_valid_stepped_idx = 0;
 
-        let log10_valid_stepped_energies = &mut self.log10_stepped_energies[all_valid_stepped()];
-        valid_stepped_energies
+        for (idx, (&energy, &pitch_angle_cos)) in self
+            .energies
             .iter()
-            .zip(log10_valid_stepped_energies.iter_mut())
-            .for_each(|(&energy, log10_energy)| {
-                *log10_energy = feb::log10(energy);
-            });
-
-        let mut deposited_power_per_dist = 0.0;
-
-        if first_valid_stepped_idx > 0 {
-            // Add deposited power of all thermalized electrons
-            deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
-                &self.energies[all_thermalized_stepped()],
-                &self.initial_energies[all_thermalized_stepped()],
-                &self.pitch_angle_cosines[all_thermalized_stepped()],
-                &self.electron_numbers_per_dist[all_thermalized_stepped()],
-            );
-
-            if first_valid_stepped_idx >= self.config.n_energies - 1 {
-                return (deposited_power_per_dist, DepletionStatus::Depleted);
+            .zip(self.pitch_angle_cosines_perturbed.iter())
+            .enumerate()
+            .rev()
+        {
+            match self.transporter.advance_energy_and_pitch_angle_cos(
+                energy,
+                pitch_angle_cos,
+                col_depth_increase,
+            ) {
+                TransportResultForEnergyAndPitchAngle::NewValues((
+                    new_energy,
+                    new_pitch_angle_cos,
+                )) => {
+                    self.stepped_energies[idx] = new_energy;
+                    self.stepped_pitch_angle_cosines[idx] = new_pitch_angle_cos;
+                }
+                TransportResultForEnergyAndPitchAngle::Thermalized => {
+                    first_valid_stepped_idx = idx + 1;
+                    break;
+                }
             }
         }
 
-        let first_valid_idx = self
-            .energies
-            .iter()
-            .enumerate()
-            .find_map(|(idx, &energy)| {
-                if energy > valid_stepped_energies[0] {
-                    Some(idx)
-                } else {
-                    None
-                }
-            })
-            .unwrap();
-
-        let all_valid = || first_valid_idx..;
-        let all_valid_downshifted = || ..(self.config.n_energies - first_valid_idx);
-
-        Self::interpolate_to_grid(
-            &self.distribution,
-            &self.log10_energies[all_valid()],
-            log10_valid_stepped_energies,
-            valid_stepped_pitch_angle_cosines,
-            valid_stepped_electron_numbers_per_dist,
-            &self.initial_energies[all_valid_stepped()],
-            &mut self.pitch_angle_cosines[all_valid_downshifted()],
-            &mut self.electron_numbers_per_dist[all_valid_downshifted()],
-            &mut self.resampled_initial_energies[all_valid_downshifted()],
-        );
-        mem::swap(
-            &mut self.initial_energies,
-            &mut self.resampled_initial_energies,
-        );
-
-        if first_valid_idx > 0 {
-            self.shift_energies_down(first_valid_idx);
-            self.fill_in_initial_conditions_after_shift(first_valid_idx);
-        }
-
-        self.transporter.update_conditions(
-            current_hybrid_coulomb_log,
-            current_total_hydrogen_density,
-            current_temperature,
-            current_ambient_trajectory_aligned_electric_field,
-            current_ambient_magnetic_field_strength,
-            &self.energies,
-            &self.initial_energies,
-            &self.pitch_angle_cosines,
-            &self.electron_numbers_per_dist,
-            beam_cross_sectional_area,
-            col_depth_increase,
-        );
-
-        deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
-            &self.energies,
-            &self.initial_energies,
-            &self.pitch_angle_cosines,
-            &self.electron_numbers_per_dist,
-        );
-
-        (deposited_power_per_dist, DepletionStatus::Undepleted)
+        first_valid_stepped_idx
     }
 
     pub fn interpolate_to_grid(
@@ -335,6 +458,46 @@ impl CharacteristicsPropagator {
             );
     }
 
+    pub fn interpolate_perturbed_to_grid(
+        distribution: &PowerLawDistribution,
+        log10_energies: &[feb],
+        log10_stepped_energies: &[feb],
+        stepped_pitch_angle_cosines: &[feb],
+        pitch_angle_cosines: &mut [feb],
+    ) {
+        let n_data = log10_stepped_energies.len();
+        assert!(n_data > 1);
+        assert_eq!(n_data, stepped_pitch_angle_cosines.len());
+        assert_eq!(pitch_angle_cosines.len(), log10_energies.len());
+
+        fn lerp(x_data: &[feb], f_data: &[feb], idx: usize, x: feb) -> feb {
+            f_data[idx]
+                + (x - x_data[idx]) * (f_data[idx + 1] - f_data[idx])
+                    / (x_data[idx + 1] - x_data[idx])
+        }
+
+        log10_energies
+            .iter()
+            .zip(pitch_angle_cosines.iter_mut())
+            .for_each(|(&log10_energy, pitch_angle_cosine)| {
+                // Extrapolate if out of bounds
+                let idx = usize::min(
+                    n_data - 2,
+                    grid::search_idx_of_coord(log10_stepped_energies, log10_energy).unwrap_or(0),
+                );
+
+                *pitch_angle_cosine = feb::min(
+                    lerp(
+                        log10_stepped_energies,
+                        stepped_pitch_angle_cosines,
+                        idx,
+                        log10_energy,
+                    ),
+                    distribution.initial_pitch_angle_cosine,
+                );
+            });
+    }
+
     fn shift_energies_down(&mut self, shift: usize) {
         assert!(shift > 0);
         assert!(shift < self.config.n_energies);
@@ -356,13 +519,17 @@ impl CharacteristicsPropagator {
             .zip(self.initial_energies[first_idx_to_fill..].iter_mut())
             .zip(self.pitch_angle_cosines[first_idx_to_fill..].iter_mut())
             .zip(self.electron_numbers_per_dist[first_idx_to_fill..].iter_mut())
+            .zip(self.pitch_angle_cosines_perturbed[first_idx_to_fill..].iter_mut())
             .enumerate()
             .for_each(
                 |(
                     idx,
                     (
-                        (((log10_energy, energy), initial_energy), pitch_angle_cosine),
-                        electron_number_per_dist,
+                        (
+                            (((log10_energy, energy), initial_energy), pitch_angle_cosine),
+                            electron_number_per_dist,
+                        ),
+                        pitch_angle_cosine_perturbed,
                     ),
                 )| {
                     *log10_energy = log10_upper_energy_before_shift
@@ -383,6 +550,9 @@ impl CharacteristicsPropagator {
                             self.distribution.delta,
                             *initial_energy,
                         );
+
+                    *pitch_angle_cosine_perturbed =
+                        self.transporter.high_energy_pitch_angle_cos_perturbed();
                 },
             );
     }
@@ -476,12 +646,16 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     distribution.delta,
                 );
 
+            let initial_pitch_angle_cos_perturbed = config.pitch_angle_cos_perturbation_factor
+                * distribution.initial_pitch_angle_cosine;
+
             let transporter = Transporter::new(
                 config.include_ambient_electric_field,
                 config.include_return_current,
                 config.include_magnetic_mirroring,
                 total_electron_flux_over_cross_section,
                 distribution.initial_pitch_angle_cosine,
+                initial_pitch_angle_cos_perturbed,
                 hybrid_coulomb_log,
                 total_hydrogen_density,
                 distribution.ambient_temperature,
@@ -532,6 +706,10 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
             let initial_energies = energies.clone();
 
+            let pitch_angle_cosines_perturbed =
+                vec![initial_pitch_angle_cos_perturbed; config.n_energies];
+            let jacobians = vec![1.0; config.n_energies];
+
             let stepped_energies = vec![0.0; config.n_energies];
             let log10_stepped_energies = vec![0.0; config.n_energies];
             let stepped_pitch_angle_cosines = vec![0.0; config.n_energies];
@@ -560,6 +738,9 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 initial_energies,
                 pitch_angle_cosines,
                 electron_numbers_per_dist,
+                initial_pitch_angle_cos_perturbed,
+                pitch_angle_cosines_perturbed,
+                jacobians,
                 delta_log10_energy,
                 stepped_energies,
                 log10_stepped_energies,
@@ -900,6 +1081,7 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_N_ENERGIES: usize = 40;
     pub const DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF: feb = 0.05;
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
+    pub const DEFAULT_PITCH_ANGLE_COS_PERTURBATION_FACTOR: feb = 0.99;
     pub const DEFAULT_MAX_COL_DEPTH_INCREASE: feb = 2e14;
     pub const DEFAULT_MAX_SUBSTEPS: usize = 10000;
     pub const DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS: usize = 0;
@@ -957,6 +1139,7 @@ impl CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
+            pitch_angle_cos_perturbation_factor: Self::DEFAULT_PITCH_ANGLE_COS_PERTURBATION_FACTOR,
             max_col_depth_increase: Self::DEFAULT_MAX_COL_DEPTH_INCREASE,
             max_substeps: Self::DEFAULT_MAX_SUBSTEPS,
             n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,
@@ -991,6 +1174,10 @@ impl CharacteristicsPropagatorConfig {
         assert!(
             self.max_energy_relative_to_cutoff > self.min_energy_relative_to_cutoff,
             "Maximum energy must be higher than minimum energy"
+        );
+        assert!(
+            self.pitch_angle_cos_perturbation_factor > 0.0,
+            "Pitch angle cosine perturbation factor must be larger than zero"
         );
         assert!(
             self.max_col_depth_increase > 0.0,
@@ -1033,6 +1220,7 @@ impl Default for CharacteristicsPropagatorConfig {
             n_energies: Self::DEFAULT_N_ENERGIES,
             min_energy_relative_to_cutoff: Self::DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF,
             max_energy_relative_to_cutoff: Self::DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF,
+            pitch_angle_cos_perturbation_factor: Self::DEFAULT_PITCH_ANGLE_COS_PERTURBATION_FACTOR,
             max_col_depth_increase: Self::DEFAULT_MAX_COL_DEPTH_INCREASE,
             max_substeps: Self::DEFAULT_MAX_SUBSTEPS,
             n_initial_steps_with_substeps: Self::DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS,

@@ -340,6 +340,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         max_propagation_distance,
         continue_depleted_beams,
         detailed_output_config,
+        ..Default::default()
     };
     config.validate();
     config

@@ -1,7 +1,8 @@
 //!
 
 use super::atmosphere::{
-    compute_parallel_resistivity, EvaluatedHydrogenCoulombLogarithms, HybridCoulombLogarithm,
+    compute_parallel_resistivity, EvaluatedHydrogenCoulombLogarithms,
+    EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle, HybridCoulombLogarithm,
 };
 use crate::{
     constants::{M_ELECTRON, PI, Q_ELECTRON},
@@ -26,6 +27,7 @@ pub struct Transporter {
     log_magnetic_field_col_depth_deriv: feb,
     energy_loss_to_electric_field: feb,
     high_energy_pitch_angle_cos: feb,
+    high_energy_pitch_angle_cos_perturbed: feb,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -34,11 +36,23 @@ pub enum TransportResult {
     Thermalized,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum TransportResultForEnergyAndPitchAngle {
+    NewValues((feb, feb)),
+    Thermalized,
+}
+
 #[derive(Clone, Debug)]
 struct ColumnDepthDerivatives {
     energy: feb,
     pitch_angle: feb,
     number_density: feb,
+}
+
+#[derive(Clone, Debug)]
+struct ColumnDepthDerivativesForEnergyAndPitchAngle {
+    energy: feb,
+    pitch_angle: feb,
 }
 
 impl Transporter {
@@ -50,6 +64,7 @@ impl Transporter {
         include_magnetic_field: bool,
         total_electron_flux_over_cross_section: feb,
         initial_pitch_angle_cos: feb,
+        initial_pitch_angle_cos_perturbed: feb,
         hybrid_coulomb_log: HybridCoulombLogarithm,
         total_hydrogen_density: feb,
         temperature: feb,
@@ -74,6 +89,7 @@ impl Transporter {
 
         let energy_loss_to_electric_field = 0.0;
         let high_energy_pitch_angle_cos = initial_pitch_angle_cos;
+        let high_energy_pitch_angle_cos_perturbed = initial_pitch_angle_cos_perturbed;
 
         Self {
             include_ambient_electric_field,
@@ -90,6 +106,7 @@ impl Transporter {
             log_magnetic_field_col_depth_deriv,
             energy_loss_to_electric_field,
             high_energy_pitch_angle_cos,
+            high_energy_pitch_angle_cos_perturbed,
         }
     }
 
@@ -109,6 +126,10 @@ impl Transporter {
         self.high_energy_pitch_angle_cos
     }
 
+    pub fn high_energy_pitch_angle_cos_perturbed(&self) -> feb {
+        self.high_energy_pitch_angle_cos_perturbed
+    }
+
     pub fn update_conditions(
         &mut self,
         hybrid_coulomb_log: HybridCoulombLogarithm,
@@ -120,6 +141,7 @@ impl Transporter {
         initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
         electron_numbers_per_dist: &[feb],
+        jacobians: &[feb],
         beam_cross_sectional_area: feb,
         col_depth_increase: feb,
     ) {
@@ -139,6 +161,11 @@ impl Transporter {
 
             Self::update_high_energy_pitch_angle_cos(
                 &mut self.high_energy_pitch_angle_cos,
+                self.log_magnetic_field_col_depth_deriv,
+                col_depth_increase,
+            );
+            Self::update_high_energy_pitch_angle_cos(
+                &mut self.high_energy_pitch_angle_cos_perturbed,
                 self.log_magnetic_field_col_depth_deriv,
                 col_depth_increase,
             );
@@ -165,6 +192,7 @@ impl Transporter {
                 initial_energies,
                 pitch_angle_cosines,
                 electron_numbers_per_dist,
+                jacobians,
             );
 
         if self.include_induced_electric_field {
@@ -221,34 +249,47 @@ impl Transporter {
         }
     }
 
+    pub fn advance_energy_and_pitch_angle_cos(
+        &self,
+        initial_energy: feb,
+        initial_pitch_angle_cos: feb,
+        col_depth_increase: feb,
+    ) -> TransportResultForEnergyAndPitchAngle {
+        if initial_pitch_angle_cos <= 0.0 {
+            TransportResultForEnergyAndPitchAngle::Thermalized
+        } else {
+            self.advance_energy_and_pitch_angle_cos_with_third_order_heun(
+                initial_energy,
+                initial_pitch_angle_cos,
+                col_depth_increase,
+            )
+        }
+    }
+
     pub fn compute_deposited_power_per_dist(
         &self,
         energies: &[feb],
         initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
         electron_numbers_per_dist: &[feb],
+        jacobians: &[feb],
     ) -> feb {
         assert_eq!(initial_energies.len(), energies.len());
         assert_eq!(pitch_angle_cosines.len(), energies.len());
         assert_eq!(electron_numbers_per_dist.len(), energies.len());
+        assert_eq!(jacobians.len(), energies.len());
 
         let mut first_nonzero_idx = None;
 
         let deposited_power_initial_energy_derivs: Vec<_> = energies
             .iter()
-            .zip(initial_energies.iter())
             .zip(pitch_angle_cosines.iter())
             .zip(electron_numbers_per_dist.iter())
+            .zip(jacobians.iter())
             .enumerate()
             .map(
-                |(
-                    idx,
-                    (((&energy, &initial_energy), &pitch_angle_cos), &electron_number_per_dist),
-                )| {
-                    if initial_energy <= 0.0
-                        || pitch_angle_cos <= 0.0
-                        || electron_number_per_dist <= 0.0
-                    {
+                |(idx, (((&energy, &pitch_angle_cos), &electron_number_per_dist), &jacobian))| {
+                    if pitch_angle_cos <= 0.0 || electron_number_per_dist <= 0.0 {
                         0.0
                     } else {
                         if first_nonzero_idx.is_none() {
@@ -256,10 +297,8 @@ impl Transporter {
                         }
                         let energy_col_depth_deriv =
                             self.compute_energy_col_depth_deriv(energy, pitch_angle_cos);
-                        let initial_energy_col_depth_deriv =
-                            self.compute_energy_col_depth_deriv(initial_energy, pitch_angle_cos);
 
-                        (energy_col_depth_deriv / initial_energy_col_depth_deriv)
+                        jacobian
                             * electron_number_per_dist
                             * (-energy_col_depth_deriv
                                 * self.total_hydrogen_density
@@ -290,41 +329,30 @@ impl Transporter {
         initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
         electron_numbers_per_dist: &[feb],
+        jacobians: &[feb],
     ) -> feb {
         assert_eq!(initial_energies.len(), energies.len());
         assert_eq!(pitch_angle_cosines.len(), energies.len());
         assert_eq!(electron_numbers_per_dist.len(), energies.len());
+        assert_eq!(jacobians.len(), energies.len());
 
         let mut first_nonzero_idx = None;
 
         let flux_initial_energy_derivs: Vec<_> = energies
             .iter()
-            .zip(initial_energies.iter())
             .zip(pitch_angle_cosines.iter())
             .zip(electron_numbers_per_dist.iter())
+            .zip(jacobians.iter())
             .enumerate()
             .map(
-                |(
-                    idx,
-                    (((&energy, &initial_energy), &pitch_angle_cos), &electron_number_per_dist),
-                )| {
-                    if initial_energy <= 0.0
-                        || pitch_angle_cos <= 0.0
-                        || electron_number_per_dist <= 0.0
-                    {
+                |(idx, (((&energy, &pitch_angle_cos), &electron_number_per_dist), &jacobian))| {
+                    if pitch_angle_cos <= 0.0 || electron_number_per_dist <= 0.0 {
                         0.0
                     } else {
                         if first_nonzero_idx.is_none() {
                             first_nonzero_idx = Some(idx);
                         }
-                        let energy_col_depth_deriv =
-                            self.compute_energy_col_depth_deriv(energy, pitch_angle_cos);
-                        let initial_energy_col_depth_deriv =
-                            self.compute_energy_col_depth_deriv(initial_energy, pitch_angle_cos);
-
-                        (energy_col_depth_deriv / initial_energy_col_depth_deriv)
-                            * electron_number_per_dist
-                            * feb::sqrt(2.0 * energy / M_ELECTRON)
+                        jacobian * electron_number_per_dist * feb::sqrt(2.0 * energy / M_ELECTRON)
                     }
                 },
             )
@@ -390,11 +418,12 @@ impl Transporter {
         ));
     }
 
+    #[allow(dead_code)]
     fn advance_quantities_with_second_order_heun(
         &self,
-        initial_energy: feb,
-        initial_pitch_angle_cos: feb,
-        initial_number_density: feb,
+        start_energy: feb,
+        start_pitch_angle_cos: feb,
+        start_number_density: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
         let ColumnDepthDerivatives {
@@ -402,16 +431,16 @@ impl Transporter {
             pitch_angle: pitch_angle_cos_col_depth_deriv_1,
             number_density: number_density_col_depth_deriv_1,
         } = self.compute_col_depth_derivs(
-            initial_energy,
-            initial_pitch_angle_cos,
-            initial_number_density,
+            start_energy,
+            start_pitch_angle_cos,
+            start_number_density,
         );
 
-        let energy_1 = initial_energy + energy_col_depth_deriv_1 * col_depth_increase;
+        let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase;
         let pitch_angle_cos_1 =
-            initial_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase;
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase;
         let number_density_1 =
-            initial_number_density + number_density_col_depth_deriv_1 * col_depth_increase;
+            start_number_density + number_density_col_depth_deriv_1 * col_depth_increase;
 
         if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
             return TransportResult::Thermalized;
@@ -423,13 +452,13 @@ impl Transporter {
             number_density: number_density_col_depth_deriv_2,
         } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, number_density_1);
 
-        let energy = initial_energy
+        let energy = start_energy
             + 0.5 * (energy_col_depth_deriv_1 + energy_col_depth_deriv_2) * col_depth_increase;
-        let pitch_angle_cos = initial_pitch_angle_cos
+        let pitch_angle_cos = start_pitch_angle_cos
             + 0.5
                 * (pitch_angle_cos_col_depth_deriv_1 + pitch_angle_cos_col_depth_deriv_2)
                 * col_depth_increase;
-        let number_density = initial_number_density
+        let number_density = start_number_density
             + 0.5
                 * (number_density_col_depth_deriv_1 + number_density_col_depth_deriv_2)
                 * col_depth_increase;
@@ -441,11 +470,55 @@ impl Transporter {
         }
     }
 
+    #[allow(dead_code)]
+    fn advance_energy_and_pitch_angle_cos_with_second_order_heun(
+        &self,
+        start_energy: feb,
+        start_pitch_angle_cos: feb,
+        col_depth_increase: feb,
+    ) -> TransportResultForEnergyAndPitchAngle {
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_1,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_1,
+        } = self.compute_col_depth_derivs_for_energy_and_pitch_angle_cos(
+            start_energy,
+            start_pitch_angle_cos,
+        );
+
+        let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase;
+        let pitch_angle_cos_1 =
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase;
+
+        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+            return TransportResultForEnergyAndPitchAngle::Thermalized;
+        }
+
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_2,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_2,
+        } = self
+            .compute_col_depth_derivs_for_energy_and_pitch_angle_cos(energy_1, pitch_angle_cos_1);
+
+        let energy = start_energy
+            + 0.5 * (energy_col_depth_deriv_1 + energy_col_depth_deriv_2) * col_depth_increase;
+        let pitch_angle_cos = start_pitch_angle_cos
+            + 0.5
+                * (pitch_angle_cos_col_depth_deriv_1 + pitch_angle_cos_col_depth_deriv_2)
+                * col_depth_increase;
+
+        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+            TransportResultForEnergyAndPitchAngle::Thermalized
+        } else {
+            TransportResultForEnergyAndPitchAngle::NewValues((energy, pitch_angle_cos))
+        }
+    }
+
+    #[allow(dead_code)]
     fn advance_quantities_with_third_order_heun(
         &self,
-        initial_energy: feb,
-        initial_pitch_angle_cos: feb,
-        initial_number_density: feb,
+        start_energy: feb,
+        start_pitch_angle_cos: feb,
+        start_number_density: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
         let ColumnDepthDerivatives {
@@ -453,16 +526,16 @@ impl Transporter {
             pitch_angle: pitch_angle_cos_col_depth_deriv_1,
             number_density: number_density_col_depth_deriv_1,
         } = self.compute_col_depth_derivs(
-            initial_energy,
-            initial_pitch_angle_cos,
-            initial_number_density,
+            start_energy,
+            start_pitch_angle_cos,
+            start_number_density,
         );
 
-        let energy_1 = initial_energy + energy_col_depth_deriv_1 * col_depth_increase / 3.0;
+        let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase / 3.0;
         let pitch_angle_cos_1 =
-            initial_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase / 3.0;
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase / 3.0;
         let number_density_1 =
-            initial_number_density + number_density_col_depth_deriv_1 * col_depth_increase / 3.0;
+            start_number_density + number_density_col_depth_deriv_1 * col_depth_increase / 3.0;
 
         if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
             return TransportResult::Thermalized;
@@ -474,10 +547,10 @@ impl Transporter {
             number_density: number_density_col_depth_deriv_2,
         } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, number_density_1);
 
-        let energy_2 = initial_energy + energy_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
-        let pitch_angle_cos_2 = initial_pitch_angle_cos
+        let energy_2 = start_energy + energy_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
+        let pitch_angle_cos_2 = start_pitch_angle_cos
             + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
-        let number_density_2 = initial_number_density
+        let number_density_2 = start_number_density
             + number_density_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
 
         if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
@@ -490,13 +563,13 @@ impl Transporter {
             number_density: number_density_col_depth_deriv_3,
         } = self.compute_col_depth_derivs(energy_2, pitch_angle_cos_2, number_density_2);
 
-        let energy = initial_energy
+        let energy = start_energy
             + (0.25 * energy_col_depth_deriv_1 + 0.75 * energy_col_depth_deriv_3)
                 * col_depth_increase;
-        let pitch_angle_cos = initial_pitch_angle_cos
+        let pitch_angle_cos = start_pitch_angle_cos
             + (0.25 * pitch_angle_cos_col_depth_deriv_1 + 0.75 * pitch_angle_cos_col_depth_deriv_3)
                 * col_depth_increase;
-        let number_density = initial_number_density
+        let number_density = start_number_density
             + (0.25 * number_density_col_depth_deriv_1 + 0.75 * number_density_col_depth_deriv_3)
                 * col_depth_increase;
 
@@ -507,11 +580,69 @@ impl Transporter {
         }
     }
 
+    #[allow(dead_code)]
+    fn advance_energy_and_pitch_angle_cos_with_third_order_heun(
+        &self,
+        start_energy: feb,
+        start_pitch_angle_cos: feb,
+        col_depth_increase: feb,
+    ) -> TransportResultForEnergyAndPitchAngle {
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_1,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_1,
+        } = self.compute_col_depth_derivs_for_energy_and_pitch_angle_cos(
+            start_energy,
+            start_pitch_angle_cos,
+        );
+
+        let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase / 3.0;
+        let pitch_angle_cos_1 =
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase / 3.0;
+
+        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+            return TransportResultForEnergyAndPitchAngle::Thermalized;
+        }
+
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_2,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_2,
+        } = self
+            .compute_col_depth_derivs_for_energy_and_pitch_angle_cos(energy_1, pitch_angle_cos_1);
+
+        let energy_2 = start_energy + energy_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
+        let pitch_angle_cos_2 = start_pitch_angle_cos
+            + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
+
+        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
+            return TransportResultForEnergyAndPitchAngle::Thermalized;
+        }
+
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_3,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_3,
+        } = self
+            .compute_col_depth_derivs_for_energy_and_pitch_angle_cos(energy_2, pitch_angle_cos_2);
+
+        let energy = start_energy
+            + (0.25 * energy_col_depth_deriv_1 + 0.75 * energy_col_depth_deriv_3)
+                * col_depth_increase;
+        let pitch_angle_cos = start_pitch_angle_cos
+            + (0.25 * pitch_angle_cos_col_depth_deriv_1 + 0.75 * pitch_angle_cos_col_depth_deriv_3)
+                * col_depth_increase;
+
+        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+            TransportResultForEnergyAndPitchAngle::Thermalized
+        } else {
+            TransportResultForEnergyAndPitchAngle::NewValues((energy, pitch_angle_cos))
+        }
+    }
+
+    #[allow(dead_code)]
     fn advance_quantities_with_fourth_order_runge_kutta(
         &self,
-        initial_energy: feb,
-        initial_pitch_angle_cos: feb,
-        initial_number_density: feb,
+        start_energy: feb,
+        start_pitch_angle_cos: feb,
+        start_number_density: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
         let ColumnDepthDerivatives {
@@ -519,16 +650,16 @@ impl Transporter {
             pitch_angle: pitch_angle_cos_col_depth_deriv_1,
             number_density: number_density_col_depth_deriv_1,
         } = self.compute_col_depth_derivs(
-            initial_energy,
-            initial_pitch_angle_cos,
-            initial_number_density,
+            start_energy,
+            start_pitch_angle_cos,
+            start_number_density,
         );
 
-        let energy_1 = initial_energy + energy_col_depth_deriv_1 * col_depth_increase * 0.5;
+        let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase * 0.5;
         let pitch_angle_cos_1 =
-            initial_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase * 0.5;
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase * 0.5;
         let number_density_1 =
-            initial_number_density + number_density_col_depth_deriv_1 * col_depth_increase * 0.5;
+            start_number_density + number_density_col_depth_deriv_1 * col_depth_increase * 0.5;
 
         if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
             return TransportResult::Thermalized;
@@ -540,11 +671,11 @@ impl Transporter {
             number_density: number_density_col_depth_deriv_2,
         } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, number_density_1);
 
-        let energy_2 = initial_energy + energy_col_depth_deriv_2 * col_depth_increase * 0.5;
+        let energy_2 = start_energy + energy_col_depth_deriv_2 * col_depth_increase * 0.5;
         let pitch_angle_cos_2 =
-            initial_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 0.5;
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 0.5;
         let number_density_2 =
-            initial_number_density + number_density_col_depth_deriv_2 * col_depth_increase * 0.5;
+            start_number_density + number_density_col_depth_deriv_2 * col_depth_increase * 0.5;
 
         if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
             return TransportResult::Thermalized;
@@ -556,11 +687,11 @@ impl Transporter {
             number_density: number_density_col_depth_deriv_3,
         } = self.compute_col_depth_derivs(energy_2, pitch_angle_cos_2, number_density_2);
 
-        let energy_3 = initial_energy + energy_col_depth_deriv_3 * col_depth_increase;
+        let energy_3 = start_energy + energy_col_depth_deriv_3 * col_depth_increase;
         let pitch_angle_cos_3 =
-            initial_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_3 * col_depth_increase;
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_3 * col_depth_increase;
         let number_density_3 =
-            initial_number_density + number_density_col_depth_deriv_3 * col_depth_increase;
+            start_number_density + number_density_col_depth_deriv_3 * col_depth_increase;
 
         if energy_3 <= 0.0 || pitch_angle_cos_3 <= 0.0 {
             return TransportResult::Thermalized;
@@ -572,21 +703,21 @@ impl Transporter {
             number_density: number_density_col_depth_deriv_4,
         } = self.compute_col_depth_derivs(energy_3, pitch_angle_cos_3, number_density_3);
 
-        let energy = initial_energy
+        let energy = start_energy
             + (energy_col_depth_deriv_1
                 + 2.0 * energy_col_depth_deriv_2
                 + 2.0 * energy_col_depth_deriv_3
                 + energy_col_depth_deriv_4)
                 * col_depth_increase
                 / 6.0;
-        let pitch_angle_cos = initial_pitch_angle_cos
+        let pitch_angle_cos = start_pitch_angle_cos
             + (pitch_angle_cos_col_depth_deriv_1
                 + 2.0 * pitch_angle_cos_col_depth_deriv_2
                 + 2.0 * pitch_angle_cos_col_depth_deriv_3
                 + pitch_angle_cos_col_depth_deriv_4)
                 * col_depth_increase
                 / 6.0;
-        let number_density = initial_number_density
+        let number_density = start_number_density
             + (number_density_col_depth_deriv_1
                 + 2.0 * number_density_col_depth_deriv_2
                 + 2.0 * number_density_col_depth_deriv_3
@@ -598,6 +729,85 @@ impl Transporter {
             TransportResult::Thermalized
         } else {
             TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
+        }
+    }
+
+    #[allow(dead_code)]
+    fn advance_energy_and_pitch_angle_cos_with_fourth_order_runge_kutta(
+        &self,
+        start_energy: feb,
+        start_pitch_angle_cos: feb,
+        col_depth_increase: feb,
+    ) -> TransportResultForEnergyAndPitchAngle {
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_1,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_1,
+        } = self.compute_col_depth_derivs_for_energy_and_pitch_angle_cos(
+            start_energy,
+            start_pitch_angle_cos,
+        );
+
+        let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase * 0.5;
+        let pitch_angle_cos_1 =
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase * 0.5;
+
+        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+            return TransportResultForEnergyAndPitchAngle::Thermalized;
+        }
+
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_2,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_2,
+        } = self
+            .compute_col_depth_derivs_for_energy_and_pitch_angle_cos(energy_1, pitch_angle_cos_1);
+
+        let energy_2 = start_energy + energy_col_depth_deriv_2 * col_depth_increase * 0.5;
+        let pitch_angle_cos_2 =
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 0.5;
+
+        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
+            return TransportResultForEnergyAndPitchAngle::Thermalized;
+        }
+
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_3,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_3,
+        } = self
+            .compute_col_depth_derivs_for_energy_and_pitch_angle_cos(energy_2, pitch_angle_cos_2);
+
+        let energy_3 = start_energy + energy_col_depth_deriv_3 * col_depth_increase;
+        let pitch_angle_cos_3 =
+            start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_3 * col_depth_increase;
+
+        if energy_3 <= 0.0 || pitch_angle_cos_3 <= 0.0 {
+            return TransportResultForEnergyAndPitchAngle::Thermalized;
+        }
+
+        let ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: energy_col_depth_deriv_4,
+            pitch_angle: pitch_angle_cos_col_depth_deriv_4,
+        } = self
+            .compute_col_depth_derivs_for_energy_and_pitch_angle_cos(energy_3, pitch_angle_cos_3);
+
+        let energy = start_energy
+            + (energy_col_depth_deriv_1
+                + 2.0 * energy_col_depth_deriv_2
+                + 2.0 * energy_col_depth_deriv_3
+                + energy_col_depth_deriv_4)
+                * col_depth_increase
+                / 6.0;
+        let pitch_angle_cos = start_pitch_angle_cos
+            + (pitch_angle_cos_col_depth_deriv_1
+                + 2.0 * pitch_angle_cos_col_depth_deriv_2
+                + 2.0 * pitch_angle_cos_col_depth_deriv_3
+                + pitch_angle_cos_col_depth_deriv_4)
+                * col_depth_increase
+                / 6.0;
+
+        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+            TransportResultForEnergyAndPitchAngle::Thermalized
+        } else {
+            TransportResultForEnergyAndPitchAngle::NewValues((energy, pitch_angle_cos))
         }
     }
 
@@ -629,6 +839,32 @@ impl Transporter {
                 pitch_angle_cos,
                 number_density,
                 hybrid_coulomb_log_for_number_density,
+            ),
+        }
+    }
+
+    fn compute_col_depth_derivs_for_energy_and_pitch_angle_cos(
+        &self,
+        energy: feb,
+        pitch_angle_cos: feb,
+    ) -> ColumnDepthDerivativesForEnergyAndPitchAngle {
+        let EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle {
+            for_energy: hybrid_coulomb_log_for_energy,
+            for_pitch_angle: hybrid_coulomb_log_for_pitch_angle,
+        } = self
+            .hybrid_coulomb_log
+            .evaluate_for_energy_and_pitch_angle(energy);
+
+        ColumnDepthDerivativesForEnergyAndPitchAngle {
+            energy: self.compute_energy_col_depth_deriv_with_hybrid_coulomb_log(
+                energy,
+                pitch_angle_cos,
+                hybrid_coulomb_log_for_energy,
+            ),
+            pitch_angle: self.compute_pitch_angle_cos_col_depth_deriv_with_hybrid_coulomb_log(
+                energy,
+                pitch_angle_cos,
+                hybrid_coulomb_log_for_pitch_angle,
             ),
         }
     }
