@@ -67,6 +67,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         "uz": r"$u_z$ [cm/s]",
         "us": r"$u_s$ [cm/s]",
         "uhor": r"$u_\mathrm{h}$ [cm/s]",
+        "magnetic_flux_density": r"$|B|$ [G]",
     }
 
     VALUE_UNIT_CONVERTERS = {
@@ -446,6 +447,37 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                 beam_heating.compute_equilibrium_hydrogen_ionization_fraction(
                     self.varying_scalar_values["tg"][i],
                     self.varying_scalar_values["nel"][i],
+                )
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if "magnetic_flux_density" in derived_quantities:
+            self.varying_scalar_values["magnetic_flux_density"] = [
+                np.sqrt(
+                    self.varying_scalar_values["bx"][i] ** 2
+                    + self.varying_scalar_values["by"][i] ** 2
+                    + self.varying_scalar_values["bz"][i] ** 2
+                )
+                * units.U_B
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if "relative_magnetic_flux_density_change" in derived_quantities:
+
+            def compute_relative_gradient(coords, values):
+                grad = np.gradient(values, coords) / values
+                grad[values < 0.1] = 0.0
+                return grad
+
+            self.varying_scalar_values["relative_magnetic_flux_density_change"] = [
+                compute_relative_gradient(
+                    self.varying_scalar_values["s"][i],
+                    np.sqrt(
+                        self.varying_scalar_values["bx"][i] ** 2
+                        + self.varying_scalar_values["by"][i] ** 2
+                        + self.varying_scalar_values["bz"][i] ** 2
+                    )
+                    * units.U_B,
                 )
                 for i in range(self.get_number_of_beams())
             ]
