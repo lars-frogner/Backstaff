@@ -1,8 +1,7 @@
 import copy
 import numpy as np
-import matplotlib as mpl
-
-mpl.use("agg")
+# import matplotlib as mpl
+# mpl.use("agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpl_patches
 import matplotlib.colors as mpl_colors
