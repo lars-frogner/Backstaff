@@ -413,8 +413,11 @@ impl Transporter {
     ) {
         *high_energy_pitch_angle_cos = feb::sqrt(feb::max(
             0.0,
-            1.0 - (1.0 - (*high_energy_pitch_angle_cos) * (*high_energy_pitch_angle_cos))
-                * feb::exp(log_magnetic_field_col_depth_deriv * col_depth_increase),
+            feb::min(
+                1.0,
+                1.0 - (1.0 - (*high_energy_pitch_angle_cos) * (*high_energy_pitch_angle_cos))
+                    * feb::exp(log_magnetic_field_col_depth_deriv * col_depth_increase),
+            ),
         ));
     }
 

@@ -197,7 +197,7 @@ impl CharacteristicsPropagator {
         let all_valid_downshifted = || ..(n_energies - first_valid_idx);
 
         Self::interpolate_perturbed_to_grid(
-            &self.distribution,
+            self.transporter.high_energy_pitch_angle_cos_perturbed(),
             &self.log10_energies[all_valid()],
             log10_valid_stepped_energies,
             valid_stepped_pitch_angle_cosines,
@@ -223,7 +223,7 @@ impl CharacteristicsPropagator {
             });
 
         Self::interpolate_to_grid(
-            &self.distribution,
+            self.transporter.high_energy_pitch_angle_cos(),
             &self.log10_energies[all_valid()],
             log10_valid_stepped_energies,
             valid_stepped_pitch_angle_cosines,
@@ -387,7 +387,7 @@ impl CharacteristicsPropagator {
     }
 
     pub fn interpolate_to_grid(
-        distribution: &PowerLawDistribution,
+        high_energy_pitch_angle_cos: feb,
         log10_energies: &[feb],
         log10_stepped_energies: &[feb],
         stepped_pitch_angle_cosines: &[feb],
@@ -435,7 +435,7 @@ impl CharacteristicsPropagator {
                             idx,
                             log10_energy,
                         ),
-                        distribution.initial_pitch_angle_cosine,
+                        high_energy_pitch_angle_cos,
                     );
 
                     *electron_number_per_dist = feb::max(
@@ -459,7 +459,7 @@ impl CharacteristicsPropagator {
     }
 
     pub fn interpolate_perturbed_to_grid(
-        distribution: &PowerLawDistribution,
+        high_energy_pitch_angle_cos: feb,
         log10_energies: &[feb],
         log10_stepped_energies: &[feb],
         stepped_pitch_angle_cosines: &[feb],
@@ -493,7 +493,7 @@ impl CharacteristicsPropagator {
                         idx,
                         log10_energy,
                     ),
-                    distribution.initial_pitch_angle_cosine,
+                    high_energy_pitch_angle_cos,
                 );
             });
     }
