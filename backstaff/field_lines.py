@@ -1404,8 +1404,6 @@ class FieldLineSet3:
                 *np.meshgrid(bin_edges_x, bin_edges_y),
                 hist_diff.T,
                 norm=norm,
-                vmin=vmin,
-                vmax=vmax,
                 cmap=plotting.get_cmap(cmap_name, bad_color=cmap_bad_color),
                 rasterized=rasterized,
             )
