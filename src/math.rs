@@ -184,12 +184,12 @@ where
 
     let mut integral = 0.0;
 
-    for idx in 0..3 {
+    for idx in 0..10 {
         integral +=
             WEIGHTS[idx] * evaluate_integrand(interval_offset + interval_scale * COORDS[idx]);
     }
 
-    integral
+    integral * interval_scale
 }
 
 /// Estimates the integral of the given function over the given interval using a
@@ -255,12 +255,12 @@ where
 
     let mut integral = 0.0;
 
-    for idx in 0..3 {
+    for idx in 0..20 {
         integral +=
             WEIGHTS[idx] * evaluate_integrand(interval_offset + interval_scale * COORDS[idx]);
     }
 
-    integral
+    integral * interval_scale
 }
 
 /// Estimates the integral of the given function over the given interval using a
@@ -418,12 +418,12 @@ where
 
     let mut integral = 0.0;
 
-    for idx in 0..3 {
+    for idx in 0..64 {
         integral +=
             WEIGHTS[idx] * evaluate_integrand(interval_offset + interval_scale * COORDS[idx]);
     }
 
-    integral
+    integral * interval_scale
 }
 
 /// Estimates the integral of the given function over the given interval using a
@@ -649,10 +649,10 @@ where
 
     let mut integral = 0.0;
 
-    for idx in 0..3 {
+    for idx in 0..100 {
         integral +=
             WEIGHTS[idx] * evaluate_integrand(interval_offset + interval_scale * COORDS[idx]);
     }
 
-    integral
+    integral * interval_scale
 }
