@@ -5,7 +5,7 @@ use crate::{
         self, CachingScalarFieldProvider3, DynCachingScalarFieldProvider3, FieldGrid3,
         ResampledCoordLocation, ResamplingMethod, ScalarField3, ScalarFieldProvider3, VectorField3,
     },
-    geometry::{Idx3, In3D},
+    geometry::{Dim3::Z, Idx3, In3D},
     grid::{CoordLocation, Grid3},
     interpolation::{
         poly_fit::{PolyFitInterpolator3, PolyFitInterpolatorConfig},
@@ -13,9 +13,10 @@ use crate::{
     },
     io::{snapshot::fdt, Verbosity},
     io_result,
-    units::solar::{U_B, U_E, U_L3, U_P, U_R, U_T, U_U},
+    units::solar::{U_B, U_E, U_L, U_L3, U_P, U_R, U_T, U_U},
 };
 use lazy_static::lazy_static;
+use ndarray::Axis;
 use rayon::prelude::*;
 use regex::Regex;
 use std::{collections::HashMap, io, sync::Arc};
@@ -55,6 +56,14 @@ lazy_static! {
                     vec!["qbeam"]
                 )
             ),
+            (
+                "coldepth",
+                (
+                    "Vertical column depth\n\
+                 [mass density * length in Bifrost units]",
+                    vec!["r"]
+                )
+            ),
         ]
         .into_iter()
         .collect();
@@ -87,7 +96,8 @@ lazy_static! {
         ("qpdv", ((U_E / U_T) as fdt)),
         ("qbeam", ((U_E / U_T) as fdt)),
         ("ubeam", ((U_E * U_L3 / U_T) as fdt)),
-        ("beam_en", ((U_E / U_T) as fdt))
+        ("beam_en", ((U_E / U_T) as fdt)),
+        ("coldepth", ((U_R * U_L) as fdt))
     ]
     .into_iter()
     .collect();
@@ -515,6 +525,7 @@ fn compute_quantity(
                 with indices |indices, qbeam| qbeam * grid.grid_cell_volume(indices) as fdt,
                 provider, verbosity
             ),
+            "coldepth" => compute_column_depth(provider, verbosity),
             _ => unreachable!(),
         }
     } else if let Some(cgs_base_name) = cgs_base_name(quantity_name) {
@@ -984,5 +995,43 @@ where
         provider.arc_with_grid(),
         locations,
         values_1,
+    ))
+}
+
+pub fn compute_column_depth(
+    provider: &mut dyn ScalarFieldProvider3<fdt>,
+    verbosity: &Verbosity,
+) -> io::Result<ScalarField3<fdt>> {
+    let quantity_name = "coldepth";
+
+    let field = provider.produce_scalar_field("r")?;
+
+    if verbosity.print_messages() {
+        println!("Computing {}", quantity_name);
+    }
+
+    let grid = provider.grid();
+    let grid_shape = grid.shape();
+
+    let locations = field.locations().clone();
+    let mut values = field.into_values();
+
+    let values_buffer = values.as_slice_memory_order_mut().unwrap();
+
+    values_buffer
+        .par_iter_mut()
+        .enumerate()
+        .for_each(|(idx, value)| {
+            let indices = field::compute_3d_array_indices_from_flat_idx(grid_shape, idx);
+            *value *= grid.grid_cell_extents(&indices)[Z] as fdt;
+        });
+
+    values.accumulate_axis_inplace(Axis(2), |&prev, curr| *curr += prev);
+
+    Ok(ScalarField3::new(
+        quantity_name.to_string(),
+        provider.arc_with_grid(),
+        locations,
+        values,
     ))
 }
