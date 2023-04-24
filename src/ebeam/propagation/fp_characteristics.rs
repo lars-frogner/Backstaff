@@ -144,7 +144,7 @@ impl CharacteristicsPropagator {
         current_ambient_magnetic_field_strength: feb,
         beam_cross_sectional_area: feb,
         col_depth_increase: feb,
-    ) -> (feb, DepletionStatus) {
+    ) -> DepletionStatus {
         let first_valid_stepped_idx = self.step(col_depth_increase);
 
         let first_valid_stepped_idx_perturbed = self.step_perturbed(col_depth_increase);
@@ -181,25 +181,11 @@ impl CharacteristicsPropagator {
                 *log10_energy = feb::log10(energy);
             });
 
-        let mut deposited_power_per_dist = 0.0;
-
         let max_first_valid_stepped_idx =
             usize::max(first_valid_stepped_idx, first_valid_stepped_idx_perturbed);
-        let all_thermalized_stepped = || ..max_first_valid_stepped_idx;
 
-        if max_first_valid_stepped_idx > 0 {
-            // Add deposited power of all thermalized electrons
-            deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
-                &self.energies[all_thermalized_stepped()],
-                &self.initial_energies[all_thermalized_stepped()],
-                &self.pitch_angle_cosines[all_thermalized_stepped()],
-                &self.electron_numbers_per_dist[all_thermalized_stepped()],
-                &self.jacobians[all_thermalized_stepped()],
-            );
-
-            if max_first_valid_stepped_idx >= self.config.n_energies - 1 {
-                return (deposited_power_per_dist, DepletionStatus::Depleted);
-            }
+        if max_first_valid_stepped_idx >= self.config.n_energies - 1 {
+            return DepletionStatus::Depleted;
         }
 
         let log10_max_first_valid_stepped_energy = feb::max(
@@ -314,15 +300,7 @@ impl CharacteristicsPropagator {
             col_depth_increase,
         );
 
-        deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
-            &self.energies,
-            &self.initial_energies,
-            &self.pitch_angle_cosines,
-            &self.electron_numbers_per_dist,
-            &self.jacobians,
-        );
-
-        (deposited_power_per_dist, DepletionStatus::Undepleted)
+        DepletionStatus::Undepleted
     }
 
     fn compute_jacobians(
@@ -1007,7 +985,15 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let substep_length = step_length / (n_substeps as feb);
 
         for _ in 0..n_substeps {
-            (deposited_power_per_dist, depletion_status) = self.advance_distributions(
+            deposited_power_per_dist = self.transporter.compute_deposited_power_per_dist(
+                &self.energies,
+                &self.initial_energies,
+                &self.pitch_angle_cosines,
+                &self.electron_numbers_per_dist,
+                &self.jacobians,
+            );
+
+            depletion_status = self.advance_distributions(
                 hybrid_coulomb_log.clone(),
                 total_hydrogen_density,
                 temperature,
