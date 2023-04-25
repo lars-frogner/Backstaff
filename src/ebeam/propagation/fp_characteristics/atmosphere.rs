@@ -450,12 +450,21 @@ pub fn compute_parallel_resistivity(
     hydrogen_ionization_fraction: feb,
 ) -> feb {
     const PARALLEL_RESISTIVITY_FACTOR: feb = 0.51282;
-    PARALLEL_RESISTIVITY_FACTOR
+
+    let ionized_resistivity = PARALLEL_RESISTIVITY_FACTOR
         * (4.0 / 3.0)
         * feb::sqrt(2.0 * PI)
         * Q_ELECTRON
         * Q_ELECTRON
         * feb::sqrt(M_ELECTRON)
         * coulomb_log.with_electrons_protons()
-        / feb::sqrt(KBOLTZMANN * temperature).powi(3)
+        / feb::sqrt(KBOLTZMANN * temperature).powi(3);
+
+    let neutral_resistivity = 1.05e-9
+        * (temperature.powi(2)
+            / (hydrogen_ionization_fraction * coulomb_log.with_electrons_protons()))
+        * ionized_resistivity;
+
+    hydrogen_ionization_fraction * ionized_resistivity
+        + (1.0 - hydrogen_ionization_fraction) * neutral_resistivity
 }
