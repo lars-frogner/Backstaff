@@ -352,7 +352,10 @@ impl Transporter {
                         if first_nonzero_idx.is_none() {
                             first_nonzero_idx = Some(idx);
                         }
-                        jacobian * electron_number_per_dist * feb::sqrt(2.0 * energy / M_ELECTRON)
+                        jacobian
+                            * electron_number_per_dist
+                            * pitch_angle_cos
+                            * feb::sqrt(2.0 * energy / M_ELECTRON)
                     }
                 },
             )
