@@ -68,6 +68,8 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         "us": r"$u_s$ [cm/s]",
         "uhor": r"$u_\mathrm{h}$ [cm/s]",
         "magnetic_flux_density": r"$|B|$ [G]",
+        "timescale_of_relative_internal_energy_change": "Timescale of relative interal energy change [s]",
+        "rate_of_relative_internal_energy_change": "Rate of relative interal energy change [1/s]",
     }
 
     VALUE_UNIT_CONVERTERS = {
@@ -479,6 +481,28 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                     )
                     * units.U_B,
                 )
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if "timescale_of_relative_internal_energy_change" in derived_quantities:
+            self.varying_scalar_values[
+                "timescale_of_relative_internal_energy_change"
+            ] = [
+                (
+                    self.varying_scalar_values["e"][i]
+                    / self.varying_scalar_values["power_density_change"][i]
+                )
+                * units.U_T
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if "rate_of_relative_internal_energy_change" in derived_quantities:
+            self.varying_scalar_values["rate_of_relative_internal_energy_change"] = [
+                (
+                    self.varying_scalar_values["power_density_change"][i]
+                    / self.varying_scalar_values["e"][i]
+                )
+                / units.U_T
                 for i in range(self.get_number_of_beams())
             ]
 
