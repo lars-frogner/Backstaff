@@ -1862,6 +1862,8 @@ def plot_field_line_value_histogram(
         value_name,
         value_name_weights=value_name_weights,
         decide_bins_in_log_space=log_x,
+        vmin=vmin_x,
+        vmax=vmax_x,
         mode=mode,
         save_path=save_path,
         **kwargs,
