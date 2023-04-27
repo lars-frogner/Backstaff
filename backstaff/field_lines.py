@@ -1041,6 +1041,7 @@ class FieldLineSet3:
         vmax=None,
         weighted_average=False,
         decide_bins_in_log_space=False,
+        divided_by_bin_size=False,
         density=False,
         scatter=False,
         ds="steps-pre",
@@ -1073,6 +1074,11 @@ class FieldLineSet3:
                 weighted_average=weighted_average,
                 density=density,
             )
+
+            bin_sizes = bin_edges[1:] - bin_edges[:-1]
+
+            if divided_by_bin_size:
+                hist /= bin_sizes
 
         if mode == "save":
             np.savez_compressed(
