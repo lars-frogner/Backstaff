@@ -152,11 +152,19 @@ impl CharacteristicsPropagator {
         beam_cross_sectional_area: feb,
         col_depth_increase: feb,
     ) -> (feb, DepletionStatus) {
+        let mut deposited_power_per_dist = 0.0;
+
         let first_valid_stepped_idx = self.step(col_depth_increase);
+
+        if first_valid_stepped_idx >= self.config.n_energies - 1 {
+            return (deposited_power_per_dist, DepletionStatus::Depleted);
+        }
 
         let first_valid_stepped_idx_perturbed = self.step_perturbed(col_depth_increase);
 
-        let mut deposited_power_per_dist = 0.0;
+        if first_valid_stepped_idx_perturbed >= self.config.n_energies - 1 {
+            return (deposited_power_per_dist, DepletionStatus::Depleted);
+        }
 
         let all_valid_stepped = || first_valid_stepped_idx..;
 
@@ -189,26 +197,6 @@ impl CharacteristicsPropagator {
             .for_each(|(&energy, log10_energy)| {
                 *log10_energy = feb::log10(energy);
             });
-
-        let max_first_valid_stepped_idx =
-            usize::max(first_valid_stepped_idx, first_valid_stepped_idx_perturbed);
-
-        let all_thermalized_stepped = || ..max_first_valid_stepped_idx;
-
-        if max_first_valid_stepped_idx > 0 {
-            // Add deposited power of all thermalized electrons
-            deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
-                &self.energies[all_thermalized_stepped()],
-                &self.initial_energies[all_thermalized_stepped()],
-                &self.pitch_angle_cosines[all_thermalized_stepped()],
-                &self.electron_numbers_per_dist[all_thermalized_stepped()],
-                &self.jacobians[all_thermalized_stepped()],
-            );
-
-            if max_first_valid_stepped_idx >= self.config.n_energies - 1 {
-                return (deposited_power_per_dist, DepletionStatus::Depleted);
-            }
-        }
 
         let log10_max_first_valid_stepped_energy = feb::max(
             log10_valid_stepped_energies[0],
