@@ -110,11 +110,18 @@ pub struct DetailedOutputConfig {
 
 #[derive(Clone, Debug)]
 struct DetailedOutput {
+    mass_densities: Vec<feb>,
     distances: Vec<feb>,
     total_electron_fluxes_over_cross_section: Vec<feb>,
+    deposited_powers_per_dist: Vec<feb>,
     energies: Array2<feb>,
+    initial_energies: Array2<feb>,
     pitch_angle_cosines: Array2<feb>,
     electron_numbers_per_dist: Array2<feb>,
+    initial_energies_perturbed: Array2<feb>,
+    pitch_angle_cosines_perturbed: Array2<feb>,
+    jacobians: Array2<feb>,
+    energy_time_derivs: Array2<feb>,
 }
 
 impl CharacteristicsPropagator {
@@ -825,11 +832,25 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             let stepped_pitch_angle_cosines_perturbed = vec![0.0; config.n_energies];
 
             let detailed_output = if config.detailed_output_config.is_some() {
+                let energy_time_derivs = energies
+                    .iter()
+                    .zip(pitch_angle_cosines.iter())
+                    .map(|(&energy, &pitch_angle_cos)| {
+                        transporter.compute_energy_time_deriv(energy, pitch_angle_cos)
+                    })
+                    .collect();
+
                 Some(DetailedOutput::new(
+                    distribution.ambient_mass_density,
                     total_electron_flux_over_cross_section,
                     energies.clone(),
+                    initial_energies.clone(),
                     pitch_angle_cosines.clone(),
                     electron_numbers_per_dist.clone(),
+                    initial_energies_perturbed.clone(),
+                    pitch_angle_cosines_perturbed.clone(),
+                    jacobians.clone(),
+                    energy_time_derivs,
                 ))
             } else {
                 None
@@ -1024,12 +1045,29 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             if depletion_status == DepletionStatus::Depleted {
                 break;
             } else if let Some(detailed_output) = self.detailed_output.as_mut() {
+                let energy_time_derivs: Vec<_> = self
+                    .energies
+                    .iter()
+                    .zip(self.pitch_angle_cosines.iter())
+                    .map(|(&energy, &pitch_angle_cos)| {
+                        self.transporter
+                            .compute_energy_time_deriv(energy, pitch_angle_cos)
+                    })
+                    .collect();
+
                 detailed_output.push_data(
+                    mass_density,
                     self.distance,
                     self.transporter.total_electron_flux_over_cross_section(),
+                    deposited_power_per_dist,
                     &self.energies,
+                    &self.initial_energies,
                     &self.pitch_angle_cosines,
                     &self.electron_numbers_per_dist,
+                    &self.initial_energies_perturbed,
+                    &self.pitch_angle_cosines_perturbed,
+                    &self.jacobians,
+                    &energy_time_derivs,
                 );
             }
         }
@@ -1082,19 +1120,34 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
 impl DetailedOutput {
     fn new(
+        mass_density: feb,
         total_electron_flux_over_cross_section: feb,
         energies: Vec<feb>,
+        initial_energies: Vec<feb>,
         pitch_angle_cosines: Vec<feb>,
         electron_numbers_per_dist: Vec<feb>,
+        initial_energies_perturbed: Vec<feb>,
+        pitch_angle_cosines_perturbed: Vec<feb>,
+        jacobians: Vec<feb>,
+        energy_time_derivs: Vec<feb>,
     ) -> Self {
         let n_electrons = energies.len();
         assert_eq!(pitch_angle_cosines.len(), n_electrons);
         assert_eq!(electron_numbers_per_dist.len(), n_electrons);
+        assert_eq!(initial_energies_perturbed.len(), n_electrons);
+        assert_eq!(pitch_angle_cosines_perturbed.len(), n_electrons);
+        assert_eq!(jacobians.len(), n_electrons);
+        assert_eq!(energy_time_derivs.len(), n_electrons);
 
+        let mass_densities = vec![mass_density];
         let distances = vec![0.0];
         let total_electron_fluxes_over_cross_section = vec![total_electron_flux_over_cross_section];
+        let deposited_powers_per_dist = vec![0.0];
 
         let energies = Array1::from_vec(energies)
+            .into_shape((1, n_electrons))
+            .unwrap();
+        let initial_energies = Array1::from_vec(initial_energies)
             .into_shape((1, n_electrons))
             .unwrap();
         let pitch_angle_cosines = Array1::from_vec(pitch_angle_cosines)
@@ -1103,33 +1156,75 @@ impl DetailedOutput {
         let electron_numbers_per_dist = Array1::from_vec(electron_numbers_per_dist)
             .into_shape((1, n_electrons))
             .unwrap();
+        let initial_energies_perturbed = Array1::from_vec(initial_energies_perturbed)
+            .into_shape((1, n_electrons))
+            .unwrap();
+        let pitch_angle_cosines_perturbed = Array1::from_vec(pitch_angle_cosines_perturbed)
+            .into_shape((1, n_electrons))
+            .unwrap();
+        let jacobians = Array1::from_vec(jacobians)
+            .into_shape((1, n_electrons))
+            .unwrap();
+        let energy_time_derivs = Array1::from_vec(energy_time_derivs)
+            .into_shape((1, n_electrons))
+            .unwrap();
 
         Self {
+            mass_densities,
             distances,
             total_electron_fluxes_over_cross_section,
+            deposited_powers_per_dist,
             energies,
+            initial_energies,
             pitch_angle_cosines,
             electron_numbers_per_dist,
+            initial_energies_perturbed,
+            pitch_angle_cosines_perturbed,
+            jacobians,
+            energy_time_derivs,
         }
     }
 
     fn push_data(
         &mut self,
+        mass_density: feb,
         distance: feb,
         total_electron_flux_over_cross_section: feb,
+        deposited_power_per_dist: feb,
         energies: &[feb],
+        initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
         electron_numbers_per_dist: &[feb],
+        initial_energies_perturbed: &[feb],
+        pitch_angle_cosines_perturbed: &[feb],
+        jacobians: &[feb],
+        energy_time_derivs: &[feb],
     ) {
+        self.mass_densities.push(mass_density);
         self.distances.push(distance);
         self.total_electron_fluxes_over_cross_section
             .push(total_electron_flux_over_cross_section);
+        self.deposited_powers_per_dist
+            .push(deposited_power_per_dist);
         self.energies.push_row(ArrayView::from(energies)).unwrap();
+        self.initial_energies
+            .push_row(ArrayView::from(initial_energies))
+            .unwrap();
         self.pitch_angle_cosines
             .push_row(ArrayView::from(pitch_angle_cosines))
             .unwrap();
         self.electron_numbers_per_dist
             .push_row(ArrayView::from(electron_numbers_per_dist))
+            .unwrap();
+        self.initial_energies_perturbed
+            .push_row(ArrayView::from(initial_energies_perturbed))
+            .unwrap();
+        self.pitch_angle_cosines_perturbed
+            .push_row(ArrayView::from(pitch_angle_cosines_perturbed))
+            .unwrap();
+        self.jacobians.push_row(ArrayView::from(jacobians)).unwrap();
+        self.energy_time_derivs
+            .push_row(ArrayView::from(energy_time_derivs))
             .unwrap();
     }
 
@@ -1156,6 +1251,10 @@ impl DetailedOutput {
         };
 
         writer
+            .add_array("mass_densities", &ArrayView::from(&self.mass_densities))
+            .map_err(map_err)?;
+
+        writer
             .add_array("distances", &ArrayView::from(&self.distances))
             .map_err(map_err)?;
 
@@ -1167,7 +1266,18 @@ impl DetailedOutput {
             .map_err(map_err)?;
 
         writer
+            .add_array(
+                "deposited_powers_per_dist",
+                &ArrayView::from(&self.deposited_powers_per_dist),
+            )
+            .map_err(map_err)?;
+
+        writer
             .add_array("energies", &self.energies)
+            .map_err(map_err)?;
+
+        writer
+            .add_array("initial_energies", &self.initial_energies)
             .map_err(map_err)?;
 
         writer
@@ -1176,6 +1286,28 @@ impl DetailedOutput {
 
         writer
             .add_array("electron_numbers_per_dist", &self.electron_numbers_per_dist)
+            .map_err(map_err)?;
+
+        writer
+            .add_array(
+                "initial_energies_perturbed",
+                &self.initial_energies_perturbed,
+            )
+            .map_err(map_err)?;
+
+        writer
+            .add_array(
+                "pitch_angle_cosines_perturbed",
+                &self.pitch_angle_cosines_perturbed,
+            )
+            .map_err(map_err)?;
+
+        writer
+            .add_array("jacobians", &self.jacobians)
+            .map_err(map_err)?;
+
+        writer
+            .add_array("energy_time_derivs", &self.energy_time_derivs)
             .map_err(map_err)?;
 
         if let Err(err) = writer.finish() {
