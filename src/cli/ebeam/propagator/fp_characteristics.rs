@@ -299,17 +299,17 @@ pub fn construct_characteristics_propagator_config_from_options(
         let overwrite_detailed_output = arguments.is_present("overwrite-detailed-output");
     
         if !overwrite_detailed_output {
-        let dir_has_content = detailed_output_dir
-            .read_dir()
-            .map(|mut rd| rd.next().is_some())
-            .unwrap_or(false);
-        if dir_has_content {
-            eprintln!(
-                "Warning: Detailed output directory {} not empty",
-                detailed_output_dir.to_string_lossy()
-            );
-            utils::verify_user_will_continue_or_abort();
-        }
+            let dir_has_content = detailed_output_dir
+                .read_dir()
+                .map(|mut rd| rd.next().is_some())
+                .unwrap_or(false);
+            if dir_has_content {
+                eprintln!(
+                    "Warning: Detailed output directory {} not empty",
+                    detailed_output_dir.to_string_lossy()
+                );
+                utils::verify_user_will_continue_or_abort();
+            }
         }
 
         let atomic_output_file_map = io_context.obtain_atomic_file_map_handle();
