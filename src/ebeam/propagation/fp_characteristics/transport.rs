@@ -27,6 +27,8 @@ pub struct Transporter {
     induced_trajectory_aligned_electric_field: feb,
     total_trajectory_aligned_electric_field: feb,
     magnetic_field_strength: feb,
+    resistivity: feb,
+    return_current_heating_power_per_dist: feb,
     log_magnetic_field_col_depth_deriv: feb,
     energy_loss_to_electric_field: feb,
     high_energy_pitch_angle_cos: feb,
@@ -94,6 +96,14 @@ impl Transporter {
         let high_energy_pitch_angle_cos = initial_pitch_angle_cos;
         let high_energy_pitch_angle_cos_perturbed = initial_pitch_angle_cos_perturbed;
 
+        let resistivity = compute_parallel_resistivity(
+            hybrid_coulomb_log.coulomb_log(),
+            temperature,
+            hybrid_coulomb_log.hydrogen_ionization_fraction(),
+        );
+
+        let return_current_heating_power_per_dist = 0.0;
+
         Self {
             include_ambient_electric_field,
             include_induced_electric_field,
@@ -106,6 +116,8 @@ impl Transporter {
             induced_trajectory_aligned_electric_field,
             total_trajectory_aligned_electric_field,
             magnetic_field_strength,
+            resistivity,
+            return_current_heating_power_per_dist,
             log_magnetic_field_col_depth_deriv,
             energy_loss_to_electric_field,
             high_energy_pitch_angle_cos,
@@ -202,19 +214,32 @@ impl Transporter {
             let total_electron_flux_density =
                 self.total_electron_flux_over_cross_section / beam_cross_sectional_area;
 
+            self.resistivity = compute_parallel_resistivity(
+                self.hybrid_coulomb_log.coulomb_log(),
+                temperature,
+                self.hybrid_coulomb_log.hydrogen_ionization_fraction(),
+            );
+
             // Because the induced field depends on the flux, which depends
             // on the energy derivative, which depends on the electric field,
             // determining the induced field is strictly an implicit problem.
             // We handle this by keeping the old value for the electric field
             // when computing the flux, assuming that the delay of one step does
             // not make a significant difference
-            self.induced_trajectory_aligned_electric_field = self
-                .compute_induced_trajectory_aligned_electric_field(
-                    temperature,
+            self.induced_trajectory_aligned_electric_field =
+                Self::compute_induced_trajectory_aligned_electric_field(
+                    self.resistivity,
                     total_electron_flux_density,
+                );
+
+            self.return_current_heating_power_per_dist =
+                Self::compute_resistive_heating_power_per_dist(
+                    self.resistivity,
+                    self.total_electron_flux_over_cross_section,
                 );
         } else {
             self.induced_trajectory_aligned_electric_field = 0.0;
+            self.return_current_heating_power_per_dist = 0.0;
         }
 
         if self.include_ambient_electric_field || self.include_induced_electric_field {
@@ -301,7 +326,7 @@ impl Transporter {
                             first_nonzero_idx = Some(idx);
                         }
 
-                        -self.compute_energy_time_deriv(energy, pitch_angle_cos)
+                        -self.compute_collisional_energy_time_deriv(energy, pitch_angle_cos)
                             * electron_number_per_dist
                             * (2.0 * PI / M_ELECTRON)
                             * feb::sqrt(2.0 * energy / M_ELECTRON)
@@ -319,10 +344,12 @@ impl Transporter {
 
         // Integrate deposited power per distance over initial energies using
         // the trapezoidal method
-        integrate_trapezoidal(
+        let collisional_deposited_power_per_dist = integrate_trapezoidal(
             valid_initial_energies,
             valid_deposited_power_initial_energy_derivs,
-        )
+        );
+
+        collisional_deposited_power_per_dist + self.return_current_heating_power_per_dist
     }
 
     fn compute_total_electron_flux_over_cross_section(
@@ -376,17 +403,17 @@ impl Transporter {
     }
 
     fn compute_induced_trajectory_aligned_electric_field(
-        &self,
-        temperature: feb,
+        resistivity: feb,
         total_electron_flux_density: feb,
     ) -> feb {
-        Q_ELECTRON
-            * compute_parallel_resistivity(
-                self.hybrid_coulomb_log.coulomb_log(),
-                temperature,
-                self.hybrid_coulomb_log.hydrogen_ionization_fraction(),
-            )
-            * total_electron_flux_density
+        Q_ELECTRON * resistivity * total_electron_flux_density
+    }
+
+    fn compute_resistive_heating_power_per_dist(
+        resistivity: feb,
+        total_electron_flux_over_cross_section: feb,
+    ) -> feb {
+        resistivity * resistivity * Q_ELECTRON * feb::abs(total_electron_flux_over_cross_section)
     }
 
     fn compute_log_magnetic_field_col_depth_deriv(
@@ -901,8 +928,8 @@ impl Transporter {
         )
     }
 
-    pub fn compute_energy_time_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
-        self.compute_energy_time_deriv_with_hybrid_coulomb_log(
+    pub fn compute_collisional_energy_time_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
+        self.compute_collisional_energy_time_deriv_with_hybrid_coulomb_log(
             energy,
             pitch_angle_cos,
             self.hybrid_coulomb_log.for_energy(energy),
@@ -920,15 +947,17 @@ impl Transporter {
                 / self.total_hydrogen_density
     }
 
-    fn compute_energy_time_deriv_with_hybrid_coulomb_log(
+    fn compute_collisional_energy_time_deriv_with_hybrid_coulomb_log(
         &self,
         energy: feb,
         pitch_angle_cos: feb,
         hybrid_coulomb_log_for_energy: feb,
     ) -> feb {
-        (-COLLISION_SCALE * hybrid_coulomb_log_for_energy * self.total_hydrogen_density / energy
-            - Q_ELECTRON * self.total_trajectory_aligned_electric_field * pitch_angle_cos)
+        -COLLISION_SCALE
+            * hybrid_coulomb_log_for_energy
+            * self.total_hydrogen_density
             * feb::sqrt(2.0 * energy / M_ELECTRON)
+            / energy
     }
 
     fn compute_pitch_angle_cos_col_depth_deriv_with_hybrid_coulomb_log(

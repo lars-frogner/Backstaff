@@ -121,7 +121,7 @@ struct DetailedOutput {
     initial_energies_perturbed: Array2<feb>,
     pitch_angle_cosines_perturbed: Array2<feb>,
     jacobians: Array2<feb>,
-    energy_time_derivs: Array2<feb>,
+    coll_energy_time_derivs: Array2<feb>,
 }
 
 impl CharacteristicsPropagator {
@@ -822,11 +822,11 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             let stepped_pitch_angle_cosines_perturbed = vec![0.0; config.n_energies];
 
             let detailed_output = if config.detailed_output_config.is_some() {
-                let energy_time_derivs = energies
+                let coll_energy_time_derivs = energies
                     .iter()
                     .zip(pitch_angle_cosines.iter())
                     .map(|(&energy, &pitch_angle_cos)| {
-                        transporter.compute_energy_time_deriv(energy, pitch_angle_cos)
+                        transporter.compute_collisional_energy_time_deriv(energy, pitch_angle_cos)
                     })
                     .collect();
 
@@ -840,7 +840,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     initial_energies_perturbed.clone(),
                     pitch_angle_cosines_perturbed.clone(),
                     jacobians.clone(),
-                    energy_time_derivs,
+                    coll_energy_time_derivs,
                 ))
             } else {
                 None
@@ -1035,13 +1035,13 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             if depletion_status == DepletionStatus::Depleted {
                 break;
             } else if let Some(detailed_output) = self.detailed_output.as_mut() {
-                let energy_time_derivs: Vec<_> = self
+                let coll_energy_time_derivs: Vec<_> = self
                     .energies
                     .iter()
                     .zip(self.pitch_angle_cosines.iter())
                     .map(|(&energy, &pitch_angle_cos)| {
                         self.transporter
-                            .compute_energy_time_deriv(energy, pitch_angle_cos)
+                            .compute_collisional_energy_time_deriv(energy, pitch_angle_cos)
                     })
                     .collect();
 
@@ -1057,7 +1057,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     &self.initial_energies_perturbed,
                     &self.pitch_angle_cosines_perturbed,
                     &self.jacobians,
-                    &energy_time_derivs,
+                    &coll_energy_time_derivs,
                 );
             }
         }
@@ -1119,7 +1119,7 @@ impl DetailedOutput {
         initial_energies_perturbed: Vec<feb>,
         pitch_angle_cosines_perturbed: Vec<feb>,
         jacobians: Vec<feb>,
-        energy_time_derivs: Vec<feb>,
+        coll_energy_time_derivs: Vec<feb>,
     ) -> Self {
         let n_electrons = energies.len();
         assert_eq!(pitch_angle_cosines.len(), n_electrons);
@@ -1127,7 +1127,7 @@ impl DetailedOutput {
         assert_eq!(initial_energies_perturbed.len(), n_electrons);
         assert_eq!(pitch_angle_cosines_perturbed.len(), n_electrons);
         assert_eq!(jacobians.len(), n_electrons);
-        assert_eq!(energy_time_derivs.len(), n_electrons);
+        assert_eq!(coll_energy_time_derivs.len(), n_electrons);
 
         let mass_densities = vec![mass_density];
         let distances = vec![0.0];
@@ -1155,7 +1155,7 @@ impl DetailedOutput {
         let jacobians = Array1::from_vec(jacobians)
             .into_shape((1, n_electrons))
             .unwrap();
-        let energy_time_derivs = Array1::from_vec(energy_time_derivs)
+        let coll_energy_time_derivs = Array1::from_vec(coll_energy_time_derivs)
             .into_shape((1, n_electrons))
             .unwrap();
 
@@ -1171,7 +1171,7 @@ impl DetailedOutput {
             initial_energies_perturbed,
             pitch_angle_cosines_perturbed,
             jacobians,
-            energy_time_derivs,
+            coll_energy_time_derivs,
         }
     }
 
@@ -1188,7 +1188,7 @@ impl DetailedOutput {
         initial_energies_perturbed: &[feb],
         pitch_angle_cosines_perturbed: &[feb],
         jacobians: &[feb],
-        energy_time_derivs: &[feb],
+        coll_energy_time_derivs: &[feb],
     ) {
         self.mass_densities.push(mass_density);
         self.distances.push(distance);
@@ -1213,8 +1213,8 @@ impl DetailedOutput {
             .push_row(ArrayView::from(pitch_angle_cosines_perturbed))
             .unwrap();
         self.jacobians.push_row(ArrayView::from(jacobians)).unwrap();
-        self.energy_time_derivs
-            .push_row(ArrayView::from(energy_time_derivs))
+        self.coll_energy_time_derivs
+            .push_row(ArrayView::from(coll_energy_time_derivs))
             .unwrap();
     }
 
@@ -1297,7 +1297,7 @@ impl DetailedOutput {
             .map_err(map_err)?;
 
         writer
-            .add_array("energy_time_derivs", &self.energy_time_derivs)
+            .add_array("coll_energy_time_derivs", &self.coll_energy_time_derivs)
             .map_err(map_err)?;
 
         if let Err(err) = writer.finish() {
