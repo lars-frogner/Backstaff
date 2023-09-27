@@ -5,11 +5,14 @@ use super::atmosphere::{
     EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle, HybridCoulombLogarithm,
 };
 use crate::{
-    constants::{M_ELECTRON, PI, Q_ELECTRON},
+    constants::{KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON},
     ebeam::feb,
 };
 
 const COLLISION_SCALE: feb = 2.0 * PI * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON;
+
+const THERMALIZATION_ENERGY: feb = 0.0 * 0.01 * KEV_TO_ERG;
+const THERMALIZATION_PITCH_ANGLE_COS: feb = 0.0 * 0.01;
 
 #[derive(Clone, Debug)]
 pub struct Transporter {
@@ -237,7 +240,7 @@ impl Transporter {
         initial_number_density: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
-        if initial_pitch_angle_cos <= 0.0 {
+        if initial_pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResult::Thermalized
         } else {
             self.advance_quantities_with_third_order_heun(
@@ -255,7 +258,7 @@ impl Transporter {
         initial_pitch_angle_cos: feb,
         col_depth_increase: feb,
     ) -> TransportResultForEnergyAndPitchAngle {
-        if initial_pitch_angle_cos <= 0.0 {
+        if initial_pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResultForEnergyAndPitchAngle::Thermalized
         } else {
             self.advance_energy_and_pitch_angle_cos_with_third_order_heun(
@@ -289,7 +292,9 @@ impl Transporter {
             .enumerate()
             .map(
                 |(idx, (((&energy, &pitch_angle_cos), &electron_number_per_dist), &jacobian))| {
-                    if pitch_angle_cos <= 0.0 || electron_number_per_dist <= 0.0 {
+                    if pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS
+                        || electron_number_per_dist <= 0.0
+                    {
                         0.0
                     } else {
                         if first_nonzero_idx.is_none() {
@@ -343,7 +348,9 @@ impl Transporter {
             .enumerate()
             .map(
                 |(idx, (((&energy, &pitch_angle_cos), &electron_number_per_dist), &jacobian))| {
-                    if pitch_angle_cos <= 0.0 || electron_number_per_dist <= 0.0 {
+                    if pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS
+                        || electron_number_per_dist <= 0.0
+                    {
                         0.0
                     } else {
                         if first_nonzero_idx.is_none() {
@@ -414,7 +421,7 @@ impl Transporter {
         col_depth_increase: feb,
     ) {
         *high_energy_pitch_angle_cos = feb::sqrt(feb::max(
-            0.0,
+            THERMALIZATION_PITCH_ANGLE_COS,
             feb::min(
                 1.0,
                 1.0 - (1.0 - (*high_energy_pitch_angle_cos) * (*high_energy_pitch_angle_cos))
@@ -447,7 +454,8 @@ impl Transporter {
         let number_density_1 =
             start_number_density + number_density_col_depth_deriv_1 * col_depth_increase;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+        if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResult::Thermalized;
         }
 
@@ -468,7 +476,7 @@ impl Transporter {
                 * (number_density_col_depth_deriv_1 + number_density_col_depth_deriv_2)
                 * col_depth_increase;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+        if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResult::Thermalized
         } else {
             TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
@@ -494,7 +502,8 @@ impl Transporter {
         let pitch_angle_cos_1 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+        if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResultForEnergyAndPitchAngle::Thermalized;
         }
 
@@ -511,7 +520,7 @@ impl Transporter {
                 * (pitch_angle_cos_col_depth_deriv_1 + pitch_angle_cos_col_depth_deriv_2)
                 * col_depth_increase;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+        if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResultForEnergyAndPitchAngle::Thermalized
         } else {
             TransportResultForEnergyAndPitchAngle::NewValues((energy, pitch_angle_cos))
@@ -542,7 +551,8 @@ impl Transporter {
         let number_density_1 =
             start_number_density + number_density_col_depth_deriv_1 * col_depth_increase / 3.0;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+        if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResult::Thermalized;
         }
 
@@ -558,7 +568,8 @@ impl Transporter {
         let number_density_2 = start_number_density
             + number_density_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
 
-        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
+        if energy_2 <= THERMALIZATION_ENERGY || pitch_angle_cos_2 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResult::Thermalized;
         }
 
@@ -578,7 +589,7 @@ impl Transporter {
             + (0.25 * number_density_col_depth_deriv_1 + 0.75 * number_density_col_depth_deriv_3)
                 * col_depth_increase;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+        if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResult::Thermalized
         } else {
             TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
@@ -604,7 +615,8 @@ impl Transporter {
         let pitch_angle_cos_1 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase / 3.0;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+        if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResultForEnergyAndPitchAngle::Thermalized;
         }
 
@@ -618,7 +630,8 @@ impl Transporter {
         let pitch_angle_cos_2 = start_pitch_angle_cos
             + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
 
-        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
+        if energy_2 <= THERMALIZATION_ENERGY || pitch_angle_cos_2 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResultForEnergyAndPitchAngle::Thermalized;
         }
 
@@ -635,7 +648,7 @@ impl Transporter {
             + (0.25 * pitch_angle_cos_col_depth_deriv_1 + 0.75 * pitch_angle_cos_col_depth_deriv_3)
                 * col_depth_increase;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+        if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResultForEnergyAndPitchAngle::Thermalized
         } else {
             TransportResultForEnergyAndPitchAngle::NewValues((energy, pitch_angle_cos))
@@ -666,7 +679,8 @@ impl Transporter {
         let number_density_1 =
             start_number_density + number_density_col_depth_deriv_1 * col_depth_increase * 0.5;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+        if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResult::Thermalized;
         }
 
@@ -682,7 +696,8 @@ impl Transporter {
         let number_density_2 =
             start_number_density + number_density_col_depth_deriv_2 * col_depth_increase * 0.5;
 
-        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
+        if energy_2 <= THERMALIZATION_ENERGY || pitch_angle_cos_2 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResult::Thermalized;
         }
 
@@ -698,7 +713,8 @@ impl Transporter {
         let number_density_3 =
             start_number_density + number_density_col_depth_deriv_3 * col_depth_increase;
 
-        if energy_3 <= 0.0 || pitch_angle_cos_3 <= 0.0 {
+        if energy_3 <= THERMALIZATION_ENERGY || pitch_angle_cos_3 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResult::Thermalized;
         }
 
@@ -730,7 +746,7 @@ impl Transporter {
                 * col_depth_increase
                 / 6.0;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+        if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResult::Thermalized
         } else {
             TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
@@ -756,7 +772,8 @@ impl Transporter {
         let pitch_angle_cos_1 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase * 0.5;
 
-        if energy_1 <= 0.0 || pitch_angle_cos_1 <= 0.0 {
+        if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResultForEnergyAndPitchAngle::Thermalized;
         }
 
@@ -770,7 +787,8 @@ impl Transporter {
         let pitch_angle_cos_2 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 0.5;
 
-        if energy_2 <= 0.0 || pitch_angle_cos_2 <= 0.0 {
+        if energy_2 <= THERMALIZATION_ENERGY || pitch_angle_cos_2 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResultForEnergyAndPitchAngle::Thermalized;
         }
 
@@ -784,7 +802,8 @@ impl Transporter {
         let pitch_angle_cos_3 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_3 * col_depth_increase;
 
-        if energy_3 <= 0.0 || pitch_angle_cos_3 <= 0.0 {
+        if energy_3 <= THERMALIZATION_ENERGY || pitch_angle_cos_3 <= THERMALIZATION_PITCH_ANGLE_COS
+        {
             return TransportResultForEnergyAndPitchAngle::Thermalized;
         }
 
@@ -809,7 +828,7 @@ impl Transporter {
                 * col_depth_increase
                 / 6.0;
 
-        if energy <= 0.0 || pitch_angle_cos <= 0.0 {
+        if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResultForEnergyAndPitchAngle::Thermalized
         } else {
             TransportResultForEnergyAndPitchAngle::NewValues((energy, pitch_angle_cos))
