@@ -657,6 +657,7 @@ impl CharacteristicsPropagator {
                             self.distribution.total_power,
                             self.distribution.lower_cutoff_energy * KEV_TO_ERG,
                             self.distribution.delta,
+                            self.distribution.initial_pitch_angle_cosine,
                             *initial_energy,
                         );
 
@@ -804,6 +805,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                             distribution.total_power,
                             lower_cutoff_energy,
                             distribution.delta,
+                            distribution.initial_pitch_angle_cosine,
                             energy,
                         )
                     } else {

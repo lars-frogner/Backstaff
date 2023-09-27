@@ -295,15 +295,12 @@ impl Transporter {
                         if first_nonzero_idx.is_none() {
                             first_nonzero_idx = Some(idx);
                         }
-                        let energy_col_depth_deriv =
-                            self.compute_energy_col_depth_deriv(energy, pitch_angle_cos);
 
-                        jacobian
+                        -self.compute_energy_time_deriv(energy, pitch_angle_cos)
                             * electron_number_per_dist
-                            * (-energy_col_depth_deriv
-                                * self.total_hydrogen_density
-                                * pitch_angle_cos
-                                * feb::sqrt(2.0 * energy / M_ELECTRON))
+                            * (2.0 * PI / M_ELECTRON)
+                            * feb::sqrt(2.0 * energy / M_ELECTRON)
+                            * jacobian
                     }
                 },
             )
@@ -352,10 +349,12 @@ impl Transporter {
                         if first_nonzero_idx.is_none() {
                             first_nonzero_idx = Some(idx);
                         }
+
                         jacobian
                             * electron_number_per_dist
                             * pitch_angle_cos
-                            * feb::sqrt(2.0 * energy / M_ELECTRON)
+                            * (4.0 * PI / (M_ELECTRON * M_ELECTRON))
+                            * energy
                     }
                 },
             )
@@ -883,6 +882,14 @@ impl Transporter {
         )
     }
 
+    pub fn compute_energy_time_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
+        self.compute_energy_time_deriv_with_hybrid_coulomb_log(
+            energy,
+            pitch_angle_cos,
+            self.hybrid_coulomb_log.for_energy(energy),
+        )
+    }
+
     fn compute_energy_col_depth_deriv_with_hybrid_coulomb_log(
         &self,
         energy: feb,
@@ -892,6 +899,17 @@ impl Transporter {
         -COLLISION_SCALE * hybrid_coulomb_log_for_energy / (pitch_angle_cos * energy)
             - Q_ELECTRON * self.total_trajectory_aligned_electric_field
                 / self.total_hydrogen_density
+    }
+
+    fn compute_energy_time_deriv_with_hybrid_coulomb_log(
+        &self,
+        energy: feb,
+        pitch_angle_cos: feb,
+        hybrid_coulomb_log_for_energy: feb,
+    ) -> feb {
+        (-COLLISION_SCALE * hybrid_coulomb_log_for_energy * self.total_hydrogen_density / energy
+            - Q_ELECTRON * self.total_trajectory_aligned_electric_field * pitch_angle_cos)
+            * feb::sqrt(2.0 * energy / M_ELECTRON)
     }
 
     fn compute_pitch_angle_cos_col_depth_deriv_with_hybrid_coulomb_log(
@@ -915,7 +933,7 @@ impl Transporter {
         number_density: feb,
         hybrid_coulomb_log_for_number_density: feb,
     ) -> feb {
-        -COLLISION_SCALE * hybrid_coulomb_log_for_number_density * number_density
+        COLLISION_SCALE * hybrid_coulomb_log_for_number_density * number_density
             / (2.0 * pitch_angle_cos * energy * energy)
     }
 }

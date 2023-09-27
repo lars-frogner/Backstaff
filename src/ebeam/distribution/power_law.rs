@@ -4,7 +4,7 @@ pub mod acceleration;
 
 use super::Distribution;
 use crate::{
-    constants::M_ELECTRON,
+    constants::{M_ELECTRON, PI},
     ebeam::{feb, BeamPropertiesCollection, FixedBeamScalarValues, FixedBeamVectorValues},
     geometry::{Idx3, Point3},
     grid::fgr,
@@ -94,13 +94,12 @@ impl PowerLawDistribution {
         total_power: feb,
         lower_cutoff_energy: feb,
         delta: feb,
+        initial_pitch_angle_cosine: feb,
         energy: feb,
     ) -> feb {
-        (total_power * (delta - 2.0)
-            / (lower_cutoff_energy
-                * lower_cutoff_energy
-                * feb::sqrt(2.0 * lower_cutoff_energy / M_ELECTRON)))
-            * (lower_cutoff_energy / energy).powf(delta + 0.5)
+        ((M_ELECTRON * M_ELECTRON / (4.0 * PI)) * total_power * (delta - 2.0)
+            / (initial_pitch_angle_cosine * feb::powi(lower_cutoff_energy, 3)))
+            * (lower_cutoff_energy / energy).powf(delta + 1.0)
     }
 
     pub fn compute_total_electron_flux_over_cross_section(

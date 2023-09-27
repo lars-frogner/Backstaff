@@ -159,6 +159,7 @@ impl HybridCoulombLogarithm {
         let for_number_density_cold_target =
             Self::compute_cold_target_hybrid_coulomb_log_for_number_density(
                 &coulomb_log,
+                electron_to_hydrogen_ratio,
                 hydrogen_ionization_fraction,
             );
 
@@ -313,12 +314,13 @@ impl HybridCoulombLogarithm {
 
     fn compute_cold_target_hybrid_coulomb_log_for_number_density(
         coulomb_log: &CoulombLogarithm,
+        electron_to_hydrogen_ratio: feb,
         hydrogen_ionization_fraction: feb,
     ) -> feb {
-        -hydrogen_ionization_fraction * coulomb_log.with_electrons_protons()
+        (electron_to_hydrogen_ratio + hydrogen_ionization_fraction)
+            * coulomb_log.with_electrons_protons()
             + (1.0 - hydrogen_ionization_fraction)
-                * (coulomb_log.with_neutral_hydrogen_for_energy()
-                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
+                * coulomb_log.with_neutral_hydrogen_for_pitch_angle()
     }
 
     fn compute_hybrid_coulomb_log_for_number_density(
@@ -327,11 +329,10 @@ impl HybridCoulombLogarithm {
         electron_to_hydrogen_ratio: feb,
         hydrogen_ionization_fraction: feb,
     ) -> feb {
-        (warm_target_factor * electron_to_hydrogen_ratio - hydrogen_ionization_fraction)
+        (warm_target_factor * electron_to_hydrogen_ratio + hydrogen_ionization_fraction)
             * coulomb_log.with_electrons_protons()
             + (1.0 - hydrogen_ionization_fraction)
-                * (coulomb_log.with_neutral_hydrogen_for_energy()
-                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
+                * coulomb_log.with_neutral_hydrogen_for_pitch_angle()
     }
 }
 
@@ -350,7 +351,7 @@ impl WarmTarget {
         WarmTargetHybridCoulombLogFactors {
             for_energy: erf + 2.0 * (u_erf_deriv + G),
             for_pitch_angle: erf - G,
-            for_number_density: (4.0 * u * u - 3.0) * u_erf_deriv + 7.0 * G,
+            for_number_density: erf + (4.0 * u * u + 1.0) * u_erf_deriv - 4.0 * G,
         }
     }
 
