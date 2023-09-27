@@ -811,7 +811,6 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
             propagator.distribution().propagation_sense(),
             &mut |displacement, _, position, distance| {
                 if distance > propagator.max_propagation_distance() {
-                    propagator.end_propagation();
                     StepperInstruction::Terminate
                 } else if distance > 0.0 {
                     let PropagationResult {
@@ -836,16 +835,14 @@ impl<D: Distribution> PropagatedElectronBeam<D> {
 
                     match depletion_status {
                         DepletionStatus::Undepleted => StepperInstruction::Continue,
-                        DepletionStatus::Depleted => {
-                            propagator.end_propagation();
-                            StepperInstruction::Terminate
-                        }
+                        DepletionStatus::Depleted => StepperInstruction::Terminate,
                     }
                 } else {
                     StepperInstruction::Continue
                 }
             },
         );
+        propagator.end_propagation();
 
         let distribution_properties = propagator.into_distribution().properties();
 
