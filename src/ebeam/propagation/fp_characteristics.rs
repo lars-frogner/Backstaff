@@ -1315,7 +1315,7 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_N_ENERGIES: usize = 40;
     pub const DEFAULT_MIN_ENERGY_RELATIVE_TO_CUTOFF: feb = 0.05;
     pub const DEFAULT_MAX_ENERGY_RELATIVE_TO_CUTOFF: feb = 120.0;
-    pub const DEFAULT_PITCH_ANGLE_COS_PERTURBATION_FACTOR: feb = 0.999999;
+    pub const DEFAULT_PITCH_ANGLE_COS_PERTURBATION_FACTOR: feb = 0.99999999; // Results are robust to this value (0.999999999999 to 0.99999 works)
     pub const DEFAULT_MAX_COL_DEPTH_INCREASE: feb = 2e14;
     pub const DEFAULT_MAX_SUBSTEPS: usize = 10000;
     pub const DEFAULT_N_INITIAL_STEPS_WITH_SUBSTEPS: usize = 0;
