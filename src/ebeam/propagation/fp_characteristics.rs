@@ -203,18 +203,21 @@ impl CharacteristicsPropagator {
             log10_valid_stepped_energies_perturbed[0],
         );
 
-        let first_valid_idx = self
-            .log10_energies
-            .iter()
-            .enumerate()
-            .find_map(|(idx, &log10_energy)| {
-                if log10_energy > log10_max_first_valid_stepped_energy {
-                    Some(idx)
-                } else {
-                    None
-                }
-            })
-            .unwrap();
+        let first_valid_idx = if let Some(idx) =
+            self.log10_energies
+                .iter()
+                .enumerate()
+                .find_map(|(idx, &log10_energy)| {
+                    if log10_energy > log10_max_first_valid_stepped_energy {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                }) {
+            idx
+        } else {
+            return (deposited_power_per_dist, DepletionStatus::Depleted);
+        };
 
         let mut n_energies_below = 0;
 
