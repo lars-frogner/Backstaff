@@ -153,7 +153,6 @@ impl Transporter {
         ambient_trajectory_aligned_electric_field: feb,
         magnetic_field_strength: feb,
         energies: &[feb],
-        initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
         electron_numbers_per_dist: &[feb],
         jacobians: &[feb],
@@ -204,7 +203,6 @@ impl Transporter {
         self.total_electron_flux_over_cross_section = self
             .compute_total_electron_flux_over_cross_section(
                 energies,
-                initial_energies,
                 pitch_angle_cosines,
                 electron_numbers_per_dist,
                 jacobians,
@@ -297,19 +295,17 @@ impl Transporter {
     pub fn compute_deposited_power_per_dist(
         &self,
         energies: &[feb],
-        initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
         electron_numbers_per_dist: &[feb],
         jacobians: &[feb],
     ) -> feb {
-        assert_eq!(initial_energies.len(), energies.len());
         assert_eq!(pitch_angle_cosines.len(), energies.len());
         assert_eq!(electron_numbers_per_dist.len(), energies.len());
         assert_eq!(jacobians.len(), energies.len());
 
         let mut first_nonzero_idx = None;
 
-        let deposited_power_initial_energy_derivs: Vec<_> = energies
+        let deposited_power_energy_derivs: Vec<_> = energies
             .iter()
             .zip(pitch_angle_cosines.iter())
             .zip(electron_numbers_per_dist.iter())
@@ -326,7 +322,7 @@ impl Transporter {
                             first_nonzero_idx = Some(idx);
                         }
 
-                        -self.compute_collisional_energy_time_deriv(energy, pitch_angle_cos)
+                        -self.compute_collisional_energy_time_deriv(energy)
                             * electron_number_per_dist
                             * (2.0 * PI / M_ELECTRON)
                             * feb::sqrt(2.0 * energy / M_ELECTRON)
@@ -338,16 +334,14 @@ impl Transporter {
 
         let first_nonzero_idx = first_nonzero_idx.unwrap_or(0);
 
-        let valid_initial_energies = &initial_energies[first_nonzero_idx..];
-        let valid_deposited_power_initial_energy_derivs =
-            &deposited_power_initial_energy_derivs[first_nonzero_idx..];
+        let valid_energies = &energies[first_nonzero_idx..];
+        let valid_deposited_power_energy_derivs =
+            &deposited_power_energy_derivs[first_nonzero_idx..];
 
-        // Integrate deposited power per distance over initial energies using
-        // the trapezoidal method
-        let collisional_deposited_power_per_dist = integrate_trapezoidal(
-            valid_initial_energies,
-            valid_deposited_power_initial_energy_derivs,
-        );
+        // Integrate deposited power per distance over energies using the
+        // trapezoidal method
+        let collisional_deposited_power_per_dist =
+            integrate_trapezoidal(valid_energies, valid_deposited_power_energy_derivs);
 
         collisional_deposited_power_per_dist + self.return_current_heating_power_per_dist
     }
@@ -355,19 +349,17 @@ impl Transporter {
     fn compute_total_electron_flux_over_cross_section(
         &self,
         energies: &[feb],
-        initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
         electron_numbers_per_dist: &[feb],
         jacobians: &[feb],
     ) -> feb {
-        assert_eq!(initial_energies.len(), energies.len());
         assert_eq!(pitch_angle_cosines.len(), energies.len());
         assert_eq!(electron_numbers_per_dist.len(), energies.len());
         assert_eq!(jacobians.len(), energies.len());
 
         let mut first_nonzero_idx = None;
 
-        let flux_initial_energy_derivs: Vec<_> = energies
+        let flux_energy_derivs: Vec<_> = energies
             .iter()
             .zip(pitch_angle_cosines.iter())
             .zip(electron_numbers_per_dist.iter())
@@ -396,10 +388,10 @@ impl Transporter {
 
         let first_nonzero_idx = first_nonzero_idx.unwrap_or(0);
 
-        let valid_initial_energies = &initial_energies[first_nonzero_idx..];
-        let valid_flux_initial_energy_derivs = &flux_initial_energy_derivs[first_nonzero_idx..];
+        let valid_energies = &energies[first_nonzero_idx..];
+        let valid_flux_energy_derivs = &flux_energy_derivs[first_nonzero_idx..];
 
-        integrate_trapezoidal(valid_initial_energies, valid_flux_initial_energy_derivs)
+        integrate_trapezoidal(valid_energies, valid_flux_energy_derivs)
     }
 
     fn compute_induced_trajectory_aligned_electric_field(
@@ -928,10 +920,9 @@ impl Transporter {
         )
     }
 
-    pub fn compute_collisional_energy_time_deriv(&self, energy: feb, pitch_angle_cos: feb) -> feb {
+    pub fn compute_collisional_energy_time_deriv(&self, energy: feb) -> feb {
         self.compute_collisional_energy_time_deriv_with_hybrid_coulomb_log(
             energy,
-            pitch_angle_cos,
             self.hybrid_coulomb_log.for_energy(energy),
         )
     }
@@ -950,7 +941,6 @@ impl Transporter {
     fn compute_collisional_energy_time_deriv_with_hybrid_coulomb_log(
         &self,
         energy: feb,
-        pitch_angle_cos: feb,
         hybrid_coulomb_log_for_energy: feb,
     ) -> feb {
         -COLLISION_SCALE

@@ -288,10 +288,7 @@ impl CharacteristicsPropagator {
         }
 
         Self::compute_jacobians(
-            &self.energies,
-            &self.initial_energies,
             &self.pitch_angle_cosines,
-            &self.initial_energies_perturbed,
             &self.pitch_angle_cosines_perturbed,
             self.distribution.initial_pitch_angle_cosine,
             self.initial_pitch_angle_cos_perturbed,
@@ -305,7 +302,6 @@ impl CharacteristicsPropagator {
             current_ambient_trajectory_aligned_electric_field,
             current_ambient_magnetic_field_strength,
             &self.energies,
-            &self.initial_energies,
             &self.pitch_angle_cosines,
             &self.electron_numbers_per_dist,
             &self.jacobians,
@@ -315,7 +311,6 @@ impl CharacteristicsPropagator {
 
         deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
             &self.energies,
-            &self.initial_energies,
             &self.pitch_angle_cosines,
             &self.electron_numbers_per_dist,
             &self.jacobians,
@@ -325,80 +320,23 @@ impl CharacteristicsPropagator {
     }
 
     fn compute_jacobians(
-        energies: &[feb],
-        initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
-        initial_energies_perturbed: &[feb],
         pitch_angle_cosines_perturbed: &[feb],
         initial_pitch_angle_cos: feb,
         initial_pitch_angle_cos_perturbed: feb,
         jacobians: &mut [feb],
     ) {
-        fn lerp(x_data: &[feb], f_data: &[feb], idx: usize, x: feb) -> feb {
-            f_data[idx]
-                + (x - x_data[idx]) * (f_data[idx + 1] - f_data[idx])
-                    / (x_data[idx + 1] - x_data[idx])
-        }
-
         let one_over_dmu0 = 1.0 / (initial_pitch_angle_cos - initial_pitch_angle_cos_perturbed);
 
-        #[allow(non_snake_case)]
-        let jacobian = |E0_dn_E, E0, E_dn_E, E, mu_dn_E, mu| {
-            // For the partial derivatives with respect to mu0, we need to
-            // sample the energy and pitch angle cosine for the perturbed
-            // distribution at the initial energy for the unperturbed
-            // distribution so that when we compute (E - E_perturbed) and (mu -
-            // mu_perturbed), these are all for the same E0
-            let idx = usize::min(
-                energies.len() - 2,
-                grid::search_idx_of_coord(initial_energies_perturbed, E0).unwrap_or(0),
-            );
-
-            let E_dn_mu_at_E0 = lerp(initial_energies_perturbed, energies, idx, E0);
-
-            let mu_dn_mu_at_E0 = lerp(
-                initial_energies_perturbed,
-                pitch_angle_cosines_perturbed,
-                idx,
-                E0,
-            );
-
-            let one_over_dE0 = 1.0 / (E0 - E0_dn_E);
-
-            let dEdE0 = (E - E_dn_E) * one_over_dE0;
-            let dmudE0 = (mu - mu_dn_E) * one_over_dE0;
-            let dmudmu0 = (mu - mu_dn_mu_at_E0) * one_over_dmu0;
-            let dEdmu0 = (E - E_dn_mu_at_E0) * one_over_dmu0;
-
-            feb::abs(dEdE0 * dmudmu0 - dEdmu0 * dmudE0)
-        };
-
-        jacobians[1] = jacobian(
-            initial_energies[1],
-            initial_energies[2],
-            energies[1],
-            energies[2],
-            pitch_angle_cosines[1],
-            pitch_angle_cosines[2],
-        );
-
-        #[allow(non_snake_case)]
         jacobians
             .iter_mut()
-            .skip(1)
             .zip(
-                initial_energies
+                pitch_angle_cosines
                     .iter()
-                    .zip(initial_energies.iter().skip(1))
-                    .zip(energies.iter().zip(energies.iter().skip(1)))
-                    .zip(
-                        pitch_angle_cosines
-                            .iter()
-                            .zip(pitch_angle_cosines.iter().skip(1)),
-                    ),
+                    .zip(pitch_angle_cosines_perturbed.iter()),
             )
-            .for_each(|(j, (((&E0_dn_E, &E0), (&E_dn_E, &E)), (&mu_dn_E, &mu)))| {
-                *j = jacobian(E0_dn_E, E0, E_dn_E, E, mu_dn_E, mu);
+            .for_each(|(j, (&mu, &mu_dn_mu))| {
+                *j = feb::abs((mu - mu_dn_mu) * one_over_dmu0);
             });
     }
 
@@ -827,10 +765,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             let detailed_output = if config.detailed_output_config.is_some() {
                 let coll_energy_time_derivs = energies
                     .iter()
-                    .zip(pitch_angle_cosines.iter())
-                    .map(|(&energy, &pitch_angle_cos)| {
-                        transporter.compute_collisional_energy_time_deriv(energy, pitch_angle_cos)
-                    })
+                    .map(|&energy| transporter.compute_collisional_energy_time_deriv(energy))
                     .collect();
 
                 let electron_number_densities = vec![0.0; config.n_energies];
@@ -1043,10 +978,9 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 let coll_energy_time_derivs: Vec<_> = self
                     .energies
                     .iter()
-                    .zip(self.pitch_angle_cosines.iter())
-                    .map(|(&energy, &pitch_angle_cos)| {
+                    .map(|&energy| {
                         self.transporter
-                            .compute_collisional_energy_time_deriv(energy, pitch_angle_cos)
+                            .compute_collisional_energy_time_deriv(energy)
                     })
                     .collect();
 
