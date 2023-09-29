@@ -117,7 +117,7 @@ struct DetailedOutput {
     energies: Array2<feb>,
     initial_energies: Array2<feb>,
     pitch_angle_cosines: Array2<feb>,
-    electron_numbers_per_dist: Array2<feb>,
+    electron_number_densities: Array2<feb>,
     initial_energies_perturbed: Array2<feb>,
     pitch_angle_cosines_perturbed: Array2<feb>,
     jacobians: Array2<feb>,
@@ -833,13 +833,15 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     })
                     .collect();
 
+                let electron_number_densities = vec![0.0; config.n_energies];
+
                 Some(DetailedOutput::new(
                     distribution.ambient_mass_density,
                     total_electron_flux_over_cross_section,
                     energies.clone(),
                     initial_energies.clone(),
                     pitch_angle_cosines.clone(),
-                    electron_numbers_per_dist.clone(),
+                    electron_number_densities,
                     initial_energies_perturbed.clone(),
                     pitch_angle_cosines_perturbed.clone(),
                     jacobians.clone(),
@@ -1048,6 +1050,14 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     })
                     .collect();
 
+                let electron_number_densities: Vec<_> = self
+                    .electron_numbers_per_dist
+                    .iter()
+                    .map(|&electron_number_per_dist| {
+                        electron_number_per_dist / beam_cross_sectional_area
+                    })
+                    .collect();
+
                 detailed_output.push_data(
                     mass_density,
                     self.distance,
@@ -1056,7 +1066,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     &self.energies,
                     &self.initial_energies,
                     &self.pitch_angle_cosines,
-                    &self.electron_numbers_per_dist,
+                    &electron_number_densities,
                     &self.initial_energies_perturbed,
                     &self.pitch_angle_cosines_perturbed,
                     &self.jacobians,
@@ -1118,7 +1128,7 @@ impl DetailedOutput {
         energies: Vec<feb>,
         initial_energies: Vec<feb>,
         pitch_angle_cosines: Vec<feb>,
-        electron_numbers_per_dist: Vec<feb>,
+        electron_number_densities: Vec<feb>,
         initial_energies_perturbed: Vec<feb>,
         pitch_angle_cosines_perturbed: Vec<feb>,
         jacobians: Vec<feb>,
@@ -1126,7 +1136,7 @@ impl DetailedOutput {
     ) -> Self {
         let n_electrons = energies.len();
         assert_eq!(pitch_angle_cosines.len(), n_electrons);
-        assert_eq!(electron_numbers_per_dist.len(), n_electrons);
+        assert_eq!(electron_number_densities.len(), n_electrons);
         assert_eq!(initial_energies_perturbed.len(), n_electrons);
         assert_eq!(pitch_angle_cosines_perturbed.len(), n_electrons);
         assert_eq!(jacobians.len(), n_electrons);
@@ -1146,7 +1156,7 @@ impl DetailedOutput {
         let pitch_angle_cosines = Array1::from_vec(pitch_angle_cosines)
             .into_shape((1, n_electrons))
             .unwrap();
-        let electron_numbers_per_dist = Array1::from_vec(electron_numbers_per_dist)
+        let electron_number_densities = Array1::from_vec(electron_number_densities)
             .into_shape((1, n_electrons))
             .unwrap();
         let initial_energies_perturbed = Array1::from_vec(initial_energies_perturbed)
@@ -1170,7 +1180,7 @@ impl DetailedOutput {
             energies,
             initial_energies,
             pitch_angle_cosines,
-            electron_numbers_per_dist,
+            electron_number_densities,
             initial_energies_perturbed,
             pitch_angle_cosines_perturbed,
             jacobians,
@@ -1187,7 +1197,7 @@ impl DetailedOutput {
         energies: &[feb],
         initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
-        electron_numbers_per_dist: &[feb],
+        electron_number_densities: &[feb],
         initial_energies_perturbed: &[feb],
         pitch_angle_cosines_perturbed: &[feb],
         jacobians: &[feb],
@@ -1206,8 +1216,8 @@ impl DetailedOutput {
         self.pitch_angle_cosines
             .push_row(ArrayView::from(pitch_angle_cosines))
             .unwrap();
-        self.electron_numbers_per_dist
-            .push_row(ArrayView::from(electron_numbers_per_dist))
+        self.electron_number_densities
+            .push_row(ArrayView::from(electron_number_densities))
             .unwrap();
         self.initial_energies_perturbed
             .push_row(ArrayView::from(initial_energies_perturbed))
@@ -1278,7 +1288,7 @@ impl DetailedOutput {
             .map_err(map_err)?;
 
         writer
-            .add_array("electron_numbers_per_dist", &self.electron_numbers_per_dist)
+            .add_array("electron_number_densities", &self.electron_number_densities)
             .map_err(map_err)?;
 
         writer
