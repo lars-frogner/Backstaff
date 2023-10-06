@@ -28,6 +28,7 @@ pub const U_L3: fun = U_L * U_L * U_L;
 lazy_static! {
     /// Unit for magnetic flux density [gauss].
     pub static ref U_B: fun = U_U * fun::sqrt(4.0 * PI * U_R);
-    /// Unit for electric field strength [statV/cm].
-    pub static ref U_EL: fun = CLIGHT * (*U_B);
+    /// Unit for electric field strength [statV/cm]. (The first factor is to
+    /// account for that E is premultiplied with c in Bifrost)
+    pub static ref U_EL: fun = (1.0 / (CLIGHT / U_U)) * U_U * (*U_B) / CLIGHT;
 }
