@@ -133,6 +133,10 @@ impl Transporter {
         &self.hybrid_coulomb_log
     }
 
+    pub fn log_magnetic_field_distance_deriv(&self) -> feb {
+        self.log_magnetic_field_col_depth_deriv * self.total_hydrogen_density
+    }
+
     pub fn energy_without_loss_to_electric_field(&self, energy: feb) -> feb {
         energy + self.energy_loss_to_electric_field
     }

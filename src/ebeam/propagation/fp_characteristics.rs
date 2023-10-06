@@ -111,6 +111,7 @@ pub struct DetailedOutputConfig {
 #[derive(Clone, Debug)]
 struct DetailedOutput {
     mass_densities: Vec<feb>,
+    log_magnetic_field_distance_derivs: Vec<feb>,
     distances: Vec<feb>,
     total_electron_fluxes_over_cross_section: Vec<feb>,
     deposited_powers_per_dist: Vec<feb>,
@@ -772,6 +773,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
                 Some(DetailedOutput::new(
                     distribution.ambient_mass_density,
+                    0.0,
                     total_electron_flux_over_cross_section,
                     energies.clone(),
                     initial_energies.clone(),
@@ -994,6 +996,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
                 detailed_output.push_data(
                     mass_density,
+                    self.transporter.log_magnetic_field_distance_deriv(),
                     self.distance,
                     self.transporter.total_electron_flux_over_cross_section(),
                     deposited_power_per_dist,
@@ -1058,6 +1061,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 impl DetailedOutput {
     fn new(
         mass_density: feb,
+        log_magnetic_field_distance_deriv: feb,
         total_electron_flux_over_cross_section: feb,
         energies: Vec<feb>,
         initial_energies: Vec<feb>,
@@ -1077,6 +1081,7 @@ impl DetailedOutput {
         assert_eq!(coll_energy_time_derivs.len(), n_electrons);
 
         let mass_densities = vec![mass_density];
+        let log_magnetic_field_distance_derivs = vec![log_magnetic_field_distance_deriv];
         let distances = vec![0.0];
         let total_electron_fluxes_over_cross_section = vec![total_electron_flux_over_cross_section];
         let deposited_powers_per_dist = vec![0.0];
@@ -1108,6 +1113,7 @@ impl DetailedOutput {
 
         Self {
             mass_densities,
+            log_magnetic_field_distance_derivs,
             distances,
             total_electron_fluxes_over_cross_section,
             deposited_powers_per_dist,
@@ -1125,6 +1131,7 @@ impl DetailedOutput {
     fn push_data(
         &mut self,
         mass_density: feb,
+        log_magnetic_field_distance_deriv: feb,
         distance: feb,
         total_electron_flux_over_cross_section: feb,
         deposited_power_per_dist: feb,
@@ -1138,6 +1145,8 @@ impl DetailedOutput {
         coll_energy_time_derivs: &[feb],
     ) {
         self.mass_densities.push(mass_density);
+        self.log_magnetic_field_distance_derivs
+            .push(log_magnetic_field_distance_deriv);
         self.distances.push(distance);
         self.total_electron_fluxes_over_cross_section
             .push(total_electron_flux_over_cross_section);
@@ -1189,6 +1198,13 @@ impl DetailedOutput {
 
         writer
             .add_array("mass_densities", &ArrayView::from(&self.mass_densities))
+            .map_err(map_err)?;
+
+        writer
+            .add_array(
+                "log_magnetic_field_distance_derivs",
+                &ArrayView::from(&self.log_magnetic_field_distance_derivs),
+            )
             .map_err(map_err)?;
 
         writer
