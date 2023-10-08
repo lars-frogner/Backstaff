@@ -22,7 +22,7 @@ pub struct Transporter {
     hybrid_coulomb_log: HybridCoulombLogarithm,
     total_hydrogen_density: feb,
     temperature: feb,
-    total_electron_flux_over_cross_section: feb,
+    parallel_electron_flux_over_cross_section: feb,
     ambient_trajectory_aligned_electric_field: feb,
     induced_trajectory_aligned_electric_field: feb,
     total_trajectory_aligned_electric_field: feb,
@@ -51,7 +51,7 @@ pub enum TransportResultForEnergyAndPitchAngle {
 struct ColumnDepthDerivatives {
     energy: feb,
     pitch_angle: feb,
-    number_density: feb,
+    flux_spectrum: feb,
 }
 
 #[derive(Clone, Debug)]
@@ -67,7 +67,7 @@ impl Transporter {
         include_ambient_electric_field: bool,
         include_induced_electric_field: bool,
         include_magnetic_field: bool,
-        total_electron_flux_over_cross_section: feb,
+        parallel_electron_flux_over_cross_section: feb,
         initial_pitch_angle_cos: feb,
         initial_pitch_angle_cos_perturbed: feb,
         hybrid_coulomb_log: HybridCoulombLogarithm,
@@ -111,7 +111,7 @@ impl Transporter {
             hybrid_coulomb_log,
             total_hydrogen_density,
             temperature,
-            total_electron_flux_over_cross_section,
+            parallel_electron_flux_over_cross_section,
             ambient_trajectory_aligned_electric_field,
             induced_trajectory_aligned_electric_field,
             total_trajectory_aligned_electric_field,
@@ -125,8 +125,16 @@ impl Transporter {
         }
     }
 
-    pub fn total_electron_flux_over_cross_section(&self) -> feb {
-        self.total_electron_flux_over_cross_section
+    pub fn parallel_electron_flux_over_cross_section(&self) -> feb {
+        self.parallel_electron_flux_over_cross_section
+    }
+
+    pub fn induced_trajectory_aligned_electric_field(&self) -> feb {
+        self.induced_trajectory_aligned_electric_field
+    }
+
+    pub fn return_current_heating_power_per_dist(&self) -> feb {
+        self.return_current_heating_power_per_dist
     }
 
     pub fn hybrid_coulomb_log(&self) -> &HybridCoulombLogarithm {
@@ -158,7 +166,7 @@ impl Transporter {
         magnetic_field_strength: feb,
         energies: &[feb],
         pitch_angle_cosines: &[feb],
-        electron_numbers_per_dist: &[feb],
+        area_weighted_flux_spectrum: &[feb],
         jacobians: &[feb],
         beam_cross_sectional_area: feb,
         col_depth_increase: feb,
@@ -204,17 +212,17 @@ impl Transporter {
             self.ambient_trajectory_aligned_electric_field = 0.0;
         }
 
-        self.total_electron_flux_over_cross_section = self
-            .compute_total_electron_flux_over_cross_section(
+        self.parallel_electron_flux_over_cross_section = self
+            .compute_parallel_electron_flux_over_cross_section(
                 energies,
                 pitch_angle_cosines,
-                electron_numbers_per_dist,
+                area_weighted_flux_spectrum,
                 jacobians,
             );
 
         if self.include_induced_electric_field {
-            let total_electron_flux_density =
-                self.total_electron_flux_over_cross_section / beam_cross_sectional_area;
+            let parallel_electron_flux =
+                self.parallel_electron_flux_over_cross_section / beam_cross_sectional_area;
 
             self.resistivity = compute_parallel_resistivity(
                 self.hybrid_coulomb_log.coulomb_log(),
@@ -231,13 +239,13 @@ impl Transporter {
             self.induced_trajectory_aligned_electric_field =
                 Self::compute_induced_trajectory_aligned_electric_field(
                     self.resistivity,
-                    total_electron_flux_density,
+                    parallel_electron_flux,
                 );
 
             self.return_current_heating_power_per_dist =
                 Self::compute_resistive_heating_power_per_dist(
                     self.resistivity,
-                    self.total_electron_flux_over_cross_section,
+                    self.parallel_electron_flux_over_cross_section,
                 );
         } else {
             self.induced_trajectory_aligned_electric_field = 0.0;
@@ -264,7 +272,7 @@ impl Transporter {
         &self,
         initial_energy: feb,
         initial_pitch_angle_cos: feb,
-        initial_number_density: feb,
+        initial_electron_flux: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
         if initial_pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
@@ -273,7 +281,7 @@ impl Transporter {
             self.advance_quantities_with_third_order_heun(
                 initial_energy,
                 initial_pitch_angle_cos,
-                initial_number_density,
+                initial_electron_flux,
                 col_depth_increase,
             )
         }
@@ -300,11 +308,11 @@ impl Transporter {
         &self,
         energies: &[feb],
         pitch_angle_cosines: &[feb],
-        electron_numbers_per_dist: &[feb],
+        area_weighted_flux_spectrum: &[feb],
         jacobians: &[feb],
     ) -> feb {
         assert_eq!(pitch_angle_cosines.len(), energies.len());
-        assert_eq!(electron_numbers_per_dist.len(), energies.len());
+        assert_eq!(area_weighted_flux_spectrum.len(), energies.len());
         assert_eq!(jacobians.len(), energies.len());
 
         let mut first_nonzero_idx = None;
@@ -312,13 +320,13 @@ impl Transporter {
         let deposited_power_energy_derivs: Vec<_> = energies
             .iter()
             .zip(pitch_angle_cosines.iter())
-            .zip(electron_numbers_per_dist.iter())
+            .zip(area_weighted_flux_spectrum.iter())
             .zip(jacobians.iter())
             .enumerate()
             .map(
-                |(idx, (((&energy, &pitch_angle_cos), &electron_number_per_dist), &jacobian))| {
+                |(idx, (((&energy, &pitch_angle_cos), &area_weighted_flux), &jacobian))| {
                     if pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS
-                        || electron_number_per_dist <= 0.0
+                        || area_weighted_flux <= 0.0
                     {
                         0.0
                     } else {
@@ -327,10 +335,9 @@ impl Transporter {
                         }
 
                         -self.compute_collisional_energy_time_deriv(energy)
-                            * electron_number_per_dist
-                            * (2.0 * PI / M_ELECTRON)
-                            * feb::sqrt(2.0 * energy / M_ELECTRON)
+                            * area_weighted_flux
                             * jacobian
+                            / feb::sqrt(2.0 * energy / M_ELECTRON)
                     }
                 },
             )
@@ -350,29 +357,28 @@ impl Transporter {
         collisional_deposited_power_per_dist + self.return_current_heating_power_per_dist
     }
 
-    fn compute_total_electron_flux_over_cross_section(
+    fn compute_parallel_electron_flux_over_cross_section(
         &self,
         energies: &[feb],
         pitch_angle_cosines: &[feb],
-        electron_numbers_per_dist: &[feb],
+        area_weighted_flux_spectrum: &[feb],
         jacobians: &[feb],
     ) -> feb {
         assert_eq!(pitch_angle_cosines.len(), energies.len());
-        assert_eq!(electron_numbers_per_dist.len(), energies.len());
+        assert_eq!(area_weighted_flux_spectrum.len(), energies.len());
         assert_eq!(jacobians.len(), energies.len());
 
         let mut first_nonzero_idx = None;
 
-        let flux_energy_derivs: Vec<_> = energies
+        let flux_energy_derivs: Vec<_> = pitch_angle_cosines
             .iter()
-            .zip(pitch_angle_cosines.iter())
-            .zip(electron_numbers_per_dist.iter())
+            .zip(area_weighted_flux_spectrum.iter())
             .zip(jacobians.iter())
             .enumerate()
             .map(
-                |(idx, (((&energy, &pitch_angle_cos), &electron_number_per_dist), &jacobian))| {
+                |(idx, ((&pitch_angle_cos, &area_weighted_flux), &jacobian))| {
                     if pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS
-                        || electron_number_per_dist <= 0.0
+                        || area_weighted_flux <= 0.0
                     {
                         0.0
                     } else {
@@ -380,11 +386,7 @@ impl Transporter {
                             first_nonzero_idx = Some(idx);
                         }
 
-                        jacobian
-                            * electron_number_per_dist
-                            * pitch_angle_cos
-                            * (4.0 * PI / (M_ELECTRON * M_ELECTRON))
-                            * energy
+                        pitch_angle_cos * area_weighted_flux * jacobian
                     }
                 },
             )
@@ -400,16 +402,16 @@ impl Transporter {
 
     fn compute_induced_trajectory_aligned_electric_field(
         resistivity: feb,
-        total_electron_flux_density: feb,
+        parallel_electron_flux: feb,
     ) -> feb {
-        Q_ELECTRON * resistivity * total_electron_flux_density
+        Q_ELECTRON * resistivity * parallel_electron_flux
     }
 
     fn compute_resistive_heating_power_per_dist(
         resistivity: feb,
-        total_electron_flux_over_cross_section: feb,
+        parallel_electron_flux_over_cross_section: feb,
     ) -> feb {
-        resistivity * resistivity * Q_ELECTRON * feb::abs(total_electron_flux_over_cross_section)
+        resistivity * resistivity * Q_ELECTRON * feb::abs(parallel_electron_flux_over_cross_section)
     }
 
     fn compute_log_magnetic_field_col_depth_deriv(
@@ -458,24 +460,20 @@ impl Transporter {
         &self,
         start_energy: feb,
         start_pitch_angle_cos: feb,
-        start_number_density: feb,
+        start_electron_flux: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_1,
             pitch_angle: pitch_angle_cos_col_depth_deriv_1,
-            number_density: number_density_col_depth_deriv_1,
-        } = self.compute_col_depth_derivs(
-            start_energy,
-            start_pitch_angle_cos,
-            start_number_density,
-        );
+            flux_spectrum: flux_spectrum_col_depth_deriv_1,
+        } = self.compute_col_depth_derivs(start_energy, start_pitch_angle_cos, start_electron_flux);
 
         let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase;
         let pitch_angle_cos_1 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase;
-        let number_density_1 =
-            start_number_density + number_density_col_depth_deriv_1 * col_depth_increase;
+        let electron_flux_1 =
+            start_electron_flux + flux_spectrum_col_depth_deriv_1 * col_depth_increase;
 
         if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
         {
@@ -485,8 +483,8 @@ impl Transporter {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_2,
             pitch_angle: pitch_angle_cos_col_depth_deriv_2,
-            number_density: number_density_col_depth_deriv_2,
-        } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, number_density_1);
+            flux_spectrum: flux_spectrum_col_depth_deriv_2,
+        } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, electron_flux_1);
 
         let energy = start_energy
             + 0.5 * (energy_col_depth_deriv_1 + energy_col_depth_deriv_2) * col_depth_increase;
@@ -494,15 +492,15 @@ impl Transporter {
             + 0.5
                 * (pitch_angle_cos_col_depth_deriv_1 + pitch_angle_cos_col_depth_deriv_2)
                 * col_depth_increase;
-        let number_density = start_number_density
+        let electron_flux = start_electron_flux
             + 0.5
-                * (number_density_col_depth_deriv_1 + number_density_col_depth_deriv_2)
+                * (flux_spectrum_col_depth_deriv_1 + flux_spectrum_col_depth_deriv_2)
                 * col_depth_increase;
 
         if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResult::Thermalized
         } else {
-            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
+            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, electron_flux)))
         }
     }
 
@@ -555,24 +553,20 @@ impl Transporter {
         &self,
         start_energy: feb,
         start_pitch_angle_cos: feb,
-        start_number_density: feb,
+        start_electron_flux: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_1,
             pitch_angle: pitch_angle_cos_col_depth_deriv_1,
-            number_density: number_density_col_depth_deriv_1,
-        } = self.compute_col_depth_derivs(
-            start_energy,
-            start_pitch_angle_cos,
-            start_number_density,
-        );
+            flux_spectrum: flux_spectrum_col_depth_deriv_1,
+        } = self.compute_col_depth_derivs(start_energy, start_pitch_angle_cos, start_electron_flux);
 
         let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase / 3.0;
         let pitch_angle_cos_1 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase / 3.0;
-        let number_density_1 =
-            start_number_density + number_density_col_depth_deriv_1 * col_depth_increase / 3.0;
+        let electron_flux_1 =
+            start_electron_flux + flux_spectrum_col_depth_deriv_1 * col_depth_increase / 3.0;
 
         if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
         {
@@ -582,14 +576,14 @@ impl Transporter {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_2,
             pitch_angle: pitch_angle_cos_col_depth_deriv_2,
-            number_density: number_density_col_depth_deriv_2,
-        } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, number_density_1);
+            flux_spectrum: flux_spectrum_col_depth_deriv_2,
+        } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, electron_flux_1);
 
         let energy_2 = start_energy + energy_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
         let pitch_angle_cos_2 = start_pitch_angle_cos
             + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
-        let number_density_2 = start_number_density
-            + number_density_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
+        let electron_flux_2 =
+            start_electron_flux + flux_spectrum_col_depth_deriv_2 * col_depth_increase * 2.0 / 3.0;
 
         if energy_2 <= THERMALIZATION_ENERGY || pitch_angle_cos_2 <= THERMALIZATION_PITCH_ANGLE_COS
         {
@@ -599,8 +593,8 @@ impl Transporter {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_3,
             pitch_angle: pitch_angle_cos_col_depth_deriv_3,
-            number_density: number_density_col_depth_deriv_3,
-        } = self.compute_col_depth_derivs(energy_2, pitch_angle_cos_2, number_density_2);
+            flux_spectrum: flux_spectrum_col_depth_deriv_3,
+        } = self.compute_col_depth_derivs(energy_2, pitch_angle_cos_2, electron_flux_2);
 
         let energy = start_energy
             + (0.25 * energy_col_depth_deriv_1 + 0.75 * energy_col_depth_deriv_3)
@@ -608,14 +602,14 @@ impl Transporter {
         let pitch_angle_cos = start_pitch_angle_cos
             + (0.25 * pitch_angle_cos_col_depth_deriv_1 + 0.75 * pitch_angle_cos_col_depth_deriv_3)
                 * col_depth_increase;
-        let number_density = start_number_density
-            + (0.25 * number_density_col_depth_deriv_1 + 0.75 * number_density_col_depth_deriv_3)
+        let electron_flux = start_electron_flux
+            + (0.25 * flux_spectrum_col_depth_deriv_1 + 0.75 * flux_spectrum_col_depth_deriv_3)
                 * col_depth_increase;
 
         if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResult::Thermalized
         } else {
-            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
+            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, electron_flux)))
         }
     }
 
@@ -683,24 +677,20 @@ impl Transporter {
         &self,
         start_energy: feb,
         start_pitch_angle_cos: feb,
-        start_number_density: feb,
+        start_electron_flux: feb,
         col_depth_increase: feb,
     ) -> TransportResult {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_1,
             pitch_angle: pitch_angle_cos_col_depth_deriv_1,
-            number_density: number_density_col_depth_deriv_1,
-        } = self.compute_col_depth_derivs(
-            start_energy,
-            start_pitch_angle_cos,
-            start_number_density,
-        );
+            flux_spectrum: flux_spectrum_col_depth_deriv_1,
+        } = self.compute_col_depth_derivs(start_energy, start_pitch_angle_cos, start_electron_flux);
 
         let energy_1 = start_energy + energy_col_depth_deriv_1 * col_depth_increase * 0.5;
         let pitch_angle_cos_1 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_1 * col_depth_increase * 0.5;
-        let number_density_1 =
-            start_number_density + number_density_col_depth_deriv_1 * col_depth_increase * 0.5;
+        let electron_flux_1 =
+            start_electron_flux + flux_spectrum_col_depth_deriv_1 * col_depth_increase * 0.5;
 
         if energy_1 <= THERMALIZATION_ENERGY || pitch_angle_cos_1 <= THERMALIZATION_PITCH_ANGLE_COS
         {
@@ -710,14 +700,14 @@ impl Transporter {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_2,
             pitch_angle: pitch_angle_cos_col_depth_deriv_2,
-            number_density: number_density_col_depth_deriv_2,
-        } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, number_density_1);
+            flux_spectrum: flux_spectrum_col_depth_deriv_2,
+        } = self.compute_col_depth_derivs(energy_1, pitch_angle_cos_1, electron_flux_1);
 
         let energy_2 = start_energy + energy_col_depth_deriv_2 * col_depth_increase * 0.5;
         let pitch_angle_cos_2 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_2 * col_depth_increase * 0.5;
-        let number_density_2 =
-            start_number_density + number_density_col_depth_deriv_2 * col_depth_increase * 0.5;
+        let electron_flux_2 =
+            start_electron_flux + flux_spectrum_col_depth_deriv_2 * col_depth_increase * 0.5;
 
         if energy_2 <= THERMALIZATION_ENERGY || pitch_angle_cos_2 <= THERMALIZATION_PITCH_ANGLE_COS
         {
@@ -727,14 +717,14 @@ impl Transporter {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_3,
             pitch_angle: pitch_angle_cos_col_depth_deriv_3,
-            number_density: number_density_col_depth_deriv_3,
-        } = self.compute_col_depth_derivs(energy_2, pitch_angle_cos_2, number_density_2);
+            flux_spectrum: flux_spectrum_col_depth_deriv_3,
+        } = self.compute_col_depth_derivs(energy_2, pitch_angle_cos_2, electron_flux_2);
 
         let energy_3 = start_energy + energy_col_depth_deriv_3 * col_depth_increase;
         let pitch_angle_cos_3 =
             start_pitch_angle_cos + pitch_angle_cos_col_depth_deriv_3 * col_depth_increase;
-        let number_density_3 =
-            start_number_density + number_density_col_depth_deriv_3 * col_depth_increase;
+        let electron_flux_3 =
+            start_electron_flux + flux_spectrum_col_depth_deriv_3 * col_depth_increase;
 
         if energy_3 <= THERMALIZATION_ENERGY || pitch_angle_cos_3 <= THERMALIZATION_PITCH_ANGLE_COS
         {
@@ -744,8 +734,8 @@ impl Transporter {
         let ColumnDepthDerivatives {
             energy: energy_col_depth_deriv_4,
             pitch_angle: pitch_angle_cos_col_depth_deriv_4,
-            number_density: number_density_col_depth_deriv_4,
-        } = self.compute_col_depth_derivs(energy_3, pitch_angle_cos_3, number_density_3);
+            flux_spectrum: flux_spectrum_col_depth_deriv_4,
+        } = self.compute_col_depth_derivs(energy_3, pitch_angle_cos_3, electron_flux_3);
 
         let energy = start_energy
             + (energy_col_depth_deriv_1
@@ -761,18 +751,18 @@ impl Transporter {
                 + pitch_angle_cos_col_depth_deriv_4)
                 * col_depth_increase
                 / 6.0;
-        let number_density = start_number_density
-            + (number_density_col_depth_deriv_1
-                + 2.0 * number_density_col_depth_deriv_2
-                + 2.0 * number_density_col_depth_deriv_3
-                + number_density_col_depth_deriv_4)
+        let electron_flux = start_electron_flux
+            + (flux_spectrum_col_depth_deriv_1
+                + 2.0 * flux_spectrum_col_depth_deriv_2
+                + 2.0 * flux_spectrum_col_depth_deriv_3
+                + flux_spectrum_col_depth_deriv_4)
                 * col_depth_increase
                 / 6.0;
 
         if energy <= THERMALIZATION_ENERGY || pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS {
             TransportResult::Thermalized
         } else {
-            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, number_density)))
+            TransportResult::NewValues((energy, pitch_angle_cos, feb::max(0.0, electron_flux)))
         }
     }
 
@@ -862,12 +852,12 @@ impl Transporter {
         &self,
         energy: feb,
         pitch_angle_cos: feb,
-        number_density: feb,
+        electron_flux: feb,
     ) -> ColumnDepthDerivatives {
         let EvaluatedHydrogenCoulombLogarithms {
             for_energy: hybrid_coulomb_log_for_energy,
             for_pitch_angle: hybrid_coulomb_log_for_pitch_angle,
-            for_number_density: hybrid_coulomb_log_for_number_density,
+            for_flux_spectrum: hybrid_coulomb_log_for_flux_spectrum,
         } = self.hybrid_coulomb_log.evaluate(energy);
 
         ColumnDepthDerivatives {
@@ -881,11 +871,11 @@ impl Transporter {
                 pitch_angle_cos,
                 hybrid_coulomb_log_for_pitch_angle,
             ),
-            number_density: self.compute_number_density_col_depth_deriv_with_hybrid_coulomb_log(
+            flux_spectrum: self.compute_flux_spectrum_col_depth_deriv_with_hybrid_coulomb_log(
                 energy,
                 pitch_angle_cos,
-                number_density,
-                hybrid_coulomb_log_for_number_density,
+                electron_flux,
+                hybrid_coulomb_log_for_flux_spectrum,
             ),
         }
     }
@@ -968,15 +958,17 @@ impl Transporter {
                 / (2.0 * pitch_angle_cos)
     }
 
-    fn compute_number_density_col_depth_deriv_with_hybrid_coulomb_log(
+    fn compute_flux_spectrum_col_depth_deriv_with_hybrid_coulomb_log(
         &self,
         energy: feb,
         pitch_angle_cos: feb,
-        number_density: feb,
-        hybrid_coulomb_log_for_number_density: feb,
+        electron_flux: feb,
+        hybrid_coulomb_log_for_flux_spectrum: feb,
     ) -> feb {
-        COLLISION_SCALE * hybrid_coulomb_log_for_number_density * number_density
+        -COLLISION_SCALE * hybrid_coulomb_log_for_flux_spectrum * electron_flux
             / (2.0 * pitch_angle_cos * energy * energy)
+            - Q_ELECTRON * self.total_trajectory_aligned_electric_field * electron_flux
+                / (self.total_hydrogen_density * energy)
     }
 }
 

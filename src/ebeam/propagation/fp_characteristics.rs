@@ -81,7 +81,7 @@ pub struct CharacteristicsPropagator {
     log10_energies: Vec<feb>,
     initial_energies: Vec<feb>,
     pitch_angle_cosines: Vec<feb>,
-    electron_numbers_per_dist: Vec<feb>,
+    area_weighted_flux_spectrum: Vec<feb>,
     initial_pitch_angle_cos_perturbed: feb,
     initial_energies_perturbed: Vec<feb>,
     pitch_angle_cosines_perturbed: Vec<feb>,
@@ -90,14 +90,14 @@ pub struct CharacteristicsPropagator {
     stepped_energies: Vec<feb>,
     log10_stepped_energies: Vec<feb>,
     stepped_pitch_angle_cosines: Vec<feb>,
-    stepped_electron_numbers_per_dist: Vec<feb>,
+    stepped_area_weighted_flux_spectrum: Vec<feb>,
     resampled_initial_energies: Vec<feb>,
     stepped_energies_perturbed: Vec<feb>,
     log10_stepped_energies_perturbed: Vec<feb>,
     stepped_pitch_angle_cosines_perturbed: Vec<feb>,
     step_count: usize,
     prev_n_substeps: usize,
-    initial_total_electron_flux_over_cross_section: feb,
+    injected_parallel_electron_flux_over_cross_section: feb,
     distance: feb,
     detailed_output: Option<DetailedOutput>,
 }
@@ -113,12 +113,14 @@ struct DetailedOutput {
     mass_densities: Vec<feb>,
     log_magnetic_field_distance_derivs: Vec<feb>,
     distances: Vec<feb>,
-    total_electron_fluxes_over_cross_section: Vec<feb>,
+    parallel_electron_fluxes_over_cross_section: Vec<feb>,
+    induced_trajectory_aligned_electric_fields: Vec<feb>,
+    return_current_heating_powers_per_dist: Vec<feb>,
     deposited_powers_per_dist: Vec<feb>,
     energies: Array2<feb>,
     initial_energies: Array2<feb>,
     pitch_angle_cosines: Array2<feb>,
-    electron_number_densities: Array2<feb>,
+    electron_flux_spectrum: Array2<feb>,
     initial_energies_perturbed: Array2<feb>,
     pitch_angle_cosines_perturbed: Array2<feb>,
     jacobians: Array2<feb>,
@@ -172,8 +174,8 @@ impl CharacteristicsPropagator {
         let valid_stepped_energies = &self.stepped_energies[all_valid_stepped()];
         let valid_stepped_pitch_angle_cosines =
             &self.stepped_pitch_angle_cosines[all_valid_stepped()];
-        let valid_stepped_electron_numbers_per_dist =
-            &self.stepped_electron_numbers_per_dist[all_valid_stepped()];
+        let valid_stepped_area_weighted_flux_spectrum =
+            &self.stepped_area_weighted_flux_spectrum[all_valid_stepped()];
 
         let log10_valid_stepped_energies = &mut self.log10_stepped_energies[all_valid_stepped()];
         valid_stepped_energies
@@ -272,10 +274,10 @@ impl CharacteristicsPropagator {
             &self.log10_energies[all_valid()],
             log10_valid_stepped_energies,
             valid_stepped_pitch_angle_cosines,
-            valid_stepped_electron_numbers_per_dist,
+            valid_stepped_area_weighted_flux_spectrum,
             &self.initial_energies[all_valid_stepped()],
             &mut self.pitch_angle_cosines[all_valid_downshifted()],
-            &mut self.electron_numbers_per_dist[all_valid_downshifted()],
+            &mut self.area_weighted_flux_spectrum[all_valid_downshifted()],
             &mut self.resampled_initial_energies[all_valid_downshifted()],
         );
         mem::swap(
@@ -304,7 +306,7 @@ impl CharacteristicsPropagator {
             current_ambient_magnetic_field_strength,
             &self.energies,
             &self.pitch_angle_cosines,
-            &self.electron_numbers_per_dist,
+            &self.area_weighted_flux_spectrum,
             &self.jacobians,
             beam_cross_sectional_area,
             col_depth_increase,
@@ -313,7 +315,7 @@ impl CharacteristicsPropagator {
         deposited_power_per_dist += self.transporter.compute_deposited_power_per_dist(
             &self.energies,
             &self.pitch_angle_cosines,
-            &self.electron_numbers_per_dist,
+            &self.area_weighted_flux_spectrum,
             &self.jacobians,
         );
 
@@ -344,28 +346,28 @@ impl CharacteristicsPropagator {
     fn step(&mut self, col_depth_increase: feb) -> usize {
         let mut first_valid_stepped_idx = 0;
 
-        for (idx, ((&energy, &pitch_angle_cos), &electron_number_per_dist)) in self
+        for (idx, ((&energy, &pitch_angle_cos), &area_weighted_flux)) in self
             .energies
             .iter()
             .zip(self.pitch_angle_cosines.iter())
-            .zip(self.electron_numbers_per_dist.iter())
+            .zip(self.area_weighted_flux_spectrum.iter())
             .enumerate()
             .rev()
         {
             match self.transporter.advance_quantities(
                 energy,
                 pitch_angle_cos,
-                electron_number_per_dist,
+                area_weighted_flux,
                 col_depth_increase,
             ) {
                 TransportResult::NewValues((
                     new_energy,
                     new_pitch_angle_cos,
-                    new_electron_number_per_dist,
+                    new_area_weighted_flux,
                 )) => {
                     self.stepped_energies[idx] = new_energy;
                     self.stepped_pitch_angle_cosines[idx] = new_pitch_angle_cos;
-                    self.stepped_electron_numbers_per_dist[idx] = new_electron_number_per_dist;
+                    self.stepped_area_weighted_flux_spectrum[idx] = new_area_weighted_flux;
                 }
                 TransportResult::Thermalized => {
                     first_valid_stepped_idx = idx + 1;
@@ -414,16 +416,16 @@ impl CharacteristicsPropagator {
         log10_energies: &[feb],
         log10_stepped_energies: &[feb],
         stepped_pitch_angle_cosines: &[feb],
-        stepped_electron_numbers_per_dist: &[feb],
+        stepped_area_weighted_flux_spectrum: &[feb],
         stepped_initial_energies: &[feb],
         pitch_angle_cosines: &mut [feb],
-        electron_numbers_per_dist: &mut [feb],
+        area_weighted_flux_spectrum: &mut [feb],
         initial_energies: &mut [feb],
     ) {
         let n_data = log10_stepped_energies.len();
         assert!(n_data > 1);
         assert_eq!(n_data, stepped_pitch_angle_cosines.len());
-        assert_eq!(n_data, stepped_electron_numbers_per_dist.len());
+        assert_eq!(n_data, stepped_area_weighted_flux_spectrum.len());
         assert_eq!(n_data, stepped_initial_energies.len());
         assert_eq!(pitch_angle_cosines.len(), log10_energies.len());
         assert_eq!(initial_energies.len(), log10_energies.len());
@@ -437,13 +439,10 @@ impl CharacteristicsPropagator {
         log10_energies
             .iter()
             .zip(pitch_angle_cosines.iter_mut())
-            .zip(electron_numbers_per_dist.iter_mut())
+            .zip(area_weighted_flux_spectrum.iter_mut())
             .zip(initial_energies.iter_mut())
             .for_each(
-                |(
-                    ((&log10_energy, pitch_angle_cosine), electron_number_per_dist),
-                    initial_energy,
-                )| {
+                |(((&log10_energy, pitch_angle_cosine), area_weighted_flux), initial_energy)| {
                     // Extrapolate if out of bounds
                     let idx = usize::min(
                         n_data - 2,
@@ -461,10 +460,10 @@ impl CharacteristicsPropagator {
                         high_energy_pitch_angle_cos,
                     );
 
-                    *electron_number_per_dist = feb::max(
+                    *area_weighted_flux = feb::max(
                         lerp(
                             log10_stepped_energies,
-                            stepped_electron_numbers_per_dist,
+                            stepped_area_weighted_flux_spectrum,
                             idx,
                             log10_energy,
                         ),
@@ -553,7 +552,7 @@ impl CharacteristicsPropagator {
             .zip(self.energies[first_idx_to_fill..].iter_mut())
             .zip(self.initial_energies[first_idx_to_fill..].iter_mut())
             .zip(self.pitch_angle_cosines[first_idx_to_fill..].iter_mut())
-            .zip(self.electron_numbers_per_dist[first_idx_to_fill..].iter_mut())
+            .zip(self.area_weighted_flux_spectrum[first_idx_to_fill..].iter_mut())
             .zip(self.initial_energies_perturbed[first_idx_to_fill..].iter_mut())
             .zip(self.pitch_angle_cosines_perturbed[first_idx_to_fill..].iter_mut())
             .enumerate()
@@ -564,7 +563,7 @@ impl CharacteristicsPropagator {
                         (
                             (
                                 (((log10_energy, energy), initial_energy), pitch_angle_cosine),
-                                electron_number_per_dist,
+                                area_weighted_flux,
                             ),
                             initial_energy_perturbed,
                         ),
@@ -582,8 +581,8 @@ impl CharacteristicsPropagator {
 
                     *pitch_angle_cosine = self.transporter.high_energy_pitch_angle_cos();
 
-                    *electron_number_per_dist =
-                        PowerLawDistribution::evaluate_electron_number_per_dist(
+                    *area_weighted_flux =
+                        PowerLawDistribution::evaluate_area_weighted_flux_spectrum(
                             self.distribution.total_power,
                             self.distribution.lower_cutoff_energy * KEV_TO_ERG,
                             self.distribution.delta,
@@ -681,11 +680,12 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
             let lower_cutoff_energy = distribution.lower_cutoff_energy * KEV_TO_ERG;
 
-            let total_electron_flux_over_cross_section =
-                PowerLawDistribution::compute_total_electron_flux_over_cross_section(
+            let injected_parallel_electron_flux_over_cross_section =
+                PowerLawDistribution::compute_injected_parallel_electron_flux_over_cross_section(
                     distribution.total_power,
                     lower_cutoff_energy,
                     distribution.delta,
+                    distribution.initial_pitch_angle_cosine,
                 );
 
             let initial_pitch_angle_cos_perturbed = config.pitch_angle_cos_perturbation_factor
@@ -695,7 +695,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 config.include_ambient_electric_field,
                 config.include_return_current,
                 config.include_magnetic_mirroring,
-                total_electron_flux_over_cross_section,
+                injected_parallel_electron_flux_over_cross_section,
                 distribution.initial_pitch_angle_cosine,
                 initial_pitch_angle_cos_perturbed,
                 hybrid_coulomb_log,
@@ -727,11 +727,11 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 .map(|&log10_energy| feb::powf(10.0, log10_energy))
                 .collect();
 
-            let electron_numbers_per_dist: Vec<_> = energies
+            let area_weighted_flux_spectrum: Vec<_> = energies
                 .iter()
                 .map(|&energy| {
                     if energy >= lower_cutoff_energy {
-                        PowerLawDistribution::evaluate_electron_number_per_dist(
+                        PowerLawDistribution::evaluate_area_weighted_flux_spectrum(
                             distribution.total_power,
                             lower_cutoff_energy,
                             distribution.delta,
@@ -757,7 +757,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             let stepped_energies = vec![0.0; config.n_energies];
             let log10_stepped_energies = vec![0.0; config.n_energies];
             let stepped_pitch_angle_cosines = vec![0.0; config.n_energies];
-            let stepped_electron_numbers_per_dist = vec![0.0; config.n_energies];
+            let stepped_area_weighted_flux_spectrum = vec![0.0; config.n_energies];
             let resampled_initial_energies = vec![0.0; config.n_energies];
             let stepped_energies_perturbed = vec![0.0; config.n_energies];
             let log10_stepped_energies_perturbed = vec![0.0; config.n_energies];
@@ -769,16 +769,17 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     .map(|&energy| transporter.compute_collisional_energy_time_deriv(energy))
                     .collect();
 
-                let electron_number_densities = vec![0.0; config.n_energies];
+                let electron_flux_spectrum = vec![0.0; config.n_energies];
 
                 Some(DetailedOutput::new(
                     distribution.ambient_mass_density,
                     0.0,
-                    total_electron_flux_over_cross_section,
+                    injected_parallel_electron_flux_over_cross_section,
+                    transporter.induced_trajectory_aligned_electric_field(),
                     energies.clone(),
                     initial_energies.clone(),
                     pitch_angle_cosines.clone(),
-                    electron_number_densities,
+                    electron_flux_spectrum,
                     initial_energies_perturbed.clone(),
                     pitch_angle_cosines_perturbed.clone(),
                     jacobians.clone(),
@@ -798,7 +799,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 log10_energies,
                 initial_energies,
                 pitch_angle_cosines,
-                electron_numbers_per_dist,
+                area_weighted_flux_spectrum,
                 initial_pitch_angle_cos_perturbed,
                 initial_energies_perturbed,
                 pitch_angle_cosines_perturbed,
@@ -807,13 +808,12 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 stepped_energies,
                 log10_stepped_energies,
                 stepped_pitch_angle_cosines,
-                stepped_electron_numbers_per_dist,
+                stepped_area_weighted_flux_spectrum,
                 resampled_initial_energies,
                 stepped_energies_perturbed,
                 log10_stepped_energies_perturbed,
                 stepped_pitch_angle_cosines_perturbed,
-                initial_total_electron_flux_over_cross_section:
-                    total_electron_flux_over_cross_section,
+                injected_parallel_electron_flux_over_cross_section,
                 distance: 0.0,
                 step_count: 0,
                 prev_n_substeps: 0,
@@ -986,24 +986,24 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                     })
                     .collect();
 
-                let electron_number_densities: Vec<_> = self
-                    .electron_numbers_per_dist
+                let flux_spectrum: Vec<_> = self
+                    .area_weighted_flux_spectrum
                     .iter()
-                    .map(|&electron_number_per_dist| {
-                        electron_number_per_dist / beam_cross_sectional_area
-                    })
+                    .map(|&area_weighted_flux| area_weighted_flux / beam_cross_sectional_area)
                     .collect();
 
                 detailed_output.push_data(
                     mass_density,
                     self.transporter.log_magnetic_field_distance_deriv(),
                     self.distance,
-                    self.transporter.total_electron_flux_over_cross_section(),
+                    self.transporter.parallel_electron_flux_over_cross_section(),
+                    self.transporter.induced_trajectory_aligned_electric_field(),
+                    self.transporter.return_current_heating_power_per_dist(),
                     deposited_power_per_dist,
                     &self.energies,
                     &self.initial_energies,
                     &self.pitch_angle_cosines,
-                    &electron_number_densities,
+                    &flux_spectrum,
                     &self.initial_energies_perturbed,
                     &self.pitch_angle_cosines_perturbed,
                     &self.jacobians,
@@ -1016,8 +1016,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let deposited_power = mean_deposited_power_per_dist * step_length;
         let deposited_power_density = deposited_power / grid_cell_volume;
 
-        let remaining_flux_fraction = self.transporter.total_electron_flux_over_cross_section()
-            / self.initial_total_electron_flux_over_cross_section;
+        let remaining_flux_fraction = self.transporter.parallel_electron_flux_over_cross_section()
+            / self.injected_parallel_electron_flux_over_cross_section;
 
         self.step_count += 1;
 
@@ -1062,11 +1062,12 @@ impl DetailedOutput {
     fn new(
         mass_density: feb,
         log_magnetic_field_distance_deriv: feb,
-        total_electron_flux_over_cross_section: feb,
+        parallel_electron_flux_over_cross_section: feb,
+        induced_trajectory_aligned_electric_field: feb,
         energies: Vec<feb>,
         initial_energies: Vec<feb>,
         pitch_angle_cosines: Vec<feb>,
-        electron_number_densities: Vec<feb>,
+        electron_flux_spectrum: Vec<feb>,
         initial_energies_perturbed: Vec<feb>,
         pitch_angle_cosines_perturbed: Vec<feb>,
         jacobians: Vec<feb>,
@@ -1074,7 +1075,7 @@ impl DetailedOutput {
     ) -> Self {
         let n_electrons = energies.len();
         assert_eq!(pitch_angle_cosines.len(), n_electrons);
-        assert_eq!(electron_number_densities.len(), n_electrons);
+        assert_eq!(electron_flux_spectrum.len(), n_electrons);
         assert_eq!(initial_energies_perturbed.len(), n_electrons);
         assert_eq!(pitch_angle_cosines_perturbed.len(), n_electrons);
         assert_eq!(jacobians.len(), n_electrons);
@@ -1083,7 +1084,11 @@ impl DetailedOutput {
         let mass_densities = vec![mass_density];
         let log_magnetic_field_distance_derivs = vec![log_magnetic_field_distance_deriv];
         let distances = vec![0.0];
-        let total_electron_fluxes_over_cross_section = vec![total_electron_flux_over_cross_section];
+        let parallel_electron_fluxes_over_cross_section =
+            vec![parallel_electron_flux_over_cross_section];
+        let induced_trajectory_aligned_electric_fields =
+            vec![induced_trajectory_aligned_electric_field];
+        let return_current_heating_powers_per_dist = vec![0.0];
         let deposited_powers_per_dist = vec![0.0];
 
         let energies = Array1::from_vec(energies)
@@ -1095,7 +1100,7 @@ impl DetailedOutput {
         let pitch_angle_cosines = Array1::from_vec(pitch_angle_cosines)
             .into_shape((1, n_electrons))
             .unwrap();
-        let electron_number_densities = Array1::from_vec(electron_number_densities)
+        let electron_flux_spectrum = Array1::from_vec(electron_flux_spectrum)
             .into_shape((1, n_electrons))
             .unwrap();
         let initial_energies_perturbed = Array1::from_vec(initial_energies_perturbed)
@@ -1115,12 +1120,14 @@ impl DetailedOutput {
             mass_densities,
             log_magnetic_field_distance_derivs,
             distances,
-            total_electron_fluxes_over_cross_section,
+            parallel_electron_fluxes_over_cross_section,
+            induced_trajectory_aligned_electric_fields,
+            return_current_heating_powers_per_dist,
             deposited_powers_per_dist,
             energies,
             initial_energies,
             pitch_angle_cosines,
-            electron_number_densities,
+            electron_flux_spectrum,
             initial_energies_perturbed,
             pitch_angle_cosines_perturbed,
             jacobians,
@@ -1133,12 +1140,14 @@ impl DetailedOutput {
         mass_density: feb,
         log_magnetic_field_distance_deriv: feb,
         distance: feb,
-        total_electron_flux_over_cross_section: feb,
+        parallel_electron_flux_over_cross_section: feb,
+        induced_trajectory_aligned_electric_field: feb,
+        return_current_heating_power_per_dist: feb,
         deposited_power_per_dist: feb,
         energies: &[feb],
         initial_energies: &[feb],
         pitch_angle_cosines: &[feb],
-        electron_number_densities: &[feb],
+        electron_flux_spectrum: &[feb],
         initial_energies_perturbed: &[feb],
         pitch_angle_cosines_perturbed: &[feb],
         jacobians: &[feb],
@@ -1148,8 +1157,12 @@ impl DetailedOutput {
         self.log_magnetic_field_distance_derivs
             .push(log_magnetic_field_distance_deriv);
         self.distances.push(distance);
-        self.total_electron_fluxes_over_cross_section
-            .push(total_electron_flux_over_cross_section);
+        self.parallel_electron_fluxes_over_cross_section
+            .push(parallel_electron_flux_over_cross_section);
+        self.induced_trajectory_aligned_electric_fields
+            .push(induced_trajectory_aligned_electric_field);
+        self.return_current_heating_powers_per_dist
+            .push(return_current_heating_power_per_dist);
         self.deposited_powers_per_dist
             .push(deposited_power_per_dist);
         self.energies.push_row(ArrayView::from(energies)).unwrap();
@@ -1159,8 +1172,8 @@ impl DetailedOutput {
         self.pitch_angle_cosines
             .push_row(ArrayView::from(pitch_angle_cosines))
             .unwrap();
-        self.electron_number_densities
-            .push_row(ArrayView::from(electron_number_densities))
+        self.electron_flux_spectrum
+            .push_row(ArrayView::from(electron_flux_spectrum))
             .unwrap();
         self.initial_energies_perturbed
             .push_row(ArrayView::from(initial_energies_perturbed))
@@ -1213,8 +1226,22 @@ impl DetailedOutput {
 
         writer
             .add_array(
-                "total_electron_fluxes_over_cross_section",
-                &ArrayView::from(&self.total_electron_fluxes_over_cross_section),
+                "parallel_electron_fluxes_over_cross_section",
+                &ArrayView::from(&self.parallel_electron_fluxes_over_cross_section),
+            )
+            .map_err(map_err)?;
+
+        writer
+            .add_array(
+                "induced_trajectory_aligned_electric_fields",
+                &ArrayView::from(&self.induced_trajectory_aligned_electric_fields),
+            )
+            .map_err(map_err)?;
+
+        writer
+            .add_array(
+                "return_current_heating_powers_per_dist",
+                &ArrayView::from(&self.return_current_heating_powers_per_dist),
             )
             .map_err(map_err)?;
 
@@ -1238,7 +1265,7 @@ impl DetailedOutput {
             .map_err(map_err)?;
 
         writer
-            .add_array("electron_number_densities", &self.electron_number_densities)
+            .add_array("electron_flux_spectrum", &self.electron_flux_spectrum)
             .map_err(map_err)?;
 
         writer

@@ -90,24 +90,26 @@ impl PowerLawDistribution {
         lower_cutoff_energy * (delta - 0.5) / (delta - 1.5)
     }
 
-    pub fn evaluate_electron_number_per_dist(
+    pub fn evaluate_area_weighted_flux_spectrum(
         total_power: feb,
         lower_cutoff_energy: feb,
         delta: feb,
         initial_pitch_angle_cosine: feb,
         energy: feb,
     ) -> feb {
-        ((M_ELECTRON * M_ELECTRON / (4.0 * PI)) * total_power * (delta - 2.0)
-            / (initial_pitch_angle_cosine * feb::powi(lower_cutoff_energy, 3)))
-            * (lower_cutoff_energy / energy).powf(delta + 1.0)
+        (total_power * (delta - 2.0)
+            / (initial_pitch_angle_cosine * feb::powi(lower_cutoff_energy, 2)))
+            * (lower_cutoff_energy / energy).powf(delta)
     }
 
-    pub fn compute_total_electron_flux_over_cross_section(
+    pub fn compute_injected_parallel_electron_flux_over_cross_section(
         total_power: feb,
         lower_cutoff_energy: feb,
         delta: feb,
+        initial_pitch_angle_cosine: feb,
     ) -> feb {
-        total_power * (delta - 2.0) / (lower_cutoff_energy * (delta - 1.0))
+        initial_pitch_angle_cosine * total_power * (delta - 2.0)
+            / (lower_cutoff_energy * (delta - 1.0))
     }
 }
 
