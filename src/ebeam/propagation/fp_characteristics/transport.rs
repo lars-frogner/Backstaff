@@ -243,10 +243,10 @@ impl Transporter {
                 );
 
             self.return_current_heating_power_per_dist =
-                Self::compute_resistive_heating_power_per_dist(
+                Self::compute_resistive_heating_power_density(
                     self.resistivity,
-                    self.parallel_electron_flux_over_cross_section,
-                );
+                    self.parallel_electron_flux_over_cross_section / beam_cross_sectional_area,
+                ) * beam_cross_sectional_area;
         } else {
             self.induced_trajectory_aligned_electric_field = 0.0;
             self.return_current_heating_power_per_dist = 0.0;
@@ -407,11 +407,11 @@ impl Transporter {
         Q_ELECTRON * resistivity * parallel_electron_flux
     }
 
-    fn compute_resistive_heating_power_per_dist(
+    fn compute_resistive_heating_power_density(
         resistivity: feb,
-        parallel_electron_flux_over_cross_section: feb,
+        parallel_electron_flux: feb,
     ) -> feb {
-        resistivity * resistivity * Q_ELECTRON * feb::abs(parallel_electron_flux_over_cross_section)
+        resistivity * (Q_ELECTRON * parallel_electron_flux).powi(2)
     }
 
     fn compute_log_magnetic_field_col_depth_deriv(
