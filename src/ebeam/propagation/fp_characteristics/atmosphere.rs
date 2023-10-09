@@ -3,7 +3,7 @@
 #![allow(non_snake_case)]
 
 use crate::{
-    constants::{KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON, SQRT_PI},
+    constants::{EV_TO_ERG, KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON, SQRT_PI},
     ebeam::feb,
 };
 use lazy_static::lazy_static;
@@ -176,6 +176,10 @@ impl HybridCoulombLogarithm {
 
     pub fn coulomb_log(&self) -> &CoulombLogarithm {
         &self.coulomb_log
+    }
+
+    pub fn electron_to_hydrogen_ratio(&self) -> feb {
+        self.electron_to_hydrogen_ratio
     }
 
     pub fn hydrogen_ionization_fraction(&self) -> feb {
@@ -445,29 +449,38 @@ impl<const N: usize> WarmTargetLookupTable<N> {
     }
 }
 
-/// Uses the Spitzer resistivity formula to calculate resistivity
-/// parallel to the magnetic field in cgs units.
+/// Calculates electrical resistivity parallel to the magnetic field in cgs
+/// units, accounting for collisions of electrons with protons and neutral
+/// hydrogen.
 pub fn compute_parallel_resistivity(
-    coulomb_log: &CoulombLogarithm,
     temperature: feb,
+    total_hydrogen_density: feb,
+    electron_to_hydrogen_ratio: feb,
     hydrogen_ionization_fraction: feb,
 ) -> feb {
-    const PARALLEL_RESISTIVITY_FACTOR: feb = 0.51282;
+    let temperature_ev = KBOLTZMANN * temperature / EV_TO_ERG;
+    let electron_density = electron_to_hydrogen_ratio * total_hydrogen_density;
+    let proton_density = hydrogen_ionization_fraction * total_hydrogen_density;
+    let neutral_hydrogen_density = (1.0 - hydrogen_ionization_fraction) * total_hydrogen_density;
 
-    let ionized_resistivity = PARALLEL_RESISTIVITY_FACTOR
-        * (4.0 / 3.0)
-        * feb::sqrt(2.0 * PI)
-        * Q_ELECTRON
-        * Q_ELECTRON
-        * feb::sqrt(M_ELECTRON)
-        * coulomb_log.with_electrons_protons()
-        / feb::sqrt(KBOLTZMANN * temperature).powi(3);
+    let sqrt_temperature_ev = feb::sqrt(temperature_ev);
+    let temperature_ev_to_neg_3_over_2 = 1.0 / sqrt_temperature_ev.powi(3);
 
-    let neutral_resistivity = 1.05e-9
-        * (temperature.powi(2)
-            / (hydrogen_ionization_fraction * coulomb_log.with_electrons_protons()))
-        * ionized_resistivity;
+    let electron_proton_coulomb_log = if temperature_ev < 10.0 {
+        23.0 - feb::ln(feb::sqrt(electron_density) * temperature_ev_to_neg_3_over_2)
+    } else {
+        24.0 - feb::ln(feb::sqrt(electron_density) / temperature_ev)
+    };
 
-    hydrogen_ionization_fraction * ionized_resistivity
-        + (1.0 - hydrogen_ionization_fraction) * neutral_resistivity
+    let electron_proton_collision_frequency =
+        2.9e-6 * temperature_ev_to_neg_3_over_2 * proton_density * electron_proton_coulomb_log;
+
+    let electron_hydrogen_collision_frequency =
+        2.8e-7 * sqrt_temperature_ev * neutral_hydrogen_density;
+
+    let parallel_resistivity =
+        (electron_proton_collision_frequency + electron_hydrogen_collision_frequency) * M_ELECTRON
+            / (electron_density * Q_ELECTRON * Q_ELECTRON);
+
+    parallel_resistivity
 }

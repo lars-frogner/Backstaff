@@ -97,8 +97,9 @@ impl Transporter {
         let high_energy_pitch_angle_cos_perturbed = initial_pitch_angle_cos_perturbed;
 
         let resistivity = compute_parallel_resistivity(
-            hybrid_coulomb_log.coulomb_log(),
             temperature,
+            total_hydrogen_density,
+            hybrid_coulomb_log.electron_to_hydrogen_ratio(),
             hybrid_coulomb_log.hydrogen_ionization_fraction(),
         );
 
@@ -225,8 +226,9 @@ impl Transporter {
                 self.parallel_electron_flux_over_cross_section / beam_cross_sectional_area;
 
             self.resistivity = compute_parallel_resistivity(
-                self.hybrid_coulomb_log.coulomb_log(),
                 temperature,
+                self.total_hydrogen_density,
+                self.hybrid_coulomb_log.electron_to_hydrogen_ratio(),
                 self.hybrid_coulomb_log.hydrogen_ionization_fraction(),
             );
 
