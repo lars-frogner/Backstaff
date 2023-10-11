@@ -30,7 +30,7 @@ use crate::{
         snapshot::{self, fdt, SnapshotParameters},
         utils::{self as io_utils, AtomicOutputFileMap},
     },
-    plasma::ionization,
+    plasma::ionization::Abundances,
     tracing::{ftr, stepping::SteppingSense},
     units::solar::{U_B, U_EL, U_L, U_L3, U_R},
 };
@@ -55,6 +55,7 @@ pub struct CharacteristicsPropagatorConfig {
     pub n_substeps: usize,
     pub keep_initial_ionization_fraction: bool,
     pub assume_ambient_electrons_all_from_hydrogen: bool,
+    pub include_helium_collisions: bool,
     pub include_ambient_electric_field: bool,
     pub include_return_current: bool,
     pub include_magnetic_mirroring: bool,
@@ -148,7 +149,6 @@ impl CharacteristicsPropagator {
     fn advance_distributions(
         &mut self,
         current_hybrid_coulomb_log: HybridCoulombLogarithm,
-        current_total_hydrogen_density: feb,
         current_temperature: feb,
         current_ambient_trajectory_aligned_electric_field: feb,
         current_ambient_magnetic_field_strength: feb,
@@ -300,7 +300,6 @@ impl CharacteristicsPropagator {
 
         self.transporter.update_conditions(
             current_hybrid_coulomb_log,
-            current_total_hydrogen_density,
             current_temperature,
             current_ambient_trajectory_aligned_electric_field,
             current_ambient_magnetic_field_strength,
@@ -613,20 +612,20 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             AnalyticalPropagator::MIN_COULOMB_LOG_MEAN_ENERGY,
         ) * KEV_TO_ERG;
 
-        let hydrogen_ionization_fraction =
-            ionization::compute_equilibrium_hydrogen_ionization_fraction(
-                distribution.ambient_temperature,
-                distribution.ambient_electron_density,
-            );
+        let mut abundances = Abundances::new(
+            AnalyticalPropagator::HYDROGEN_MASS_FRACTION,
+            AnalyticalPropagator::HELIUM_MASS_FRACTION,
+            distribution.ambient_mass_density,
+            distribution.ambient_temperature,
+            distribution.ambient_electron_density,
+        );
 
-        let total_hydrogen_density =
-            AnalyticalPropagator::compute_total_hydrogen_density(distribution.ambient_mass_density);
-
-        let electron_to_hydrogen_ratio = if config.assume_ambient_electrons_all_from_hydrogen {
-            hydrogen_ionization_fraction
-        } else {
-            distribution.ambient_electron_density / total_hydrogen_density
-        };
+        if config.assume_ambient_electrons_all_from_hydrogen {
+            abundances.set_electron_to_hydrogen_ratio(abundances.hydrogen_ionization_fraction());
+        }
+        if !config.include_helium_collisions {
+            abundances.set_helium_to_hydrogen_ratio(0.0);
+        }
 
         let coulomb_log = CoulombLogarithm::new(
             distribution.ambient_electron_density,
@@ -636,8 +635,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             config.enable_warm_target,
             coulomb_log.clone(),
             distribution.ambient_temperature,
-            electron_to_hydrogen_ratio,
-            hydrogen_ionization_fraction,
+            abundances,
         );
 
         let heating_scale = AnalyticalPropagator::compute_heating_scale(
@@ -657,7 +655,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             distribution.delta,
             config.min_residual_factor,
             config.min_deposited_power_per_distance,
-            total_hydrogen_density,
+            hybrid_coulomb_log.abundances().total_hydrogen_density(),
             hybrid_coulomb_log.for_energy_cold_target(),
             coulomb_log.with_electrons_protons(),
             stopping_ionized_column_depth,
@@ -699,7 +697,6 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 distribution.initial_pitch_angle_cosine,
                 initial_pitch_angle_cos_perturbed,
                 hybrid_coulomb_log,
-                total_hydrogen_density,
                 distribution.ambient_temperature,
                 ambient_trajectory_aligned_electric_field,
                 magnetic_field_strength,
@@ -917,36 +914,37 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
             }
         }
 
-        let hydrogen_ionization_fraction = if self.config.keep_initial_ionization_fraction {
-            self.transporter
-                .hybrid_coulomb_log()
-                .hydrogen_ionization_fraction()
-        } else {
-            ionization::compute_equilibrium_hydrogen_ionization_fraction(
-                temperature,
-                electron_density,
-            )
-        };
+        let old_hydrogen_ionization_fraction =
+            self.transporter.abundances().hydrogen_ionization_fraction();
 
-        let total_hydrogen_density =
-            AnalyticalPropagator::compute_total_hydrogen_density(mass_density);
+        let mut abundances = Abundances::new(
+            self.transporter.abundances().hydrogen_mass_fraction(),
+            self.transporter.abundances().helium_mass_fraction(),
+            mass_density,
+            temperature,
+            electron_density,
+        );
 
-        let electron_to_hydrogen_ratio = if self.config.assume_ambient_electrons_all_from_hydrogen {
-            hydrogen_ionization_fraction
-        } else {
-            electron_density / total_hydrogen_density
-        };
+        if self.config.keep_initial_ionization_fraction {
+            abundances.set_hydrogen_ionization_fraction(old_hydrogen_ionization_fraction);
+        }
+        if self.config.assume_ambient_electrons_all_from_hydrogen {
+            abundances.set_electron_to_hydrogen_ratio(abundances.hydrogen_ionization_fraction());
+        }
+        if !self.config.include_helium_collisions {
+            abundances.set_helium_to_hydrogen_ratio(0.0);
+        }
 
         let hybrid_coulomb_log = HybridCoulombLogarithm::new(
             self.config.enable_warm_target,
             self.coulomb_log.clone(),
             temperature,
-            electron_to_hydrogen_ratio,
-            hydrogen_ionization_fraction,
+            abundances,
         );
 
         let step_length = displacement.length() * U_L; // [cm]
-        let col_depth_increase = step_length * total_hydrogen_density;
+        let col_depth_increase =
+            step_length * hybrid_coulomb_log.abundances().total_hydrogen_density();
 
         let grid_cell_volume = snapshot.grid().grid_cell_volume(&deposition_indices) * U_L3;
         let beam_cross_sectional_area = grid_cell_volume / step_length;
@@ -963,7 +961,6 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         for _ in 0..n_substeps {
             (deposited_power_per_dist, depletion_status) = self.advance_distributions(
                 hybrid_coulomb_log.clone(),
-                total_hydrogen_density,
                 temperature,
                 trajectory_aligned_electric_field,
                 magnetic_field_strength,
@@ -1312,6 +1309,7 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_N_SUBSTEPS: usize = 1;
     pub const DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION: bool = false;
     pub const DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN: bool = false;
+    pub const DEFAULT_INCLUDE_HELIUM_COLLISIONS: bool = false;
     pub const DEFAULT_AMBIENT_ELECTRIC_FIELD: bool = false;
     pub const DEFAULT_INCLUDE_RETURN_CURRENT: bool = false;
     pub const DEFAULT_INCLUDE_MAGNETIC_MIRRORING: bool = false;
@@ -1371,6 +1369,7 @@ impl CharacteristicsPropagatorConfig {
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
             assume_ambient_electrons_all_from_hydrogen:
                 Self::DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN,
+            include_helium_collisions: Self::DEFAULT_INCLUDE_HELIUM_COLLISIONS,
             include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
@@ -1452,6 +1451,7 @@ impl Default for CharacteristicsPropagatorConfig {
             keep_initial_ionization_fraction: Self::DEFAULT_KEEP_INITIAL_IONIZATION_FRACTION,
             assume_ambient_electrons_all_from_hydrogen:
                 Self::DEFAULT_ASSUME_AMBIENT_ELECTRONS_ALL_FROM_HYDROGEN,
+            include_helium_collisions: Self::DEFAULT_INCLUDE_HELIUM_COLLISIONS,
             include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,

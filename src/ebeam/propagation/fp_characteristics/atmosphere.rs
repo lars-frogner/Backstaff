@@ -3,8 +3,9 @@
 #![allow(non_snake_case)]
 
 use crate::{
-    constants::{EV_TO_ERG, KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON, SQRT_PI},
+    constants::{EV_TO_ERG, KBOLTZMANN, KEV_TO_ERG, M_ELECTRON, Q_ELECTRON, SQRT_PI},
     ebeam::feb,
+    plasma::ionization::Abundances,
 };
 use lazy_static::lazy_static;
 use special::Error;
@@ -20,8 +21,7 @@ pub struct CoulombLogarithm {
 pub struct HybridCoulombLogarithm {
     warm_target: Option<WarmTarget>,
     coulomb_log: CoulombLogarithm,
-    electron_to_hydrogen_ratio: feb,
-    hydrogen_ionization_fraction: feb,
+    abundances: Abundances,
     for_energy_cold_target: feb,
     for_pitch_angle_cold_target: feb,
     for_flux_spectrum_cold_target: feb,
@@ -136,8 +136,7 @@ impl HybridCoulombLogarithm {
         enable_warm_target: bool,
         coulomb_log: CoulombLogarithm,
         temperature: feb,
-        electron_to_hydrogen_ratio: feb,
-        hydrogen_ionization_fraction: feb,
+        abundances: Abundances,
     ) -> Self {
         let warm_target = if enable_warm_target {
             Some(WarmTarget::new(temperature))
@@ -145,29 +144,20 @@ impl HybridCoulombLogarithm {
             None
         };
 
-        let for_energy_cold_target = Self::compute_cold_target_hybrid_coulomb_log_for_energy(
-            &coulomb_log,
-            electron_to_hydrogen_ratio,
-            hydrogen_ionization_fraction,
-        );
+        let for_energy_cold_target =
+            Self::compute_cold_target_hybrid_coulomb_log_for_energy(&coulomb_log, &abundances);
         let for_pitch_angle_cold_target =
-            Self::compute_cold_target_hybrid_coulomb_log_for_pitch_angle(
-                &coulomb_log,
-                electron_to_hydrogen_ratio,
-                hydrogen_ionization_fraction,
-            );
+            Self::compute_cold_target_hybrid_coulomb_log_for_pitch_angle(&coulomb_log, &abundances);
         let for_flux_spectrum_cold_target =
             Self::compute_cold_target_hybrid_coulomb_log_for_flux_spectrum(
                 &coulomb_log,
-                electron_to_hydrogen_ratio,
-                hydrogen_ionization_fraction,
+                &abundances,
             );
 
         Self {
             warm_target,
             coulomb_log,
-            electron_to_hydrogen_ratio,
-            hydrogen_ionization_fraction,
+            abundances,
             for_energy_cold_target,
             for_pitch_angle_cold_target,
             for_flux_spectrum_cold_target,
@@ -178,12 +168,8 @@ impl HybridCoulombLogarithm {
         &self.coulomb_log
     }
 
-    pub fn electron_to_hydrogen_ratio(&self) -> feb {
-        self.electron_to_hydrogen_ratio
-    }
-
-    pub fn hydrogen_ionization_fraction(&self) -> feb {
-        self.hydrogen_ionization_fraction
+    pub fn abundances(&self) -> &Abundances {
+        &self.abundances
     }
 
     pub fn for_energy_cold_target(&self) -> feb {
@@ -197,8 +183,7 @@ impl HybridCoulombLogarithm {
             Self::compute_hybrid_coulomb_log_for_energy(
                 warm_target_factor_for_energy,
                 &self.coulomb_log,
-                self.electron_to_hydrogen_ratio,
-                self.hydrogen_ionization_fraction,
+                &self.abundances,
             )
         } else {
             self.for_energy_cold_target
@@ -217,20 +202,17 @@ impl HybridCoulombLogarithm {
                 for_energy: Self::compute_hybrid_coulomb_log_for_energy(
                     warm_target_factor_for_energy,
                     &self.coulomb_log,
-                    self.electron_to_hydrogen_ratio,
-                    self.hydrogen_ionization_fraction,
+                    &self.abundances,
                 ),
                 for_pitch_angle: Self::compute_hybrid_coulomb_log_for_pitch_angle(
                     warm_target_factor_for_pitch_angle,
                     &self.coulomb_log,
-                    self.electron_to_hydrogen_ratio,
-                    self.hydrogen_ionization_fraction,
+                    &self.abundances,
                 ),
                 for_flux_spectrum: Self::compute_hybrid_coulomb_log_for_flux_spectrum(
                     warm_target_factor_for_flux_spectrum,
                     &self.coulomb_log,
-                    self.electron_to_hydrogen_ratio,
-                    self.hydrogen_ionization_fraction,
+                    &self.abundances,
                 ),
             }
         } else {
@@ -256,14 +238,12 @@ impl HybridCoulombLogarithm {
                 for_energy: Self::compute_hybrid_coulomb_log_for_energy(
                     warm_target_factor_for_energy,
                     &self.coulomb_log,
-                    self.electron_to_hydrogen_ratio,
-                    self.hydrogen_ionization_fraction,
+                    &self.abundances,
                 ),
                 for_pitch_angle: Self::compute_hybrid_coulomb_log_for_pitch_angle(
                     warm_target_factor_for_pitch_angle,
                     &self.coulomb_log,
-                    self.electron_to_hydrogen_ratio,
-                    self.hydrogen_ionization_fraction,
+                    &self.abundances,
                 ),
             }
         } else {
@@ -276,68 +256,82 @@ impl HybridCoulombLogarithm {
 
     fn compute_cold_target_hybrid_coulomb_log_for_energy(
         coulomb_log: &CoulombLogarithm,
-        electron_to_hydrogen_ratio: feb,
-        hydrogen_ionization_fraction: feb,
+        abundances: &Abundances,
     ) -> feb {
-        electron_to_hydrogen_ratio * coulomb_log.with_electrons_protons()
-            + (1.0 - hydrogen_ionization_fraction) * coulomb_log.with_neutral_hydrogen_for_energy()
+        Self::compute_hybrid_coulomb_log_for_energy(1.0, coulomb_log, abundances)
     }
 
     fn compute_hybrid_coulomb_log_for_energy(
         warm_target_factor: feb,
         coulomb_log: &CoulombLogarithm,
-        electron_to_hydrogen_ratio: feb,
-        hydrogen_ionization_fraction: feb,
+        abundances: &Abundances,
     ) -> feb {
-        warm_target_factor * electron_to_hydrogen_ratio * coulomb_log.with_electrons_protons()
-            + (1.0 - hydrogen_ionization_fraction) * coulomb_log.with_neutral_hydrogen_for_energy()
+        warm_target_factor
+            * abundances.electron_to_hydrogen_ratio()
+            * coulomb_log.with_electrons_protons()
+            + (1.0 - abundances.hydrogen_ionization_fraction()
+                + 2.0
+                    * (1.0
+                        - abundances.helium_first_ionization_fraction()
+                        - abundances.helium_second_ionization_fraction())
+                    * abundances.helium_to_hydrogen_ratio())
+                * coulomb_log.with_neutral_hydrogen_for_energy()
     }
 
     fn compute_cold_target_hybrid_coulomb_log_for_pitch_angle(
         coulomb_log: &CoulombLogarithm,
-        electron_to_hydrogen_ratio: feb,
-        hydrogen_ionization_fraction: feb,
+        abundances: &Abundances,
     ) -> feb {
-        (electron_to_hydrogen_ratio + hydrogen_ionization_fraction)
-            * coulomb_log.with_electrons_protons()
-            + (1.0 - hydrogen_ionization_fraction)
-                * coulomb_log.with_neutral_hydrogen_for_pitch_angle()
+        Self::compute_hybrid_coulomb_log_for_pitch_angle(1.0, coulomb_log, abundances)
     }
 
     fn compute_hybrid_coulomb_log_for_pitch_angle(
         warm_target_factor: feb,
         coulomb_log: &CoulombLogarithm,
-        electron_to_hydrogen_ratio: feb,
-        hydrogen_ionization_fraction: feb,
+        abundances: &Abundances,
     ) -> feb {
-        (warm_target_factor * electron_to_hydrogen_ratio + hydrogen_ionization_fraction)
+        (warm_target_factor * abundances.electron_to_hydrogen_ratio()
+            + abundances.hydrogen_ionization_fraction()
+            + (abundances.helium_first_ionization_fraction()
+                + 4.0 * abundances.helium_second_ionization_fraction())
+                * abundances.helium_to_hydrogen_ratio())
             * coulomb_log.with_electrons_protons()
-            + (1.0 - hydrogen_ionization_fraction)
+            + (1.0 - abundances.hydrogen_ionization_fraction()
+                + 4.0
+                    * (1.0
+                        - abundances.helium_first_ionization_fraction()
+                        - abundances.helium_second_ionization_fraction())
+                    * abundances.helium_to_hydrogen_ratio())
                 * coulomb_log.with_neutral_hydrogen_for_pitch_angle()
     }
 
     fn compute_cold_target_hybrid_coulomb_log_for_flux_spectrum(
         coulomb_log: &CoulombLogarithm,
-        electron_to_hydrogen_ratio: feb,
-        hydrogen_ionization_fraction: feb,
+        abundances: &Abundances,
     ) -> feb {
-        (electron_to_hydrogen_ratio - hydrogen_ionization_fraction)
-            * coulomb_log.with_electrons_protons()
-            + (1.0 - hydrogen_ionization_fraction)
-                * (2.0 * coulomb_log.with_neutral_hydrogen_for_energy()
-                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
+        Self::compute_hybrid_coulomb_log_for_flux_spectrum(1.0, coulomb_log, abundances)
     }
 
     fn compute_hybrid_coulomb_log_for_flux_spectrum(
         warm_target_factor: feb,
         coulomb_log: &CoulombLogarithm,
-        electron_to_hydrogen_ratio: feb,
-        hydrogen_ionization_fraction: feb,
+        abundances: &Abundances,
     ) -> feb {
-        (warm_target_factor * electron_to_hydrogen_ratio - hydrogen_ionization_fraction)
+        (warm_target_factor * abundances.electron_to_hydrogen_ratio()
+            - abundances.hydrogen_ionization_fraction()
+            - (abundances.helium_first_ionization_fraction()
+                + 4.0 * abundances.helium_second_ionization_fraction())
+                * abundances.helium_to_hydrogen_ratio())
             * coulomb_log.with_electrons_protons()
-            + (1.0 - hydrogen_ionization_fraction)
+            + (1.0 - abundances.hydrogen_ionization_fraction())
                 * (2.0 * coulomb_log.with_neutral_hydrogen_for_energy()
+                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
+            + 4.0
+                * (1.0
+                    - abundances.helium_first_ionization_fraction()
+                    - abundances.helium_second_ionization_fraction())
+                * abundances.helium_to_hydrogen_ratio()
+                * (coulomb_log.with_neutral_hydrogen_for_energy()
                     - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
     }
 }
@@ -452,16 +446,11 @@ impl<const N: usize> WarmTargetLookupTable<N> {
 /// Calculates electrical resistivity parallel to the magnetic field in cgs
 /// units, accounting for collisions of electrons with protons and neutral
 /// hydrogen.
-pub fn compute_parallel_resistivity(
-    temperature: feb,
-    total_hydrogen_density: feb,
-    electron_to_hydrogen_ratio: feb,
-    hydrogen_ionization_fraction: feb,
-) -> feb {
+pub fn compute_parallel_resistivity(temperature: feb, abundances: &Abundances) -> feb {
     let temperature_ev = KBOLTZMANN * temperature / EV_TO_ERG;
-    let electron_density = electron_to_hydrogen_ratio * total_hydrogen_density;
-    let proton_density = hydrogen_ionization_fraction * total_hydrogen_density;
-    let neutral_hydrogen_density = (1.0 - hydrogen_ionization_fraction) * total_hydrogen_density;
+    let electron_density = abundances.true_electron_density();
+    let proton_density = abundances.proton_density();
+    let neutral_hydrogen_density = abundances.neutral_hydrogen_density();
 
     let sqrt_temperature_ev = feb::sqrt(temperature_ev);
     let temperature_ev_to_neg_3_over_2 = 1.0 / sqrt_temperature_ev.powi(3);

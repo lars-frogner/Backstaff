@@ -45,6 +45,10 @@ pub const PIE2_MEC: fcn = 0.02654;
 pub const MC2_ELECTRON: fcn = M_ELECTRON * CLIGHT * CLIGHT;
 /// Ionization energy of an hydrogen atom [eV].
 pub const XI_H: fcn = 13.595;
+/// First ionization energy of a helium atom [eV].
+pub const XI_HEI: fcn = 24.587;
+/// Second ionization energy of a helium atom [eV].
+pub const XI_HEII: fcn = 54.418;
 
 // Unit conversion factors
 

@@ -99,6 +99,13 @@ pub fn create_characteristics_propagator_subcommand(
                 ),
         )
         .arg(
+            Arg::new("disable-helium-collisions")
+                .long("disable-helium-collisions")
+                .help(
+                    "Do not account for collisions with ambient helium when propagating a distribution",
+                ),
+        )
+        .arg(
             Arg::new("disable-ambient-electric-field")
                 .long("disable-ambient-electric-field")
                 .help(
@@ -251,6 +258,7 @@ pub fn construct_characteristics_propagator_config_from_options(
     let keep_initial_ionization_fraction = arguments.is_present("keep-initial-ionization-fraction");
     let assume_ambient_electrons_all_from_hydrogen =
         arguments.is_present("assume-ambient-electrons-all-from-hydrogen");
+    let include_helium_collisions = !arguments.is_present("disable-helium-collisions");
     let include_ambient_electric_field = !arguments.is_present("disable-ambient-electric-field");
     let include_return_current = !arguments.is_present("disable-return-current");
     let include_magnetic_mirroring = !arguments.is_present("disable-magnetic-mirroring");
@@ -297,7 +305,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         );
 
         let overwrite_detailed_output = arguments.is_present("overwrite-detailed-output");
-    
+
         if !overwrite_detailed_output {
             let dir_has_content = detailed_output_dir
                 .read_dir()
@@ -332,6 +340,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         n_substeps: 1,
         keep_initial_ionization_fraction,
         assume_ambient_electrons_all_from_hydrogen,
+        include_helium_collisions,
         include_ambient_electric_field,
         include_return_current,
         include_magnetic_mirroring,

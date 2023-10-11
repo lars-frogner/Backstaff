@@ -7,6 +7,7 @@ use super::atmosphere::{
 use crate::{
     constants::{KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON},
     ebeam::feb,
+    plasma::ionization::Abundances,
 };
 
 const COLLISION_SCALE: feb = 2.0 * PI * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON;
@@ -20,7 +21,6 @@ pub struct Transporter {
     include_induced_electric_field: bool,
     include_magnetic_field: bool,
     hybrid_coulomb_log: HybridCoulombLogarithm,
-    total_hydrogen_density: feb,
     temperature: feb,
     parallel_electron_flux_over_cross_section: feb,
     ambient_trajectory_aligned_electric_field: feb,
@@ -71,7 +71,6 @@ impl Transporter {
         initial_pitch_angle_cos: feb,
         initial_pitch_angle_cos_perturbed: feb,
         hybrid_coulomb_log: HybridCoulombLogarithm,
-        total_hydrogen_density: feb,
         temperature: feb,
         ambient_trajectory_aligned_electric_field: feb,
         magnetic_field_strength: feb,
@@ -96,12 +95,8 @@ impl Transporter {
         let high_energy_pitch_angle_cos = initial_pitch_angle_cos;
         let high_energy_pitch_angle_cos_perturbed = initial_pitch_angle_cos_perturbed;
 
-        let resistivity = compute_parallel_resistivity(
-            temperature,
-            total_hydrogen_density,
-            hybrid_coulomb_log.electron_to_hydrogen_ratio(),
-            hybrid_coulomb_log.hydrogen_ionization_fraction(),
-        );
+        let resistivity =
+            compute_parallel_resistivity(temperature, hybrid_coulomb_log.abundances());
 
         let return_current_heating_power_per_dist = 0.0;
 
@@ -110,7 +105,6 @@ impl Transporter {
             include_induced_electric_field,
             include_magnetic_field,
             hybrid_coulomb_log,
-            total_hydrogen_density,
             temperature,
             parallel_electron_flux_over_cross_section,
             ambient_trajectory_aligned_electric_field,
@@ -142,8 +136,12 @@ impl Transporter {
         &self.hybrid_coulomb_log
     }
 
+    pub fn abundances(&self) -> &Abundances {
+        self.hybrid_coulomb_log.abundances()
+    }
+
     pub fn log_magnetic_field_distance_deriv(&self) -> feb {
-        self.log_magnetic_field_col_depth_deriv * self.total_hydrogen_density
+        self.log_magnetic_field_col_depth_deriv * self.abundances().total_hydrogen_density()
     }
 
     pub fn energy_without_loss_to_electric_field(&self, energy: feb) -> feb {
@@ -161,7 +159,6 @@ impl Transporter {
     pub fn update_conditions(
         &mut self,
         hybrid_coulomb_log: HybridCoulombLogarithm,
-        total_hydrogen_density: feb,
         temperature: feb,
         ambient_trajectory_aligned_electric_field: feb,
         magnetic_field_strength: feb,
@@ -173,7 +170,6 @@ impl Transporter {
         col_depth_increase: feb,
     ) {
         self.hybrid_coulomb_log = hybrid_coulomb_log;
-        self.total_hydrogen_density = total_hydrogen_density;
         self.temperature = temperature;
 
         if self.include_magnetic_field {
@@ -225,12 +221,7 @@ impl Transporter {
             let parallel_electron_flux =
                 self.parallel_electron_flux_over_cross_section / beam_cross_sectional_area;
 
-            self.resistivity = compute_parallel_resistivity(
-                temperature,
-                self.total_hydrogen_density,
-                self.hybrid_coulomb_log.electron_to_hydrogen_ratio(),
-                self.hybrid_coulomb_log.hydrogen_ionization_fraction(),
-            );
+            self.resistivity = compute_parallel_resistivity(temperature, self.abundances());
 
             // Because the induced field depends on the flux, which depends
             // on the energy derivative, which depends on the electric field,
@@ -262,7 +253,9 @@ impl Transporter {
             Self::update_energy_loss_to_electric_field(
                 &mut self.energy_loss_to_electric_field,
                 self.total_trajectory_aligned_electric_field,
-                self.total_hydrogen_density,
+                self.hybrid_coulomb_log
+                    .abundances()
+                    .total_hydrogen_density(),
                 col_depth_increase,
             );
         } else {
@@ -931,7 +924,7 @@ impl Transporter {
     ) -> feb {
         -COLLISION_SCALE * hybrid_coulomb_log_for_energy / (pitch_angle_cos * energy)
             - Q_ELECTRON * self.total_trajectory_aligned_electric_field
-                / self.total_hydrogen_density
+                / self.abundances().total_hydrogen_density()
     }
 
     fn compute_collisional_energy_time_deriv_with_hybrid_coulomb_log(
@@ -941,7 +934,7 @@ impl Transporter {
     ) -> feb {
         -COLLISION_SCALE
             * hybrid_coulomb_log_for_energy
-            * self.total_hydrogen_density
+            * self.abundances().total_hydrogen_density()
             * feb::sqrt(2.0 * energy / M_ELECTRON)
             / energy
     }
@@ -955,7 +948,7 @@ impl Transporter {
         -COLLISION_SCALE * hybrid_coulomb_log_for_pitch_angle / (2.0 * energy * energy)
             - (self.log_magnetic_field_col_depth_deriv
                 + Q_ELECTRON * self.total_trajectory_aligned_electric_field
-                    / (self.total_hydrogen_density * energy))
+                    / (self.abundances().total_hydrogen_density() * energy))
                 * (1.0 - pitch_angle_cos * pitch_angle_cos)
                 / (2.0 * pitch_angle_cos)
     }
@@ -970,7 +963,7 @@ impl Transporter {
         -COLLISION_SCALE * hybrid_coulomb_log_for_flux_spectrum * electron_flux
             / (2.0 * pitch_angle_cos * energy * energy)
             - Q_ELECTRON * self.total_trajectory_aligned_electric_field * electron_flux
-                / (self.total_hydrogen_density * energy)
+                / (self.abundances().total_hydrogen_density() * energy)
     }
 }
 

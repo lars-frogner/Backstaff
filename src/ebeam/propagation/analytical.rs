@@ -79,7 +79,10 @@ pub struct AnalyticalPropagator {
 
 impl AnalyticalPropagator {
     /// Fraction of a mass of plasma assumed to be made up of hydrogen.
-    const HYDROGEN_MASS_FRACTION: feb = 0.735;
+    pub const HYDROGEN_MASS_FRACTION: feb = 0.735;
+
+    /// Fraction of a mass of plasma assumed to be made up of hydrogen.
+    pub const HELIUM_MASS_FRACTION: feb = 0.249;
 
     /// `2*pi*(electron charge [esu])^4/(1 keV [erg])^2`
     const COLLISION_SCALE: feb =
