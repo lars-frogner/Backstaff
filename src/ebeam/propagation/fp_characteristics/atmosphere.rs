@@ -317,22 +317,16 @@ impl HybridCoulombLogarithm {
         coulomb_log: &CoulombLogarithm,
         abundances: &Abundances,
     ) -> feb {
-        (warm_target_factor * abundances.electron_to_hydrogen_ratio()
-            - abundances.hydrogen_ionization_fraction()
-            - (abundances.helium_first_ionization_fraction()
-                + 4.0 * abundances.helium_second_ionization_fraction())
-                * abundances.helium_to_hydrogen_ratio())
+        warm_target_factor
+            * abundances.electron_to_hydrogen_ratio()
             * coulomb_log.with_electrons_protons()
-            + (1.0 - abundances.hydrogen_ionization_fraction())
-                * (2.0 * coulomb_log.with_neutral_hydrogen_for_energy()
-                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
-            + 4.0
-                * (1.0
-                    - abundances.helium_first_ionization_fraction()
-                    - abundances.helium_second_ionization_fraction())
-                * abundances.helium_to_hydrogen_ratio()
-                * (coulomb_log.with_neutral_hydrogen_for_energy()
-                    - coulomb_log.with_neutral_hydrogen_for_pitch_angle())
+            + (1.0 - abundances.hydrogen_ionization_fraction()
+                + 2.0
+                    * (1.0
+                        - abundances.helium_first_ionization_fraction()
+                        - abundances.helium_second_ionization_fraction())
+                    * abundances.helium_to_hydrogen_ratio())
+                * coulomb_log.with_neutral_hydrogen_for_energy()
     }
 }
 
@@ -351,7 +345,7 @@ impl WarmTarget {
         WarmTargetHybridCoulombLogFactors {
             for_energy: erf - 2.0 * u_erf_deriv,
             for_pitch_angle: erf - G,
-            for_flux_spectrum: erf - (4.0 * u * u + 3.0) * u_erf_deriv + G,
+            for_flux_spectrum: erf - (2.0 * u * u + 1.5) * u_erf_deriv,
         }
     }
 

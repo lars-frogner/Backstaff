@@ -238,7 +238,7 @@ impl Transporter {
             self.return_current_heating_power_per_dist =
                 Self::compute_resistive_heating_power_density(
                     self.resistivity,
-                    self.parallel_electron_flux_over_cross_section / beam_cross_sectional_area,
+                    parallel_electron_flux,
                 ) * beam_cross_sectional_area;
         } else {
             self.induced_trajectory_aligned_electric_field = 0.0;
@@ -332,7 +332,7 @@ impl Transporter {
                         -self.compute_collisional_energy_time_deriv(energy)
                             * area_weighted_flux
                             * jacobian
-                            / feb::sqrt(2.0 * energy / M_ELECTRON)
+                            / (pitch_angle_cos * feb::sqrt(2.0 * energy / M_ELECTRON))
                     }
                 },
             )
@@ -365,26 +365,21 @@ impl Transporter {
 
         let mut first_nonzero_idx = None;
 
-        let flux_energy_derivs: Vec<_> = pitch_angle_cosines
+        let flux_energy_derivs: Vec<_> = area_weighted_flux_spectrum
             .iter()
-            .zip(area_weighted_flux_spectrum.iter())
             .zip(jacobians.iter())
             .enumerate()
-            .map(
-                |(idx, ((&pitch_angle_cos, &area_weighted_flux), &jacobian))| {
-                    if pitch_angle_cos <= THERMALIZATION_PITCH_ANGLE_COS
-                        || area_weighted_flux <= 0.0
-                    {
-                        0.0
-                    } else {
-                        if first_nonzero_idx.is_none() {
-                            first_nonzero_idx = Some(idx);
-                        }
-
-                        pitch_angle_cos * area_weighted_flux * jacobian
+            .map(|(idx, (&area_weighted_flux, &jacobian))| {
+                if area_weighted_flux <= 0.0 {
+                    0.0
+                } else {
+                    if first_nonzero_idx.is_none() {
+                        first_nonzero_idx = Some(idx);
                     }
-                },
-            )
+
+                    area_weighted_flux * jacobian
+                }
+            })
             .collect();
 
         let first_nonzero_idx = first_nonzero_idx.unwrap_or(0);
@@ -961,9 +956,15 @@ impl Transporter {
         hybrid_coulomb_log_for_flux_spectrum: feb,
     ) -> feb {
         -COLLISION_SCALE * hybrid_coulomb_log_for_flux_spectrum * electron_flux
-            / (2.0 * pitch_angle_cos * energy * energy)
-            - Q_ELECTRON * self.total_trajectory_aligned_electric_field * electron_flux
+            / (pitch_angle_cos * energy * energy)
+            - ((1.0 + pitch_angle_cos * pitch_angle_cos)
+                * Q_ELECTRON
+                * self.total_trajectory_aligned_electric_field
                 / (self.abundances().total_hydrogen_density() * energy)
+                + (1.0 - pitch_angle_cos * pitch_angle_cos)
+                    * self.log_magnetic_field_col_depth_deriv)
+                * electron_flux
+                / (2.0 * pitch_angle_cos * pitch_angle_cos)
     }
 }
 

@@ -98,7 +98,7 @@ pub struct CharacteristicsPropagator {
     stepped_pitch_angle_cosines_perturbed: Vec<feb>,
     step_count: usize,
     prev_n_substeps: usize,
-    injected_parallel_electron_flux_over_cross_section: feb,
+    total_injected_electron_flux_over_cross_section: feb,
     distance: feb,
     detailed_output: Option<DetailedOutput>,
 }
@@ -585,9 +585,8 @@ impl CharacteristicsPropagator {
                             self.distribution.total_power,
                             self.distribution.lower_cutoff_energy * KEV_TO_ERG,
                             self.distribution.delta,
-                            self.distribution.initial_pitch_angle_cosine,
                             *initial_energy,
-                        );
+                        ) * self.transporter.high_energy_pitch_angle_cos() / self.distribution.initial_pitch_angle_cosine;
 
                     *pitch_angle_cosine_perturbed =
                         self.transporter.high_energy_pitch_angle_cos_perturbed();
@@ -678,8 +677,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
 
             let lower_cutoff_energy = distribution.lower_cutoff_energy * KEV_TO_ERG;
 
-            let injected_parallel_electron_flux_over_cross_section =
-                PowerLawDistribution::compute_injected_parallel_electron_flux_over_cross_section(
+            let total_injected_electron_flux_over_cross_section =
+                PowerLawDistribution::compute_total_injected_electron_flux_over_cross_section(
                     distribution.total_power,
                     lower_cutoff_energy,
                     distribution.delta,
@@ -693,7 +692,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 config.include_ambient_electric_field,
                 config.include_return_current,
                 config.include_magnetic_mirroring,
-                injected_parallel_electron_flux_over_cross_section,
+                total_injected_electron_flux_over_cross_section,
                 distribution.initial_pitch_angle_cosine,
                 initial_pitch_angle_cos_perturbed,
                 hybrid_coulomb_log,
@@ -732,7 +731,6 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                             distribution.total_power,
                             lower_cutoff_energy,
                             distribution.delta,
-                            distribution.initial_pitch_angle_cosine,
                             energy,
                         )
                     } else {
@@ -771,7 +769,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 Some(DetailedOutput::new(
                     distribution.ambient_mass_density,
                     0.0,
-                    injected_parallel_electron_flux_over_cross_section,
+                    total_injected_electron_flux_over_cross_section,
                     transporter.induced_trajectory_aligned_electric_field(),
                     energies.clone(),
                     initial_energies.clone(),
@@ -810,7 +808,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 stepped_energies_perturbed,
                 log10_stepped_energies_perturbed,
                 stepped_pitch_angle_cosines_perturbed,
-                injected_parallel_electron_flux_over_cross_section,
+                total_injected_electron_flux_over_cross_section,
                 distance: 0.0,
                 step_count: 0,
                 prev_n_substeps: 0,
@@ -1014,7 +1012,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let deposited_power_density = deposited_power / grid_cell_volume;
 
         let remaining_flux_fraction = self.transporter.parallel_electron_flux_over_cross_section()
-            / self.injected_parallel_electron_flux_over_cross_section;
+            / self.total_injected_electron_flux_over_cross_section;
 
         self.step_count += 1;
 

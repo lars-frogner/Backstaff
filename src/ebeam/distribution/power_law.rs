@@ -94,15 +94,13 @@ impl PowerLawDistribution {
         total_power: feb,
         lower_cutoff_energy: feb,
         delta: feb,
-        initial_pitch_angle_cosine: feb,
         energy: feb,
     ) -> feb {
-        (total_power * (delta - 2.0)
-            / (initial_pitch_angle_cosine * feb::powi(lower_cutoff_energy, 2)))
+        (total_power * (delta - 2.0) / feb::powi(lower_cutoff_energy, 2))
             * (lower_cutoff_energy / energy).powf(delta)
     }
 
-    pub fn compute_injected_parallel_electron_flux_over_cross_section(
+    pub fn compute_total_injected_electron_flux_over_cross_section(
         total_power: feb,
         lower_cutoff_energy: feb,
         delta: feb,
