@@ -59,6 +59,7 @@ pub struct CharacteristicsPropagatorConfig {
     pub include_ambient_electric_field: bool,
     pub include_return_current: bool,
     pub include_magnetic_mirroring: bool,
+    pub include_gyromagnetic_radiation: bool,
     pub enable_warm_target: bool,
     pub min_depletion_distance: feb,
     pub min_remaining_flux_fraction: feb,
@@ -574,9 +575,10 @@ impl CharacteristicsPropagator {
 
                     *energy = feb::powf(10.0, *log10_energy);
 
-                    *initial_energy = self
-                        .transporter
-                        .energy_without_loss_to_electric_field(*energy);
+                    *initial_energy = feb::max(
+                        self.transporter.energy_without_loss_to_electric_field(*energy),
+                        self.transporter.energy_without_loss_to_gyromagnetic_radiation(*energy),
+                    );
 
                     *pitch_angle_cosine = self.transporter.high_energy_pitch_angle_cos();
 
@@ -669,11 +671,12 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 0.0
             };
 
-            let magnetic_field_strength = if config.include_magnetic_mirroring {
-                distribution.ambient_magnetic_field_strength
-            } else {
-                0.0
-            };
+            let magnetic_field_strength =
+                if config.include_magnetic_mirroring || config.include_gyromagnetic_radiation {
+                    distribution.ambient_magnetic_field_strength
+                } else {
+                    0.0
+                };
 
             let lower_cutoff_energy = distribution.lower_cutoff_energy * KEV_TO_ERG;
 
@@ -692,6 +695,7 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 config.include_ambient_electric_field,
                 config.include_return_current,
                 config.include_magnetic_mirroring,
+                config.include_gyromagnetic_radiation,
                 total_injected_electron_flux_over_cross_section,
                 distribution.initial_pitch_angle_cosine,
                 initial_pitch_angle_cos_perturbed,
@@ -880,7 +884,10 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
         let mut magnetic_field_strength = 0.0;
 
         #[allow(clippy::useless_conversion)]
-        if self.config.include_magnetic_mirroring || self.config.include_ambient_electric_field {
+        if self.config.include_magnetic_mirroring
+            || self.config.include_ambient_electric_field
+            || self.config.include_gyromagnetic_radiation
+        {
             let magnetic_field = snapshot.cached_vector_field("b");
             let mut magnetic_field_direction = interpolator.interp_vector_field_known_cell(
                 magnetic_field,
@@ -888,7 +895,8 @@ impl Propagator<PowerLawDistribution> for CharacteristicsPropagator {
                 &deposition_indices,
             );
 
-            if self.config.include_magnetic_mirroring {
+            if self.config.include_magnetic_mirroring || self.config.include_gyromagnetic_radiation
+            {
                 magnetic_field_strength =
                     feb::from(magnetic_field_direction.normalize_and_get_length()) * (*U_B);
             } else {
@@ -1311,6 +1319,7 @@ impl CharacteristicsPropagatorConfig {
     pub const DEFAULT_AMBIENT_ELECTRIC_FIELD: bool = false;
     pub const DEFAULT_INCLUDE_RETURN_CURRENT: bool = false;
     pub const DEFAULT_INCLUDE_MAGNETIC_MIRRORING: bool = false;
+    pub const DEFAULT_INCLUDE_GYROMAGNETIC_RADIATION: bool = false;
     pub const DEFAULT_ENABLE_WARM_TARGET: bool = false;
     pub const DEFAULT_MIN_DEPLETION_DISTANCE: feb = 0.5; // [Mm]
     pub const DEFAULT_MIN_REMAINING_FLUX_FRACTION: feb = 1e-5;
@@ -1371,6 +1380,7 @@ impl CharacteristicsPropagatorConfig {
             include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
+            include_gyromagnetic_radiation: Self::DEFAULT_INCLUDE_GYROMAGNETIC_RADIATION,
             enable_warm_target: Self::DEFAULT_ENABLE_WARM_TARGET,
             min_depletion_distance,
             min_residual_factor,
@@ -1453,6 +1463,7 @@ impl Default for CharacteristicsPropagatorConfig {
             include_ambient_electric_field: Self::DEFAULT_AMBIENT_ELECTRIC_FIELD,
             include_return_current: Self::DEFAULT_INCLUDE_RETURN_CURRENT,
             include_magnetic_mirroring: Self::DEFAULT_INCLUDE_MAGNETIC_MIRRORING,
+            include_gyromagnetic_radiation: Self::DEFAULT_INCLUDE_GYROMAGNETIC_RADIATION,
             enable_warm_target: Self::DEFAULT_ENABLE_WARM_TARGET,
             min_depletion_distance: Self::DEFAULT_MIN_DEPLETION_DISTANCE,
             min_residual_factor: Self::DEFAULT_MIN_RESIDUAL_FACTOR,

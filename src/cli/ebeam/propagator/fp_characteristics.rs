@@ -127,6 +127,13 @@ pub fn create_characteristics_propagator_subcommand(
                 ),
         )
         .arg(
+            Arg::new("disable-gyromagnetic-radiation")
+                .long("disable-gyromagnetic-radiation")
+                .help(
+                    "Do not account for gyromagnetic radiation when propagating a distribution",
+                ),
+        )
+        .arg(
             Arg::new("enable-warm-target")
                 .long("enable-warm-target")
                 .help(
@@ -262,6 +269,7 @@ pub fn construct_characteristics_propagator_config_from_options(
     let include_ambient_electric_field = !arguments.is_present("disable-ambient-electric-field");
     let include_return_current = !arguments.is_present("disable-return-current");
     let include_magnetic_mirroring = !arguments.is_present("disable-magnetic-mirroring");
+    let include_gyromagnetic_radiation = !arguments.is_present("disable-gyromagnetic-radiation");
     let enable_warm_target = arguments.is_present("enable-warm-target");
 
     let min_remaining_flux_fraction = utils::get_value_from_required_parseable_argument::<feb>(
@@ -344,6 +352,7 @@ pub fn construct_characteristics_propagator_config_from_options(
         include_ambient_electric_field,
         include_return_current,
         include_magnetic_mirroring,
+        include_gyromagnetic_radiation,
         enable_warm_target,
         min_depletion_distance,
         min_remaining_flux_fraction,

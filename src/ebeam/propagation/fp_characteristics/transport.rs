@@ -5,12 +5,16 @@ use super::atmosphere::{
     EvaluatedHydrogenCoulombLogarithmsForEnergyAndPitchAngle, HybridCoulombLogarithm,
 };
 use crate::{
-    constants::{KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON},
+    constants::{CLIGHT, KEV_TO_ERG, M_ELECTRON, PI, Q_ELECTRON},
     ebeam::feb,
     plasma::ionization::Abundances,
 };
 
 const COLLISION_SCALE: feb = 2.0 * PI * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON;
+
+const GYROMAGNETIC_RADIATION_SCALE_E: feb = 2.0 * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON * Q_ELECTRON
+    / (3.0 * CLIGHT * CLIGHT * CLIGHT * CLIGHT * CLIGHT * M_ELECTRON * M_ELECTRON);
+const GYROMAGNETIC_RADIATION_SCALE_MU: feb = GYROMAGNETIC_RADIATION_SCALE_E / M_ELECTRON;
 
 const THERMALIZATION_ENERGY: feb = 0.0 * 0.01 * KEV_TO_ERG;
 const THERMALIZATION_PITCH_ANGLE_COS: feb = 0.0 * 0.01;
@@ -20,6 +24,7 @@ pub struct Transporter {
     include_ambient_electric_field: bool,
     include_induced_electric_field: bool,
     include_magnetic_field: bool,
+    include_gyromagnetic_radiation: bool,
     hybrid_coulomb_log: HybridCoulombLogarithm,
     temperature: feb,
     parallel_electron_flux_over_cross_section: feb,
@@ -27,10 +32,12 @@ pub struct Transporter {
     induced_trajectory_aligned_electric_field: feb,
     total_trajectory_aligned_electric_field: feb,
     magnetic_field_strength: feb,
+    squared_magnetic_field_strength_for_radiation: feb,
     resistivity: feb,
     return_current_heating_power_per_dist: feb,
     log_magnetic_field_col_depth_deriv: feb,
     energy_loss_to_electric_field: feb,
+    speed_loss_to_gyromagnetic_radiation: feb,
     high_energy_pitch_angle_cos: feb,
     high_energy_pitch_angle_cos_perturbed: feb,
 }
@@ -67,6 +74,7 @@ impl Transporter {
         include_ambient_electric_field: bool,
         include_induced_electric_field: bool,
         include_magnetic_field: bool,
+        include_gyromagnetic_radiation: bool,
         parallel_electron_flux_over_cross_section: feb,
         initial_pitch_angle_cos: feb,
         initial_pitch_angle_cos_perturbed: feb,
@@ -82,6 +90,12 @@ impl Transporter {
         };
         let log_magnetic_field_col_depth_deriv = 0.0;
 
+        let squared_magnetic_field_strength_for_radiation = if include_gyromagnetic_radiation {
+            magnetic_field_strength * magnetic_field_strength
+        } else {
+            0.0
+        };
+
         let ambient_trajectory_aligned_electric_field = if include_ambient_electric_field {
             ambient_trajectory_aligned_electric_field
         } else {
@@ -92,6 +106,7 @@ impl Transporter {
             ambient_trajectory_aligned_electric_field + induced_trajectory_aligned_electric_field;
 
         let energy_loss_to_electric_field = 0.0;
+        let speed_loss_to_gyromagnetic_radiation = 0.0;
         let high_energy_pitch_angle_cos = initial_pitch_angle_cos;
         let high_energy_pitch_angle_cos_perturbed = initial_pitch_angle_cos_perturbed;
 
@@ -104,6 +119,7 @@ impl Transporter {
             include_ambient_electric_field,
             include_induced_electric_field,
             include_magnetic_field,
+            include_gyromagnetic_radiation,
             hybrid_coulomb_log,
             temperature,
             parallel_electron_flux_over_cross_section,
@@ -111,10 +127,12 @@ impl Transporter {
             induced_trajectory_aligned_electric_field,
             total_trajectory_aligned_electric_field,
             magnetic_field_strength,
+            squared_magnetic_field_strength_for_radiation,
             resistivity,
             return_current_heating_power_per_dist,
             log_magnetic_field_col_depth_deriv,
             energy_loss_to_electric_field,
+            speed_loss_to_gyromagnetic_radiation,
             high_energy_pitch_angle_cos,
             high_energy_pitch_angle_cos_perturbed,
         }
@@ -146,6 +164,12 @@ impl Transporter {
 
     pub fn energy_without_loss_to_electric_field(&self, energy: feb) -> feb {
         energy + self.energy_loss_to_electric_field
+    }
+
+    pub fn energy_without_loss_to_gyromagnetic_radiation(&self, energy: feb) -> feb {
+        0.5 * M_ELECTRON
+            * (feb::sqrt(2.0 * energy / M_ELECTRON) + self.speed_loss_to_gyromagnetic_radiation)
+                .powi(2)
     }
 
     pub fn high_energy_pitch_angle_cos(&self) -> feb {
@@ -196,6 +220,13 @@ impl Transporter {
             self.magnetic_field_strength = 0.0;
             self.log_magnetic_field_col_depth_deriv = 0.0;
         }
+
+        self.squared_magnetic_field_strength_for_radiation = if self.include_gyromagnetic_radiation
+        {
+            magnetic_field_strength * magnetic_field_strength
+        } else {
+            0.0
+        };
 
         if self.include_ambient_electric_field {
             self.ambient_trajectory_aligned_electric_field =
@@ -260,6 +291,18 @@ impl Transporter {
             );
         } else {
             self.total_trajectory_aligned_electric_field = 0.0;
+        }
+
+        if self.include_gyromagnetic_radiation {
+            Self::update_speed_loss_to_gyromagnetic_radiation(
+                &mut self.speed_loss_to_gyromagnetic_radiation,
+                self.squared_magnetic_field_strength_for_radiation,
+                self.high_energy_pitch_angle_cos,
+                self.hybrid_coulomb_log
+                    .abundances()
+                    .total_hydrogen_density(),
+                col_depth_increase,
+            );
         }
     }
 
@@ -427,6 +470,20 @@ impl Transporter {
     ) {
         *energy_loss_to_electric_field += (Q_ELECTRON * total_trajectory_aligned_electric_field
             / total_hydrogen_density)
+            * col_depth_increase;
+    }
+
+    fn update_speed_loss_to_gyromagnetic_radiation(
+        speed_loss_to_gyromagnetic_radiation: &mut feb,
+        squared_magnetic_field_strength: feb,
+        pitch_angle_cos: feb,
+        total_hydrogen_density: feb,
+        col_depth_increase: feb,
+    ) {
+        *speed_loss_to_gyromagnetic_radiation += (GYROMAGNETIC_RADIATION_SCALE_MU
+            * (1.0 - pitch_angle_cos * pitch_angle_cos)
+            * squared_magnetic_field_strength
+            / (pitch_angle_cos * total_hydrogen_density))
             * col_depth_increase;
     }
 
@@ -918,7 +975,12 @@ impl Transporter {
         hybrid_coulomb_log_for_energy: feb,
     ) -> feb {
         -COLLISION_SCALE * hybrid_coulomb_log_for_energy / (pitch_angle_cos * energy)
-            - Q_ELECTRON * self.total_trajectory_aligned_electric_field
+            - (Q_ELECTRON * self.total_trajectory_aligned_electric_field
+                + GYROMAGNETIC_RADIATION_SCALE_E
+                    * (1.0 - pitch_angle_cos * pitch_angle_cos)
+                    * feb::sqrt(2.0 * energy / M_ELECTRON)
+                    * self.squared_magnetic_field_strength_for_radiation
+                    / pitch_angle_cos)
                 / self.abundances().total_hydrogen_density()
     }
 
@@ -946,6 +1008,11 @@ impl Transporter {
                     / (self.abundances().total_hydrogen_density() * energy))
                 * (1.0 - pitch_angle_cos * pitch_angle_cos)
                 / (2.0 * pitch_angle_cos)
+            + GYROMAGNETIC_RADIATION_SCALE_MU
+                * (1.0 - pitch_angle_cos * pitch_angle_cos)
+                * self.squared_magnetic_field_strength_for_radiation
+                / (feb::sqrt(2.0 * energy / M_ELECTRON)
+                    * self.abundances().total_hydrogen_density())
     }
 
     fn compute_flux_spectrum_col_depth_deriv_with_hybrid_coulomb_log(
@@ -965,6 +1032,13 @@ impl Transporter {
                     * self.log_magnetic_field_col_depth_deriv)
                 * electron_flux
                 / (2.0 * pitch_angle_cos * pitch_angle_cos)
+            - GYROMAGNETIC_RADIATION_SCALE_MU
+                * (1.0 - pitch_angle_cos * pitch_angle_cos)
+                * self.squared_magnetic_field_strength_for_radiation
+                * electron_flux
+                / (pitch_angle_cos
+                    * feb::sqrt(2.0 * energy / M_ELECTRON)
+                    * self.abundances().total_hydrogen_density())
     }
 }
 
