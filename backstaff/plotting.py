@@ -320,6 +320,7 @@ def render(
     tight_layout=True,
     bbox_extra_artists=None,
     bbox_inches="tight",
+    pad_inches=0.03,
     output_path=None,
     force_show=False,
     close=True,
@@ -329,7 +330,7 @@ def render(
     if output_path is not None:
         fig.savefig(
             output_path,
-            pad_inches=0.1,
+            pad_inches=pad_inches,
             bbox_extra_artists=bbox_extra_artists,
             bbox_inches=bbox_inches,
         )
@@ -373,7 +374,7 @@ def plot_1d_field(
 
     if fig is None or ax is None:
         fig, ax = create_2d_subplots(**fig_kwargs)
-    (lines,) = ax.plot(
+    lines = ax.plot(
         coords,
         values,
         color=color,
@@ -839,6 +840,7 @@ def plot_scatter(
     output_path=None,
     fig_kwargs={},
     render_now=True,
+    return_norm_and_cmap=False,
 ):
 
     broken_x = (
@@ -1017,7 +1019,10 @@ def plot_scatter(
     if render_now:
         render(fig, output_path=output_path, tight_layout=False)
 
-    return fig, (axes[0] if len(axes) == 1 else axes)
+    if return_norm_and_cmap:
+        return fig, (axes[0] if len(axes) == 1 else axes), norm, cmap
+    else:
+        return fig, (axes[0] if len(axes) == 1 else axes)
 
 
 def plot_scatter_with_histograms(
@@ -1907,6 +1912,12 @@ CUSTOM_COLORMAPS = {
                 plt.get_cmap("Oranges")(np.linspace(0, 1, 256)),
             )
         ),
+        bad_color="white",
+        N=513,
+    ),
+    "dlnbds": define_linear_segmented_colormap(
+        "",
+        ["#0052A3", "0.94", "#8E151D"],
         bad_color="white",
         N=513,
     ),

@@ -17,7 +17,6 @@ except ModuleNotFoundError:
 
 
 class ElectronBeamSwarm(field_lines.FieldLineSet3):
-
     VALUE_DESCRIPTIONS = {
         "x": r"$x$ [Mm]",
         "y": r"$y$ [Mm]",
@@ -70,6 +69,9 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         "magnetic_flux_density": r"$|B|$ [G]",
         "timescale_of_relative_internal_energy_change": "Timescale of relative interal energy change [s]",
         "rate_of_relative_internal_energy_change": "Rate of relative interal energy change [1/s]",
+        "relative_magnetic_flux_density_change": r"$\mathrm{{dln}}B/\mathrm{{d}}s$ [1/Mm]",
+        "column_mass": r'Column mass [g/cm$^2$]',
+        "parallel_electric_field": r"$\mathcal{{E}}_\parallel$ [statV/cm]",
     }
 
     VALUE_UNIT_CONVERTERS = {
@@ -83,6 +85,10 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         "bx": lambda f: f * units.U_B,
         "by": lambda f: f * units.U_B,
         "bz": lambda f: f * units.U_B,
+        "b": lambda f: f * units.U_B,
+        "ex": lambda f: f * units.U_EL,
+        "ey": lambda f: f * units.U_EL,
+        "ez": lambda f: f * units.U_EL,
         "b": lambda f: f * units.U_B,
         "p": lambda f: f * units.U_E,
         "ux": lambda f: f * units.U_U,
@@ -203,7 +209,6 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         return self.get_acceleration_data("acceleration_sites")
 
     def _derive_quantities(self, derived_quantities):
-
         super()._derive_quantities(derived_quantities)
 
         if "initial_pitch_angle" in derived_quantities:
@@ -288,12 +293,12 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
         if "acceleration_induced_electric_field" in derived_quantities:
             self._obtain_acceleration_induced_electric_fields()
 
-        if "parallel_electric_field" in derived_quantities:
-            self._obtain_parallel_electric_fields()
+        if "acceleration_parallel_electric_field" in derived_quantities:
+            self._obtain_acceleration_parallel_electric_fields()
 
         if "relative_acceleration_induced_electric_field" in derived_quantities:
             E_induced = self._obtain_acceleration_induced_electric_fields()
-            E = np.abs(self._obtain_parallel_electric_fields())
+            E = np.abs(self._obtain_acceleration_parallel_electric_fields())
             self.fixed_scalar_values["relative_acceleration_induced_electric_field"] = (
                 E_induced / E
             )
@@ -371,6 +376,12 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                     * units.U_E
                     / units.U_T
                 )
+
+        if "column_mass" in derived_quantities:
+            self.varying_scalar_values["column_mass"] = [
+                np.cumsum(self.varying_scalar_values["s"][i]*self.varying_scalar_values["r"][i]*units.U_L*units.U_R)
+                for i in range(self.get_number_of_beams())
+            ]
 
         if "cumulative_power" in derived_quantities:
             self.varying_scalar_values["cumulative_power"] = [
@@ -461,6 +472,23 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
                     + self.varying_scalar_values["bz"][i] ** 2
                 )
                 * units.U_B
+                for i in range(self.get_number_of_beams())
+            ]
+
+        if "parallel_electric_field" in derived_quantities:
+            self.varying_scalar_values["parallel_electric_field"] = [
+                (
+                    self.varying_scalar_values["ex"][i] * self.varying_scalar_values["bx"][i]
+                    + self.varying_scalar_values["ey"][i] * self.varying_scalar_values["by"][i]
+                    + self.varying_scalar_values["ez"][i] * self.varying_scalar_values["bz"][i]
+                )
+                / np.sqrt(
+                    self.varying_scalar_values["bx"][i] ** 2
+                    + self.varying_scalar_values["by"][i] ** 2
+                    + self.varying_scalar_values["bz"][i] ** 2
+                )
+                * units.U_EL
+                * self.fixed_scalar_values['propagation_sense'][i]
                 for i in range(self.get_number_of_beams())
             ]
 
@@ -664,7 +692,7 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
         return self.get_fixed_scalar_values("acceleration_induced_electric_field")
 
-    def _obtain_parallel_electric_fields(self):
+    def _obtain_acceleration_parallel_electric_fields(self):
         if not self.has_fixed_scalar_values("parallel_electric_field"):
             bx = self.get_fixed_scalar_values("bx0") * units.U_B
             by = self.get_fixed_scalar_values("by0") * units.U_B
@@ -728,7 +756,6 @@ class ElectronBeamSwarm(field_lines.FieldLineSet3):
 
 
 class AccelerationSites(field_lines.FieldLineSet3):
-
     VALUE_DESCRIPTIONS = ElectronBeamSwarm.VALUE_DESCRIPTIONS
     VALUE_UNIT_CONVERTERS = ElectronBeamSwarm.VALUE_UNIT_CONVERTERS
 
@@ -843,6 +870,12 @@ def plot_beam_value_2d_histogram(*args, **kwargs):
 
 def plot_beam_value_2d_histogram_difference(*args, **kwargs):
     return field_lines.plot_field_line_value_2d_histogram_difference(*args, **kwargs)
+
+
+def plot_beam_value_2d_histogram_difference_between_swarms(*args, **kwargs):
+    return field_lines.plot_field_line_value_2d_histogram_difference_between_sets(
+        *args, **kwargs
+    )
 
 
 def plot_beam_value_2d_histogram_comparison(*args, **kwargs):

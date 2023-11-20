@@ -93,8 +93,9 @@ U_TE = U_E / U_T * U_L
 U_L3 = U_L * U_L * U_L
 # Unit for magnetic flux density [gauss]
 U_B = U_U * np.sqrt(4.0 * np.pi * U_R)
-# Unit for electric field strength [V/m].
-U_EL = U_B * U_U * 1e-6
+# Unit for electric field strength [statV/cm]. (The first factor is to account
+# for that E is premultiplied with c in Bifrost)
+U_EL =  (1.0 / (CLIGHT / U_U)) * U_B * U_U / CLIGHT
 # Unit for power density [erg/s/cm^3]
 U_PD = U_E / U_T
 # Unit for power [erg/s]
